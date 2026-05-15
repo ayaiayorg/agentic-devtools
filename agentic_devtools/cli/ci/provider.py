@@ -157,3 +157,42 @@ class CIPlatformProvider(ABC):
         Returns:
             List of annotation messages.
         """
+
+    @abstractmethod
+    def dispatch_repair(
+        self,
+        pr_number: int,
+        head_sha: str,
+        repair_type: str,
+        failed_checks: list[CheckRunStatus],
+        review_comments: list[str],
+    ) -> int:
+        """Dispatch a repair by posting a @copilot comment on the PR.
+
+        Posts a PAT-authenticated comment tagging ``@copilot`` that begins
+        with ``@copilot`` (required for reliable AI agent session triggering).
+        The comment body includes failing CI details and/or review feedback
+        depending on the repair type.
+
+        Args:
+            pr_number: Pull request number.
+            head_sha: Current HEAD SHA for the PR.
+            repair_type: Type of repair (``"review"``, ``"ci"``, or ``"both"``).
+            failed_checks: List of failed check runs with details.
+            review_comments: List of Copilot review comment bodies to address.
+
+        Returns:
+            The ID of the posted comment.
+        """
+
+    @abstractmethod
+    def list_review_comments(self, pr_number: int, review_id: int) -> list[str]:
+        """List inline comments from a specific review.
+
+        Args:
+            pr_number: Pull request number.
+            review_id: ID of the review to list comments for.
+
+        Returns:
+            List of comment body texts.
+        """

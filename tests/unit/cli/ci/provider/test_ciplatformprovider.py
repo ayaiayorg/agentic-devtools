@@ -50,6 +50,19 @@ class _ConcreteProvider(CIPlatformProvider):
     def get_check_annotations(self, check_run_id: int, limit: int) -> list[str]:
         return ["annotation"]
 
+    def dispatch_repair(
+        self,
+        pr_number: int,
+        head_sha: str,
+        repair_type: str,
+        failed_checks: list[CheckRunStatus],
+        review_comments: list[str],
+    ) -> int:
+        return 200
+
+    def list_review_comments(self, pr_number: int, review_id: int) -> list[str]:
+        return ["review comment"]
+
 
 class TestCIPlatformProvider:
     """Tests for the CIPlatformProvider abstract base class."""
@@ -143,6 +156,8 @@ class TestCIPlatformProvider:
             "request_reviewer",
             "list_pr_files",
             "get_check_annotations",
+            "dispatch_repair",
+            "list_review_comments",
         }
         actual_abstracts = CIPlatformProvider.__abstractmethods__
         assert actual_abstracts == expected_methods

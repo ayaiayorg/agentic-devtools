@@ -131,3 +131,18 @@ class AzureDevOpsProvider(CIPlatformProvider):
     def get_check_annotations(self, check_run_id: int, limit: int) -> list[str]:
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.get_check_annotations() not yet implemented")
+
+    def dispatch_repair(
+        self,
+        pr_number: int,
+        head_sha: str,
+        repair_type: str,
+        failed_checks: list[CheckRunStatus],
+        review_comments: list[str],
+    ) -> int:
+        """Not implemented for ADO stub."""
+        raise NotImplementedError("AzureDevOpsProvider.dispatch_repair() not yet implemented")
+
+    def list_review_comments(self, pr_number: int, review_id: int) -> list[str]:
+        """Not implemented for ADO stub."""
+        raise NotImplementedError("AzureDevOpsProvider.list_review_comments() not yet implemented")

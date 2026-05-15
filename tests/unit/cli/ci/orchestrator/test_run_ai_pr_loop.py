@@ -10,6 +10,7 @@ from agentic_devtools.cli.ci.models import (
 )
 from agentic_devtools.cli.ci.orchestrator import (
     EXIT_GUARD_BLOCKED,
+    EXIT_REPAIR_DISPATCHED,
     EXIT_SUCCESS,
     run_ai_pr_loop,
 )
@@ -171,12 +172,15 @@ class TestRunAIPRLoop:
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_GUARD_BLOCKED
 
-    def test_changes_requested_waits(self) -> None:
+    def test_changes_requested_dispatches_repair(self) -> None:
         provider = _make_provider(reviews=[ReviewInfo(id=1, user="reviewer", state="CHANGES_REQUESTED", body="fix")])
+        provider.dispatch_repair.return_value = 200
+        provider.list_review_comments.return_value = ["fix this"]
         payload = EventPayload(pr_number=42, head_sha="abc123")
         result = run_ai_pr_loop(provider, payload)
-        assert result == EXIT_SUCCESS
+        assert result == EXIT_REPAIR_DISPATCHED
         provider.merge_pr.assert_not_called()
+        provider.dispatch_repair.assert_called_once()
 
     def test_merge_failure_returns_blocked(self) -> None:
         from agentic_devtools.cli.ci.orchestrator import EXIT_MERGE_BLOCKED

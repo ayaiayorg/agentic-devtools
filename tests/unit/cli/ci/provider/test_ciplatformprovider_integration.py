@@ -62,6 +62,19 @@ class _StubAdoProvider(CIPlatformProvider):
     def get_check_annotations(self, check_run_id: int, limit: int) -> list[str]:
         raise NotImplementedError("ADO provider stub")
 
+    def dispatch_repair(
+        self,
+        pr_number: int,
+        head_sha: str,
+        repair_type: str,
+        failed_checks: list[CheckRunStatus],
+        review_comments: list[str],
+    ) -> int:
+        raise NotImplementedError("ADO provider stub")
+
+    def list_review_comments(self, pr_number: int, review_id: int) -> list[str]:
+        raise NotImplementedError("ADO provider stub")
+
 
 class TestCIPlatformProviderIntegration:
     """Integration tests verifying the ABC contract is satisfiable by different providers."""
