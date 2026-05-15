@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Any
 
 from agentic_devtools.cli.ci.exceptions import MalformedEventError
@@ -24,7 +25,14 @@ from agentic_devtools.cli.subprocess_utils import run_safe
 logger = logging.getLogger(__name__)
 
 
-def _gh_api(endpoint: str, *, method: str = "GET", body: dict | None = None, paginate: bool = False) -> str:
+def _gh_api(
+    endpoint: str,
+    *,
+    method: str = "GET",
+    body: dict | None = None,
+    paginate: bool = False,
+    token: str | None = None,
+) -> str:
     """Call the GitHub API via the ``gh`` CLI.
 
     Args:
@@ -32,6 +40,9 @@ def _gh_api(endpoint: str, *, method: str = "GET", body: dict | None = None, pag
         method: HTTP method.
         body: JSON body for POST/PATCH/PUT requests.
         paginate: Whether to use --paginate for list endpoints.
+        token: Optional token to use instead of the default ``GH_TOKEN``.
+            When provided, the subprocess environment is overridden so that
+            ``gh`` authenticates with this token.
 
     Returns:
         Raw response body as string.
@@ -46,12 +57,17 @@ def _gh_api(endpoint: str, *, method: str = "GET", body: dict | None = None, pag
     if body is not None:
         cmd.extend(["--input", "-"])
 
+    env: dict[str, str] | None = None
+    if token:
+        env = {**os.environ, "GH_TOKEN": token}
+
     result = run_safe(
         cmd,
         capture_output=True,
         text=True,
         shell=False,
         input=json.dumps(body) if body else None,
+        env=env,
     )
 
     if result.returncode != 0:
@@ -59,11 +75,7 @@ def _gh_api(endpoint: str, *, method: str = "GET", body: dict | None = None, pag
         stderr_lower = stderr.lower()
         # GitHub rate limit responses — only match actual rate-limit indicators,
         # not generic 403 (which covers permissions, SSO, access restrictions).
-        if (
-            "rate limit" in stderr_lower
-            or "secondary rate limit" in stderr_lower
-            or "429" in stderr
-        ):
+        if "rate limit" in stderr_lower or "secondary rate limit" in stderr_lower or "429" in stderr:
             raise RetryableError(f"GitHub API rate limited: {stderr}")
         # Server errors are retryable
         if any(code in stderr for code in ("500", "502", "503", "504")):
@@ -106,10 +118,9 @@ def _parse_paginated_json(raw: str) -> Any:
         try:
             obj, end_idx = decoder.raw_decode(raw, idx)
         except json.JSONDecodeError as exc:
-            snippet = raw[idx:idx + 80]
+            snippet = raw[idx : idx + 80]
             raise json.JSONDecodeError(
-                f"Failed to parse concatenated JSON at index {idx} "
-                f"(snippet: {snippet!r}): {exc.msg}",
+                f"Failed to parse concatenated JSON at index {idx} (snippet: {snippet!r}): {exc.msg}",
                 raw,
                 idx,
             ) from exc
@@ -326,12 +337,38 @@ class GitHubActionsProvider(CIPlatformProvider):
 
     @retry_with_backoff()
     def approve_pr(self, pr_number: int, head_sha: str, body: str) -> None:
-        """Approve a pull request."""
-        _gh_api(
-            self._repo_api(f"/pulls/{pr_number}/reviews"),
-            method="POST",
-            body={"commit_id": head_sha, "event": "APPROVE", "body": body},
-        )
+        """Approve a pull request.
+
+        Uses ``AGDT_PR_APPROVER_PAT`` when set so that the approval comes from
+        a separate identity (GitHub prevents approving your own PR).  When the
+        variable is unset or empty the approval is skipped with a warning.
+        """
+        approver_token = os.environ.get("AGDT_PR_APPROVER_PAT", "").strip()
+        if not approver_token:
+            logger.warning(
+                "AGDT_PR_APPROVER_PAT is not configured. "
+                "Cannot approve PR without a dedicated approver token. "
+                "See repository documentation for setup instructions."
+            )
+            return
+
+        try:
+            _gh_api(
+                self._repo_api(f"/pulls/{pr_number}/reviews"),
+                method="POST",
+                body={"commit_id": head_sha, "event": "APPROVE", "body": body},
+                token=approver_token,
+            )
+        except RuntimeError as exc:
+            stderr = str(exc)
+            if "401" in stderr or "Bad credentials" in stderr.lower():
+                logger.warning(
+                    "AGDT_PR_APPROVER_PAT authentication failed (401). "
+                    "The token may be expired or invalid. "
+                    "Skipping PR approval. Rotate the secret and retry."
+                )
+                return
+            raise
 
     @retry_with_backoff()
     def merge_pr(self, pr_number: int, head_sha: str, method: str) -> None:
