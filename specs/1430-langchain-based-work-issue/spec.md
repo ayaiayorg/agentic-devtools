@@ -31,8 +31,10 @@ side-by-side comparison testing with the existing state-machine workflow in `cli
   The system MUST fail with a clear error message (exit code 1) stating "No interrupted workflow found for issue key `<KEY>`. Use --use-langchain without --resume to start a fresh workflow." It must NOT
   silently start a new workflow, as that could lead to duplicate artifacts.
 - Q: Should real node functions call the existing CLI entry points (e.g., `agdt-add-jira-comment` which spawns background tasks) or call the underlying synchronous implementation functions directly to
-  maintain graph execution flow? → A: Node functions MUST call the underlying synchronous implementation functions directly (e.g., `add_jira_comment_sync()` from `cli/jira/commands.py`,
-  `git_save_work_sync()` from `cli/git/operations.py`). Spawning background tasks would break the graph's sequential execution model and make checkpointing unreliable.
+  maintain graph execution flow? → A: Node functions MUST call real synchronous implementation functions directly (for example
+  `agentic_devtools.cli.jira.comment_commands.add_comment()`, git helpers in `agentic_devtools.cli.git.operations` such as
+  `stage_changes()` / `create_commit()` / `amend_commit()` / `push()`, and `agentic_devtools.tools.azure_devops.create_pull_request()`).
+  Spawning background tasks would break the graph's sequential execution model and make checkpointing unreliable.
 - Q: Should the `--use-langchain` flag be mutually exclusive with `--resume` flag validation (i.e., `--resume` requires `--use-langchain`), or should `--resume` work independently? → A: `--resume`
   MUST require `--use-langchain` — it is only meaningful for LangGraph workflows. If `--resume` is provided without `--use-langchain`, the CLI MUST exit with an error: "--resume requires
   --use-langchain".
@@ -86,15 +88,17 @@ that the workflow produces actual artifacts.
 
 **Why this priority**: Without real tool calls, the LangGraph path cannot be validated against the existing implementation — stubs are not testable in an end-to-end sense.
 
-**Independent Test**: Can be tested by triggering individual node functions in isolation (unit tests) and verifying they call the correct underlying synchronous implementation functions (e.g.,
-`planning_node` calls `add_jira_comment_sync()`, `commit_node` calls `git_save_work_sync()`, `pull_request_node` calls `create_pull_request_sync()`).
+**Independent Test**: Can be tested by triggering individual node functions in isolation (unit tests) and verifying they call real synchronous implementation targets (e.g.,
+`planning_node` calls `agentic_devtools.cli.jira.comment_commands.add_comment()`, `commit_node` uses the existing helpers in `agentic_devtools.cli.git.operations`, and `pull_request_node` calls `agentic_devtools.tools.azure_devops.create_pull_request()`).
 
 **Acceptance Scenarios**:
 
 1. **Given** the LangGraph workflow reaches the `planning_node`, **When** it executes, **Then** a plan is generated and a Jira comment is posted to the issue via the synchronous
-   `add_jira_comment_sync()` function.
-2. **Given** the LangGraph workflow reaches the `commit_node`, **When** it executes, **Then** changes are staged, committed, and pushed via the existing git operations module's synchronous functions.
-3. **Given** the LangGraph workflow reaches the `pull_request_node`, **When** it executes, **Then** a pull request is created via the Azure DevOps API synchronous functions.
+   `agentic_devtools.cli.jira.comment_commands.add_comment()` function.
+2. **Given** the LangGraph workflow reaches the `commit_node`, **When** it executes, **Then** changes are staged, committed, and pushed via the existing synchronous git helpers in
+   `agentic_devtools.cli.git.operations` (for example `stage_changes()`, `create_commit()` / `amend_commit()`, and `push()` / `force_push()`).
+3. **Given** the LangGraph workflow reaches the `pull_request_node`, **When** it executes, **Then** a pull request is created via the synchronous
+   `agentic_devtools.tools.azure_devops.create_pull_request()` function (or the synchronous wrapper in `agentic_devtools.cli.azure_devops.commands`).
 
 ---
 
