@@ -29,7 +29,9 @@
 - [ ] CHK011 All 12 functional requirements (FR-001–FR-012) have corresponding acceptance scenarios or edge cases that validate them (e.g., FR-004 maps to US1 scenario 2 and US4; FR-011 maps to edge
   case 5)
 - [ ] CHK012 User scenarios cover the full lifecycle: fresh start (US1), non-regression (US2), individual node execution (US3), interrupt/resume (US4), and comparative testing (US5)
-- [ ] CHK013 Success criteria include quantifiable thresholds: SC-004 requires 100% coverage, NFR-001 requires no more than 2x slowdown, SC-005 limits file modifications to two specific paths
+- [ ] CHK013 Success criteria include quantifiable thresholds: SC-004 requires
+  100% coverage, NFR-001 requires no more than 2x slowdown, SC-005 limits
+  production/runtime code modifications to two specific paths
 - [ ] CHK014 Verify FR-003's mandate to "call underlying synchronous implementation functions directly" and NFR-003's checkpoint path specification are architectural constraints rather than
   implementation details leaking into the spec (these cross the boundary into design decisions — confirm intentional)
 
