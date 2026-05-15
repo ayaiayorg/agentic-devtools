@@ -25,8 +25,6 @@ jobs:
   ai-pr-loop:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # NOTE: Synthetic Copilot reviews (acmarsnik + marker) intentionally excluded;
-    # that pathway was retired with the agentic-repair job.
     if: >
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.event == 'pull_request') ||
