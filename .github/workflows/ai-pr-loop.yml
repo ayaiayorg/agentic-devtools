@@ -16,7 +16,6 @@ permissions:
 
 env:
   AGDT_USE_PYTHON_ORCHESTRATOR: "1"
-  AGDT_VERSION: '0.42.0'
 
 concurrency:
   group: ai-pr-loop-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_branch }}
@@ -48,7 +47,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install agentic-devtools
-        run: pip install "agentic-devtools==${{ env.AGDT_VERSION }}"
+        run: pip install agentic-devtools
 
       - name: Run AI PR loop orchestrator
         env:
