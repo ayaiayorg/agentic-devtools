@@ -16,6 +16,28 @@ fully automated approve-and-merge flows.
 
 ---
 
+## Clarifications
+
+### Session 2026-05-15
+
+- Q: Should the secondary approver account be an organization member with a specific role, or is a collaborator with write access sufficient? → A: The approver account must be added as a member of the
+  `ayaiayorg` organization with the **Write** role on the `agentic-devtools` repository (or added as a direct collaborator with write access). Organization membership is preferred because it
+  simplifies permission auditing, but either approach satisfies the technical requirement — the account needs `pulls: write` on the target repository.
+- Q: Is there an existing secondary automation account to use, or does one need to be created as part of this work? → A: A new secondary automation account must be created as part of this work. The
+  account should follow the naming convention of the organization (e.g., `ayaiayorg-pr-approver` or similar). Creating the account, generating the PAT, and configuring the repository secret are
+  in-scope for this feature.
+- Q: Should the approver PAT be a fine-grained token (recommended, scoped to single repo) or a classic token (broader scope but simpler setup)? → A: A fine-grained Personal Access Token is required.
+  It must be scoped exclusively to the `ayaiayorg/agentic-devtools` repository with the single permission `Pull requests: Write`. Fine-grained tokens are preferred because they enforce least-privilege
+  by design and provide a clear audit trail.
+- Q: How should the `AGDT_PR_APPROVER_PAT` be injected into the "Approve PR" step — via the `github-token` input of `actions/github-script@v7`, or via a custom Octokit instance constructed inside the
+  script? → A: Use the `github-token` input parameter of `actions/github-script@v7` (i.e., `with: github-token: ${{ secrets.AGDT_PR_APPROVER_PAT }}`). This replaces the default `github.token` for that
+  step only, keeps the implementation minimal, avoids constructing a separate Octokit client, and ensures the token is automatically masked in logs.
+- Q: Should the PAT availability check (FR-003) happen as a separate preceding step or as an early-exit guard within the existing "Approve PR" step? → A: The check should be an early-exit guard within
+  the existing "Approve PR" step (not a separate step). This keeps the workflow YAML minimal, avoids adding conditional logic between steps, and matches the existing pattern where the SHA-mismatch
+  check is an early return within the same step.
+
+---
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — Automated PR Approval Succeeds for Bot-Authored PRs (Priority: P1)
@@ -33,8 +55,8 @@ account.
 
 1. **Given** a PR authored by the primary automation account and all checks are passing, **When** the "Approve PR" step executes, **Then** the PR receives an `APPROVE` review from the secondary
    approver account (not the PR author).
-2. **Given** the `AGDT_PR_APPROVER_PAT` secret is configured in the repository, **When** the "Approve PR" step runs, **Then** the Octokit client authenticates using the approver PAT, not the default
-   `GITHUB_TOKEN`.
+2. **Given** the `AGDT_PR_APPROVER_PAT` secret is configured in the repository, **When** the "Approve PR" step runs, **Then** the `actions/github-script@v7` step authenticates using the approver PAT
+   via the `github-token` input parameter, not the default `GITHUB_TOKEN`.
 3. **Given** the PR head SHA has changed since the merge-check step validated it, **When** the "Approve PR" step runs with the approver PAT, **Then** the step aborts approval and outputs
    `approved=false` (existing safety check preserved).
 
@@ -54,7 +76,7 @@ succeeding.
 **Acceptance Scenarios**:
 
 1. **Given** the `AGDT_PR_APPROVER_PAT` secret is not set in the repository, **When** the "Approve PR" step executes, **Then** the step emits a `core.warning` message stating the approver PAT is
-   missing and sets output `approved=false`.
+   missing and sets output `approved=false`. The check is performed as an early-exit guard within the "Approve PR" step (not a separate workflow step).
 2. **Given** the `AGDT_PR_APPROVER_PAT` secret is set but invalid/expired, **When** the approval API call fails with a 401, **Then** the step logs the authentication error clearly and sets output
    `approved=false`.
 
@@ -69,7 +91,7 @@ minimized.
 
 **Why this priority**: Principle of least privilege — the approver token should only be accessible to the step that needs it.
 
-**Independent Test**: Inspect the workflow YAML to confirm the approver PAT is only referenced in the "Approve PR" step's `github-token` input (or scoped `env` block) and nowhere else.
+**Independent Test**: Inspect the workflow YAML to confirm the approver PAT is only referenced in the "Approve PR" step's `github-token` input and nowhere else.
 
 **Acceptance Scenarios**:
 
@@ -92,8 +114,9 @@ tribal knowledge.
 
 **Acceptance Scenarios**:
 
-1. **Given** the repository documentation, **When** a maintainer searches for "AGDT_PR_APPROVER_PAT," **Then** they find an explanation of its purpose, required permissions, and rotation procedure.
-2. **Given** the workflow YAML, **When** a maintainer reads the "Approve PR" step, **Then** inline comments explain why a separate token is used.
+1. **Given** the repository documentation, **When** a maintainer searches for "AGDT_PR_APPROVER_PAT," **Then** they find an explanation of its purpose, required permissions (fine-grained token scoped
+   to `ayaiayorg/agentic-devtools` with `Pull requests: Write`), and rotation procedure.
+2. **Given** the workflow YAML, **When** a maintainer reads the "Approve PR" step, **Then** inline comments explain why a separate token is used (GitHub prevents approving your own PR).
 
 ---
 
@@ -105,6 +128,8 @@ tribal knowledge.
 - What happens when branch protection requires approval from a CODEOWNERS member and the approver account is not one? The approval succeeds but may not satisfy branch protection — this is out of scope
   for this feature (branch protection rules are a repository configuration concern).
 - What happens if the PAT expires mid-workflow run? The API call fails with 401 — the existing error handling catches this and sets `approved=false`.
+- What happens if `AGDT_PR_APPROVER_PAT` is set to an empty string? The `github-token` input receives an empty value — the early-exit guard must detect this (empty or whitespace-only) and treat it the
+  same as a missing secret.
 
 ---
 
@@ -112,26 +137,31 @@ tribal knowledge.
 
 ### Functional Requirements
 
-- **FR-001**: The "Approve PR" step in `.github/workflows/ai-pr-loop.yml` MUST authenticate using the `AGDT_PR_APPROVER_PAT` secret for the `pulls.createReview` API call.
+- **FR-001**: The "Approve PR" step in `.github/workflows/ai-pr-loop.yml` MUST authenticate using the `AGDT_PR_APPROVER_PAT` secret for the `pulls.createReview` API call, injected via the
+  `github-token` input parameter of `actions/github-script@v7`.
 - **FR-002**: The `AGDT_PR_APPROVER_PAT` MUST NOT be used by any workflow step other than PR approval.
-- **FR-003**: The workflow MUST validate that the approver PAT is available before attempting the approval API call, emitting a clear warning if it is missing.
+- **FR-003**: The "Approve PR" step MUST include an early-exit guard that validates the approver PAT is available (non-empty) before attempting the approval API call, emitting a `core.warning` if it
+  is missing and setting `approved=false`.
 - **FR-004**: The existing SHA-mismatch safety check (abort approval if head SHA changed) MUST be preserved unchanged.
 - **FR-005**: The merge step MUST continue to use its existing token (not the approver PAT).
 - **FR-006**: Workflow comments MUST document why a separate PAT is required for the approval step.
-- **FR-007**: Repository documentation MUST describe the required permissions for the `AGDT_PR_APPROVER_PAT` (minimum: `Pull requests: Write` for fine-grained tokens, or `repo` scope for classic
-  tokens).
+- **FR-007**: Repository documentation MUST describe the required permissions for the `AGDT_PR_APPROVER_PAT` (fine-grained token scoped to `ayaiayorg/agentic-devtools` with permission `Pull requests:
+  Write`).
 
 ### Non-Functional Requirements
 
-- **NFR-001**: The change MUST NOT increase workflow execution time (no additional API calls beyond the existing approval flow).
-- **NFR-002**: The approver PAT MUST follow the principle of least privilege — only the minimum permissions required for PR approval.
-- **NFR-003**: The secret MUST be masked in workflow logs (GitHub Actions masks secrets automatically, but the implementation must not circumvent this by echoing the value). [NEEDS CLARIFICATION:
-  Should the approver account be added as a collaborator with write access, or should it be a member of the `ayaiayorg` organization?]
+- **NFR-001**: The change MUST NOT increase workflow execution time — no additional API calls beyond the existing approval flow (the early-exit guard is a string-empty check, not an API call).
+- **NFR-002**: The approver PAT MUST be a fine-grained Personal Access Token scoped exclusively to the `ayaiayorg/agentic-devtools` repository with the single permission `Pull requests: Write`.
+- **NFR-003**: The secret MUST be masked in workflow logs. Using the `github-token` input of `actions/github-script@v7` ensures automatic masking by GitHub Actions. The implementation MUST NOT echo,
+  interpolate into shell commands, or otherwise expose the token value in logs. The approver account MUST be added as an organization member of `ayaiayorg` with Write access to the `agentic-devtools`
+  repository (or as a direct collaborator with write access).
 
 ### Key Entities
 
-- **AGDT_PR_APPROVER_PAT**: A GitHub Personal Access Token belonging to a secondary automation account, stored as a repository secret, scoped to PR write operations on `ayaiayorg/agentic-devtools`.
-- **Secondary Approver Account**: A GitHub user account distinct from the primary automation account that authors PRs. This account is the identity under which automated approvals appear.
+- **AGDT_PR_APPROVER_PAT**: A fine-grained GitHub Personal Access Token belonging to a secondary automation account, stored as a repository secret, scoped exclusively to `ayaiayorg/agentic-devtools`
+  with `Pull requests: Write` permission.
+- **Secondary Approver Account**: A dedicated GitHub user account (e.g., `ayaiayorg-pr-approver`) distinct from the primary automation account that authors PRs. This account is the identity under
+  which automated approvals appear. It must be created as part of this feature and added as a member of the `ayaiayorg` organization with Write access to the repository.
 
 ---
 
@@ -149,9 +179,12 @@ tribal knowledge.
 
 ## Clarification Items
 
-1. [NEEDS CLARIFICATION]: Should the secondary approver account be an organization member with specific role, or is a collaborator with write access sufficient?
-2. [NEEDS CLARIFICATION]: Is there an existing secondary automation account to use, or does one need to be created as part of this work?
-3. [NEEDS CLARIFICATION]: Should the approver PAT be a fine-grained token (recommended, scoped to single repo) or a classic token (broader scope but simpler setup)?
+1. ~~[NEEDS CLARIFICATION]~~: **Resolved** — The secondary approver account should be an organization member of `ayaiayorg` with Write access to the `agentic-devtools` repository (preferred), or added
+   as a direct collaborator with write access. Organization membership is preferred for audit simplicity.
+2. ~~[NEEDS CLARIFICATION]~~: **Resolved** — A new secondary automation account must be created as part of this work (e.g., `ayaiayorg-pr-approver`). Creating the account, generating the fine-grained
+   PAT, and configuring the `AGDT_PR_APPROVER_PAT` repository secret are all in-scope.
+3. ~~[NEEDS CLARIFICATION]~~: **Resolved** — A fine-grained Personal Access Token is required, scoped exclusively to `ayaiayorg/agentic-devtools` with the single permission `Pull requests: Write`.
+   Fine-grained tokens enforce least-privilege and provide clear audit trails.
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
