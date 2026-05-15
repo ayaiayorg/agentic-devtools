@@ -40,13 +40,14 @@ class TestApprovePR:
 
         mock_run_safe.assert_not_called()
 
-    @patch.dict("os.environ", {}, clear=False)
+    @patch.dict("os.environ", {"AGDT_PR_APPROVER_PAT": "not_present"})
     @patch("agentic_devtools.cli.ci.github_provider.run_safe")
     def test_approve_pr_skips_when_pat_missing(self, mock_run_safe) -> None:
         """Approval is skipped when AGDT_PR_APPROVER_PAT is not set."""
         import os
 
-        os.environ.pop("AGDT_PR_APPROVER_PAT", None)
+        # Remove the key after patch.dict sets it, simulating unset env var
+        del os.environ["AGDT_PR_APPROVER_PAT"]
         provider = GitHubActionsProvider(repo="owner/repo")
         provider.approve_pr(42, "abc123", "LGTM!")
 
