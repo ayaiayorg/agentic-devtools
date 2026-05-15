@@ -5,6 +5,7 @@
 **Status**: Draft  
 **Input**: User description: "Get the LangChain version of the work-on-issue workflow fully functional so it can be tested alongside the existing implementation"  
 **Source Issue**: #1430 (<https://github.com/ayaiayorg/agentic-devtools/issues/1430>)
+**Artifacts**: `spec.md`, `checklists/requirements.md`, `checklists/`, `contracts/`
 
 ## Problem Statement
 
@@ -59,6 +60,9 @@ checklist_creation → implementation → verification → commit → pull_reque
    continue to checklist creation.
 3. **Given** the LangGraph workflow is running, **When** verification fails with a retryable error, **Then** the workflow routes back to the implementation node (up to MAX_RETRIES times) before
    proceeding to commit.
+4. **Given** `dry_run=true` is set in state, **When** LangGraph nodes that normally call Jira, Git, or Azure DevOps execute, **Then** no external side effects occur and each node records a dry-run event
+   describing the skipped action.
+5. **Given** the LangGraph workflow executes any node, **When** the node starts and completes, **Then** structured audit-trail events are appended to the `events` channel with node name and timestamp.
 
 ---
 
@@ -200,8 +204,8 @@ implementation.
 - **SC-002**: The existing workflow (without `--use-langchain`) passes all existing unit and integration tests without modification.
 - **SC-003**: The LangGraph workflow can be interrupted at the planning gate and successfully resumed from checkpoint after process restart via `--use-langchain --resume --issue-key <KEY>`.
 - **SC-004**: All new code achieves 100% test coverage with tests following the 1:1:1 structure policy.
-- **SC-005**: No files outside the orchestration module (`agentic_devtools/orchestration/`) and the `commands.py` entry point (`agentic_devtools/cli/workflows/commands.py`) are modified (confirming
-  isolation from the existing workflow and PR review workflow).
+- **SC-005**: Production/runtime code changes are limited to the orchestration module (`agentic_devtools/orchestration/`) and the `commands.py` entry point
+  (`agentic_devtools/cli/workflows/commands.py`); test files, documentation, and spec artifacts may be updated as needed.
 - **SC-006**: The `--use-langchain` and `--resume` flags are documented in CLI help output and the copilot-instructions.
 
 ---
