@@ -17,6 +17,11 @@ from agentic_devtools.cli.ci.github_provider import GitHubActionsProvider
 from agentic_devtools.cli.ci.orchestrator import run_ai_pr_loop
 
 
+def _python_orchestrator_enabled() -> bool:
+    """Return True when the Python CI orchestrator path is enabled."""
+    return os.environ.get("AGDT_USE_PYTHON_ORCHESTRATOR", "").lower() in ("1", "true")
+
+
 def ai_pr_loop_command() -> None:
     """CLI entry point for the AI PR loop orchestrator.
 
@@ -37,8 +42,7 @@ def ai_pr_loop_command() -> None:
         10: Missing dependency or configuration
     """
     # Feature flag check
-    flag = os.environ.get("AGDT_USE_PYTHON_ORCHESTRATOR", "").lower()
-    if flag not in ("1", "true"):
+    if not _python_orchestrator_enabled():
         # Legacy path — let the YAML handle it
         sys.exit(0)
 
@@ -93,8 +97,7 @@ def speckit_trigger_command() -> None:
         11: Stub implementation — full logic not yet available
     """
     # Feature flag check
-    flag = os.environ.get("AGDT_USE_PYTHON_ORCHESTRATOR", "").lower()
-    if flag not in ("1", "true"):
+    if not _python_orchestrator_enabled():
         sys.exit(0)
 
     # Check gh CLI dependency
