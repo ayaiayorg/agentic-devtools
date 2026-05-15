@@ -5,15 +5,15 @@
 # The monorepo approach keeps AGDT-specific code atomic and easier to evolve
 # without cross-repo maintenance burden. See issue #1444 for rationale.
 #
-# NOTE: These pins will only resolve after the packages are published
-# (T016/T017 in the migration tasks). Until then, `specify install` will
-# fail — use repo-local .specify/scripts/ and .specify/templates/ directly.
+# NOTE: These pins intentionally resolve to repo-local packages that ship in
+# this monorepo. `specify install` uses the checked-out extension and preset
+# directly, so AGDT-specific workflows and templates stay versioned in-repo.
 #
 # T027-T030 review status (community adoption):
 # No community extension currently meets the ≥80% overlap threshold against
 # `docs/speckit-migration-inventory.md`, so no additional community extension
-# pins are configured. Re-evaluate after #1444 lands (monorepo local-path
-# structure) or when the community catalog adds closer functional matches.
+# pins are configured. Re-evaluate when the community catalog adds closer
+# functional matches or the migration scope changes materially.
 
 extensions:
   # AGDT-specific commands and scripts for agentic-devtools workflows

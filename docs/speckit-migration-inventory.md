@@ -149,20 +149,21 @@ URL: [github/spec-kit/docs/community/extensions.md](https://github.com/github/sp
 
 Repository structure check for #1444 status:
 
-- `.specify/extensions/` not present
-- `.specify/scripts/bash/` and `.specify/scripts/powershell/` still present
+- `.specify/extensions/agdt-workflows/` present
+- `.specify/presets/agdt-templates/` present
+- top-level `.specify/scripts/bash/` and `.specify/scripts/powershell/` not present
 
-This indicates #1444 has **not** landed in this branch, so the T027-T030
-comparison and replacement decision is scoped to the current in-repo script
+This indicates #1444 **has** landed in this branch, so the T027-T030
+comparison and replacement decision is scoped to the current monorepo local-path
 layout.
 
 #### Candidate overlap analysis (≥80% threshold)
 
 | Community extension | Closest inventoried custom scope | Estimated overlap | Decision |
 |---------------------|----------------------------------|-------------------|----------|
-| `spec-kit-branch-convention` | `.specify/scripts/bash/create-new-feature.sh` + `.ps1` equivalent (branch naming/pattern checks) | ~35% | Not adopted |
-| `spec-kit-brownfield` | `.specify/scripts/bash/check-prerequisites.sh`, `create-new-feature.sh` (bootstrap/setup concepts) | ~30% | Not adopted |
-| `speckit-utils` | `.specify/scripts/bash/check-prerequisites.sh` and `setup-plan.sh` (workflow health/utility helpers) | ~25% | Not adopted |
+| `spec-kit-branch-convention` | `.specify/extensions/agdt-workflows/scripts/bash/create-new-feature.sh` + `.specify/extensions/agdt-workflows/scripts/powershell/create-new-feature.ps1` (branch naming/pattern checks) | ~35% | Not adopted |
+| `spec-kit-brownfield` | `.specify/extensions/agdt-workflows/scripts/bash/check-prerequisites.sh`, `create-new-feature.sh` (bootstrap/setup concepts) | ~30% | Not adopted |
+| `speckit-utils` | `.specify/extensions/agdt-workflows/scripts/bash/check-prerequisites.sh` and `setup-plan.sh` (workflow health/utility helpers) | ~25% | Not adopted |
 
 **Result:** No community extension meets the **≥80% functionality overlap**
 threshold required by FR-008/FR-009 and User Story 4 acceptance criteria (see
@@ -174,8 +175,8 @@ T028/T029/T030 close-out for this branch:
 - No substitutions were made.
 - `.specify/config.yml` received no community extension pins because no
   qualifying replacement was found.
-- No scripts were removed from `.specify/scripts/bash/` or
-  `.specify/scripts/powershell/`.
+- No scripts were removed from `.specify/extensions/agdt-workflows/scripts/bash/`
+  or `.specify/extensions/agdt-workflows/scripts/powershell/`.
 
 ### Command Namespacing
 
