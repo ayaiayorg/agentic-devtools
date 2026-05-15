@@ -33,7 +33,7 @@ implementation and testing of each story.
   IMPORTANT: The phase task checklists below (Phase 1, Phase 2, etc.) are
   SAMPLE TASKS for illustration purposes only.
   
-  The /speckit.tasks command MUST replace these with actual tasks based on:
+  The /speckit.agdt:tasks command MUST replace these with actual tasks based on:
 
   - User stories from spec.md (with their priorities P1, P2, P3...)
   - Feature requirements from plan.md

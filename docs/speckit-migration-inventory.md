@@ -65,15 +65,15 @@ repository, with categorization and migration target for each file.
 
 | File | Lines | Purpose | Category | Target Package |
 |------|-------|---------|----------|----------------|
-| `analyze.md` | 264 | Slash command template for `/speckit.analyze` — deep code analysis with multi-pass review | Extension command | `speckit-ext-agdt` |
-| `checklist.md` | 298 | Slash command template for `/speckit.checklist` — generates quality checklists from spec | Extension command | `speckit-ext-agdt` |
-| `clarify.md` | 185 | Slash command template for `/speckit.clarify` — asks targeted clarification questions | Extension command | `speckit-ext-agdt` |
-| `constitution.md` | 83 | Slash command template for `/speckit.constitution` — manages project constitution | Extension command | `speckit-ext-agdt` |
-| `implement.md` | 139 | Slash command template for `/speckit.implement` — executes task-based implementation | Extension command | `speckit-ext-agdt` |
-| `plan.md` | 96 | Slash command template for `/speckit.plan` — generates implementation plan from spec | Extension command | `speckit-ext-agdt` |
-| `specify.md` | 336 | Slash command template for `/speckit.specify` — creates feature specification from issue | Extension command | `speckit-ext-agdt` |
-| `tasks.md` | 202 | Slash command template for `/speckit.tasks` — generates task breakdown from plan | Extension command | `speckit-ext-agdt` |
-| `taskstoissues.md` | 42 | Slash command template for `/speckit.taskstoissues` — converts tasks to GitHub issues | Extension command | `speckit-ext-agdt` |
+| `analyze.md` | 264 | Slash command template for `/speckit.agdt:analyze` — deep code analysis with multi-pass review | Extension command | `speckit-ext-agdt` |
+| `checklist.md` | 298 | Slash command template for `/speckit.agdt:checklist` — generates quality checklists from spec | Extension command | `speckit-ext-agdt` |
+| `clarify.md` | 185 | Slash command template for `/speckit.agdt:clarify` — asks targeted clarification questions | Extension command | `speckit-ext-agdt` |
+| `constitution.md` | 83 | Slash command template for `/speckit.agdt:constitution` — manages project constitution | Extension command | `speckit-ext-agdt` |
+| `implement.md` | 139 | Slash command template for `/speckit.agdt:implement` — executes task-based implementation | Extension command | `speckit-ext-agdt` |
+| `plan.md` | 96 | Slash command template for `/speckit.agdt:plan` — generates implementation plan from spec | Extension command | `speckit-ext-agdt` |
+| `specify.md` | 336 | Slash command template for `/speckit.agdt:specify` — creates feature specification from issue | Extension command | `speckit-ext-agdt` |
+| `tasks.md` | 202 | Slash command template for `/speckit.agdt:tasks` — generates task breakdown from plan | Extension command | `speckit-ext-agdt` |
+| `taskstoissues.md` | 42 | Slash command template for `/speckit.agdt:taskstoissues` — converts tasks to GitHub issues | Extension command | `speckit-ext-agdt` |
 | `.markdownlint.json` | 6 | Markdownlint config for command templates (extends root config, disables MD041/MD013) | Extension config | `speckit-ext-agdt` |
 
 ### Document Templates — `.specify/templates/`
@@ -126,15 +126,15 @@ The following `.github/` files reference `.specify/scripts/` or
 
 | File | Reference Type |
 |------|---------------|
-| `.github/agents/speckit.analyze.agent.md` | Script path: `check-prerequisites.sh` |
-| `.github/agents/speckit.implement.agent.md` | Script path: `check-prerequisites.sh` |
-| `.github/agents/speckit.clarify.agent.md` | Script path: `check-prerequisites.sh` |
-| `.github/agents/speckit.checklist.agent.md` | Script path: `check-prerequisites.sh`, template: `checklist-template.md` |
-| `.github/agents/speckit.plan.agent.md` | Script paths: `setup-plan.sh`, `update-agent-context.sh` |
-| `.github/agents/speckit.specify.agent.md` | Script paths: `create-new-feature.sh` |
-| `.github/agents/speckit.tasks.agent.md` | Script path: `check-prerequisites.sh`, template: `tasks-template.md` |
-| `.github/agents/speckit.taskstoissues.agent.md` | Script path: `check-prerequisites.sh` |
-| `.github/agents/speckit.constitution.agent.md` | Template paths: `plan-template.md`, `spec-template.md`, `tasks-template.md`, `commands/*.md` |
+| `.github/agents/speckit.agdt:analyze.agent.md` | Script path: `check-prerequisites.sh` |
+| `.github/agents/speckit.agdt:implement.agent.md` | Script path: `check-prerequisites.sh` |
+| `.github/agents/speckit.agdt:clarify.agent.md` | Script path: `check-prerequisites.sh` |
+| `.github/agents/speckit.agdt:checklist.agent.md` | Script path: `check-prerequisites.sh`, template: `checklist-template.md` |
+| `.github/agents/speckit.agdt:plan.agent.md` | Script paths: `setup-plan.sh`, `update-agent-context.sh` |
+| `.github/agents/speckit.agdt:specify.agent.md` | Script paths: `create-new-feature.sh` |
+| `.github/agents/speckit.agdt:tasks.agent.md` | Script path: `check-prerequisites.sh`, template: `tasks-template.md` |
+| `.github/agents/speckit.agdt:taskstoissues.agent.md` | Script path: `check-prerequisites.sh` |
+| `.github/agents/speckit.agdt:constitution.agent.md` | Template paths: `plan-template.md`, `spec-template.md`, `tasks-template.md`, `commands/*.md` |
 | `.github/MARKDOWN_LINTING.md` | Template directory reference |
 
 ## Migration Notes

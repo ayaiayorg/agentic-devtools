@@ -7,14 +7,14 @@ Quick reference for using Spec-Driven Development with agentic-devtools.
 ### For AI Assistants
 
 ```text
-/speckit.constitution [prompt]    # Update project principles
-/speckit.specify [description]    # Create feature specification
-/speckit.plan [tech-stack]        # Create implementation plan
-/speckit.tasks                    # Generate task list
-/speckit.implement                # Execute implementation
-/speckit.analyze                  # Validate consistency
-/speckit.clarify                  # Clarify requirements
-/speckit.checklist                # Generate quality checklist
+/speckit.agdt:constitution [prompt]    # Update project principles
+/speckit.agdt:specify [description]    # Create feature specification
+/speckit.agdt:plan [tech-stack]        # Create implementation plan
+/speckit.agdt:tasks                    # Generate task list
+/speckit.agdt:implement                # Execute implementation
+/speckit.agdt:analyze                  # Validate consistency
+/speckit.agdt:clarify                  # Clarify requirements
+/speckit.agdt:checklist                # Generate quality checklist
 ```
 
 ### For Manual Use
@@ -40,10 +40,9 @@ Quick reference for using Spec-Driven Development with agentic-devtools.
 
 ### Package Management (Post-Migration)
 
-> **Command namespacing**: After migration, AGDT-customized commands will
-> use the `agdt:` prefix (e.g., `/speckit.agdt:plan`, `/speckit.agdt:tasks`)
-> instead of the current `/speckit.plan`, `/speckit.tasks` names. See
-> T007/T010/T019 in the migration tasks for details.
+> **Command namespacing**: AGDT-customized commands use the `agdt:` prefix
+> (e.g., `/speckit.agdt:plan`, `/speckit.agdt:tasks`) to avoid collisions with
+> core spec-kit commands.
 
 ```bash
 # Install extension + preset (reads .specify/config.yml)
@@ -96,7 +95,7 @@ cat .specify/memory/constitution.md
 Or via AI:
 
 ```text
-/speckit.constitution Update testing to require 95% coverage
+/speckit.agdt:constitution Update testing to require 95% coverage
 ```
 
 ### 2. Create Feature Spec
@@ -107,7 +106,7 @@ Or via AI:
 # Creates branch 42-webhook-support and specs/42-webhook-support/
 
 # Or via AI
-/speckit.specify Add webhook support for Jira events
+/speckit.agdt:specify Add webhook support for Jira events
 ```
 
 ### 3. Fill Specification
@@ -123,7 +122,7 @@ Edit `specs/ISSUE-feature-name/spec.md`:
 ### 4. Create Plan
 
 ```text
-/speckit.plan
+/speckit.agdt:plan
 Technology: Python 3.11, Click, Requests
 Architecture: Event-driven webhook handler
 Storage: Redis for event queue
@@ -132,7 +131,7 @@ Storage: Redis for event queue
 ### 5. Generate Tasks
 
 ```text
-/speckit.tasks
+/speckit.agdt:tasks
 ```
 
 Organizes tasks by user story for independent implementation.
@@ -140,7 +139,7 @@ Organizes tasks by user story for independent implementation.
 ### 6. Implement
 
 ```text
-/speckit.implement
+/speckit.agdt:implement
 ```
 
 Executes tasks following the plan.

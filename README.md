@@ -101,9 +101,9 @@ Agents are available in two contexts:
 **VS Code Copilot Chat** — type `/` to browse all commands:
 
 ```text
-/speckit.specify Add a dark mode toggle    ← SDD: create spec
-/speckit.plan                              ← SDD: generate plan
-/speckit.implement                         ← SDD: execute tasks
+/speckit.agdt:specify Add a dark mode toggle    ← SDD: create spec
+/speckit.agdt:plan                              ← SDD: generate plan
+/speckit.agdt:implement                         ← SDD: execute tasks
 /agdt.work-on-jira-issue.initiate PROJECT-1  ← Jira workflow (11 steps)
 /agdt.pull-request-review.initiate        ← PR review (5 steps)
 /agdt.git-save-work                       ← individual CLI command agent
@@ -113,7 +113,7 @@ Agents are available in two contexts:
 **Terminal Copilot CLI** — ask naturally or use shell commands:
 
 ```bash
-agdt-speckit-analyze      # renders + prints the speckit.analyze prompt
+agdt-speckit-analyze      # renders + prints the speckit.agdt:analyze prompt
 agdt-speckit-specify "add dark mode"
 ```
 

@@ -25,7 +25,7 @@ agents. Each agent maps directly to a file in `.github/agents/`:
 
 ```text
 /agdt.work-on-jira-issue.initiate   →  .github/agents/agdt.work-on-jira-issue.initiate.agent.md
-/speckit.specify                    →  .github/agents/speckit.specify.agent.md
+/speckit.agdt:specify                    →  .github/agents/speckit.agdt:specify.agent.md
 ```
 
 When you invoke a slash command:
@@ -38,7 +38,7 @@ When you invoke a slash command:
 You can pass arguments after the command name:
 
 ```text
-/speckit.specify I want to add OAuth2 login for enterprise users
+/speckit.agdt:specify I want to add OAuth2 login for enterprise users
 ```
 
 ---
@@ -50,32 +50,32 @@ workflow. Run them in order for a new feature.
 
 | Command | Description |
 |---------|-------------|
-| `/speckit.specify <feature description>` | Create or update a feature spec from a natural language description. **Start here.** |
-| `/speckit.clarify` | Ask up to 5 targeted clarification questions and encode the answers back into the spec |
-| `/speckit.plan` | Generate a technical implementation plan from the spec |
-| `/speckit.checklist` | Generate a custom quality checklist for the feature |
-| `/speckit.tasks` | Generate an actionable, dependency-ordered `tasks.md` from the plan |
-| `/speckit.analyze` | Cross-artifact consistency check across `spec.md`, `plan.md`, and `tasks.md` — run before implementing |
-| `/speckit.implement` | Execute all tasks in `tasks.md` in order |
-| `/speckit.taskstoissues` | Convert `tasks.md` into GitHub issues |
-| `/speckit.constitution` | Create or update the project constitution (guiding principles) |
+| `/speckit.agdt:specify <feature description>` | Create or update a feature spec from a natural language description. **Start here.** |
+| `/speckit.agdt:clarify` | Ask up to 5 targeted clarification questions and encode the answers back into the spec |
+| `/speckit.agdt:plan` | Generate a technical implementation plan from the spec |
+| `/speckit.agdt:checklist` | Generate a custom quality checklist for the feature |
+| `/speckit.agdt:tasks` | Generate an actionable, dependency-ordered `tasks.md` from the plan |
+| `/speckit.agdt:analyze` | Cross-artifact consistency check across `spec.md`, `plan.md`, and `tasks.md` — run before implementing |
+| `/speckit.agdt:implement` | Execute all tasks in `tasks.md` in order |
+| `/speckit.agdt:taskstoissues` | Convert `tasks.md` into GitHub issues |
+| `/speckit.agdt:constitution` | Create or update the project constitution (guiding principles) |
 
 ### Typical SDD flow
 
 ```text
-/speckit.specify Add a dark mode toggle to the settings page
+/speckit.agdt:specify Add a dark mode toggle to the settings page
         ↓
-/speckit.clarify          (optional — resolve ambiguities)
+/speckit.agdt:clarify          (optional — resolve ambiguities)
         ↓
-/speckit.plan
+/speckit.agdt:plan
         ↓
-/speckit.checklist        (optional — custom quality gates)
+/speckit.agdt:checklist        (optional — custom quality gates)
         ↓
-/speckit.tasks
+/speckit.agdt:tasks
         ↓
-/speckit.analyze          (catch issues before coding)
+/speckit.agdt:analyze          (catch issues before coding)
         ↓
-/speckit.implement
+/speckit.agdt:implement
 ```
 
 ---
@@ -193,7 +193,7 @@ The agent delegates to the prompt for full instructions.
 Every `agdt-*` CLI command has a corresponding agent in `.github/agents/` and a
 prompt stub in `.github/prompts/`. Most of these wrappers are invoked from
 VS Code Copilot Chat via `/agdt.<command-name>`, while `agdt-speckit-*`
-commands are exposed via `/speckit.*` (for example, `/speckit.plan`).
+commands are exposed via `/speckit.*` (for example, `/speckit.agdt:plan`).
 
 #### State Management
 
@@ -421,16 +421,16 @@ Each command prints the full agent prompt and saves it to
 ┌─────────────────────────────────────────────────────────────────────┐
 │  VS Code Copilot Chat                                                │
 │                                                                      │
-│  /speckit.specify Add dark mode    ← slash command with argument     │
+│  /speckit.agdt:specify Add dark mode    ← slash command with argument     │
 │  [Continue to Plan] [Clarify]      ← handoff buttons appear         │
-│  /speckit.plan                     ← next step                      │
+│  /speckit.agdt:plan                     ← next step                      │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Terminal Copilot CLI (this chat)                                    │
 │                                                                      │
 │  You: "run speckit specify — add dark mode"                          │
-│  Agent: invokes speckit.specify task tool directly                   │
+│  Agent: invokes speckit.agdt:specify task tool directly         │
 │                                                                      │
 │  — OR —                                                              │
 │                                                                      │
