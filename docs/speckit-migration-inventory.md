@@ -126,15 +126,15 @@ The following `.github/` files reference `.specify/scripts/` or
 
 | File | Reference Type |
 |------|---------------|
-| `.github/agents/speckit.agdt:analyze.agent.md` | Script path: `check-prerequisites.sh` |
-| `.github/agents/speckit.agdt:implement.agent.md` | Script path: `check-prerequisites.sh` |
-| `.github/agents/speckit.agdt:clarify.agent.md` | Script path: `check-prerequisites.sh` |
-| `.github/agents/speckit.agdt:checklist.agent.md` | Script path: `check-prerequisites.sh`, template: `checklist-template.md` |
-| `.github/agents/speckit.agdt:plan.agent.md` | Script paths: `setup-plan.sh`, `update-agent-context.sh` |
-| `.github/agents/speckit.agdt:specify.agent.md` | Script paths: `create-new-feature.sh` |
-| `.github/agents/speckit.agdt:tasks.agent.md` | Script path: `check-prerequisites.sh`, template: `tasks-template.md` |
-| `.github/agents/speckit.agdt:taskstoissues.agent.md` | Script path: `check-prerequisites.sh` |
-| `.github/agents/speckit.agdt:constitution.agent.md` | Template paths: `plan-template.md`, `spec-template.md`, `tasks-template.md`, `commands/*.md` |
+| `.github/agents/speckit.analyze.agent.md` | Script path: `check-prerequisites.sh` |
+| `.github/agents/speckit.implement.agent.md` | Script path: `check-prerequisites.sh` |
+| `.github/agents/speckit.clarify.agent.md` | Script path: `check-prerequisites.sh` |
+| `.github/agents/speckit.checklist.agent.md` | Script path: `check-prerequisites.sh`, template: `checklist-template.md` |
+| `.github/agents/speckit.plan.agent.md` | Script paths: `setup-plan.sh`, `update-agent-context.sh` |
+| `.github/agents/speckit.specify.agent.md` | Script paths: `create-new-feature.sh` |
+| `.github/agents/speckit.tasks.agent.md` | Script path: `check-prerequisites.sh`, template: `tasks-template.md` |
+| `.github/agents/speckit.taskstoissues.agent.md` | Script path: `check-prerequisites.sh` |
+| `.github/agents/speckit.constitution.agent.md` | Template paths: `plan-template.md`, `spec-template.md`, `tasks-template.md`, `commands/*.md` |
 | `.github/MARKDOWN_LINTING.md` | Template directory reference |
 
 ## Migration Notes
