@@ -151,7 +151,8 @@ Event (pull_request_review / workflow_run)
 
 **Constraints:**
 
-- **FR-014 compliance**: Polling MUST filter primarily by the sentinel marker (`<!-- copilot-agent-result -->`) in the comment body, with the `github-actions[bot]` author login as secondary confirmation.
+- **FR-014 compliance**: Polling MUST filter primarily by the sentinel marker (`<!-- copilot-agent-result -->`) in the comment body, with the `github-actions[bot]` author login as secondary
+  confirmation.
 - The result comment MUST be posted by the workflow step using the workflow's `GITHUB_TOKEN` (not the PAT) to ensure the author is deterministically `github-actions[bot]`.
 - Timeout failure comments (FR-016) MUST also be posted via `GITHUB_TOKEN` (author: `github-actions[bot]`).
 
