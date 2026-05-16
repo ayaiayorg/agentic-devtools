@@ -22,7 +22,9 @@
 
 - `langgraph>=0.2.0` — already a **core** dependency (not optional)
 - `langchain-core>=0.3,<1.0` — needs to be added as optional extra `[langchain]`
-- Existing `review-state.json` schema must remain unchanged
+- Existing `review-state.json` files must remain readable; any schema change must be
+  backward-compatible, specifically by making the new session `engine` field optional
+  and using tolerant deserialization when it is absent
 
 ### Architecture Decisions
 
