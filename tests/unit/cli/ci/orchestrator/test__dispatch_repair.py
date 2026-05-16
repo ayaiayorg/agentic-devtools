@@ -32,6 +32,7 @@ class TestDispatchRepair:
             decision=decision,
         )
         assert result == EXIT_REPAIR_DISPATCHED
+        # review_comments is empty (CHANGES_REQUESTED path) — fetched lazily
         provider.list_review_comments.assert_called_once_with(42, 100)
         provider.dispatch_repair.assert_called_once_with(
             pr_number=42,
@@ -39,6 +40,34 @@ class TestDispatchRepair:
             repair_type="review",
             failed_checks=[],
             review_comments=["Fix the null check"],
+        )
+
+    def test_pre_fetched_review_comments_not_refetched(self) -> None:
+        """When decision already has review_comments, list_review_comments is not called."""
+        provider = MagicMock()
+        provider.dispatch_repair.return_value = 304
+
+        decision = RepairDecision(
+            repair_needed=True,
+            repair_type="review",
+            review_id=100,
+            review_comments=("pre-fetched comment",),
+            failed_checks=(),
+        )
+        result = _dispatch_repair(
+            provider=provider,
+            pr_number=42,
+            head_sha="abc123",
+            decision=decision,
+        )
+        assert result == EXIT_REPAIR_DISPATCHED
+        provider.list_review_comments.assert_not_called()
+        provider.dispatch_repair.assert_called_once_with(
+            pr_number=42,
+            head_sha="abc123",
+            repair_type="review",
+            failed_checks=[],
+            review_comments=["pre-fetched comment"],
         )
 
     def test_dispatches_ci_repair_without_review_comments(self) -> None:

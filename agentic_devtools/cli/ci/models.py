@@ -110,10 +110,14 @@ class RepairDecision:
         repair_type: Type of repair needed: ``"review"``, ``"ci"``, or ``"both"``.
             Empty string when no repair is needed.
         review_id: ID of the Copilot review that requested changes (0 if N/A).
+        review_comments: Review comment bodies pre-fetched during detection
+            (populated for COMMENTED reviews; empty for CHANGES_REQUESTED so
+            that ``_dispatch_repair`` fetches them lazily).
         failed_checks: Failed check run details (name, status, conclusion).
     """
 
     repair_needed: bool = False
     repair_type: str = ""
     review_id: int = 0
+    review_comments: tuple[str, ...] = ()
     failed_checks: tuple[CheckRunStatus, ...] = ()

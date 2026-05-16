@@ -271,6 +271,8 @@ class TestRunAIPRLoop:
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_REPAIR_DISPATCHED
         provider.dispatch_repair.assert_called_once()
+        # Comments fetched exactly once during detection; _dispatch_repair reuses the cache
+        provider.list_review_comments.assert_called_once()
 
     def test_copilot_commented_without_inline_comments_does_not_dispatch(self) -> None:
         """Copilot COMMENTED review without inline comments is not actionable."""
@@ -309,3 +311,31 @@ class TestRunAIPRLoop:
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_REPAIR_DISPATCHED
         provider.dispatch_repair.assert_called_once()
+
+    def test_copilot_alias_commented_superseded_by_different_alias_approval(self) -> None:
+        """COMMENTED from one Copilot alias is superseded by APPROVED from a different alias."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(id=1, user="Copilot", state="COMMENTED", body="check this"),
+                ReviewInfo(id=5, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm"),
+            ]
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.dispatch_repair.assert_not_called()
+        provider.merge_pr.assert_called_once()
+
+    def test_copilot_alias_changes_requested_superseded_by_different_alias_approval(self) -> None:
+        """CHANGES_REQUESTED from one Copilot alias is superseded by APPROVED from a different alias."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(id=2, user="Copilot", state="CHANGES_REQUESTED", body="fix it"),
+                ReviewInfo(id=8, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm"),
+            ]
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.dispatch_repair.assert_not_called()
+        provider.merge_pr.assert_called_once()

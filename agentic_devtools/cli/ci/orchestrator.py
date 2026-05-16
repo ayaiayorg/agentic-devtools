@@ -175,24 +175,31 @@ def run_ai_pr_loop(
         return EXIT_GUARD_BLOCKED
 
     # Step 5: Evaluate reviews
-    # Collapse to effective latest state per reviewer (highest review.id wins)
+    # Collapse to effective latest state per reviewer (highest review.id wins).
+    # All COPILOT_LOGINS aliases are normalized to a single canonical key so
+    # that a later APPROVED from any Copilot alias supersedes an earlier
+    # COMMENTED or CHANGES_REQUESTED posted under a different alias.
+    _COPILOT_KEY = "copilot"
     reviews = provider.list_reviews(pr_number)
     latest_by_user: dict[str, ReviewInfo] = {}
     for review in reviews:
-        existing = latest_by_user.get(review.user)
+        user_key = _COPILOT_KEY if review.user in COPILOT_LOGINS else review.user
+        existing = latest_by_user.get(user_key)
         if existing is None or review.id > existing.id:
-            latest_by_user[review.user] = review
+            latest_by_user[user_key] = review
 
     effective_reviews = list(latest_by_user.values())
     has_approval = any(r.state == "APPROVED" for r in effective_reviews)
     copilot_changes_requested = False
     any_changes_requested = False
     copilot_review_id = 0
+    copilot_review_comments: list[str] = []
 
     # Detect actionable Copilot review (CHANGES_REQUESTED or COMMENTED with
     # inline comments from Copilot).  A COMMENTED review is only actionable
     # when it contains inline comments (i.e. suggestions the author should
-    # address).
+    # address).  Comments are cached here so _dispatch_repair() can reuse them
+    # without a second API call.
     for review in effective_reviews:
         if review.user in COPILOT_LOGINS and review.state == "CHANGES_REQUESTED":
             copilot_changes_requested = True
@@ -207,6 +214,7 @@ def run_ai_pr_loop(
             if comments:
                 copilot_changes_requested = True
                 copilot_review_id = review.id
+                copilot_review_comments = list(comments)
                 break
         if review.state == "CHANGES_REQUESTED":
             any_changes_requested = True
@@ -216,6 +224,7 @@ def run_ai_pr_loop(
         any_failed=any_failed,
         copilot_changes_requested=copilot_changes_requested,
         copilot_review_id=copilot_review_id,
+        copilot_review_comments=copilot_review_comments,
         failed_checks=failed_checks,
     )
 
@@ -266,19 +275,23 @@ def _evaluate_repair_decision(
     any_failed: bool,
     copilot_changes_requested: bool,
     copilot_review_id: int,
+    copilot_review_comments: list[str],
     failed_checks: list[CheckRunStatus],
 ) -> RepairDecision:
     """Evaluate whether a repair dispatch is needed and determine the type.
 
-    Only Copilot reviews trigger repair dispatch (not human reviews).
-    A Copilot review is actionable when its state is CHANGES_REQUESTED,
-    or COMMENTED with inline comments.  Human review feedback must be
-    addressed manually.
+    Two repair sources exist: Copilot review feedback and failing CI checks.
+    Only Copilot reviews trigger review-based repairs (CHANGES_REQUESTED, or
+    COMMENTED with inline comments); human reviews never trigger repair dispatch.
+    Failing CI checks independently trigger CI repairs regardless of review state.
 
     Args:
         any_failed: True if any CI check has failed.
         copilot_changes_requested: True if Copilot specifically requested changes.
         copilot_review_id: ID of the Copilot review (0 if none).
+        copilot_review_comments: Review comment bodies pre-fetched during
+            detection (populated for COMMENTED reviews; empty for
+            CHANGES_REQUESTED so that ``_dispatch_repair`` fetches lazily).
         failed_checks: List of failed check runs.
 
     Returns:
@@ -301,6 +314,7 @@ def _evaluate_repair_decision(
         repair_needed=True,
         repair_type=repair_type,
         review_id=copilot_review_id,
+        review_comments=tuple(copilot_review_comments),
         failed_checks=tuple(failed_checks),
     )
 
@@ -327,13 +341,21 @@ def _dispatch_repair(
     Returns:
         EXIT_REPAIR_DISPATCHED on success, EXIT_MERGE_BLOCKED on failure.
     """
-    # Collect review comment bodies when review repair is needed
+    # Collect review comment bodies when review repair is needed.
+    # For COMMENTED reviews the comments were already fetched during detection
+    # and are stored in decision.review_comments — reuse them to avoid a
+    # second API call and potential inconsistency if comments change between
+    # calls.  For CHANGES_REQUESTED reviews, decision.review_comments is empty
+    # so we fetch lazily here.
     review_comments: list[str] = []
     if decision.review_id and decision.repair_type in ("review", "both"):
-        try:
-            review_comments = provider.list_review_comments(pr_number, decision.review_id)
-        except Exception as exc:
-            logger.warning("Failed to fetch review comments for PR #%d: %s", pr_number, exc)
+        if decision.review_comments:
+            review_comments = list(decision.review_comments)
+        else:
+            try:
+                review_comments = provider.list_review_comments(pr_number, decision.review_id)
+            except Exception as exc:
+                logger.warning("Failed to fetch review comments for PR #%d: %s", pr_number, exc)
 
     try:
         comment_id = provider.dispatch_repair(
