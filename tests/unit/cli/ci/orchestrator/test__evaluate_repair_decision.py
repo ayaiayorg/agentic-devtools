@@ -10,7 +10,7 @@ class TestEvaluateRepairDecision:
     def test_no_issues_returns_no_repair(self) -> None:
         decision = _evaluate_repair_decision(
             any_failed=False,
-            copilot_changes_requested=False,
+            copilot_actionable_review=False,
             copilot_review_id=0,
             copilot_review_comments=[],
             failed_checks=[],
@@ -22,7 +22,7 @@ class TestEvaluateRepairDecision:
         """FR-001: Copilot CHANGES_REQUESTED state triggers repair_type='review'."""
         decision = _evaluate_repair_decision(
             any_failed=False,
-            copilot_changes_requested=True,
+            copilot_actionable_review=True,
             copilot_review_id=100,
             copilot_review_comments=[],
             failed_checks=[],
@@ -36,7 +36,7 @@ class TestEvaluateRepairDecision:
         comments = ["Please fix the null check", "Use const instead of let"]
         decision = _evaluate_repair_decision(
             any_failed=False,
-            copilot_changes_requested=True,
+            copilot_actionable_review=True,
             copilot_review_id=100,
             copilot_review_comments=comments,
             failed_checks=[],
@@ -49,7 +49,7 @@ class TestEvaluateRepairDecision:
         failed = [CheckRunStatus(id=1, name="ci/test", status="completed", conclusion="failure")]
         decision = _evaluate_repair_decision(
             any_failed=True,
-            copilot_changes_requested=False,
+            copilot_actionable_review=False,
             copilot_review_id=0,
             copilot_review_comments=[],
             failed_checks=failed,
@@ -63,7 +63,7 @@ class TestEvaluateRepairDecision:
         failed = [CheckRunStatus(id=1, name="lint", status="completed", conclusion="failure")]
         decision = _evaluate_repair_decision(
             any_failed=True,
-            copilot_changes_requested=True,
+            copilot_actionable_review=True,
             copilot_review_id=200,
             copilot_review_comments=[],
             failed_checks=failed,
@@ -77,7 +77,7 @@ class TestEvaluateRepairDecision:
         """Human CHANGES_REQUESTED reviews should not trigger repair dispatch."""
         decision = _evaluate_repair_decision(
             any_failed=False,
-            copilot_changes_requested=False,
+            copilot_actionable_review=False,
             copilot_review_id=0,
             copilot_review_comments=[],
             failed_checks=[],
