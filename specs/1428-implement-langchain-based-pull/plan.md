@@ -16,7 +16,7 @@
 | Review state | `agentic_devtools/cli/azure_devops/review_state.py` (dataclasses + JSON CRUD) |
 | Review workflow entry | `agentic_devtools/cli/workflows/commands.py` → `initiate_pull_request_review_workflow` |
 | Config system | `.agdt/config/review-models.json` + override file |
-| Test policy | 1:1:1 under `tests/unit/`, TDD required, `pytest.importorskip` for optional deps |
+| Test policy | 1:1:1 under `tests/unit/`, TDD required; CI installs `[langchain]` extra so all `orchestration/review/` modules are importable and fully covered — no `pytest.importorskip` skipping in source coverage runs |
 
 ### Key Dependencies
 
@@ -39,7 +39,7 @@
 
 ## 2. Research Summary
 
-See [research.md](research.md) for detailed analysis of:
+Detailed analysis of:
 
 - Engine resolution priority mechanism
 - LangGraph graph topology for PR review
@@ -125,7 +125,7 @@ Key decisions:
 | 3.2 | `agentic_devtools/orchestration/review/nodes.py` (new) | Node functions: `scaffold_node`, `review_file_node`, `summarize_node`, `complete_node` |
 | 3.3 | `agentic_devtools/orchestration/review/graph_builder.py` (new) | `build_pr_review_graph(checkpointer=None) → CompiledStateGraph` |
 | 3.4 | `agentic_devtools/orchestration/review/runner.py` (new) | `run_langchain_review(pr_id, config, state_dir)` — orchestrates graph invocation |
-| 3.5 | Tests | Unit tests for each node + graph compilation test (using `pytest.importorskip`) |
+| 3.5 | Tests | Unit tests for each node + graph compilation test; CI job installs `[langchain]` extra so modules are importable and all branches are exercised — 100% coverage achieved without skipping |
 
 ### Phase 4: Review-State Integration
 
