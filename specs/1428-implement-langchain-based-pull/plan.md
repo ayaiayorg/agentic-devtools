@@ -1,7 +1,8 @@
 # Implementation Plan: LangChain-Based PR Review Workflow (Parallel Path)
 
 **Issue**: [#1428](https://github.com/ayaiayorg/agentic-devtools/issues/1428)  
-**Branch**: `1428-implement-langchain-based-pull`
+**Artifacts Branch**: `speckit/1428/phase-3-plan`  
+**Planned Implementation Branch**: `1428-implement-langchain-based-pull`
 
 ## 1. Technical Context
 
@@ -28,6 +29,10 @@
 - Engine routing at the workflow initiation layer (not deep inside Azure DevOps commands)
 - LangGraph review graph in `agentic_devtools/orchestration/review/` (new subpackage)
 - Shared checkpointing from parent `orchestration/` package
+- CLI selection standardizes on `--engine langchain` per the clarified
+  Phase 2 spec; this supersedes the issue's earlier `--use-langchain`
+  wording so the interface can support future engines while staying
+  consistent with `review.engine` and `AGDT_REVIEW_ENGINE`
 - Existing lifecycle commands (`agdt-approve-file`, etc.) remain engine-agnostic
 
 ## 2. Research Summary
