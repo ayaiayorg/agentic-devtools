@@ -12,6 +12,7 @@ class TestEvaluateRepairDecision:
             any_failed=False,
             copilot_changes_requested=False,
             copilot_review_id=0,
+            copilot_review_comments=[],
             failed_checks=[],
         )
         assert decision.repair_needed is False
@@ -23,11 +24,25 @@ class TestEvaluateRepairDecision:
             any_failed=False,
             copilot_changes_requested=True,
             copilot_review_id=100,
+            copilot_review_comments=[],
             failed_checks=[],
         )
         assert decision.repair_needed is True
         assert decision.repair_type == "review"
         assert decision.review_id == 100
+
+    def test_review_comments_stored_in_decision(self) -> None:
+        """Pre-fetched review comments are stored in RepairDecision."""
+        comments = ["Please fix the null check", "Use const instead of let"]
+        decision = _evaluate_repair_decision(
+            any_failed=False,
+            copilot_changes_requested=True,
+            copilot_review_id=100,
+            copilot_review_comments=comments,
+            failed_checks=[],
+        )
+        assert decision.repair_needed is True
+        assert decision.review_comments == tuple(comments)
 
     def test_ci_only_returns_ci_type(self) -> None:
         """FR-002: Detect failing CI checks and set repair_type='ci'."""
@@ -36,6 +51,7 @@ class TestEvaluateRepairDecision:
             any_failed=True,
             copilot_changes_requested=False,
             copilot_review_id=0,
+            copilot_review_comments=[],
             failed_checks=failed,
         )
         assert decision.repair_needed is True
@@ -49,6 +65,7 @@ class TestEvaluateRepairDecision:
             any_failed=True,
             copilot_changes_requested=True,
             copilot_review_id=200,
+            copilot_review_comments=[],
             failed_checks=failed,
         )
         assert decision.repair_needed is True
@@ -62,6 +79,7 @@ class TestEvaluateRepairDecision:
             any_failed=False,
             copilot_changes_requested=False,
             copilot_review_id=0,
+            copilot_review_comments=[],
             failed_checks=[],
         )
         assert decision.repair_needed is False
