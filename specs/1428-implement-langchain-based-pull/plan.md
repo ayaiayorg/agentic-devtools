@@ -3,6 +3,7 @@
 **Issue**: [#1428](https://github.com/ayaiayorg/agentic-devtools/issues/1428)  
 **Artifacts Branch**: `speckit/1428/phase-3-plan`  
 **Planned Implementation Branch**: `1428-implement-langchain-based-pull`
+**Tracked Artifacts in this Branch**: `plan.md`, `spec.md`, `checklists/requirements.md` (other SpecKit optional artifacts are gitignored in this repository)
 
 ## 1. Technical Context
 
@@ -10,18 +11,18 @@
 |--------|--------|
 | Language | Python 3.10+ |
 | Package manager | pip / hatchling + hatch-vcs |
-| LangGraph (existing) | `langgraph>=0.2.0` already a core dependency |
+| LangGraph | Target optional extra dependency: `langgraph>=0.4,<1.0` |
 | LangGraph checkpoint | `langgraph-checkpoint-sqlite>=3.0.1` (core dep) |
 | Existing orchestration | `agentic_devtools/orchestration/` — work-on-issue graph |
 | Review state | `agentic_devtools/cli/azure_devops/review_state.py` (dataclasses + JSON CRUD) |
 | Review workflow entry | `agentic_devtools/cli/workflows/commands.py` → `initiate_pull_request_review_workflow` |
 | Config system | `.agdt/config/review-models.json` + override file |
-| Test policy | 1:1:1 under `tests/unit/`, TDD required; CI installs `[langchain]` extra so all `orchestration/review/` modules are importable and fully covered — no `pytest.importorskip` skipping in source coverage runs |
+| Test policy | 1:1:1 under `tests/unit/`, TDD required; plan includes CI update to install `.[dev,langchain]` for source coverage runs so all `orchestration/review/` modules are importable and fully covered (no `pytest.importorskip` skips in coverage-gated runs) |
 
 ### Key Dependencies
 
-- `langgraph>=0.2.0` — already a **core** dependency (not optional)
-- `langchain-core>=0.3,<1.0` — needs to be added as optional extra `[langchain]`
+- `langchain-core>=0.3,<1.0` — optional extra `[langchain]`
+- `langgraph>=0.4,<1.0` — optional extra `[langchain]` (aligned with spec)
 - Existing `review-state.json` files must remain readable; any schema change must be
   backward-compatible, specifically by making the new session `engine` field optional
   and using tolerant deserialization when it is absent
@@ -50,7 +51,7 @@ Key decisions:
 
 1. **Routing layer**: Inject at `initiate_pull_request_review_workflow` before calling `review_pull_request`
 2. **State compatibility**: LangChain path writes identical `review-state.json`; adds `engine` field to session entries
-3. **Dependency model**: `langchain-core` as optional extra; `langgraph` already core
+3. **Dependency model**: `langchain-core` and `langgraph` provided via optional `[langchain]` extra
 4. **Graph design**: Linear pipeline with conditional retry edges (scaffold → review-files → summarize)
 
 ## 3. Design Overview
@@ -62,7 +63,7 @@ Key decisions:
 └──────────────────────────────┬──────────────────────────────────┘
                                │
                     ┌──────────▼──────────┐
-                    │  resolve_engine()   │
+                    │ resolve_review_engine() │
                     │  CLI > state > env  │
                     └──────┬─────────┬────┘
                            │         │
@@ -113,7 +114,8 @@ Key decisions:
 | 2.2 | `agentic_devtools/orchestration/review/preflight.py` (new) | Check `langchain-core` importable, check config present |
 | 2.3 | `pyproject.toml` | Add `[langchain]` optional extra with `langchain-core>=0.3,<1.0` |
 | 2.4 | `agentic_devtools/cli/workflows/commands.py` | Call preflight before LangChain dispatch; exit(1) with actionable message on failure |
-| 2.5 | Tests | `tests/unit/orchestration/review/preflight/test_validate_langchain_dependencies.py` |
+| 2.5 | `.github/workflows/test.yml` | Update dependency install step for coverage-gated source runs to include `pip install -e ".[dev,langchain]"` |
+| 2.6 | Tests | `tests/unit/orchestration/review/preflight/test_validate_langchain_dependencies.py` |
 
 ### Phase 3: LangGraph Review Graph Implementation
 
@@ -125,7 +127,7 @@ Key decisions:
 | 3.2 | `agentic_devtools/orchestration/review/nodes.py` (new) | Node functions: `scaffold_node`, `review_file_node`, `summarize_node`, `complete_node` |
 | 3.3 | `agentic_devtools/orchestration/review/graph_builder.py` (new) | `build_pr_review_graph(checkpointer=None) → CompiledStateGraph` |
 | 3.4 | `agentic_devtools/orchestration/review/runner.py` (new) | `run_langchain_review(pr_id, config, state_dir)` — orchestrates graph invocation |
-| 3.5 | Tests | Unit tests for each node + graph compilation test; CI job installs `[langchain]` extra so modules are importable and all branches are exercised — 100% coverage achieved without skipping |
+| 3.5 | Tests | Unit tests for each node + graph compilation test; coverage-gated runs execute with `.[dev,langchain]` so modules are importable and all branches are exercised without skipping |
 
 ### Phase 4: Review-State Integration
 
@@ -164,7 +166,7 @@ Key decisions:
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| LangGraph version incompatibility between existing core dep and new `langchain-core` extra | Medium | High | Pin compatible ranges; test in CI with both installed |
+| `langchain-core` / `langgraph` optional extra version incompatibility | Medium | High | Pin compatible ranges in `[langchain]`; test in CI with `.[dev,langchain]` |
 | Startup overhead exceeds 5s budget (NFR-003) | Low | Medium | Lazy imports; measure in Phase 3 tests |
 | LangChain callback leaks credentials | Low | High | Custom callback handler that filters sensitive patterns; test coverage |
 | Existing review lifecycle commands break with new session `engine` field | Low | Medium | Field is optional with default `None`; backward-compatible deserialization |
@@ -177,7 +179,7 @@ Key decisions:
 | Package | Version | Type |
 |---------|---------|------|
 | `langchain-core` | `>=0.3,<1.0` | Optional extra `[langchain]` |
-| `langgraph` | `>=0.2.0` | Already core dependency |
+| `langgraph` | `>=0.4,<1.0` | Optional extra `[langchain]` |
 | `langgraph-checkpoint-sqlite` | `>=3.0.1` | Already core dependency |
 
 ### Internal
