@@ -2,7 +2,7 @@
 
 **Issue**: [#1428](https://github.com/ayaiayorg/agentic-devtools/issues/1428)  
 **Artifacts Branch**: `speckit/1428/phase-3-plan`  
-**Planned Implementation Branch**: `1428-implement-langchain-based-pull`
+**Planned Implementation Branch**: `feat/1428/implement-langchain-based-pull`
 **Tracked Artifacts in this Branch**: `plan.md`, `spec.md`, `checklists/requirements.md`  
 (SpecKit optional artifacts `research.md`, `data-model.md`, `quickstart.md`, and `contracts/` are gitignored in this repository and intentionally not committed)
 
