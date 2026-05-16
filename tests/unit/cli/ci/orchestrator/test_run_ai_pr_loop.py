@@ -187,9 +187,7 @@ class TestRunAIPRLoop:
 
     def test_human_changes_requested_does_not_dispatch_repair(self) -> None:
         """Human CHANGES_REQUESTED blocks merge but does NOT trigger repair."""
-        provider = _make_provider(
-            reviews=[ReviewInfo(id=1, user="reviewer", state="CHANGES_REQUESTED", body="fix")]
-        )
+        provider = _make_provider(reviews=[ReviewInfo(id=1, user="reviewer", state="CHANGES_REQUESTED", body="fix")])
         payload = EventPayload(pr_number=42, head_sha="abc123")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
@@ -302,9 +300,7 @@ class TestRunAIPRLoop:
 
     def test_copilot_commented_with_copilot_login_alias(self) -> None:
         """COMMENTED review from 'Copilot' login (alias) with comments triggers repair."""
-        provider = _make_provider(
-            reviews=[ReviewInfo(id=4, user="Copilot", state="COMMENTED", body="")]
-        )
+        provider = _make_provider(reviews=[ReviewInfo(id=4, user="Copilot", state="COMMENTED", body="")])
         provider.dispatch_repair.return_value = 200
         provider.list_review_comments.return_value = ["please fix this"]
         payload = EventPayload(pr_number=42, head_sha="abc123")
