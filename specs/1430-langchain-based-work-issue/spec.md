@@ -34,8 +34,8 @@ side-by-side comparison testing with the existing state-machine workflow in `cli
   stated in NFR-003) for full worktree isolation? → A: The checkpoint database MUST be stored inside `.agdt/workflows/{identity}/{worktree_key}/orchestration.db` to maintain worktree isolation. The
   existing `checkpointing.py` `get_checkpointer()` function must be updated to resolve the path via `get_state_dir()` instead of `_get_git_repo_root()`.
 - Q: How should the `--resume` flag interact with the command when no interrupted workflow exists for the given issue key — should it fail loudly, fall back to a fresh start, or prompt the user? → A:
-  The system MUST fail with a clear error message (exit code 1) stating "No interrupted workflow found for issue key `<KEY>`.
-  Use --engine langchain without --resume to start a fresh workflow." It must NOT
+  The system MUST fail with a clear error message (exit code 1) stating
+  "No interrupted workflow found for issue key `<KEY>`. Use --engine langchain without --resume to start a fresh workflow." It must NOT
   silently start a new workflow, as that could lead to duplicate artifacts.
 - Q: Should real node functions call the existing CLI entry points (e.g., `agdt-add-jira-comment` which spawns background tasks) or call the underlying synchronous implementation functions directly to
   maintain graph execution flow? → A: Node functions MUST call real synchronous implementation functions directly (for example
@@ -66,10 +66,11 @@ checklist_creation → implementation → verification → commit → pull_reque
 
 1. **Given** the CLI is installed and a valid Jira issue key exists, **When** I run `agdt-initiate-work-on-jira-issue-workflow --engine langchain --issue-key PROJECT-1234`, **Then** the LangGraph
    `build_work_on_issue_graph()` is invoked with real tool integrations and the workflow executes through all nodes.
-2. **Given** the `--engine langchain` flag is provided, **When** the workflow reaches the planning gate, **Then** execution pauses via `interrupt()` and can be resumed with a `Command(resume=...)` to
-   continue to checklist creation.
-3. **Given** the LangGraph workflow is running, **When** verification fails with a retryable error, **Then** the workflow routes back to the implementation node (up to MAX_RETRIES times) before
-   proceeding to commit.
+2. **Given** the `--engine langchain` flag is provided, **When** the workflow reaches the planning gate, **Then** execution pauses via `interrupt()` and can be resumed by re-running
+   `agdt-initiate-work-on-jira-issue-workflow --engine langchain --resume --issue-key PROJECT-1234`
+   (internally using `Command(resume=...)`) to continue to checklist creation.
+3. **Given** the LangGraph workflow is running, **When** verification fails with a retryable error, **Then** the workflow routes back to the implementation node
+   (up to 3 retries, i.e., `MAX_RETRIES=3`) before proceeding to commit.
 4. **Given** `dry_run=true` is set in state, **When** LangGraph nodes that normally call Jira, Git, or Azure DevOps execute, **Then** no external side effects occur and each node records a
    dry-run event describing the skipped action.
 5. **Given** the LangGraph workflow executes any node, **When** the node starts and completes, **Then** structured audit-trail events are appended to the `events` channel with node name and timestamp.
