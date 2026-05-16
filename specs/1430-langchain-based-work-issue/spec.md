@@ -34,9 +34,8 @@ side-by-side comparison testing with the existing state-machine workflow in `cli
   stated in NFR-003) for full worktree isolation? → A: The checkpoint database MUST be stored inside `.agdt/workflows/{identity}/{worktree_key}/orchestration.db` to maintain worktree isolation. The
   existing `checkpointing.py` `get_checkpointer()` function must be updated to resolve the path via `get_state_dir()` instead of `_get_git_repo_root()`.
 - Q: How should the `--resume` flag interact with the command when no interrupted workflow exists for the given issue key — should it fail loudly, fall back to a fresh start, or prompt the user? → A:
-  The system MUST fail with a clear error message (exit code 1) stating
-  "No interrupted workflow found for issue key `<KEY>`. Use --engine langchain without --resume to start a fresh workflow." It must NOT
-  silently start a new workflow, as that could lead to duplicate artifacts.
+  The system MUST fail with a clear error message (exit code 1) stating "No interrupted workflow found for issue key `<KEY>`. Use --engine langchain without --resume to start a fresh workflow."
+  It must NOT silently start a new workflow, as that could lead to duplicate artifacts.
 - Q: Should real node functions call the existing CLI entry points (e.g., `agdt-add-jira-comment` which spawns background tasks) or call the underlying synchronous implementation functions directly to
   maintain graph execution flow? → A: Node functions MUST call real synchronous implementation functions directly (for example
   `agentic_devtools.tools.jira.add_comment(...)`, safe in-process git tool functions for staging/commit/amend/push operations, and
@@ -46,8 +45,7 @@ side-by-side comparison testing with the existing state-machine workflow in `cli
   make checkpointing unreliable.
 - Q: Should the `--engine langchain` flag be mutually exclusive with `--resume` flag validation (i.e., `--resume` requires `--engine langchain`),
   or should `--resume` work independently? → A: `--resume`
-  MUST require `--engine langchain` — it is only meaningful for LangGraph workflows. If `--resume` is provided without `--engine langchain`, the CLI MUST exit with an error: "--resume requires
-  --engine langchain".
+  MUST require `--engine langchain` — it is only meaningful for LangGraph workflows. If `--resume` is provided without `--engine langchain`, the CLI MUST exit with an error: "--resume requires --engine langchain".
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -167,8 +165,7 @@ implementation.
 - What happens when the SQLite checkpoint database becomes corrupted? The system MUST detect the corruption (SQLite `DatabaseError`) and offer a reset path (delete and recreate the database file)
   without losing the ability to start a fresh workflow.
 - What happens when `--resume` is provided without `--engine langchain`? The system MUST exit with error code 1 and message: "--resume requires --engine langchain".
-- What happens when `--resume` is provided but no interrupted workflow exists for the given issue key? The system MUST exit with error code 1 and message: "No interrupted workflow found for issue key
-  `<KEY>`. Use --engine langchain without --resume to start a fresh workflow."
+- What happens when `--resume` is provided but no interrupted workflow exists for the given issue key? The system MUST exit with error code 1 and message: "No interrupted workflow found for issue key `<KEY>`. Use --engine langchain without --resume to start a fresh workflow."
 
 ## Requirements *(mandatory)*
 
