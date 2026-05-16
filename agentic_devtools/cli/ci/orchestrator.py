@@ -6,7 +6,9 @@ repair dispatch → approval → merge.
 
 When actionable Copilot review comments or failing CI checks are detected,
 the orchestrator dispatches a repair by posting a @copilot-tagged comment
-on the PR (FR-001, FR-002). When everything is green, it approves and merges.
+on the PR (FR-001, FR-002).  A Copilot review is considered actionable when
+its state is CHANGES_REQUESTED, or COMMENTED with inline comments.  When
+everything is green, it approves and merges.
 """
 
 from __future__ import annotations
@@ -78,9 +80,10 @@ def run_ai_pr_loop(
     5. Evaluate reviews
     6. Decide: dispatch repair, approve, or merge
 
-    When actionable Copilot review comments (CHANGES_REQUESTED) or failing
-    CI checks are detected, a @copilot-tagged comment is posted to trigger
-    an AI agent repair session (FR-001, FR-002).
+    When actionable Copilot review comments (CHANGES_REQUESTED, or COMMENTED
+    with inline suggestions) or failing CI checks are detected, a
+    @copilot-tagged comment is posted to trigger an AI agent repair session
+    (FR-001, FR-002).
 
     Args:
         provider: CI platform provider for API interactions.
@@ -186,12 +189,25 @@ def run_ai_pr_loop(
     any_changes_requested = False
     copilot_review_id = 0
 
-    # Detect actionable Copilot review (CHANGES_REQUESTED state from Copilot)
+    # Detect actionable Copilot review (CHANGES_REQUESTED or COMMENTED with
+    # inline comments from Copilot).  A COMMENTED review is only actionable
+    # when it contains inline comments (i.e. suggestions the author should
+    # address).
     for review in effective_reviews:
-        if review.state == "CHANGES_REQUESTED" and review.user in COPILOT_LOGINS:
+        if review.user in COPILOT_LOGINS and review.state == "CHANGES_REQUESTED":
             copilot_changes_requested = True
             copilot_review_id = review.id
             break
+        if review.user in COPILOT_LOGINS and review.state == "COMMENTED":
+            try:
+                comments = provider.list_review_comments(pr_number, review.id)
+            except Exception as exc:
+                logger.warning("Failed to check review comments for PR #%d review %d: %s", pr_number, review.id, exc)
+                comments = []
+            if comments:
+                copilot_changes_requested = True
+                copilot_review_id = review.id
+                break
         if review.state == "CHANGES_REQUESTED":
             any_changes_requested = True
 
@@ -254,8 +270,10 @@ def _evaluate_repair_decision(
 ) -> RepairDecision:
     """Evaluate whether a repair dispatch is needed and determine the type.
 
-    Only Copilot CHANGES_REQUESTED reviews trigger repair dispatch (not human
-    reviews). Human review feedback must be addressed manually.
+    Only Copilot reviews trigger repair dispatch (not human reviews).
+    A Copilot review is actionable when its state is CHANGES_REQUESTED,
+    or COMMENTED with inline comments.  Human review feedback must be
+    addressed manually.
 
     Args:
         any_failed: True if any CI check has failed.

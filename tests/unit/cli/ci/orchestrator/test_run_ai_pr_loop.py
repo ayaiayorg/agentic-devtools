@@ -259,3 +259,53 @@ class TestRunAIPRLoop:
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_REPAIR_DISPATCHED
         provider.dispatch_repair.assert_called_once()
+
+    def test_copilot_commented_with_inline_comments_dispatches_repair(self) -> None:
+        """Copilot COMMENTED review with inline comments triggers repair dispatch."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=3, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="")]
+        )
+        provider.dispatch_repair.return_value = 200
+        provider.list_review_comments.return_value = ["suggestion: use const"]
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_REPAIR_DISPATCHED
+        provider.dispatch_repair.assert_called_once()
+
+    def test_copilot_commented_without_inline_comments_does_not_dispatch(self) -> None:
+        """Copilot COMMENTED review without inline comments is not actionable."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=3, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")]
+        )
+        provider.list_review_comments.return_value = []
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.dispatch_repair.assert_not_called()
+        provider.merge_pr.assert_called_once()
+
+    def test_copilot_commented_superseded_by_approval(self) -> None:
+        """Older Copilot COMMENTED is superseded by a later APPROVED from same user."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(id=2, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="fix"),
+                ReviewInfo(id=8, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm"),
+            ]
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.dispatch_repair.assert_not_called()
+        provider.merge_pr.assert_called_once()
+
+    def test_copilot_commented_with_copilot_login_alias(self) -> None:
+        """COMMENTED review from 'Copilot' login (alias) with comments triggers repair."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=4, user="Copilot", state="COMMENTED", body="")]
+        )
+        provider.dispatch_repair.return_value = 200
+        provider.list_review_comments.return_value = ["please fix this"]
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_REPAIR_DISPATCHED
+        provider.dispatch_repair.assert_called_once()
