@@ -421,16 +421,16 @@ Each command prints the full agent prompt and saves it to
 ┌─────────────────────────────────────────────────────────────────────┐
 │  VS Code Copilot Chat                                                │
 │                                                                      │
-│  /speckit.agdt:specify Add dark mode    ← slash command with argument     │
+│  /speckit.agdt:specify Add dark mode  ← slash command with argument  │
 │  [Continue to Plan] [Clarify]      ← handoff buttons appear         │
-│  /speckit.agdt:plan                     ← next step                      │
+│  /speckit.agdt:plan                     ← next step                  │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Terminal Copilot CLI (this chat)                                    │
 │                                                                      │
 │  You: "run speckit specify — add dark mode"                          │
-│  Agent: invokes speckit.agdt:specify task tool directly         │
+│  Agent: invokes speckit.agdt:specify task tool directly              │
 │                                                                      │
 │  — OR —                                                              │
 │                                                                      │
