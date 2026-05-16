@@ -1,58 +1,45 @@
 name: AI PR Loop
 
 on:
-  workflow_run:
-    workflows: ["AI PR Loop Lint"]
-    types: [completed]
+  pull_request:
+    types: [opened, reopened, synchronize]
   pull_request_review:
     types: [submitted]
-
 permissions:
   contents: write
   pull-requests: write
   issues: write
   actions: read
   checks: read
-
 env:
   AGDT_USE_PYTHON_ORCHESTRATOR: "1"
-
 concurrency:
-  group: ai-pr-loop-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.head_branch }}
+  group: ai-pr-loop-${{ github.event.pull_request.number }}
   cancel-in-progress: false
-
 jobs:
   ai-pr-loop:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     if: >
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.event == 'pull_request') ||
+      github.event_name == 'pull_request' ||
       (github.event_name == 'pull_request_review' &&
        (github.event.review.user.login == 'Copilot' ||
         github.event.review.user.login == 'copilot-pull-request-reviewer[bot]'))
     steps:
-      # SECURITY: Pin to main — orchestrator is from PyPI; no PR code needed.
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 1
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
       - name: Install agentic-devtools
         run: pip install agentic-devtools
-
       - name: Run AI PR loop orchestrator
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-          # Separate identity for PR approval — GitHub prevents a user from
-          # approving their own PR, so bot-authored PRs require a distinct
-          # account's token for the approval step.
           AGDT_PR_APPROVER_PAT: ${{ secrets.AGDT_PR_APPROVER_PAT }}
         run: agdt-ai-pr-loop
