@@ -1,4 +1,4 @@
-# Feature Specification: LangChain-based Work-on-Issue Workflow (`--engine langchain` Flag)
+# Feature Specification: LangChain-based Work-on-Issue Workflow (`--engine langchain` / `--use-langchain` Flag)
 
 **Feature Branch**: `1430-langchain-work-on-issue-workflow`  
 **Created**: 2026-05-15  
@@ -21,6 +21,11 @@ side-by-side comparison testing with the existing state-machine workflow in `cli
 
 ### Session 2026-05-15
 
+- Q: Issue #1430 originally referenced a `--use-langchain` flag, but this spec adopts `--engine langchain` (consistent with the `--engine` parameterisation used in the parallel issue #1428).
+  How should the backward-compatibility contract be handled? → A: `--engine langchain` is the primary interface (the more flexible, extensible style). `--use-langchain` MUST also be accepted as a
+  backward-compatible alias that maps to `--engine langchain`, so any scripts or documentation written against the original issue contract continue to work. The alias MUST be documented in the CLI
+  help output alongside the primary flag. Issue #1430 and any related documentation that still references `--use-langchain` as the only flag MUST be updated to list `--engine langchain` as the
+  canonical form and `--use-langchain` as a deprecated alias.
 - Q: Should LangGraph dependencies remain in the core `dependencies` list (as they are today in `pyproject.toml`) or be moved to an optional extras group `[langchain]` for conditional installation? →
   A: LangGraph dependencies (`langgraph>=0.2.0`, `langgraph-checkpoint-sqlite>=3.0.1`) remain in core `dependencies` since they are already there. The error handling for missing dependencies (FR-009)
   becomes a defensive guard for downstream consumers who may vendor a subset of the package, but the standard install path always includes LangGraph. The error message should still reference `pip
@@ -65,8 +70,8 @@ checklist_creation → implementation → verification → commit → pull_reque
    continue to checklist creation.
 3. **Given** the LangGraph workflow is running, **When** verification fails with a retryable error, **Then** the workflow routes back to the implementation node (up to MAX_RETRIES times) before
    proceeding to commit.
-4. **Given** `dry_run=true` is set in state, **When** LangGraph nodes that normally call Jira, Git, or Azure DevOps execute, **Then** no external side effects occur and each node records a dry-run event
-   describing the skipped action.
+4. **Given** `dry_run=true` is set in state, **When** LangGraph nodes that normally call Jira, Git, or Azure DevOps execute, **Then** no external side effects occur and each node records a
+   dry-run event describing the skipped action.
 5. **Given** the LangGraph workflow executes any node, **When** the node starts and completes, **Then** structured audit-trail events are appended to the `events` channel with node name and timestamp.
 
 ---
@@ -168,7 +173,8 @@ implementation.
 
 ### Functional Requirements
 
-- **FR-001**: System MUST accept a `--engine langchain` flag on `agdt-initiate-work-on-jira-issue-workflow` that routes execution to the LangGraph-based implementation.
+- **FR-001**: System MUST accept an `--engine langchain` flag on `agdt-initiate-work-on-jira-issue-workflow` that routes execution to the LangGraph-based implementation. The system MUST also accept
+  `--use-langchain` as a backward-compatible alias for `--engine langchain`; both flags MUST produce identical behaviour and MUST be documented in the CLI help output.
 - **FR-002**: When `--engine langchain` is NOT provided, the system MUST execute the existing state-machine workflow in `manager.py` with zero behavioral changes.
 - **FR-003**: The LangGraph workflow node functions MUST perform real tool integrations by calling underlying synchronous implementation functions directly (not CLI entry points that spawn background
   tasks): Jira API calls (fetch issue, post comments), Git operations (stage, commit, push), and Azure DevOps API calls (create PR).
