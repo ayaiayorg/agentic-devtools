@@ -15,9 +15,13 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
+from typing import Any
 
 from agentic_devtools.cli.ci.guards import (
+    LABEL_SKIP_ENTIRELY,
+    PRIVILEGED_PREFIXES,
     check_cycle_limit,
     check_deduplication,
     check_docker_files,
@@ -35,6 +39,38 @@ from agentic_devtools.cli.ci.models import (
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
 
 logger = logging.getLogger(__name__)
+
+
+def _is_github_actions() -> bool:
+    """Return True when running inside GitHub Actions."""
+    return os.environ.get("GITHUB_ACTIONS") == "true"
+
+
+def _log_group(title: str) -> None:
+    """Emit a ``::group::`` annotation when running in GitHub Actions."""
+    if _is_github_actions():
+        print(f"::group::{title}", flush=True)
+
+
+def _log_endgroup() -> None:
+    """Emit an ``::endgroup::`` annotation when running in GitHub Actions."""
+    if _is_github_actions():
+        print("::endgroup::", flush=True)
+
+
+def _emit_decision_summary(summary: dict[str, Any]) -> None:
+    """Emit a structured JSON decision summary to stdout.
+
+    The summary captures the full decision path taken by the orchestrator
+    so that CI logs are self-documenting and diagnosable without digging
+    through raw log text.
+    """
+    _log_group("AI PR Loop — Decision Summary")
+    json.dump(summary, sys.stdout, indent=2)
+    sys.stdout.write("\n")
+    sys.stdout.flush()
+    _log_endgroup()
+
 
 # Exit codes used by the AI PR loop orchestrator.
 #
@@ -85,6 +121,9 @@ def run_ai_pr_loop(
     @copilot-tagged comment is posted to trigger an AI agent repair session
     (FR-001, FR-002).
 
+    A structured JSON decision summary is emitted at the end of each run
+    capturing the full decision path for diagnosability.
+
     Args:
         provider: CI platform provider for API interactions.
         event_payload: Normalized event payload from the trigger.
@@ -97,31 +136,72 @@ def run_ai_pr_loop(
     """
     if excluded_check_names is None:
         excluded_check_names = _DEFAULT_EXCLUDED_CHECK_NAMES
+
+    # Accumulator for the decision summary emitted at the end of the run.
+    summary: dict[str, Any] = {
+        "event": {
+            "pr_number": event_payload.pr_number,
+            "head_sha": event_payload.head_sha,
+            "action": event_payload.action,
+        },
+    }
+
     # Step 1: Validate we have a PR to work with
     if event_payload.pr_number == 0:
         logger.warning("No PR number in event payload, skipping")
+        summary["decision"] = "skip"
+        summary["reason"] = "no_pr_number"
+        summary["exit_code"] = EXIT_SUCCESS
+        _emit_decision_summary(summary)
         return EXIT_SUCCESS
 
     pr_number = event_payload.pr_number
 
     # Step 2: Resolve full PR metadata
+    _log_group("Step 2: Resolve PR metadata")
     try:
         pr_meta = provider.get_pr_metadata(pr_number)
     except Exception as exc:
         logger.error("Failed to get PR metadata for #%d: %s", pr_number, exc)
         _emit_error({"error": "metadata_resolution_failed", "pr_number": pr_number, "detail": str(exc)})
+        summary["decision"] = "error"
+        summary["reason"] = "metadata_resolution_failed"
+        summary["exit_code"] = EXIT_METADATA_FAILED
+        _log_endgroup()
+        _emit_decision_summary(summary)
         return EXIT_METADATA_FAILED
+    logger.info("PR #%d metadata resolved: head_sha=%s, base=%s", pr_number, pr_meta.head_sha, pr_meta.base_branch)
+    _log_endgroup()
 
     # Step 3: Evaluate guards
+    _log_group("Step 3: Evaluate guards")
+
     # 3a: Fork PR guard
     if check_fork_pr(pr_meta.head_repo_full_name, pr_meta.base_repo_full_name):
-        logger.info("PR #%d is from a fork — skipping", pr_number)
+        logger.info(
+            "PR #%d is from a fork (head=%s, base=%s) — skipping",
+            pr_number,
+            pr_meta.head_repo_full_name,
+            pr_meta.base_repo_full_name,
+        )
+        summary["guards"] = {"blocked_by": "fork_pr"}
+        summary["decision"] = "blocked"
+        summary["reason"] = "fork_pr"
+        summary["exit_code"] = EXIT_GUARD_BLOCKED
+        _log_endgroup()
+        _emit_decision_summary(summary)
         return EXIT_GUARD_BLOCKED
 
     # 3b: Exclusion labels
     should_skip, flag = check_exclusion_labels(pr_meta.labels)
     if should_skip:
-        logger.info("PR #%d has exclusion label — skipping entirely", pr_number)
+        logger.info("PR #%d has exclusion label '%s' — skipping entirely", pr_number, LABEL_SKIP_ENTIRELY)
+        summary["guards"] = {"blocked_by": "exclusion_label", "label": LABEL_SKIP_ENTIRELY}
+        summary["decision"] = "blocked"
+        summary["reason"] = "exclusion_label"
+        summary["exit_code"] = EXIT_GUARD_BLOCKED
+        _log_endgroup()
+        _emit_decision_summary(summary)
         return EXIT_GUARD_BLOCKED
 
     do_not_merge = flag == "do_not_merge"
@@ -129,15 +209,32 @@ def run_ai_pr_loop(
     # 3c: Privileged paths
     files = provider.list_pr_files(pr_number)
     if check_privileged_paths(files):
-        logger.info("PR #%d touches privileged paths — requires human review", pr_number)
+        privileged = [f for f in files if any(f.startswith(p) for p in PRIVILEGED_PREFIXES) and not f.endswith(".md")]
+        logger.info("PR #%d touches privileged paths %s — requires human review", pr_number, privileged)
+        summary["guards"] = {"blocked_by": "privileged_paths", "files": privileged}
+        summary["decision"] = "blocked"
+        summary["reason"] = "privileged_paths"
+        summary["exit_code"] = EXIT_GUARD_BLOCKED
+        _log_endgroup()
+        _emit_decision_summary(summary)
         return EXIT_GUARD_BLOCKED
 
     # 3d: Docker files
     if check_docker_files(files):
         logger.info("PR #%d touches Docker files — requires human review", pr_number)
+        summary["guards"] = {"blocked_by": "docker_files"}
+        summary["decision"] = "blocked"
+        summary["reason"] = "docker_files"
+        summary["exit_code"] = EXIT_GUARD_BLOCKED
+        _log_endgroup()
+        _emit_decision_summary(summary)
         return EXIT_GUARD_BLOCKED
 
+    logger.info("PR #%d passed path guards (files=%d, do_not_merge=%s)", pr_number, len(files), do_not_merge)
+    _log_endgroup()
+
     # Step 4: Check CI status
+    _log_group("Step 4: Check CI status")
     check_runs = provider.list_check_runs(pr_meta.head_sha)
     has_unknown_conclusion = False
     any_failed = False
@@ -146,25 +243,58 @@ def run_ai_pr_loop(
     for cr in check_runs:
         # Skip self-referencing workflows to avoid deadlock
         if cr.name in excluded_check_names:
+            logger.info("  check '%s' — excluded (self-referencing)", cr.name)
             continue
         if cr.status != "completed":
             any_pending = True
+            logger.info("  check '%s' — pending (status=%s)", cr.name, cr.status)
         elif cr.conclusion == "failure":
             any_failed = True
             failed_checks.append(cr)
+            logger.info("  check '%s' — FAILED", cr.name)
         elif cr.conclusion not in ("success", "neutral", "skipped"):
             has_unknown_conclusion = True
+            logger.info("  check '%s' — unknown conclusion '%s'", cr.name, cr.conclusion)
+        else:
+            logger.info("  check '%s' — %s", cr.name, cr.conclusion)
+
+    ci_summary: dict[str, Any] = {
+        "total": len(check_runs),
+        "excluded": len([cr for cr in check_runs if cr.name in excluded_check_names]),
+        "pending": any_pending,
+        "failed": [cr.name for cr in failed_checks],
+        "has_unknown_conclusion": has_unknown_conclusion,
+    }
+    summary["ci"] = ci_summary
 
     if any_pending:
-        logger.info("PR #%d has pending checks — waiting", pr_number)
+        logger.info("PR #%d has pending checks — waiting for CI to complete", pr_number)
+        summary["decision"] = "wait"
+        summary["reason"] = "checks_pending"
+        summary["exit_code"] = EXIT_SUCCESS
+        _log_endgroup()
+        _emit_decision_summary(summary)
         return EXIT_SUCCESS
+    _log_endgroup()
 
     # 3e: Deduplication — checked after CI pending short-circuit so that
     # re-triggers while CI is still running don't consume the dispatch budget.
+    _log_group("Step 3e–3f: Deduplication and cycle guards")
     dedup_sha = event_payload.head_sha or pr_meta.head_sha
     dedup_skip, dedup_count = check_deduplication(provider, pr_number, dedup_sha)
     if dedup_skip:
-        logger.info("PR #%d dispatch limit reached (count=%d) — skipping", pr_number, dedup_count)
+        logger.info(
+            "PR #%d dispatch limit reached for sha=%s (count=%d) — skipping",
+            pr_number,
+            dedup_sha[:8],
+            dedup_count,
+        )
+        summary["guards"] = {"blocked_by": "deduplication", "sha": dedup_sha[:8], "count": dedup_count}
+        summary["decision"] = "blocked"
+        summary["reason"] = "dedup_limit"
+        summary["exit_code"] = EXIT_GUARD_BLOCKED
+        _log_endgroup()
+        _emit_decision_summary(summary)
         return EXIT_GUARD_BLOCKED
 
     # 3f: Cycle limit — checked after CI pending short-circuit so that
@@ -172,13 +302,22 @@ def run_ai_pr_loop(
     cycle_reached, cycle_count = check_cycle_limit(provider, pr_number)
     if cycle_reached:
         logger.info("PR #%d cycle limit reached (count=%d) — skipping", pr_number, cycle_count)
+        summary["guards"] = {"blocked_by": "cycle_limit", "count": cycle_count}
+        summary["decision"] = "blocked"
+        summary["reason"] = "cycle_limit"
+        summary["exit_code"] = EXIT_GUARD_BLOCKED
+        _log_endgroup()
+        _emit_decision_summary(summary)
         return EXIT_GUARD_BLOCKED
+    logger.info("PR #%d passed dedup (count=%d) and cycle (count=%d) guards", pr_number, dedup_count, cycle_count)
+    _log_endgroup()
 
     # Step 5: Evaluate reviews
     # Collapse to effective latest state per reviewer (highest review.id wins).
     # All COPILOT_LOGINS aliases are normalized to a single canonical key so
     # that a later APPROVED from any Copilot alias supersedes an earlier
     # COMMENTED or CHANGES_REQUESTED posted under a different alias.
+    _log_group("Step 5: Evaluate reviews")
     _COPILOT_KEY = "copilot"
     reviews = provider.list_reviews(pr_number)
     latest_by_user: dict[str, ReviewInfo] = {}
@@ -195,6 +334,9 @@ def run_ai_pr_loop(
     copilot_review_id = 0
     copilot_review_comments: list[str] = []
 
+    for review in effective_reviews:
+        logger.info("  review by '%s' — state=%s (id=%d)", review.user, review.state, review.id)
+
     # Detect actionable Copilot review (CHANGES_REQUESTED or COMMENTED with
     # inline comments from Copilot).  A COMMENTED review is only actionable
     # when it contains inline comments (i.e. suggestions the author should
@@ -204,6 +346,7 @@ def run_ai_pr_loop(
         if review.user in COPILOT_LOGINS and review.state == "CHANGES_REQUESTED":
             copilot_actionable_review = True
             copilot_review_id = review.id
+            logger.info("  → Copilot CHANGES_REQUESTED detected (review_id=%d) — actionable", review.id)
             break
         if review.user in COPILOT_LOGINS and review.state == "COMMENTED":
             try:
@@ -213,8 +356,7 @@ def run_ai_pr_loop(
                 # comments, treat it as actionable to avoid merging over
                 # suggestions that we failed to fetch.
                 logger.warning(
-                    "Failed to check review comments for PR #%d review %d"
-                    " — treating review as actionable: %s",
+                    "Failed to check review comments for PR #%d review %d — treating review as actionable: %s",
                     pr_number,
                     review.id,
                     exc,
@@ -226,11 +368,29 @@ def run_ai_pr_loop(
                 copilot_actionable_review = True
                 copilot_review_id = review.id
                 copilot_review_comments = list(comments)
+                logger.info(
+                    "  → Copilot COMMENTED with %d inline comment(s) (review_id=%d) — actionable",
+                    len(comments),
+                    review.id,
+                )
                 break
+            logger.info("  → Copilot COMMENTED with 0 inline comments (review_id=%d) — not actionable", review.id)
         if review.state == "CHANGES_REQUESTED":
             any_changes_requested = True
 
+    review_summary: dict[str, Any] = {
+        "total_raw": len(reviews),
+        "effective": len(effective_reviews),
+        "has_approval": has_approval,
+        "copilot_actionable": copilot_actionable_review,
+        "copilot_review_id": copilot_review_id,
+        "any_changes_requested": any_changes_requested,
+    }
+    summary["reviews"] = review_summary
+    _log_endgroup()
+
     # Step 6: Dispatch repair decision (only for Copilot reviews and CI failures)
+    _log_group("Step 6: Repair decision")
     decision = _evaluate_repair_decision(
         any_failed=any_failed,
         copilot_actionable_review=copilot_actionable_review,
@@ -240,35 +400,79 @@ def run_ai_pr_loop(
     )
 
     if decision.repair_needed:
-        return _dispatch_repair(
+        logger.info(
+            "PR #%d repair needed (type=%s, review_id=%d, failed_checks=%d)",
+            pr_number,
+            decision.repair_type,
+            decision.review_id,
+            len(decision.failed_checks),
+        )
+        summary["repair"] = {
+            "needed": True,
+            "type": decision.repair_type,
+            "review_id": decision.review_id,
+            "failed_checks": [cr.name for cr in decision.failed_checks],
+        }
+        _log_endgroup()
+        result = _dispatch_repair(
             provider=provider,
             pr_number=pr_number,
             head_sha=pr_meta.head_sha,
             decision=decision,
         )
+        summary["decision"] = "repair_dispatched" if result == EXIT_REPAIR_DISPATCHED else "repair_failed"
+        summary["exit_code"] = result
+        _emit_decision_summary(summary)
+        return result
+    logger.info("PR #%d no repair needed", pr_number)
+    summary["repair"] = {"needed": False}
+    _log_endgroup()
 
     # Step 7: Merge gate
     # Note: any_failed and copilot_actionable_review are guaranteed False here —
     # both conditions trigger repair dispatch in Step 6 which returns before
     # reaching this point.
+    _log_group("Step 7–9: Merge gate")
     if has_unknown_conclusion:
         logger.info(
             "PR #%d has checks with non-success conclusions — cannot merge",
             pr_number,
         )
+        summary["decision"] = "blocked"
+        summary["reason"] = "unknown_check_conclusions"
+        summary["exit_code"] = EXIT_MERGE_BLOCKED
+        _log_endgroup()
+        _emit_decision_summary(summary)
         return EXIT_MERGE_BLOCKED
 
     if any_changes_requested:
-        logger.info("PR #%d has changes requested — waiting for updates", pr_number)
+        logger.info(
+            "PR #%d has non-Copilot changes requested — waiting for author updates (not dispatching repair)",
+            pr_number,
+        )
+        summary["decision"] = "wait"
+        summary["reason"] = "human_changes_requested"
+        summary["exit_code"] = EXIT_SUCCESS
+        _log_endgroup()
+        _emit_decision_summary(summary)
         return EXIT_SUCCESS
 
     if do_not_merge:
-        logger.info("PR #%d ready but do-not-auto-merge label present", pr_number)
+        logger.info("PR #%d ready but do-not-auto-merge label present — skipping merge", pr_number)
+        summary["decision"] = "skip_merge"
+        summary["reason"] = "do_not_auto_merge_label"
+        summary["exit_code"] = EXIT_SUCCESS
+        _log_endgroup()
+        _emit_decision_summary(summary)
         return EXIT_SUCCESS
 
     # Step 8: Approve if needed
     if not has_approval:
+        logger.info("PR #%d has no approval — auto-approving", pr_number)
         provider.approve_pr(pr_number, pr_meta.head_sha, "Auto-approved by AI PR loop")
+        summary["auto_approved"] = True
+    else:
+        summary["auto_approved"] = False
 
     # Step 9: Merge
     try:
@@ -276,8 +480,17 @@ def run_ai_pr_loop(
         logger.info("PR #%d merged successfully", pr_number)
     except Exception as exc:
         logger.error("Failed to merge PR #%d: %s", pr_number, exc)
+        summary["decision"] = "error"
+        summary["reason"] = "merge_failed"
+        summary["exit_code"] = EXIT_MERGE_BLOCKED
+        _log_endgroup()
+        _emit_decision_summary(summary)
         return EXIT_MERGE_BLOCKED
 
+    summary["decision"] = "merged"
+    summary["exit_code"] = EXIT_SUCCESS
+    _log_endgroup()
+    _emit_decision_summary(summary)
     return EXIT_SUCCESS
 
 
