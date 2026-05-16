@@ -12,6 +12,8 @@ from agentic_devtools.cli.ci.models import (
 )
 from agentic_devtools.cli.ci.orchestrator import (
     EXIT_GUARD_BLOCKED,
+    EXIT_MERGE_BLOCKED,
+    EXIT_METADATA_FAILED,
     EXIT_REPAIR_DISPATCHED,
     EXIT_SUCCESS,
     run_ai_pr_loop,
@@ -174,3 +176,29 @@ class TestDecisionSummaryEmission:
 
         assert "ci/build" in summary["ci"]["failed"]
         assert "ci/lint" not in summary["ci"]["failed"]
+
+    def test_pr_files_error_emits_error_summary(self) -> None:
+        """File listing failure emits an error decision summary with reason."""
+        provider = _make_provider()
+        provider.list_pr_files.side_effect = RuntimeError("api unavailable")
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "error"
+        assert summary["reason"] == "pr_files_listing_failed"
+        assert summary["error"] == "api unavailable"
+        assert summary["exit_code"] == EXIT_METADATA_FAILED
+
+    def test_repair_dispatch_failure_emits_failure_reason(self) -> None:
+        """Repair dispatch failure summary includes a human-readable reason."""
+        provider = _make_provider(
+            check_runs=[CheckRunStatus(id=2, name="ci/test", status="completed", conclusion="failure")],
+            reviews=[],
+        )
+        provider.dispatch_repair.side_effect = RuntimeError("dispatch endpoint timeout")
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "repair_failed"
+        assert summary["reason"] == "dispatch endpoint timeout"
+        assert summary["exit_code"] == EXIT_MERGE_BLOCKED

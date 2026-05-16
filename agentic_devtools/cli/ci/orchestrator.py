@@ -207,7 +207,17 @@ def run_ai_pr_loop(
     do_not_merge = flag == "do_not_merge"
 
     # 3c: Privileged paths
-    files = provider.list_pr_files(pr_number)
+    try:
+        files = provider.list_pr_files(pr_number)
+    except Exception as exc:
+        logger.error("Failed to list changed files for PR #%d: %s", pr_number, exc)
+        summary["decision"] = "error"
+        summary["reason"] = "pr_files_listing_failed"
+        summary["error"] = str(exc)
+        summary["exit_code"] = EXIT_METADATA_FAILED
+        _log_endgroup()
+        _emit_decision_summary(summary)
+        return EXIT_METADATA_FAILED
     if check_privileged_paths(files):
         privileged = [f for f in files if any(f.startswith(p) for p in PRIVILEGED_PREFIXES) and not f.endswith(".md")]
         logger.info("PR #%d touches privileged paths %s — requires human review", pr_number, privileged)
@@ -414,13 +424,17 @@ def run_ai_pr_loop(
             "failed_checks": [cr.name for cr in decision.failed_checks],
         }
         _log_endgroup()
+        repair_failure_reason: list[str] = []
         result = _dispatch_repair(
             provider=provider,
             pr_number=pr_number,
             head_sha=pr_meta.head_sha,
             decision=decision,
+            failure_reason_out=repair_failure_reason,
         )
         summary["decision"] = "repair_dispatched" if result == EXIT_REPAIR_DISPATCHED else "repair_failed"
+        if repair_failure_reason:
+            summary["reason"] = repair_failure_reason[0]
         summary["exit_code"] = result
         _emit_decision_summary(summary)
         return result
@@ -550,6 +564,7 @@ def _dispatch_repair(
     pr_number: int,
     head_sha: str,
     decision: RepairDecision,
+    failure_reason_out: list[str] | None = None,
 ) -> int:
     """Dispatch repair by posting a @copilot comment on the PR.
 
@@ -562,6 +577,8 @@ def _dispatch_repair(
         pr_number: Pull request number.
         head_sha: Current HEAD SHA.
         decision: Repair decision with type and context.
+        failure_reason_out: Optional list to receive a short diagnostic
+            error message when dispatch fails.
 
     Returns:
         EXIT_REPAIR_DISPATCHED on success, EXIT_MERGE_BLOCKED on failure.
@@ -599,6 +616,8 @@ def _dispatch_repair(
         return EXIT_REPAIR_DISPATCHED
     except Exception as exc:
         logger.error("Failed to dispatch repair for PR #%d: %s", pr_number, exc)
+        if failure_reason_out is not None:
+            failure_reason_out.append(str(exc))
         return EXIT_MERGE_BLOCKED
 
 
