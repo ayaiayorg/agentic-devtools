@@ -1,4 +1,4 @@
-# Specification Quality Checklist: LangChain-based Work-on-Issue Workflow (`--engine langchain` Flag)
+# Specification Quality Checklist: LangChain-based Work-on-Issue Workflow (`--engine langchain` / `--use-langchain` Flag)
 
 **Purpose**: Validate specification completeness before proceeding to planning
 **Created**: 2026-05-15
