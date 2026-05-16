@@ -4,7 +4,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 AI_PR_LOOP = REPO_ROOT / ".github" / "workflows" / "ai-pr-loop.yml"
+AI_PR_LOOP_LINT = REPO_ROOT / ".github" / "workflows" / "ai-pr-loop-lint.yml"
 SPECKIT_TRIGGER = REPO_ROOT / ".github" / "workflows" / "speckit-issue-trigger.yml"
+WORKFLOW_APPROVAL_MONITOR = REPO_ROOT / ".github" / "workflows" / "workflow-approval-monitor.yml"
 
 
 def _non_empty_line_count(path: Path) -> int:
@@ -45,6 +47,17 @@ class TestMinimizedCiWorkflows:
     def test_ai_pr_loop_has_concurrency_group(self) -> None:
         content = AI_PR_LOOP.read_text(encoding="utf-8")
         assert "concurrency:" in content
+        assert "github.event.pull_request.number" in content
+        assert "workflow_run.pull_requests" not in content
+
+    def test_ai_pr_loop_uses_direct_pull_request_trigger(self) -> None:
+        content = AI_PR_LOOP.read_text(encoding="utf-8")
+        assert "pull_request:" in content
+        assert "workflow_run:" not in content
+
+    def test_redundant_ai_pr_loop_workflows_are_removed(self) -> None:
+        assert not AI_PR_LOOP_LINT.exists()
+        assert not WORKFLOW_APPROVAL_MONITOR.exists()
 
     def test_speckit_trigger_has_concurrency_group(self) -> None:
         content = SPECKIT_TRIGGER.read_text(encoding="utf-8")
