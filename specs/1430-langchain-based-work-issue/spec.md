@@ -93,16 +93,17 @@ that the workflow produces actual artifacts.
 **Why this priority**: Without real tool calls, the LangGraph path cannot be validated against the existing implementation — stubs are not testable in an end-to-end sense.
 
 **Independent Test**: Can be tested by triggering individual node functions in isolation (unit tests) and verifying they call real synchronous implementation targets (e.g.,
-`planning_node` calls `agentic_devtools.cli.jira.comment_commands.add_comment()`, `commit_node` uses the existing helpers in `agentic_devtools.cli.git.operations`, and `pull_request_node` calls `agentic_devtools.tools.azure_devops.create_pull_request()`).
+`planning_node` calls `agentic_devtools.tools.jira.add_comment()`, `commit_node` uses the existing helpers in `agentic_devtools.cli.git.operations`, and
+`pull_request_node` calls `agentic_devtools.tools.azure_devops.create_pull_request()`).
 
 **Acceptance Scenarios**:
 
 1. **Given** the LangGraph workflow reaches the `planning_node`, **When** it executes, **Then** a plan is generated and a Jira comment is posted to the issue via the synchronous
-   `agentic_devtools.cli.jira.comment_commands.add_comment()` function.
+   `agentic_devtools.tools.jira.add_comment()` function.
 2. **Given** the LangGraph workflow reaches the `commit_node`, **When** it executes, **Then** changes are staged, committed, and pushed via the existing synchronous git helpers in
    `agentic_devtools.cli.git.operations` (for example `stage_changes()`, `create_commit()` / `amend_commit()`, and `push()` / `force_push()`).
 3. **Given** the LangGraph workflow reaches the `pull_request_node`, **When** it executes, **Then** a pull request is created via the synchronous
-   `agentic_devtools.tools.azure_devops.create_pull_request()` function (or the synchronous wrapper in `agentic_devtools.cli.azure_devops.commands`).
+   `agentic_devtools.tools.azure_devops.create_pull_request()` function.
 
 ---
 
