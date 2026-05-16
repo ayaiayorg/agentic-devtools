@@ -326,6 +326,19 @@ class TestRunAIPRLoop:
         provider.dispatch_repair.assert_not_called()
         provider.merge_pr.assert_called_once()
 
+    def test_copilot_commented_list_review_comments_raises_treated_as_actionable(self) -> None:
+        """list_review_comments() raising for a COMMENTED review is treated as actionable (fail closed)."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=3, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="")]
+        )
+        provider.list_review_comments.side_effect = RuntimeError("network error")
+        provider.dispatch_repair.return_value = 200
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_REPAIR_DISPATCHED
+        provider.dispatch_repair.assert_called_once()
+        provider.merge_pr.assert_not_called()
+
     def test_copilot_alias_changes_requested_superseded_by_different_alias_approval(self) -> None:
         """CHANGES_REQUESTED from one Copilot alias is superseded by APPROVED from a different alias."""
         provider = _make_provider(

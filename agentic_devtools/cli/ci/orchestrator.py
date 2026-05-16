@@ -190,7 +190,7 @@ def run_ai_pr_loop(
 
     effective_reviews = list(latest_by_user.values())
     has_approval = any(r.state == "APPROVED" for r in effective_reviews)
-    copilot_changes_requested = False
+    copilot_actionable_review = False
     any_changes_requested = False
     copilot_review_id = 0
     copilot_review_comments: list[str] = []
@@ -202,17 +202,28 @@ def run_ai_pr_loop(
     # without a second API call.
     for review in effective_reviews:
         if review.user in COPILOT_LOGINS and review.state == "CHANGES_REQUESTED":
-            copilot_changes_requested = True
+            copilot_actionable_review = True
             copilot_review_id = review.id
             break
         if review.user in COPILOT_LOGINS and review.state == "COMMENTED":
             try:
                 comments = provider.list_review_comments(pr_number, review.id)
             except Exception as exc:
-                logger.warning("Failed to check review comments for PR #%d review %d: %s", pr_number, review.id, exc)
-                comments = []
+                # Fail closed: if we cannot confirm the review has no inline
+                # comments, treat it as actionable to avoid merging over
+                # suggestions that we failed to fetch.
+                logger.warning(
+                    "Failed to check review comments for PR #%d review %d"
+                    " — treating review as actionable: %s",
+                    pr_number,
+                    review.id,
+                    exc,
+                )
+                copilot_actionable_review = True
+                copilot_review_id = review.id
+                break
             if comments:
-                copilot_changes_requested = True
+                copilot_actionable_review = True
                 copilot_review_id = review.id
                 copilot_review_comments = list(comments)
                 break
@@ -222,7 +233,7 @@ def run_ai_pr_loop(
     # Step 6: Dispatch repair decision (only for Copilot reviews and CI failures)
     decision = _evaluate_repair_decision(
         any_failed=any_failed,
-        copilot_changes_requested=copilot_changes_requested,
+        copilot_actionable_review=copilot_actionable_review,
         copilot_review_id=copilot_review_id,
         copilot_review_comments=copilot_review_comments,
         failed_checks=failed_checks,
@@ -237,7 +248,7 @@ def run_ai_pr_loop(
         )
 
     # Step 7: Merge gate
-    # Note: any_failed and copilot_changes_requested are guaranteed False here —
+    # Note: any_failed and copilot_actionable_review are guaranteed False here —
     # both conditions trigger repair dispatch in Step 6 which returns before
     # reaching this point.
     if has_unknown_conclusion:
@@ -273,7 +284,7 @@ def run_ai_pr_loop(
 def _evaluate_repair_decision(
     *,
     any_failed: bool,
-    copilot_changes_requested: bool,
+    copilot_actionable_review: bool,
     copilot_review_id: int,
     copilot_review_comments: list[str],
     failed_checks: list[CheckRunStatus],
@@ -287,8 +298,9 @@ def _evaluate_repair_decision(
 
     Args:
         any_failed: True if any CI check has failed.
-        copilot_changes_requested: True if Copilot specifically requested changes.
-        copilot_review_id: ID of the Copilot review (0 if none).
+        copilot_actionable_review: True if Copilot posted an actionable review
+            (CHANGES_REQUESTED, or COMMENTED with inline comments).
+        copilot_review_id: ID of the actionable Copilot review (0 if none).
         copilot_review_comments: Review comment bodies pre-fetched during
             detection (populated for COMMENTED reviews; empty for
             CHANGES_REQUESTED so that ``_dispatch_repair`` fetches lazily).
@@ -297,7 +309,7 @@ def _evaluate_repair_decision(
     Returns:
         RepairDecision indicating whether and what type of repair is needed.
     """
-    has_review_repair = copilot_changes_requested
+    has_review_repair = copilot_actionable_review
     has_ci_repair = any_failed
 
     if not has_review_repair and not has_ci_repair:
