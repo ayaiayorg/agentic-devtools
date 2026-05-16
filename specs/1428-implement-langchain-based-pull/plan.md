@@ -12,7 +12,7 @@
 |--------|--------|
 | Language | Python 3.10+ |
 | Package manager | pip / hatchling + hatch-vcs |
-| LangGraph | Existing core dependency (currently `>=0.2.0`); planned core bump to `>=0.4,<1.0` |
+| LangGraph | Existing dependency; align packaging to optional extra `[langchain]` with target `>=0.4,<1.0` |
 | LangGraph checkpoint | `langgraph-checkpoint-sqlite>=3.0.1` (core dep) |
 | Existing orchestration | `agentic_devtools/orchestration/` — work-on-issue graph |
 | Review state | `agentic_devtools/cli/azure_devops/review_state.py` (dataclasses + JSON CRUD) |
@@ -23,7 +23,7 @@
 ### Key Dependencies
 
 - `langchain-core>=0.3,<1.0` — optional extra `[langchain]`
-- `langgraph>=0.4,<1.0` — core dependency version target (not moved behind extras)
+- `langgraph>=0.4,<1.0` — optional extra `[langchain]` (aligned with `spec.md`)
 - Existing `review-state.json` files must remain readable; any schema change must be
   backward-compatible, specifically by making the new session `engine` field optional
   and using tolerant deserialization when it is absent
@@ -52,7 +52,7 @@ Key decisions:
 
 1. **Routing layer**: Inject at `initiate_pull_request_review_workflow` before calling `review_pull_request`
 2. **State compatibility**: LangChain path writes identical `review-state.json`; adds `engine` field to session entries
-3. **Dependency model**: keep `langgraph` as a core dependency and add `langchain-core` via optional `[langchain]` extra
+3. **Dependency model**: add both `langchain-core` and `langgraph` to optional `[langchain]` extra
 4. **Graph design**: Linear pipeline with conditional retry edges (scaffold → review-files → summarize)
 
 ## 3. Design Overview
@@ -113,7 +113,7 @@ Key decisions:
 |------|------|-------------|
 | 2.1 | `agentic_devtools/orchestration/review/__init__.py` (new) | Package init with `validate_langchain_dependencies()` |
 | 2.2 | `agentic_devtools/orchestration/review/preflight.py` (new) | Check `langchain-core` importable, check config present |
-| 2.3 | `pyproject.toml` | Add `[langchain]` optional extra with `langchain-core>=0.3,<1.0`; bump core `langgraph` constraint to `>=0.4,<1.0` |
+| 2.3 | `pyproject.toml` | Add `[langchain]` optional extra with `langchain-core>=0.3,<1.0` and `langgraph>=0.4,<1.0` |
 | 2.4 | `agentic_devtools/cli/workflows/commands.py` | Call preflight before LangChain dispatch; exit(1) with actionable message on failure |
 | 2.5 | `.github/workflows/test.yml` | Update dependency install step for coverage-gated source runs to include `pip install -e ".[dev,langchain]"` |
 | 2.6 | Tests | `tests/unit/orchestration/review/preflight/test_validate_langchain_dependencies.py` |
@@ -167,7 +167,7 @@ Key decisions:
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| `langchain-core` optional extra / core `langgraph` version incompatibility | Medium | High | Pin compatible ranges (`langchain-core` in `[langchain]`, `langgraph` in core deps); test in CI with `.[dev,langchain]` |
+| `langchain-core` / `langgraph` optional extra version incompatibility | Medium | High | Pin compatible ranges in `[langchain]`; test in CI with `.[dev,langchain]` |
 | Startup overhead exceeds 5s budget (NFR-003) | Low | Medium | Lazy imports; measure in Phase 3 tests |
 | LangChain callback leaks credentials | Low | High | Custom callback handler that filters sensitive patterns; test coverage |
 | Existing review lifecycle commands break with new session `engine` field | Low | Medium | Field is optional with default `None`; backward-compatible deserialization |
@@ -180,7 +180,7 @@ Key decisions:
 | Package | Version | Type |
 |---------|---------|------|
 | `langchain-core` | `>=0.3,<1.0` | Optional extra `[langchain]` |
-| `langgraph` | `>=0.4,<1.0` | Core dependency (planned version bump) |
+| `langgraph` | `>=0.4,<1.0` | Optional extra `[langchain]` |
 | `langgraph-checkpoint-sqlite` | `>=3.0.1` | Already core dependency |
 
 ### Internal
