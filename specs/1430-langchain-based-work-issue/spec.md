@@ -33,9 +33,11 @@ side-by-side comparison testing with the existing state-machine workflow in `cli
   silently start a new workflow, as that could lead to duplicate artifacts.
 - Q: Should real node functions call the existing CLI entry points (e.g., `agdt-add-jira-comment` which spawns background tasks) or call the underlying synchronous implementation functions directly to
   maintain graph execution flow? → A: Node functions MUST call real synchronous implementation functions directly (for example
-  `agentic_devtools.tools.jira.add_comment(...)`, git helpers in `agentic_devtools.cli.git.operations` such as
-  `stage_changes()` / `create_commit()` / `amend_commit()` / `push()`, and `agentic_devtools.tools.azure_devops.create_pull_request()`). They MUST NOT call CLI-layer wrappers that print to stdout,
-  depend on global CLI state, or terminate the process on errors. Spawning background tasks would break the graph's sequential execution model and make checkpointing unreliable.
+  `agentic_devtools.tools.jira.add_comment(...)`, safe in-process git tool functions for staging/commit/amend/push operations, and
+  `agentic_devtools.tools.azure_devops.create_pull_request()`). They MUST NOT call CLI-layer wrappers that print to stdout,
+  depend on global CLI state, or terminate the process on errors. If the current git helpers are CLI-oriented (for example, if they print or call `sys.exit()` on failure), this feature MUST include a
+  refactor or adapter layer that exposes non-exiting git functions for orchestration use and raises exceptions instead. Spawning background tasks would break the graph's sequential execution model and
+  make checkpointing unreliable.
 - Q: Should the `--use-langchain` flag be mutually exclusive with `--resume` flag validation (i.e., `--resume` requires `--use-langchain`), or should `--resume` work independently? → A: `--resume`
   MUST require `--use-langchain` — it is only meaningful for LangGraph workflows. If `--resume` is provided without `--use-langchain`, the CLI MUST exit with an error: "--resume requires
   --use-langchain".
