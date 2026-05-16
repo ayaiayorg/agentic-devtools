@@ -18,7 +18,7 @@
 - [ ] CHK005 Each acceptance scenario in US1–US5 is independently testable without requiring the full workflow to be deployed (confirmed by "Independent Test" sections)
 - [ ] CHK006 All six edge cases (missing dependencies, mid-execution failure, flag combinations, DB corruption, `--resume` without `--use-langchain`, `--resume` with no checkpoint) have defined system
   behavior and exit codes
-- [ ] CHK007 Acceptance scenarios use Given/When/Then format consistently across all user stories (US1 has 3 scenarios, US2 has 3, US3 has 3, US4 has 2, US5 has 1)
+- [ ] CHK007 Acceptance scenarios use Given/When/Then format consistently across all user stories (US1 has 5 scenarios, US2 has 3, US3 has 3, US4 has 2, US5 has 1)
 - [ ] CHK008 Success criteria SC-001 through SC-006 define measurable pass/fail conditions (end-to-end execution produces artifacts, 100% coverage, file modification isolation)
 - [ ] CHK009 Scope boundaries are explicit: FR-010 and SC-005 confirm PR review workflow is untouched; NFR-005 confirms no breaking changes to public API beyond additive flags
 - [ ] CHK010 Dependencies on existing modules (`cli/jira/`, `cli/git/`, `cli/azure_devops/`, `orchestration/`) and external dependencies (`langgraph>=0.2.0`, `langgraph-checkpoint-sqlite>=3.0.1`) are
