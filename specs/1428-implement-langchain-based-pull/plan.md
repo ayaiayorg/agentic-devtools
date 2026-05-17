@@ -4,7 +4,8 @@
 **Artifacts Branch**: `speckit/1428/phase-3-plan`  
 **Planned Implementation Branch**: `feat/1428/implement-langchain-based-pull`
 **Tracked Artifacts in this Branch**: `plan.md`, `spec.md`, `checklists/requirements.md`  
-(SpecKit optional artifacts `research.md`, `data-model.md`, `quickstart.md`, and `contracts/` are gitignored in this repository and intentionally not committed)
+(SpecKit optional artifacts `research.md`, `data-model.md`, `quickstart.md`, and `contracts/` are gitignored in this repository and intentionally not committed.)  
+Note: the auto-generated PR body may still list links to optional artifacts; in this repository, the tracked-artifacts line above is the source of truth for what reviewers can open.
 
 ## 1. Technical Context
 
@@ -12,7 +13,7 @@
 |--------|--------|
 | Language | Python 3.10+ |
 | Package manager | pip / hatchling + hatch-vcs |
-| LangGraph | Existing dependency; align packaging to optional extra `[langchain]` with target `>=0.4,<1.0` |
+| LangGraph | Currently a core dependency (`>=0.2.0`) used by existing orchestration modules; Phase 4 migrates those imports behind optional-dependency-safe boundaries, then aligns to `[langchain]` extra with target `>=0.4,<1.0` |
 | LangGraph checkpoint | `langgraph-checkpoint-sqlite>=3.0.1` (core dep) |
 | Existing orchestration | `agentic_devtools/orchestration/` — work-on-issue graph |
 | Review state | `agentic_devtools/cli/azure_devops/review_state.py` (dataclasses + JSON CRUD) |
@@ -52,7 +53,7 @@ Key decisions:
 
 1. **Routing layer**: Inject at `initiate_pull_request_review_workflow` before calling `review_pull_request`
 2. **State compatibility**: LangChain path writes identical `review-state.json`; adds `engine` field to session entries
-3. **Dependency model**: add both `langchain-core` and `langgraph` to optional `[langchain]` extra
+3. **Dependency model**: target both `langchain-core` and `langgraph` in optional `[langchain]` extra, with an explicit migration step for existing core LangGraph imports
 4. **Graph design**: Linear pipeline with conditional retry edges (scaffold → review-files → summarize)
 
 ## 3. Design Overview
@@ -115,8 +116,9 @@ Key decisions:
 | 2.2 | `agentic_devtools/orchestration/review/preflight.py` (new) | Check `langchain-core` importable, check config present |
 | 2.3 | `pyproject.toml` | Add `[langchain]` optional extra with `langchain-core>=0.3,<1.0` and `langgraph>=0.4,<1.0` |
 | 2.4 | `agentic_devtools/cli/workflows/commands.py` | Call preflight before LangChain dispatch; exit(1) with actionable message on failure |
-| 2.5 | `.github/workflows/test.yml` | Update dependency install step for coverage-gated source runs to include `pip install -e ".[dev,langchain]"` |
-| 2.6 | Tests | `tests/unit/orchestration/review/preflight/test_validate_langchain_dependencies.py` |
+| 2.5 | `agentic_devtools/orchestration/*`, `agentic_devtools/cli/workflows/*` | Refactor existing core LangGraph imports to lazy/guarded boundaries so default install remains usable before/while moving `langgraph` to optional `[langchain]` |
+| 2.6 | `.github/workflows/test.yml` | Update all dependency-install steps used by coverage-gated runs to `pip install -e ".[dev,langchain]"` (at minimum: `test-smart`, `test-full`, and `lint` jobs) |
+| 2.7 | Tests | `tests/unit/orchestration/review/preflight/test_validate_langchain_dependencies.py` plus regression tests for default-install behavior when `[langchain]` extra is absent |
 
 ### Phase 3: LangGraph Review Graph Implementation
 
