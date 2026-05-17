@@ -548,3 +548,29 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["reason"] == "merge_failed"
         assert summary["error"] == "merge conflict"
         assert summary["exit_code"] == EXIT_MERGE_BLOCKED
+
+    def test_deduplication_check_error_emits_error_summary(self) -> None:
+        provider = _make_provider()
+        provider.find_comment.side_effect = RuntimeError("dedup api unavailable")
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "error"
+        assert summary["reason"] == "deduplication_failed"
+        assert summary["error"] == "dedup api unavailable"
+        assert summary["exit_code"] == EXIT_METADATA_FAILED
+
+    def test_cycle_limit_check_error_emits_error_summary(self) -> None:
+        provider = _make_provider()
+        # First find_comment (dedup) returns None so dedup succeeds, second (cycle) raises
+        provider.find_comment.side_effect = [
+            None,  # dedup: no existing marker → calls post_comment; succeeds
+            RuntimeError("cycle api unavailable"),  # cycle: raises
+        ]
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "error"
+        assert summary["reason"] == "cycle_limit_check_failed"
+        assert summary["error"] == "cycle api unavailable"
+        assert summary["exit_code"] == EXIT_METADATA_FAILED

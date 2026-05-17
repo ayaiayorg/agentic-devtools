@@ -303,7 +303,17 @@ def run_ai_pr_loop(
     # re-triggers while CI is still running don't consume the dispatch budget.
     _log_group("Step 3e–3f: Deduplication and cycle guards")
     dedup_sha = event_payload.head_sha or pr_meta.head_sha
-    dedup_skip, dedup_count = check_deduplication(provider, pr_number, dedup_sha)
+    try:
+        dedup_skip, dedup_count = check_deduplication(provider, pr_number, dedup_sha)
+    except Exception as exc:
+        logger.error("Deduplication check failed for PR #%d: %s", pr_number, exc)
+        summary["decision"] = "error"
+        summary["reason"] = "deduplication_failed"
+        summary["error"] = str(exc)
+        summary["exit_code"] = EXIT_METADATA_FAILED
+        _log_endgroup()
+        _emit_decision_summary(summary)
+        return EXIT_METADATA_FAILED
     if dedup_skip:
         logger.info(
             "PR #%d dispatch limit reached for sha=%s (count=%d) — skipping",
@@ -321,7 +331,17 @@ def run_ai_pr_loop(
 
     # 3f: Cycle limit — checked after CI pending short-circuit so that
     # re-triggers while CI is still running don't exhaust the cycle budget.
-    cycle_reached, cycle_count = check_cycle_limit(provider, pr_number)
+    try:
+        cycle_reached, cycle_count = check_cycle_limit(provider, pr_number)
+    except Exception as exc:
+        logger.error("Cycle limit check failed for PR #%d: %s", pr_number, exc)
+        summary["decision"] = "error"
+        summary["reason"] = "cycle_limit_check_failed"
+        summary["error"] = str(exc)
+        summary["exit_code"] = EXIT_METADATA_FAILED
+        _log_endgroup()
+        _emit_decision_summary(summary)
+        return EXIT_METADATA_FAILED
     if cycle_reached:
         logger.info("PR #%d cycle limit reached (count=%d) — skipping", pr_number, cycle_count)
         summary["guards"] = {"blocked_by": "cycle_limit", "count": cycle_count}
