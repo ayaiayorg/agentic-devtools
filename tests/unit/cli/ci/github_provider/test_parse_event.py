@@ -30,6 +30,7 @@ class TestParseEvent:
         assert result.base_branch == "main"
         assert result.action == "opened"
         assert result.repository_full_name == "owner/repo"
+        assert result.sender_login == "contributor"
 
     def test_pull_request_synchronize(self) -> None:
         provider = GitHubActionsProvider(repo="owner/repo")
@@ -38,6 +39,7 @@ class TestParseEvent:
         assert result.pr_number == 42
         assert result.head_sha == "def456abc789012345678901234567890abcdef01"
         assert result.action == "synchronize"
+        assert result.sender_login == "Copilot"
 
     def test_pull_request_review_submitted(self) -> None:
         provider = GitHubActionsProvider(repo="owner/repo")
@@ -46,6 +48,7 @@ class TestParseEvent:
         assert result.pr_number == 42
         assert result.head_branch == "feature/new-feature"
         assert result.action == "submitted"
+        assert result.sender_login == "reviewer1"
 
     def test_workflow_run_completed(self) -> None:
         provider = GitHubActionsProvider(repo="owner/repo")

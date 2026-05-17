@@ -196,3 +196,20 @@ class CIPlatformProvider(ABC):
         Returns:
             List of comment body texts.
         """
+
+    @abstractmethod
+    def finalize_post_repair(
+        self,
+        *,
+        pr_number: int,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+        review_id: int,
+    ) -> None:
+        """Finalize a Copilot-repaired PR cycle after a synchronize commit.
+
+        Performs provider-specific post-repair actions such as replying to
+        review comments, resolving review threads, squashing branch commits,
+        force-pushing the squashed commit, and re-requesting Copilot review.
+        """

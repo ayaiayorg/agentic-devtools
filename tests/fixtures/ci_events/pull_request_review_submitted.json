@@ -20,5 +20,8 @@
   },
   "repository": {
     "full_name": "owner/repo"
+  },
+  "sender": {
+    "login": "reviewer1"
   }
 }

@@ -85,6 +85,18 @@ class TestAzureDevOpsProvider:
             provider.list_pr_files(1)
         with pytest.raises(NotImplementedError):
             provider.get_check_annotations(1, 10)
+        with pytest.raises(NotImplementedError):
+            provider.dispatch_repair(1, "sha", "review", [], [])
+        with pytest.raises(NotImplementedError):
+            provider.list_review_comments(1, 1)
+        with pytest.raises(NotImplementedError):
+            provider.finalize_post_repair(
+                pr_number=1,
+                base_branch="main",
+                head_branch="feature/test",
+                head_sha="abc123",
+                review_id=1,
+            )
 
     def test_malformed_payload_raises_error(self) -> None:
         """Payload that causes TypeError/ValueError raises MalformedEventError."""

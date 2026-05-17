@@ -502,3 +502,32 @@ class TestSpeckitTriggerHelpers:
             assert result == EXIT_FAILED
         finally:
             os.unlink(event_path)
+
+    @patch("agentic_devtools.cli.ci.speckit_trigger._set_issue_labels", side_effect=RuntimeError("label api down"))
+    @patch("agentic_devtools.cli.ci.speckit_trigger._run_script_with_outputs", side_effect=RuntimeError("script failed"))
+    def test_returns_failed_when_failure_label_update_also_fails(self, mock_run_script, mock_set_labels) -> None:
+        """Failure-label update errors are swallowed and EXIT_FAILED is still returned."""
+        event_path = _write_event_payload(
+            {
+                "action": "labeled",
+                "label": {"name": "speckit"},
+                "issue": {
+                    "number": 42,
+                    "title": "My feature",
+                    "body": "Implement it",
+                    "html_url": "https://github.com/owner/repo/issues/42",
+                    "labels": [{"name": "speckit"}],
+                },
+            }
+        )
+        try:
+            env = {
+                "GITHUB_EVENT_PATH": event_path,
+                "SPECKIT_TRIGGER_LABEL": "speckit",
+                "GITHUB_REPOSITORY": "owner/repo",
+            }
+            with patch.dict(os.environ, env, clear=False):
+                result = process_speckit_label_event(MagicMock(), EventPayload(action="labeled", trigger_label="speckit"))
+            assert result == EXIT_FAILED
+        finally:
+            os.unlink(event_path)

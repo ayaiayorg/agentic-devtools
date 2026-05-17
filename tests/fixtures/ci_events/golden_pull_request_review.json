@@ -13,7 +13,8 @@
       "base_branch": "main",
       "action": "submitted",
       "trigger_label": "",
-      "repository_full_name": "owner/repo"
+      "repository_full_name": "owner/repo",
+      "sender_login": "reviewer1"
     }
   }
 }

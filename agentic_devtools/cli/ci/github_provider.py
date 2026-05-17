@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Iterable
 from typing import Any
 
 from agentic_devtools.cli.ci.exceptions import MalformedEventError
@@ -280,6 +281,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             base_branch=pr["base"]["ref"],
             action=raw.get("action", ""),
             repository_full_name=raw.get("repository", {}).get("full_name", ""),
+            sender_login=raw.get("sender", {}).get("login", ""),
         )
 
     def _parse_pull_request_review_event(self, raw: dict, event_name: str) -> EventPayload:
@@ -293,6 +295,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             base_branch=pr["base"]["ref"],
             action=raw.get("action", ""),
             repository_full_name=raw.get("repository", {}).get("full_name", ""),
+            sender_login=raw.get("sender", {}).get("login", ""),
         )
 
     def _parse_issues_event(self, raw: dict) -> EventPayload:
@@ -301,6 +304,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             action=raw.get("action", ""),
             trigger_label=label.get("name", ""),
             repository_full_name=raw.get("repository", {}).get("full_name", ""),
+            sender_login=raw.get("sender", {}).get("login", ""),
         )
 
     def _parse_workflow_run_event(self, raw: dict, event_name: str) -> EventPayload:
@@ -323,6 +327,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             base_branch=base_branch,
             action=raw.get("action", ""),
             repository_full_name=raw.get("repository", {}).get("full_name", ""),
+            sender_login=raw.get("sender", {}).get("login", ""),
         )
 
     @retry_with_backoff()
@@ -513,3 +518,167 @@ class GitHubActionsProvider(CIPlatformProvider):
         )
         comments = _parse_paginated_json(response)
         return [c.get("body", "") for c in comments]
+
+    def _repo_owner_name(self) -> tuple[str, str]:
+        """Resolve ``(owner, repo)`` for GraphQL operations."""
+        repo = self._repo or os.environ.get("GITHUB_REPOSITORY", "")
+        if "/" not in repo:
+            raise RuntimeError("Repository must be in 'owner/repo' format for post-repair finalization.")
+        owner, repo_name = repo.split("/", 1)
+        return owner, repo_name
+
+    def _run_git(self, args: Iterable[str]) -> str:
+        """Run git command and return stdout or raise on failure."""
+        result = run_safe(
+            ["git", *args],
+            capture_output=True,
+            text=True,
+            shell=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
+        return result.stdout
+
+    def _list_review_comment_ids(self, pr_number: int, review_id: int) -> list[int]:
+        """Return numeric review comment IDs for a given review."""
+        response = _gh_api(
+            self._repo_api(f"/pulls/{pr_number}/reviews/{review_id}/comments"),
+            paginate=True,
+        )
+        comments = _parse_paginated_json(response)
+        return [int(c["id"]) for c in comments if c.get("id")]
+
+    def _reply_to_review_comment(self, pr_number: int, comment_id: int, head_sha: str) -> None:
+        """Post addressed reply to a single review comment."""
+        _gh_api(
+            self._repo_api(f"/pulls/{pr_number}/comments/{comment_id}/replies"),
+            method="POST",
+            body={"body": f"Addressed by fix commit `{head_sha[:8]}`."},
+        )
+
+    def _resolve_review_threads_for_comments(self, pr_number: int, comment_ids: list[int]) -> int:
+        """Resolve unresolved review threads containing the given comment IDs."""
+        if not comment_ids:
+            return 0
+        owner, repo_name = self._repo_owner_name()
+        target_ids = set(comment_ids)
+        query = """
+query($owner: String!, $repo: String!, $number: Int!, $after: String) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100, after: $after) {
+        nodes {
+          id
+          isResolved
+          comments(first: 100) {
+            nodes {
+              databaseId
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+}
+"""
+        thread_ids: list[str] = []
+        after: str | None = None
+        while True:
+            raw = _gh_api(
+                "graphql",
+                method="POST",
+                body={
+                    "query": query,
+                    "variables": {
+                        "owner": owner,
+                        "repo": repo_name,
+                        "number": pr_number,
+                        "after": after,
+                    },
+                },
+            )
+            data = json.loads(raw)
+            threads = data["data"]["repository"]["pullRequest"]["reviewThreads"]
+            for thread in threads.get("nodes", []):
+                if thread.get("isResolved"):
+                    continue
+                thread_comment_ids = {
+                    int(node["databaseId"])
+                    for node in thread.get("comments", {}).get("nodes", [])
+                    if node and node.get("databaseId") is not None
+                }
+                if thread_comment_ids & target_ids:
+                    thread_ids.append(str(thread["id"]))
+            page_info = threads.get("pageInfo", {})
+            if not page_info.get("hasNextPage"):
+                break
+            after = page_info.get("endCursor")
+
+        mutation = """
+mutation($threadId: ID!) {
+  resolveReviewThread(input: {threadId: $threadId}) {
+    thread {
+      isResolved
+    }
+  }
+}
+"""
+        resolved = 0
+        for thread_id in thread_ids:
+            raw = _gh_api(
+                "graphql",
+                method="POST",
+                body={"query": mutation, "variables": {"threadId": thread_id}},
+            )
+            data = json.loads(raw)
+            if data.get("data", {}).get("resolveReviewThread", {}).get("thread", {}).get("isResolved"):
+                resolved += 1
+        return resolved
+
+    def _build_squash_commit_message(self, head_sha: str, commit_subjects: list[str]) -> str:
+        """Build a deterministic squash commit message."""
+        unique_subjects = [subject.strip() for subject in commit_subjects if subject.strip()]
+        if not unique_subjects:
+            return f"chore: post-repair squash for {head_sha[:8]}"
+        if len(unique_subjects) == 1:
+            return unique_subjects[0]
+        bullets = "\n".join(f"- {subject}" for subject in unique_subjects[:10])
+        return f"chore: squash post-repair updates\n\n{bullets}\n\nAutomated squash for `{head_sha[:8]}`."
+
+    def _squash_and_force_push(self, *, base_branch: str, head_branch: str, head_sha: str) -> None:
+        """Squash commits on head branch into one and force-push with lease."""
+        self._run_git(["fetch", "origin", base_branch, head_branch])
+        self._run_git(["checkout", head_branch])
+        merge_base = self._run_git(["merge-base", "HEAD", f"origin/{base_branch}"]).strip()
+        commit_count = int(self._run_git(["rev-list", "--count", f"{merge_base}..HEAD"]).strip() or "0")
+        if commit_count > 1:
+            subjects_raw = self._run_git(["log", "--format=%s", f"{merge_base}..HEAD"])
+            commit_message = self._build_squash_commit_message(
+                head_sha,
+                [line for line in subjects_raw.splitlines() if line.strip()],
+            )
+            self._run_git(["reset", "--soft", merge_base])
+            self._run_git(["commit", "-m", commit_message])
+        self._run_git(["push", "--force-with-lease", "origin", f"HEAD:{head_branch}"])
+
+    @retry_with_backoff()
+    def finalize_post_repair(
+        self,
+        *,
+        pr_number: int,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+        review_id: int,
+    ) -> None:
+        """Finalize a post-repair cycle after Copilot pushes a fix commit."""
+        comment_ids = self._list_review_comment_ids(pr_number, review_id)
+        for comment_id in comment_ids:
+            self._reply_to_review_comment(pr_number, comment_id, head_sha)
+        self._resolve_review_threads_for_comments(pr_number, comment_ids)
+        self._squash_and_force_push(base_branch=base_branch, head_branch=head_branch, head_sha=head_sha)
+        self.request_reviewer(pr_number, "Copilot")
