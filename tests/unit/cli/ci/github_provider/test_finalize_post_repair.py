@@ -54,7 +54,7 @@ class TestFinalizePostRepair:
     def test_dispatch_repair_uses_token_and_returns_comment_id(self, mock_gh_api) -> None:
         mock_gh_api.return_value = json.dumps({"id": 3001})
         provider = GitHubActionsProvider(repo="owner/repo")
-        with patch.dict(os.environ, {"COPILOT_GITHUB_TOKEN": "token-123"}, clear=False):
+        with patch.dict(os.environ, {"AGDT_PR_APPROVER_PAT": "token-123"}, clear=False):
             comment_id = provider.dispatch_repair(
                 pr_number=42,
                 head_sha="abc123def456",

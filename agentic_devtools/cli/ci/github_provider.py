@@ -489,7 +489,9 @@ class GitHubActionsProvider(CIPlatformProvider):
         """Post a @copilot-tagged comment to trigger an AI agent repair session.
 
         The comment MUST begin with ``@copilot`` for reliable agent triggering.
-        Uses ``COPILOT_GITHUB_TOKEN`` for authentication when available.
+        Uses ``AGDT_PR_APPROVER_PAT`` for authentication to ensure
+        ``issues:write`` access.  ``COPILOT_GITHUB_TOKEN`` is fine-grained and
+        lacks this permission, causing 403 errors when posting comments.
         """
         body = _build_repair_comment(
             head_sha=head_sha,
@@ -498,9 +500,9 @@ class GitHubActionsProvider(CIPlatformProvider):
             review_comments=review_comments,
         )
 
-        # Use COPILOT_GITHUB_TOKEN when available for PAT-authenticated comment
-        copilot_token = os.environ.get("COPILOT_GITHUB_TOKEN", "").strip()
-        token = copilot_token or None
+        # Use AGDT_PR_APPROVER_PAT for posting comments (has issues:write permission).
+        # COPILOT_GITHUB_TOKEN is fine-grained and lacks issues:write access.
+        token = os.environ.get("AGDT_PR_APPROVER_PAT", "").strip() or None
 
         response = _gh_api(
             self._repo_api(f"/issues/{pr_number}/comments"),
