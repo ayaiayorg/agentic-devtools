@@ -1,6 +1,8 @@
 """Tests for run_ai_pr_loop() orchestrator state machine."""
 
-from unittest.mock import MagicMock
+import json
+from io import StringIO
+from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
@@ -10,6 +12,8 @@ from agentic_devtools.cli.ci.models import (
 )
 from agentic_devtools.cli.ci.orchestrator import (
     EXIT_GUARD_BLOCKED,
+    EXIT_MERGE_BLOCKED,
+    EXIT_METADATA_FAILED,
     EXIT_REPAIR_DISPATCHED,
     EXIT_SUCCESS,
     run_ai_pr_loop,
@@ -48,6 +52,17 @@ def _make_provider(
     provider.post_comment.return_value = 100
     provider.merge_pr.return_value = None
     return provider
+
+
+def _capture_summary(provider: MagicMock, payload: EventPayload) -> dict:
+    """Run the orchestrator and capture the JSON decision summary from stdout."""
+    buf = StringIO()
+    with (
+        patch("agentic_devtools.cli.ci.orchestrator.sys.stdout", buf),
+        patch("agentic_devtools.cli.ci.orchestrator._is_github_actions", return_value=False),
+    ):
+        run_ai_pr_loop(provider, payload)
+    return json.loads(buf.getvalue().strip())
 
 
 class TestRunAIPRLoop:
@@ -348,3 +363,164 @@ class TestRunAIPRLoop:
         assert result == EXIT_SUCCESS
         provider.dispatch_repair.assert_not_called()
         provider.merge_pr.assert_called_once()
+
+
+class TestRunAIPRLoopDecisionSummary:
+    """Verify structured decision summary is emitted in key scenarios."""
+
+    def test_merged_pr_emits_summary(self) -> None:
+        provider = _make_provider()
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "merged"
+        assert summary["exit_code"] == EXIT_SUCCESS
+        assert summary["event"]["pr_number"] == 42
+        assert summary["reviews"]["has_approval"] is True
+        assert summary["ci"]["pending"] is False
+        assert summary["repair"]["needed"] is False
+
+    def test_guard_blocked_emits_summary(self) -> None:
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="t",
+                head_branch="b",
+                head_sha="s",
+                base_branch="main",
+                head_repo_full_name="fork/repo",
+                base_repo_full_name="owner/repo",
+            )
+        )
+        payload = EventPayload(pr_number=42, head_sha="s")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "blocked"
+        assert summary["reason"] == "fork_pr"
+        assert summary["exit_code"] == EXIT_GUARD_BLOCKED
+
+    def test_pending_checks_emits_wait_summary(self) -> None:
+        provider = _make_provider(check_runs=[CheckRunStatus(id=1, name="ci", status="in_progress")])
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "wait"
+        assert summary["reason"] == "checks_pending"
+        assert summary["ci"]["pending"] is True
+
+    def test_repair_dispatched_emits_summary(self) -> None:
+        provider = _make_provider(
+            check_runs=[
+                CheckRunStatus(id=1, name="ci/build", status="completed", conclusion="success"),
+                CheckRunStatus(id=2, name="ci/test", status="completed", conclusion="failure"),
+            ],
+            reviews=[],
+        )
+        provider.dispatch_repair.return_value = 200
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "repair_dispatched"
+        assert summary["exit_code"] == EXIT_REPAIR_DISPATCHED
+        assert summary["repair"]["needed"] is True
+        assert summary["repair"]["type"] == "ci"
+        assert "ci/test" in summary["repair"]["failed_checks"]
+
+    def test_no_pr_number_emits_summary(self) -> None:
+        provider = MagicMock()
+        payload = EventPayload(pr_number=0)
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "skip"
+        assert summary["reason"] == "no_pr_number"
+
+    def test_do_not_merge_emits_summary(self) -> None:
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="t",
+                head_branch="b",
+                head_sha="s",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                labels=["do-not-auto-merge"],
+            )
+        )
+        payload = EventPayload(pr_number=42, head_sha="s")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "skip_merge"
+        assert summary["reason"] == "do_not_auto_merge_label"
+
+    def test_summary_includes_ci_failed_check_names(self) -> None:
+        provider = _make_provider(
+            check_runs=[
+                CheckRunStatus(id=1, name="ci/build", status="completed", conclusion="failure"),
+                CheckRunStatus(id=2, name="ci/lint", status="completed", conclusion="success"),
+            ],
+            reviews=[],
+        )
+        provider.dispatch_repair.return_value = 200
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert "ci/build" in summary["ci"]["failed"]
+        assert "ci/lint" not in summary["ci"]["failed"]
+
+    def test_pr_files_error_emits_error_summary(self) -> None:
+        provider = _make_provider()
+        provider.list_pr_files.side_effect = RuntimeError("api unavailable")
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "error"
+        assert summary["reason"] == "pr_files_listing_failed"
+        assert summary["error"] == "api unavailable"
+        assert summary["exit_code"] == EXIT_METADATA_FAILED
+
+    def test_repair_dispatch_failure_emits_failure_reason(self) -> None:
+        provider = _make_provider(
+            check_runs=[CheckRunStatus(id=2, name="ci/test", status="completed", conclusion="failure")],
+            reviews=[],
+        )
+        provider.dispatch_repair.side_effect = RuntimeError("dispatch endpoint timeout")
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "repair_failed"
+        assert summary["reason"] == "dispatch endpoint timeout"
+        assert summary["exit_code"] == EXIT_MERGE_BLOCKED
+
+    def test_check_runs_error_emits_error_summary(self) -> None:
+        provider = _make_provider()
+        provider.list_check_runs.side_effect = RuntimeError("checks api unavailable")
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "error"
+        assert summary["reason"] == "check_runs_listing_failed"
+        assert summary["error"] == "checks api unavailable"
+        assert summary["exit_code"] == EXIT_METADATA_FAILED
+
+    def test_list_reviews_error_emits_error_summary(self) -> None:
+        provider = _make_provider()
+        provider.list_reviews.side_effect = RuntimeError("reviews api unavailable")
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "error"
+        assert summary["reason"] == "reviews_listing_failed"
+        assert summary["error"] == "reviews api unavailable"
+        assert summary["exit_code"] == EXIT_METADATA_FAILED
+
+    def test_approval_error_emits_error_summary(self) -> None:
+        provider = _make_provider(reviews=[])
+        provider.approve_pr.side_effect = RuntimeError("approval endpoint unavailable")
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "error"
+        assert summary["reason"] == "approval_failed"
+        assert summary["error"] == "approval endpoint unavailable"
+        assert summary["exit_code"] == EXIT_MERGE_BLOCKED

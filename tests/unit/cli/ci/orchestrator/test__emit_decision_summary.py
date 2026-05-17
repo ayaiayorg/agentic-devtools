@@ -24,27 +24,29 @@ class TestEmitDecisionSummary:
     def test_emits_group_annotations_in_github_actions(self) -> None:
         """When running in GHA, ::group:: / ::endgroup:: are emitted."""
         summary = {"decision": "skip", "exit_code": 0}
-        buf = StringIO()
+        out_buf = StringIO()
+        err_buf = StringIO()
         with (
-            patch("agentic_devtools.cli.ci.orchestrator.sys.stdout", buf),
+            patch("agentic_devtools.cli.ci.orchestrator.sys.stdout", out_buf),
+            patch("agentic_devtools.cli.ci.orchestrator.sys.stderr", err_buf),
             patch("agentic_devtools.cli.ci.orchestrator._is_github_actions", return_value=True),
-            patch("builtins.print") as mock_print,
         ):
             _emit_decision_summary(summary)
-        # ::group:: and ::endgroup:: are emitted via print()
-        calls = [c.args[0] for c in mock_print.call_args_list]
-        assert any("::group::" in c for c in calls)
-        assert any("::endgroup::" in c for c in calls)
+        assert json.loads(out_buf.getvalue()) == summary
+        stderr_output = err_buf.getvalue()
+        assert "::group::" in stderr_output
+        assert "::endgroup::" in stderr_output
 
     def test_no_group_annotations_outside_github_actions(self) -> None:
         """When not in GHA, no ::group:: annotations are emitted."""
         summary = {"decision": "merged", "exit_code": 0}
-        buf = StringIO()
+        out_buf = StringIO()
+        err_buf = StringIO()
         with (
-            patch("agentic_devtools.cli.ci.orchestrator.sys.stdout", buf),
+            patch("agentic_devtools.cli.ci.orchestrator.sys.stdout", out_buf),
+            patch("agentic_devtools.cli.ci.orchestrator.sys.stderr", err_buf),
             patch("agentic_devtools.cli.ci.orchestrator._is_github_actions", return_value=False),
-            patch("builtins.print") as mock_print,
         ):
             _emit_decision_summary(summary)
-        calls = [str(c) for c in mock_print.call_args_list]
-        assert not any("::group::" in c for c in calls)
+        assert json.loads(out_buf.getvalue()) == summary
+        assert err_buf.getvalue() == ""

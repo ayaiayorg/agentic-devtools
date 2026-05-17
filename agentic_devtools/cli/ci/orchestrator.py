@@ -49,13 +49,13 @@ def _is_github_actions() -> bool:
 def _log_group(title: str) -> None:
     """Emit a ``::group::`` annotation when running in GitHub Actions."""
     if _is_github_actions():
-        print(f"::group::{title}", flush=True)
+        print(f"::group::{title}", file=sys.stderr, flush=True)
 
 
 def _log_endgroup() -> None:
     """Emit an ``::endgroup::`` annotation when running in GitHub Actions."""
     if _is_github_actions():
-        print("::endgroup::", flush=True)
+        print("::endgroup::", file=sys.stderr, flush=True)
 
 
 def _emit_decision_summary(summary: dict[str, Any]) -> None:
@@ -245,7 +245,17 @@ def run_ai_pr_loop(
 
     # Step 4: Check CI status
     _log_group("Step 4: Check CI status")
-    check_runs = provider.list_check_runs(pr_meta.head_sha)
+    try:
+        check_runs = provider.list_check_runs(pr_meta.head_sha)
+    except Exception as exc:
+        logger.error("Failed to list check runs for PR #%d: %s", pr_number, exc)
+        summary["decision"] = "error"
+        summary["reason"] = "check_runs_listing_failed"
+        summary["error"] = str(exc)
+        summary["exit_code"] = EXIT_METADATA_FAILED
+        _log_endgroup()
+        _emit_decision_summary(summary)
+        return EXIT_METADATA_FAILED
     has_unknown_conclusion = False
     any_failed = False
     any_pending = False
@@ -329,7 +339,17 @@ def run_ai_pr_loop(
     # COMMENTED or CHANGES_REQUESTED posted under a different alias.
     _log_group("Step 5: Evaluate reviews")
     _COPILOT_KEY = "copilot"
-    reviews = provider.list_reviews(pr_number)
+    try:
+        reviews = provider.list_reviews(pr_number)
+    except Exception as exc:
+        logger.error("Failed to list reviews for PR #%d: %s", pr_number, exc)
+        summary["decision"] = "error"
+        summary["reason"] = "reviews_listing_failed"
+        summary["error"] = str(exc)
+        summary["exit_code"] = EXIT_METADATA_FAILED
+        _log_endgroup()
+        _emit_decision_summary(summary)
+        return EXIT_METADATA_FAILED
     latest_by_user: dict[str, ReviewInfo] = {}
     for review in reviews:
         user_key = _COPILOT_KEY if review.user in COPILOT_LOGINS else review.user
@@ -483,7 +503,17 @@ def run_ai_pr_loop(
     # Step 8: Approve if needed
     if not has_approval:
         logger.info("PR #%d has no approval — auto-approving", pr_number)
-        provider.approve_pr(pr_number, pr_meta.head_sha, "Auto-approved by AI PR loop")
+        try:
+            provider.approve_pr(pr_number, pr_meta.head_sha, "Auto-approved by AI PR loop")
+        except Exception as exc:
+            logger.error("Failed to auto-approve PR #%d: %s", pr_number, exc)
+            summary["decision"] = "error"
+            summary["reason"] = "approval_failed"
+            summary["error"] = str(exc)
+            summary["exit_code"] = EXIT_MERGE_BLOCKED
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_MERGE_BLOCKED
         summary["auto_approved"] = True
     else:
         summary["auto_approved"] = False
