@@ -62,3 +62,34 @@ class TestActionableCheckNames:
 
         assert result == EXIT_SUCCESS
         provider.merge_pr.assert_called_once()
+
+    def test_no_actionable_checks_observed_treats_as_pending(self) -> None:
+        """When no check runs match actionable_check_names, treat as pending.
+
+        This guards against the early-lifecycle case where only non-actionable
+        checks (e.g. the workflow's own orchestrator check) exist before the
+        gate jobs have been created, preventing premature approve/merge.
+        """
+        non_actionable_only = CheckRunStatus(
+            id=20,
+            name="Copilot Review ✅",
+            status="completed",
+            conclusion="success",
+        )
+        provider = _make_provider(check_runs=[non_actionable_only])
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+
+        result = run_ai_pr_loop(provider, payload)
+
+        assert result == EXIT_SUCCESS
+        provider.merge_pr.assert_not_called()
+
+    def test_empty_check_runs_treats_as_pending(self) -> None:
+        """When check_runs is empty, treat as pending (no actionable checks yet)."""
+        provider = _make_provider(check_runs=[])
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+
+        result = run_ai_pr_loop(provider, payload)
+
+        assert result == EXIT_SUCCESS
+        provider.merge_pr.assert_not_called()

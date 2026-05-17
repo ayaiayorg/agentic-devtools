@@ -29,7 +29,7 @@ class TestRunAIPRLoopNoIssue:
         )
         provider.list_pr_files.return_value = ["src/cleanup.py"]
         provider.list_check_runs.return_value = [
-            CheckRunStatus(id=1, name="ci", status="completed", conclusion="success")
+            CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="success")
         ]
         provider.list_reviews.return_value = [ReviewInfo(id=1, user="reviewer", state="APPROVED")]
         provider.find_comment.return_value = None

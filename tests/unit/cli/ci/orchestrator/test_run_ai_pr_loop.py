@@ -43,7 +43,7 @@ def _make_provider(
     provider.list_check_runs.return_value = (
         check_runs
         if check_runs is not None
-        else [CheckRunStatus(id=1, name="ci", status="completed", conclusion="success")]
+        else [CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="success")]
     )
     provider.list_reviews.return_value = (
         reviews if reviews is not None else [ReviewInfo(id=1, user="reviewer", state="APPROVED")]
