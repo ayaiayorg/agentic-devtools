@@ -1,6 +1,6 @@
 # Feature Specification: LangChain-Based Pull Request Review Workflow (Parallel Path)
 
-**Feature Branch**: `1428-implement-langchain-based-pull`  
+**Feature Branch**: `feature/1428/implement-langchain-based-pull`  
 **Created**: 2026-05-15  
 **Status**: Draft  
 **Input**: GitHub Issue #1428 — Implement LangChain-based PR review workflow parallel to the existing review path  
