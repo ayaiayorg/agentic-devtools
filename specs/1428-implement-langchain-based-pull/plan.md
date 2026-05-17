@@ -13,7 +13,7 @@ Note: the auto-generated PR body may still list links to optional artifacts; in 
 |--------|--------|
 | Language | Python 3.10+ |
 | Package manager | pip / hatchling + hatch-vcs |
-| LangGraph | Currently a core dependency (`>=0.2.0`) used by existing orchestration modules; Phase 4 migrates those imports behind optional-dependency-safe boundaries, then aligns to `[langchain]` extra with target `>=0.4,<1.0` |
+| LangGraph | Currently a core dependency (`>=0.2.0`) used by existing orchestration modules; in the next SpecKit implementation phase (tasks/implementation), migrate imports behind optional-dependency-safe boundaries, then align to `[langchain]` extra with target `>=0.4,<1.0` |
 | LangGraph checkpoint | `langgraph-checkpoint-sqlite>=3.0.1` (core dep) |
 | Existing orchestration | `agentic_devtools/orchestration/` — work-on-issue graph |
 | Review state | `agentic_devtools/cli/azure_devops/review_state.py` (dataclasses + JSON CRUD) |
