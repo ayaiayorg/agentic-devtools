@@ -166,6 +166,8 @@ def run_ai_pr_loop(
         _emit_error({"error": "metadata_resolution_failed", "pr_number": pr_number, "detail": str(exc)})
         summary["decision"] = "error"
         summary["reason"] = "metadata_resolution_failed"
+        summary["error"] = str(exc)
+        summary["detail"] = str(exc)
         summary["exit_code"] = EXIT_METADATA_FAILED
         _log_endgroup()
         _emit_decision_summary(summary)
@@ -526,6 +528,7 @@ def run_ai_pr_loop(
         logger.error("Failed to merge PR #%d: %s", pr_number, exc)
         summary["decision"] = "error"
         summary["reason"] = "merge_failed"
+        summary["error"] = str(exc)
         summary["exit_code"] = EXIT_MERGE_BLOCKED
         _log_endgroup()
         _emit_decision_summary(summary)
