@@ -167,7 +167,6 @@ def run_ai_pr_loop(
         summary["decision"] = "error"
         summary["reason"] = "metadata_resolution_failed"
         summary["error"] = str(exc)
-        summary["detail"] = str(exc)
         summary["exit_code"] = EXIT_METADATA_FAILED
         _log_endgroup()
         _emit_decision_summary(summary)
