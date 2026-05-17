@@ -91,11 +91,14 @@ EXIT_MERGE_BLOCKED = 3
 EXIT_METADATA_FAILED = 4
 EXIT_REPAIR_DISPATCHED = 5
 
-# Default check run names to exclude from CI gating (self-referencing workflows)
-_DEFAULT_EXCLUDED_CHECK_NAMES = frozenset(
+# Check run names the orchestrator waits for and evaluates for pass/fail.
+# Only checks representing actionable code failures (fixable by the AI agent)
+# are included. All other checks are ignored entirely.
+_DEFAULT_ACTIONABLE_CHECK_NAMES = frozenset(
     {
-        "AI PR Loop",
-        "Generate lint fix patch",
+        "Tests ✅",
+        "Markdown Lint ✅",
+        "Workflow Tests ✅",
     }
 )
 
@@ -104,7 +107,7 @@ def run_ai_pr_loop(
     provider: CIPlatformProvider,
     event_payload: EventPayload,
     *,
-    excluded_check_names: frozenset[str] | None = None,
+    actionable_check_names: frozenset[str] | None = None,
 ) -> int:
     """Run the AI PR loop state machine.
 
@@ -127,15 +130,15 @@ def run_ai_pr_loop(
     Args:
         provider: CI platform provider for API interactions.
         event_payload: Normalized event payload from the trigger.
-        excluded_check_names: Optional set of check run names to exclude from
-            CI gating (self-referencing workflows). Defaults to
-            ``_DEFAULT_EXCLUDED_CHECK_NAMES`` if not provided.
+        actionable_check_names: Optional set of check run names to evaluate
+            during CI gating. Checks not in this set are ignored. Defaults to
+            ``_DEFAULT_ACTIONABLE_CHECK_NAMES`` if not provided.
 
     Returns:
         Exit code (0 = success, non-zero = blocked/error).
     """
-    if excluded_check_names is None:
-        excluded_check_names = _DEFAULT_EXCLUDED_CHECK_NAMES
+    if actionable_check_names is None:
+        actionable_check_names = _DEFAULT_ACTIONABLE_CHECK_NAMES
 
     # Accumulator for the decision summary emitted at the end of the run.
     summary: dict[str, Any] = {
@@ -261,10 +264,12 @@ def run_ai_pr_loop(
     any_failed = False
     any_pending = False
     failed_checks: list[CheckRunStatus] = []
+    ignored_checks = 0
     for cr in check_runs:
-        # Skip self-referencing workflows to avoid deadlock
-        if cr.name in excluded_check_names:
-            logger.info("  check '%s' — excluded (self-referencing)", cr.name)
+        # Only evaluate checks we can actually fix — ignore everything else
+        if cr.name not in actionable_check_names:
+            ignored_checks += 1
+            logger.info("  check '%s' — ignored (not actionable)", cr.name)
             continue
         if cr.status != "completed":
             any_pending = True
@@ -281,7 +286,7 @@ def run_ai_pr_loop(
 
     ci_summary: dict[str, Any] = {
         "total": len(check_runs),
-        "excluded": len([cr for cr in check_runs if cr.name in excluded_check_names]),
+        "ignored": ignored_checks,
         "pending": any_pending,
         "failed": [cr.name for cr in failed_checks],
         "has_unknown_conclusion": has_unknown_conclusion,
