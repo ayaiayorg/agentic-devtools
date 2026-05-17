@@ -265,12 +265,14 @@ def run_ai_pr_loop(
     any_pending = False
     failed_checks: list[CheckRunStatus] = []
     ignored_checks = 0
+    actionable_seen = 0
     for cr in check_runs:
         # Only evaluate checks we can actually fix — ignore everything else
         if cr.name not in actionable_check_names:
             ignored_checks += 1
             logger.info("  check '%s' — ignored (not actionable)", cr.name)
             continue
+        actionable_seen += 1
         if cr.status != "completed":
             any_pending = True
             logger.info("  check '%s' — pending (status=%s)", cr.name, cr.status)
@@ -284,8 +286,19 @@ def run_ai_pr_loop(
         else:
             logger.info("  check '%s' — %s", cr.name, cr.conclusion)
 
+    # If no actionable check runs have appeared yet (e.g. early in the PR lifecycle,
+    # before gate jobs are created), treat this as pending rather than proceeding to
+    # approve/merge — required checks may not have started yet.
+    if actionable_seen == 0:
+        any_pending = True
+        logger.info(
+            "PR #%d — no actionable checks observed yet; treating as pending",
+            pr_number,
+        )
+
     ci_summary: dict[str, Any] = {
         "total": len(check_runs),
+        "actionable": actionable_seen,
         "ignored": ignored_checks,
         "pending": any_pending,
         "failed": [cr.name for cr in failed_checks],
