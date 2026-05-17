@@ -149,7 +149,7 @@ class TestRunAIPRLoop:
         provider.merge_pr.assert_not_called()
 
     def test_pending_checks_waits(self) -> None:
-        provider = _make_provider(check_runs=[CheckRunStatus(id=1, name="ci", status="in_progress")])
+        provider = _make_provider(check_runs=[CheckRunStatus(id=1, name="Tests ✅", status="in_progress")])
         payload = EventPayload(pr_number=42, head_sha="abc123")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
@@ -224,7 +224,7 @@ class TestRunAIPRLoop:
 
         provider = _make_provider(
             check_runs=[
-                CheckRunStatus(id=1, name="ci/build", status="completed", conclusion="cancelled"),
+                CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="cancelled"),
             ]
         )
         payload = EventPayload(pr_number=42, head_sha="abc123")
@@ -400,7 +400,7 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["exit_code"] == EXIT_GUARD_BLOCKED
 
     def test_pending_checks_emits_wait_summary(self) -> None:
-        provider = _make_provider(check_runs=[CheckRunStatus(id=1, name="ci", status="in_progress")])
+        provider = _make_provider(check_runs=[CheckRunStatus(id=1, name="Tests ✅", status="in_progress")])
         payload = EventPayload(pr_number=42, head_sha="abc123")
         summary = _capture_summary(provider, payload)
 
@@ -411,8 +411,8 @@ class TestRunAIPRLoopDecisionSummary:
     def test_repair_dispatched_emits_summary(self) -> None:
         provider = _make_provider(
             check_runs=[
-                CheckRunStatus(id=1, name="ci/build", status="completed", conclusion="success"),
-                CheckRunStatus(id=2, name="ci/test", status="completed", conclusion="failure"),
+                CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="success"),
+                CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure"),
             ],
             reviews=[],
         )
@@ -424,7 +424,7 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["exit_code"] == EXIT_REPAIR_DISPATCHED
         assert summary["repair"]["needed"] is True
         assert summary["repair"]["type"] == "ci"
-        assert "ci/test" in summary["repair"]["failed_checks"]
+        assert "Workflow Tests ✅" in summary["repair"]["failed_checks"]
 
     def test_no_pr_number_emits_summary(self) -> None:
         provider = MagicMock()
@@ -456,8 +456,9 @@ class TestRunAIPRLoopDecisionSummary:
     def test_summary_includes_ci_failed_check_names(self) -> None:
         provider = _make_provider(
             check_runs=[
-                CheckRunStatus(id=1, name="ci/build", status="completed", conclusion="failure"),
-                CheckRunStatus(id=2, name="ci/lint", status="completed", conclusion="success"),
+                CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="failure"),
+                CheckRunStatus(id=2, name="Markdown Lint ✅", status="completed", conclusion="success"),
+                CheckRunStatus(id=3, name="Copilot Review ✅", status="completed", conclusion="failure"),
             ],
             reviews=[],
         )
@@ -465,13 +466,15 @@ class TestRunAIPRLoopDecisionSummary:
         payload = EventPayload(pr_number=42, head_sha="abc123")
         summary = _capture_summary(provider, payload)
 
-        assert "ci/build" in summary["ci"]["failed"]
-        assert "ci/lint" not in summary["ci"]["failed"]
+        assert "Tests ✅" in summary["ci"]["failed"]
+        assert "Markdown Lint ✅" not in summary["ci"]["failed"]
+        assert "Copilot Review ✅" not in summary["ci"]["failed"]
+        assert summary["ci"]["ignored"] == 1
 
     def test_unknown_check_conclusion_emits_blocked_summary(self) -> None:
         provider = _make_provider(
             check_runs=[
-                CheckRunStatus(id=1, name="ci/build", status="completed", conclusion="cancelled"),
+                CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="cancelled"),
             ]
         )
         payload = EventPayload(pr_number=42, head_sha="abc123")
@@ -494,7 +497,7 @@ class TestRunAIPRLoopDecisionSummary:
 
     def test_repair_dispatch_failure_emits_failure_reason(self) -> None:
         provider = _make_provider(
-            check_runs=[CheckRunStatus(id=2, name="ci/test", status="completed", conclusion="failure")],
+            check_runs=[CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure")],
             reviews=[],
         )
         provider.dispatch_repair.side_effect = RuntimeError("dispatch endpoint timeout")

@@ -1,4 +1,4 @@
-"""Tests for run_ai_pr_loop excluded check names handling."""
+"""Tests for run_ai_pr_loop actionable check names handling."""
 
 from unittest.mock import MagicMock
 
@@ -38,24 +38,24 @@ def _make_provider(
     return provider
 
 
-class TestExcludedCheckNames:
-    """Tests that excluded check run names are skipped during CI gating."""
+class TestActionableCheckNames:
+    """Tests that only actionable check run names are evaluated during CI gating."""
 
-    def test_excluded_check_name_is_skipped(self) -> None:
-        """A check whose name is in excluded_check_names should not block merge."""
-        excluded = CheckRunStatus(
+    def test_non_actionable_check_name_is_ignored(self) -> None:
+        """A check outside actionable_check_names should not block merge."""
+        ignored = CheckRunStatus(
             id=10,
-            name="AI PR Loop",
+            name="Copilot Review ✅",
             status="completed",
             conclusion="failure",
         )
         passing = CheckRunStatus(
             id=11,
-            name="Tests",
+            name="Tests ✅",
             status="completed",
             conclusion="success",
         )
-        provider = _make_provider(check_runs=[excluded, passing])
+        provider = _make_provider(check_runs=[ignored, passing])
         payload = EventPayload(pr_number=42, head_sha="abc123")
 
         result = run_ai_pr_loop(provider, payload)
