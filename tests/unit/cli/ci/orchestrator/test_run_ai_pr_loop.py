@@ -468,6 +468,19 @@ class TestRunAIPRLoopDecisionSummary:
         assert "ci/build" in summary["ci"]["failed"]
         assert "ci/lint" not in summary["ci"]["failed"]
 
+    def test_unknown_check_conclusion_emits_blocked_summary(self) -> None:
+        provider = _make_provider(
+            check_runs=[
+                CheckRunStatus(id=1, name="ci/build", status="completed", conclusion="cancelled"),
+            ]
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "blocked"
+        assert summary["reason"] == "unknown_check_conclusions"
+        assert summary["exit_code"] == EXIT_MERGE_BLOCKED
+
     def test_pr_files_error_emits_error_summary(self) -> None:
         provider = _make_provider()
         provider.list_pr_files.side_effect = RuntimeError("api unavailable")
@@ -523,4 +536,15 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["decision"] == "error"
         assert summary["reason"] == "approval_failed"
         assert summary["error"] == "approval endpoint unavailable"
+        assert summary["exit_code"] == EXIT_MERGE_BLOCKED
+
+    def test_merge_error_emits_error_summary(self) -> None:
+        provider = _make_provider()
+        provider.merge_pr.side_effect = RuntimeError("merge conflict")
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "error"
+        assert summary["reason"] == "merge_failed"
+        assert summary["error"] == "merge conflict"
         assert summary["exit_code"] == EXIT_MERGE_BLOCKED
