@@ -287,6 +287,34 @@ class TestRunAIPRLoop:
         # Comments fetched exactly once during detection; _dispatch_repair reuses the cache
         provider.list_review_comments.assert_called_once()
 
+    def test_copilot_synchronize_commit_triggers_post_repair_finalization(self) -> None:
+        """Copilot synchronize events finalize review threads instead of re-dispatching repair."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=3, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="")]
+        )
+        provider.list_review_comments.return_value = ["suggestion: use const"]
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize", sender_login="Copilot")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.finalize_post_repair.assert_called_once_with(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="abc123",
+            review_id=3,
+        )
+        provider.dispatch_repair.assert_not_called()
+
+    def test_copilot_synchronize_finalization_failure_blocks(self) -> None:
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=3, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="")]
+        )
+        provider.list_review_comments.return_value = ["suggestion: use const"]
+        provider.finalize_post_repair.side_effect = RuntimeError("finalization failed")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize", sender_login="Copilot")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_MERGE_BLOCKED
+
     def test_copilot_commented_without_inline_comments_does_not_dispatch(self) -> None:
         """Copilot COMMENTED review without inline comments is not actionable."""
         provider = _make_provider(
@@ -425,6 +453,17 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["repair"]["needed"] is True
         assert summary["repair"]["type"] == "ci"
         assert "Workflow Tests ✅" in summary["repair"]["failed_checks"]
+
+    def test_post_repair_finalized_emits_summary(self) -> None:
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=8, user="copilot-pull-request-reviewer[bot]", state="CHANGES_REQUESTED", body="fix")]
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize", sender_login="Copilot")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "post_repair_finalized"
+        assert summary["exit_code"] == EXIT_SUCCESS
+        assert summary["post_repair"]["finalized"] is True
 
     def test_no_pr_number_emits_summary(self) -> None:
         provider = MagicMock()

@@ -3,6 +3,8 @@
 import json
 from unittest.mock import patch
 
+import pytest
+
 from agentic_devtools.cli.ci.github_provider import GitHubActionsProvider
 
 
@@ -68,3 +70,16 @@ class TestApprovePR:
         provider = GitHubActionsProvider(repo="owner/repo")
         # Should not raise
         provider.approve_pr(42, "abc123", "LGTM!")
+
+    @patch.dict("os.environ", {"AGDT_PR_APPROVER_PAT": "ghp_token"})
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_approve_pr_raises_non_auth_errors(self, mock_run_safe) -> None:
+        class _Result:
+            returncode = 1
+            stdout = ""
+            stderr = "HTTP 422: validation failed"
+
+        mock_run_safe.return_value = _Result()
+        provider = GitHubActionsProvider(repo="owner/repo")
+        with pytest.raises(RuntimeError):
+            provider.approve_pr(42, "abc123", "LGTM!")

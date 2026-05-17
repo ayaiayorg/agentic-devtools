@@ -146,3 +146,15 @@ class AzureDevOpsProvider(CIPlatformProvider):
     def list_review_comments(self, pr_number: int, review_id: int) -> list[str]:
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.list_review_comments() not yet implemented")
+
+    def finalize_post_repair(
+        self,
+        *,
+        pr_number: int,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+        review_id: int,
+    ) -> None:
+        """Not implemented for ADO stub."""
+        raise NotImplementedError("AzureDevOpsProvider.finalize_post_repair() not yet implemented")

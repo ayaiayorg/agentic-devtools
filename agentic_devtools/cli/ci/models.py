@@ -22,6 +22,7 @@ class EventPayload:
         action: Event action (e.g., "opened", "synchronize", "submitted").
         trigger_label: Label name that triggered the event (empty if not a label event).
         repository_full_name: Full repository name (e.g., "owner/repo").
+        sender_login: Login of the event sender/actor, when available.
     """
 
     pr_number: int = 0
@@ -31,6 +32,7 @@ class EventPayload:
     action: str = ""
     trigger_label: str = ""
     repository_full_name: str = ""
+    sender_login: str = ""
 
 
 @dataclass(frozen=True)

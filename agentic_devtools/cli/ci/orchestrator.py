@@ -103,6 +103,11 @@ _DEFAULT_ACTIONABLE_CHECK_NAMES = frozenset(
 )
 
 
+def _is_post_repair_synchronize_event(event_payload: EventPayload) -> bool:
+    """Return True when this event is a Copilot-authored synchronize push."""
+    return event_payload.action == "synchronize" and event_payload.sender_login in COPILOT_LOGINS
+
+
 def run_ai_pr_loop(
     provider: CIPlatformProvider,
     event_payload: EventPayload,
@@ -457,6 +462,33 @@ def run_ai_pr_loop(
     }
     summary["reviews"] = review_summary
     _log_endgroup()
+
+    if _is_post_repair_synchronize_event(event_payload) and copilot_actionable_review and copilot_review_id:
+        _log_group("Step 5b: Post-repair finalization")
+        try:
+            provider.finalize_post_repair(
+                pr_number=pr_number,
+                base_branch=pr_meta.base_branch,
+                head_branch=pr_meta.head_branch,
+                head_sha=pr_meta.head_sha,
+                review_id=copilot_review_id,
+            )
+        except Exception as exc:
+            logger.error("Post-repair finalization failed for PR #%d: %s", pr_number, exc)
+            summary["decision"] = "error"
+            summary["reason"] = "post_repair_finalization_failed"
+            summary["error"] = str(exc)
+            summary["exit_code"] = EXIT_MERGE_BLOCKED
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_MERGE_BLOCKED
+
+        summary["post_repair"] = {"finalized": True, "review_id": copilot_review_id}
+        summary["decision"] = "post_repair_finalized"
+        summary["exit_code"] = EXIT_SUCCESS
+        _log_endgroup()
+        _emit_decision_summary(summary)
+        return EXIT_SUCCESS
 
     # Step 6: Dispatch repair decision (only for Copilot reviews and CI failures)
     _log_group("Step 6: Repair decision")
