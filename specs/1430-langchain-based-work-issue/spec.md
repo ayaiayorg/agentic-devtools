@@ -14,7 +14,8 @@ builder (`graph_builder.py`), a state schema (`state_schema.py`), and a `SqliteS
 without calling real Jira, Git, or Azure DevOps systems. Additionally, no CLI flag (`--engine langchain`) currently exists to route execution from `agdt-initiate-work-on-jira-issue-workflow` to the
 LangGraph code path.
 
-This feature replaces the stub node functions with real tool integrations (reusing existing modules: `cli/jira/`, `cli/git/`, `cli/azure_devops/`) and adds the `--engine langchain` CLI flag to allow
+This feature replaces the stub node functions with real tool integrations by calling the underlying synchronous tool-layer APIs (for example, `agentic_devtools.tools.jira.*`,
+`agentic_devtools.tools.azure_devops.*`, and non-CLI git functions exposed directly or via an orchestration-safe adapter layer) and adds the `--engine langchain` CLI flag to allow
 side-by-side comparison testing with the existing state-machine workflow in `cli/workflows/manager.py`.
 
 ## Clarifications
