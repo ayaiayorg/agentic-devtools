@@ -12,9 +12,9 @@ from agentic_devtools.cli.ci.github_provider import GitHubActionsProvider
 class TestFinalizePostRepair:
     """Tests for post-repair finalization orchestration."""
 
-    @patch.object(GitHubActionsProvider, "request_reviewer")
+    @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
     @patch.object(GitHubActionsProvider, "_squash_and_force_push")
-    @patch.object(GitHubActionsProvider, "_resolve_review_threads_for_comments")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
     @patch.object(GitHubActionsProvider, "_list_review_comment_ids")
     def test_finalize_replies_resolves_squashes_and_rerequests(
@@ -23,9 +23,11 @@ class TestFinalizePostRepair:
         mock_reply,
         mock_resolve,
         mock_squash,
-        mock_request_reviewer,
+        mock_request_copilot,
     ) -> None:
         mock_list_ids.return_value = [101, 202]
+        mock_resolve.return_value = {"threadsResolved": 2, "verified": True}
+        mock_request_copilot.return_value = {"requested": True, "verified": True}
         provider = GitHubActionsProvider(repo="owner/repo")
 
         provider.finalize_post_repair(
@@ -40,13 +42,13 @@ class TestFinalizePostRepair:
         assert mock_reply.call_count == 2
         mock_reply.assert_any_call(42, 101, "abc123def456")
         mock_reply.assert_any_call(42, 202, "abc123def456")
-        mock_resolve.assert_called_once_with(42, [101, 202])
+        mock_resolve.assert_called_once_with(42, "owner/repo", review_id=7)
         mock_squash.assert_called_once_with(
             base_branch="main",
             head_branch="feature/test",
             head_sha="abc123def456",
         )
-        mock_request_reviewer.assert_called_once_with(42, "Copilot")
+        mock_request_copilot.assert_called_once_with(42, "owner/repo")
 
     @patch("agentic_devtools.cli.ci.github_provider._gh_api")
     def test_dispatch_repair_uses_token_and_returns_comment_id(self, mock_gh_api) -> None:
@@ -71,13 +73,13 @@ class TestFinalizePostRepair:
         provider = GitHubActionsProvider(repo="owner/repo")
         assert provider.list_review_comments(42, 7) == ["one", "two"]
 
-    def test_repo_owner_name_valid_and_invalid(self) -> None:
+    def test_resolve_repo_valid_and_invalid(self) -> None:
         provider = GitHubActionsProvider(repo="owner/repo")
-        assert provider._repo_owner_name() == ("owner", "repo")
+        assert provider._resolve_repo() == "owner/repo"
         bad = GitHubActionsProvider(repo="")
         with patch.dict(os.environ, {"GITHUB_REPOSITORY": ""}, clear=False):
             with pytest.raises(RuntimeError):
-                bad._repo_owner_name()
+                bad._resolve_repo()
 
     @patch("agentic_devtools.cli.ci.github_provider.run_safe")
     def test_run_git_success_and_failure(self, mock_run_safe) -> None:
@@ -111,70 +113,6 @@ class TestFinalizePostRepair:
         provider = GitHubActionsProvider(repo="owner/repo")
         provider._reply_to_review_comment(42, 99, "abcdef123456")
         assert "Addressed by fix commit `abcdef12`." in str(mock_gh_api.call_args[1]["body"])
-
-    def test_resolve_review_threads_no_comment_ids(self) -> None:
-        provider = GitHubActionsProvider(repo="owner/repo")
-        assert provider._resolve_review_threads_for_comments(42, []) == 0
-
-    @patch("agentic_devtools.cli.ci.github_provider._gh_api")
-    def test_resolve_review_threads_for_matching_comments(self, mock_gh_api) -> None:
-        query_response = {
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "nodes": [
-                                {
-                                    "id": "THREAD_1",
-                                    "isResolved": False,
-                                    "comments": {"nodes": [{"databaseId": 101}]},
-                                },
-                                {
-                                    "id": "THREAD_2",
-                                    "isResolved": True,
-                                    "comments": {"nodes": [{"databaseId": 202}]},
-                                },
-                            ],
-                            "pageInfo": {"hasNextPage": False, "endCursor": None},
-                        }
-                    }
-                }
-            }
-        }
-        mutation_response = {"data": {"resolveReviewThread": {"thread": {"isResolved": True}}}}
-        mock_gh_api.side_effect = [json.dumps(query_response), json.dumps(mutation_response)]
-        provider = GitHubActionsProvider(repo="owner/repo")
-        assert provider._resolve_review_threads_for_comments(42, [101]) == 1
-
-    @patch("agentic_devtools.cli.ci.github_provider._gh_api")
-    def test_resolve_review_threads_handles_pagination(self, mock_gh_api) -> None:
-        first_page = {
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "nodes": [],
-                            "pageInfo": {"hasNextPage": True, "endCursor": "CURSOR_1"},
-                        }
-                    }
-                }
-            }
-        }
-        second_page = {
-            "data": {
-                "repository": {
-                    "pullRequest": {
-                        "reviewThreads": {
-                            "nodes": [],
-                            "pageInfo": {"hasNextPage": False, "endCursor": None},
-                        }
-                    }
-                }
-            }
-        }
-        mock_gh_api.side_effect = [json.dumps(first_page), json.dumps(second_page)]
-        provider = GitHubActionsProvider(repo="owner/repo")
-        assert provider._resolve_review_threads_for_comments(42, [101]) == 0
 
     def test_build_squash_commit_message_variants(self) -> None:
         provider = GitHubActionsProvider(repo="owner/repo")

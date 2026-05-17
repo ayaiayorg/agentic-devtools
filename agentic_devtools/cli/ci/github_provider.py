@@ -21,6 +21,8 @@ from agentic_devtools.cli.ci.models import (
 )
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
 from agentic_devtools.cli.ci.retry import RetryableError, retry_with_backoff
+from agentic_devtools.cli.github.request_copilot_review import request_copilot_review as _request_copilot_review
+from agentic_devtools.cli.github.resolve_review_threads import resolve_review_threads as _resolve_review_threads
 from agentic_devtools.cli.subprocess_utils import run_safe
 
 logger = logging.getLogger(__name__)
@@ -519,14 +521,6 @@ class GitHubActionsProvider(CIPlatformProvider):
         comments = _parse_paginated_json(response)
         return [c.get("body", "") for c in comments]
 
-    def _repo_owner_name(self) -> tuple[str, str]:
-        """Resolve ``(owner, repo)`` for GraphQL operations."""
-        repo = self._repo or os.environ.get("GITHUB_REPOSITORY", "")
-        if "/" not in repo:
-            raise RuntimeError("Repository must be in 'owner/repo' format for post-repair finalization.")
-        owner, repo_name = repo.split("/", 1)
-        return owner, repo_name
-
     def _run_git(self, args: Iterable[str]) -> str:
         """Run git command and return stdout or raise on failure."""
         result = run_safe(
@@ -539,6 +533,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
         return result.stdout
 
+    @retry_with_backoff()
     def _list_review_comment_ids(self, pr_number: int, review_id: int) -> list[int]:
         """Return numeric review comment IDs for a given review."""
         response = _gh_api(
@@ -548,6 +543,7 @@ class GitHubActionsProvider(CIPlatformProvider):
         comments = _parse_paginated_json(response)
         return [int(c["id"]) for c in comments if c.get("id")]
 
+    @retry_with_backoff()
     def _reply_to_review_comment(self, pr_number: int, comment_id: int, head_sha: str) -> None:
         """Post addressed reply to a single review comment."""
         _gh_api(
@@ -555,89 +551,6 @@ class GitHubActionsProvider(CIPlatformProvider):
             method="POST",
             body={"body": f"Addressed by fix commit `{head_sha[:8]}`."},
         )
-
-    def _resolve_review_threads_for_comments(self, pr_number: int, comment_ids: list[int]) -> int:
-        """Resolve unresolved review threads containing the given comment IDs."""
-        if not comment_ids:
-            return 0
-        owner, repo_name = self._repo_owner_name()
-        target_ids = set(comment_ids)
-        query = """
-query($owner: String!, $repo: String!, $number: Int!, $after: String) {
-  repository(owner: $owner, name: $repo) {
-    pullRequest(number: $number) {
-      reviewThreads(first: 100, after: $after) {
-        nodes {
-          id
-          isResolved
-          comments(first: 100) {
-            nodes {
-              databaseId
-            }
-          }
-        }
-        pageInfo {
-          hasNextPage
-          endCursor
-        }
-      }
-    }
-  }
-}
-"""
-        thread_ids: list[str] = []
-        after: str | None = None
-        while True:
-            raw = _gh_api(
-                "graphql",
-                method="POST",
-                body={
-                    "query": query,
-                    "variables": {
-                        "owner": owner,
-                        "repo": repo_name,
-                        "number": pr_number,
-                        "after": after,
-                    },
-                },
-            )
-            data = json.loads(raw)
-            threads = data["data"]["repository"]["pullRequest"]["reviewThreads"]
-            for thread in threads.get("nodes", []):
-                if thread.get("isResolved"):
-                    continue
-                thread_comment_ids = {
-                    int(node["databaseId"])
-                    for node in thread.get("comments", {}).get("nodes", [])
-                    if node and node.get("databaseId") is not None
-                }
-                if thread_comment_ids & target_ids:
-                    thread_ids.append(str(thread["id"]))
-            page_info = threads.get("pageInfo", {})
-            if not page_info.get("hasNextPage"):
-                break
-            after = page_info.get("endCursor")
-
-        mutation = """
-mutation($threadId: ID!) {
-  resolveReviewThread(input: {threadId: $threadId}) {
-    thread {
-      isResolved
-    }
-  }
-}
-"""
-        resolved = 0
-        for thread_id in thread_ids:
-            raw = _gh_api(
-                "graphql",
-                method="POST",
-                body={"query": mutation, "variables": {"threadId": thread_id}},
-            )
-            data = json.loads(raw)
-            if data.get("data", {}).get("resolveReviewThread", {}).get("thread", {}).get("isResolved"):
-                resolved += 1
-        return resolved
 
     def _build_squash_commit_message(self, head_sha: str, commit_subjects: list[str]) -> str:
         """Build a deterministic squash commit message."""
@@ -665,7 +578,13 @@ mutation($threadId: ID!) {
             self._run_git(["commit", "-m", commit_message])
         self._run_git(["push", "--force-with-lease", "origin", f"HEAD:{head_branch}"])
 
-    @retry_with_backoff()
+    def _resolve_repo(self) -> str:
+        """Resolve the repository in ``owner/repo`` format."""
+        repo = self._repo or os.environ.get("GITHUB_REPOSITORY", "")
+        if "/" not in repo:
+            raise RuntimeError("Repository must be in 'owner/repo' format for post-repair finalization.")
+        return repo
+
     def finalize_post_repair(
         self,
         *,
@@ -675,10 +594,30 @@ mutation($threadId: ID!) {
         head_sha: str,
         review_id: int,
     ) -> None:
-        """Finalize a post-repair cycle after Copilot pushes a fix commit."""
+        """Finalize a post-repair cycle after Copilot pushes a fix commit.
+
+        Each sub-operation is individually retried so that a transient failure
+        partway through does not re-execute already-completed steps (addresses
+        the non-idempotent retry concern).
+
+        Delegates thread resolution and Copilot re-request to the existing
+        ``cli/github`` modules to avoid duplicating GraphQL pagination,
+        verification, and retry logic.
+        """
+        repo = self._resolve_repo()
+
+        # 1. Reply to each review comment (individually retried via decorator)
         comment_ids = self._list_review_comment_ids(pr_number, review_id)
         for comment_id in comment_ids:
             self._reply_to_review_comment(pr_number, comment_id, head_sha)
-        self._resolve_review_threads_for_comments(pr_number, comment_ids)
+
+        # 2. Resolve threads — delegates to existing resolve_review_threads()
+        #    which already handles GraphQL pagination, retry, and verification
+        _resolve_review_threads(pr_number, repo, review_id=review_id)
+
+        # 3. Squash and force-push
         self._squash_and_force_push(base_branch=base_branch, head_branch=head_branch, head_sha=head_sha)
-        self.request_reviewer(pr_number, "Copilot")
+
+        # 4. Re-request Copilot review — delegates to existing module which
+        #    handles POST + exponential backoff verification + reviews fallback
+        _request_copilot_review(pr_number, repo)
