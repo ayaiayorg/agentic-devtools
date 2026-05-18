@@ -64,6 +64,8 @@ As an AI agent operator, I want to run `agdt-initiate-work-on-jira-issue-workflo
 and have the LangGraph-based orchestration execute end-to-end (from initiate
 through completion), using real Jira, Git, and Azure DevOps tool integrations instead of stub node functions.
 
+**Associated FRs**: FR-001, FR-004, FR-006, FR-007, FR-008, FR-009, FR-011, FR-012, FR-013
+
 **Why this priority**: This is the core deliverable — without a working `--engine langchain` flag routing to the LangGraph graph with real tool calls, nothing else in this feature is testable.
 
 **Independent Test**: Can be fully tested by running the command with a valid Jira issue key and observing that the workflow progresses through all nodes (initiate → setup → planning →
@@ -94,6 +96,8 @@ checklist_creation → implementation → implementation_gate → implementation
 
 As a user of the existing work-on-jira-issue workflow, I want the default behavior (without `--engine langchain`) to remain completely unmodified so that my current workflows are not disrupted.
 
+**Associated FRs**: FR-002, FR-010
+
 **Why this priority**: Non-regression is equally critical — the existing workflow is production-proven and must not be broken by this change.
 
 **Independent Test**: Can be fully tested by running `agdt-initiate-work-on-jira-issue-workflow --issue-key PROJECT-1234`
@@ -113,6 +117,8 @@ As a user of the existing work-on-jira-issue workflow, I want the default behavi
 
 As a developer testing the LangGraph workflow, I want the LangGraph execution path to use real tool integrations
 (Jira API, Git operations, Azure DevOps PR creation) so that the workflow produces actual artifacts.
+
+**Associated FRs**: FR-003, FR-007
 
 **Why this priority**: Without real tool calls, the LangGraph path cannot be validated against the existing implementation — stubs are not testable in an end-to-end sense.
 
@@ -138,6 +144,8 @@ As a developer testing the LangGraph workflow, I want the LangGraph execution pa
 
 As an operator running long-lived workflows, I want the LangGraph workflow to persist state via `SqliteSaver` so that execution can survive process restarts and be resumed from any checkpoint.
 
+**Associated FRs**: FR-004, FR-005, FR-012, FR-013
+
 **Why this priority**: Durability is important for production readiness but the workflow can be tested end-to-end without it (using in-memory execution).
 
 **Independent Test**: Can be tested by starting a workflow, killing the process at either gate interrupt, restarting the
@@ -162,6 +170,8 @@ process, and resuming execution from the saved checkpoint using `--engine langch
 
 As a project maintainer, I want to run both the existing and LangGraph workflows against the same Jira issue to compare outcomes and verify functional equivalence before deprecating the old
 implementation.
+
+**Associated FRs**: FR-001, FR-002, FR-003
 
 **Why this priority**: Comparative testing is the eventual validation gate for removing the legacy workflow, but it is not blocking for initial delivery.
 
