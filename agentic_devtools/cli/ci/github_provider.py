@@ -572,6 +572,35 @@ class GitHubActionsProvider(CIPlatformProvider):
             body={"body": f"Addressed by fix commit `{head_sha[:8]}`."},
         )
 
+    @retry_with_backoff()
+    def _list_addressed_reply_parent_comment_ids(self, pr_number: int) -> set[int]:
+        """Return parent comment IDs that already have an addressed reply."""
+        response = _gh_api(
+            self._repo_api(f"/pulls/{pr_number}/comments"),
+            paginate=True,
+        )
+        comments = _parse_paginated_json(response)
+        return {
+            int(comment["in_reply_to_id"])
+            for comment in comments
+            if comment.get("in_reply_to_id")
+            and str(comment.get("body", "")).strip().lower().startswith("addressed by fix commit")
+        }
+
+    def _has_existing_addressed_reply(
+        self,
+        pr_number: int,
+        comment_id: int,
+        addressed_reply_parent_comment_ids: set[int] | None = None,
+    ) -> bool:
+        """Check whether a review comment already has an addressed reply."""
+        parent_comment_ids = (
+            addressed_reply_parent_comment_ids
+            if addressed_reply_parent_comment_ids is not None
+            else self._list_addressed_reply_parent_comment_ids(pr_number)
+        )
+        return comment_id in parent_comment_ids
+
     def _build_squash_commit_message(self, head_sha: str, commit_subjects: list[str]) -> str:
         """Build a deterministic squash commit message."""
         unique_subjects = [subject.strip() for subject in commit_subjects if subject.strip()]
@@ -818,7 +847,12 @@ class GitHubActionsProvider(CIPlatformProvider):
 
         # 1. Reply to each review comment (individually retried via decorator)
         comment_ids = self._list_review_comment_ids(pr_number, review_id)
+        addressed_reply_parent_comment_ids = set()
+        if comment_ids:
+            addressed_reply_parent_comment_ids = self._list_addressed_reply_parent_comment_ids(pr_number)
         for comment_id in comment_ids:
+            if self._has_existing_addressed_reply(pr_number, comment_id, addressed_reply_parent_comment_ids):
+                continue
             self._reply_to_review_comment(pr_number, comment_id, head_sha)
 
         # 2. Resolve threads — delegates to existing resolve_review_threads()

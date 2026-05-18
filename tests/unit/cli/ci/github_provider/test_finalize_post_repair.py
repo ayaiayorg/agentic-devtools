@@ -19,10 +19,12 @@ class TestFinalizePostRepair:
     @patch.object(GitHubActionsProvider, "_squash_and_force_push")
     @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "_list_review_comment_ids")
     def test_finalize_replies_resolves_squashes_and_rerequests(
         self,
         mock_list_ids,
+        mock_addressed_parent_ids,
         mock_reply,
         mock_resolve,
         mock_squash,
@@ -31,6 +33,7 @@ class TestFinalizePostRepair:
         mock_request_copilot,
     ) -> None:
         mock_list_ids.return_value = [101, 202]
+        mock_addressed_parent_ids.return_value = set()
         mock_resolve.return_value = {"threadsResolved": 2, "verified": True}
         mock_request_copilot.return_value = {"requested": True, "verified": True}
         mock_get_meta.return_value = PRMetadata(
@@ -52,6 +55,7 @@ class TestFinalizePostRepair:
         )
 
         mock_list_ids.assert_called_once_with(42, 7)
+        mock_addressed_parent_ids.assert_called_once_with(42)
         assert mock_reply.call_count == 2
         mock_reply.assert_any_call(42, 101, "abc123def456")
         mock_reply.assert_any_call(42, 202, "abc123def456")
@@ -110,6 +114,114 @@ class TestFinalizePostRepair:
         )
 
         mock_publish.assert_called_once_with(42)
+        mock_request_copilot.assert_called_once_with(42, "owner/repo")
+
+    @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
+    @patch.object(GitHubActionsProvider, "get_pr_metadata")
+    @patch.object(GitHubActionsProvider, "_squash_and_force_push")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_list_review_comment_ids")
+    def test_finalize_skips_reply_when_addressed_reply_already_exists(
+        self,
+        mock_list_ids,
+        mock_addressed_parent_ids,
+        mock_reply,
+        mock_resolve,
+        mock_squash,
+        mock_get_meta,
+        mock_request_copilot,
+    ) -> None:
+        mock_list_ids.return_value = [101]
+        mock_addressed_parent_ids.return_value = {101}
+        mock_get_meta.return_value = PRMetadata(
+            number=42,
+            title="feat: test",
+            head_branch="feature/test",
+            head_sha="abc123def456",
+            base_branch="main",
+            is_draft=False,
+        )
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="abc123def456",
+            review_id=7,
+        )
+
+        mock_reply.assert_not_called()
+        mock_resolve.assert_called_once_with(42, "owner/repo", review_id=7)
+        assert mock_squash.call_count == 2
+        mock_squash.assert_has_calls(
+            [
+                call(base_branch="main", head_branch="feature/test", head_sha="abc123def456"),
+                call(
+                    base_branch="main",
+                    head_branch="feature/test",
+                    head_sha="abc123def456",
+                    reset_to_remote=True,
+                ),
+            ]
+        )
+        mock_request_copilot.assert_called_once_with(42, "owner/repo")
+
+    @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
+    @patch.object(GitHubActionsProvider, "get_pr_metadata")
+    @patch.object(GitHubActionsProvider, "_squash_and_force_push")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_list_review_comment_ids")
+    def test_finalize_handles_mixed_addressed_and_unaddressed_comments(
+        self,
+        mock_list_ids,
+        mock_addressed_parent_ids,
+        mock_reply,
+        mock_resolve,
+        mock_squash,
+        mock_get_meta,
+        mock_request_copilot,
+    ) -> None:
+        mock_list_ids.return_value = [101, 202, 303]
+        mock_addressed_parent_ids.return_value = {202}
+        mock_get_meta.return_value = PRMetadata(
+            number=42,
+            title="feat: test",
+            head_branch="feature/test",
+            head_sha="abc123def456",
+            base_branch="main",
+            is_draft=False,
+        )
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="abc123def456",
+            review_id=7,
+        )
+
+        assert mock_reply.call_count == 2
+        mock_reply.assert_any_call(42, 101, "abc123def456")
+        mock_reply.assert_any_call(42, 303, "abc123def456")
+        mock_resolve.assert_called_once_with(42, "owner/repo", review_id=7)
+        assert mock_squash.call_count == 2
+        mock_squash.assert_has_calls(
+            [
+                call(base_branch="main", head_branch="feature/test", head_sha="abc123def456"),
+                call(
+                    base_branch="main",
+                    head_branch="feature/test",
+                    head_sha="abc123def456",
+                    reset_to_remote=True,
+                ),
+            ]
+        )
         mock_request_copilot.assert_called_once_with(42, "owner/repo")
 
     @patch("agentic_devtools.cli.ci.github_provider._gh_api")
