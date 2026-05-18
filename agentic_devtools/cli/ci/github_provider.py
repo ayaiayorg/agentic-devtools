@@ -6,9 +6,11 @@ using the ``gh`` CLI for API calls consistent with existing codebase patterns.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
+import re
 from collections.abc import Iterable
 from typing import Any
 
@@ -580,6 +582,174 @@ class GitHubActionsProvider(CIPlatformProvider):
         bullets = "\n".join(f"- {subject}" for subject in unique_subjects[:10])
         return f"chore: squash post-repair updates\n\n{bullets}\n\nAutomated squash for `{head_sha[:8]}`."
 
+    @staticmethod
+    def _clean_sdk_commit_message(raw: str) -> str | None:
+        """Strip fences and conversational prefixes, then validate Conventional Commit format.
+
+        Returns the cleaned commit message if it passes basic format validation,
+        or ``None`` if the SDK output should be discarded and the deterministic
+        fallback used instead.
+        """
+        message = raw.strip()
+        if not message:
+            return None
+
+        # Strip markdown fences.
+        if message.startswith("```"):
+            lines = message.splitlines()
+            if len(lines) >= 3 and lines[0].startswith("```") and lines[-1].strip() == "```":
+                message = "\n".join(lines[1:-1]).strip()
+
+        # Strip "commit message:" conversational prefix.
+        if message.lower().startswith("commit message:"):
+            message = message.split(":", 1)[1].strip()
+
+        if not message:
+            return None
+
+        subject = message.splitlines()[0].strip()
+
+        # Reject conversational openers that indicate the model narrated its output
+        # instead of returning the commit message directly.
+        _CONVERSATIONAL_STARTERS = (
+            "here ",
+            "here's ",
+            "i'll ",
+            "i've ",
+            "i ",
+            "sure,",
+            "below is",
+            "certainly ",
+            "the following",
+            "this commit",
+        )
+        if subject.lower().startswith(_CONVERSATIONAL_STARTERS):
+            logger.warning(
+                "Rejecting SDK commit message with conversational opener: %r",
+                subject[:60],
+            )
+            return None
+
+        # Cap subject line to 100 characters.
+        if len(subject) > 100:
+            logger.warning(
+                "Rejecting SDK commit message with subject too long (%d chars)",
+                len(subject),
+            )
+            return None
+
+        # Require Conventional Commit format: type[(scope)][!]: description.
+        if not re.match(r"^[a-z][\w-]*(?:\([^)]*\))?!?:\s+\S", subject):
+            logger.warning(
+                "Rejecting SDK commit message that doesn't follow Conventional Commits: %r",
+                subject[:60],
+            )
+            return None
+
+        return message
+
+    def _generate_commit_message_via_sdk(
+        self,
+        *,
+        head_sha: str,
+        commit_subjects: list[str],
+        timeout_seconds: int = 60,
+    ) -> str | None:
+        """Attempt to generate a squash commit message via Copilot SDK."""
+        token = os.environ.get("COPILOT_GITHUB_TOKEN", "").strip()
+        if not token:
+            return None
+
+        try:
+            from copilot import CopilotClient, SubprocessConfig
+            from copilot.session import PermissionHandler
+        except Exception as exc:  # pragma: no cover - optional dependency/runtime
+            logger.warning("Copilot SDK unavailable for squash commit message generation: %s", exc)
+            return None
+
+        model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
+        unique_subjects = [subject.strip() for subject in commit_subjects if subject.strip()]
+        subjects_text = "\n".join(f"- {subject}" for subject in unique_subjects[:20]) or "- (none)"
+        prompt = (
+            "Generate a concise Conventional Commit message for squashing this pull request.\n"
+            "Return plain commit message text only (subject + optional body), no markdown fences.\n\n"
+            f"Head SHA: {head_sha}\n"
+            "Commit subjects:\n"
+            f"{subjects_text}\n"
+        )
+
+        async def _run() -> str | None:
+            client = None
+            session = None
+            content_parts: list[str] = []
+            error_messages: list[str] = []
+            done = asyncio.Event()
+            try:
+                client = CopilotClient(SubprocessConfig(github_token=token))
+                await client.start()
+                try:
+                    session = await client.create_session(
+                        model=model,
+                        on_permission_request=PermissionHandler.approve_all,
+                        infinite_sessions={"enabled": False},
+                        github_token=token,
+                    )
+                except TypeError as exc:
+                    if "unexpected keyword argument" not in str(exc) or "github_token" not in str(exc):
+                        raise  # pragma: no cover - defensive re-raise for unrelated TypeErrors
+                    session = await client.create_session(
+                        model=model,
+                        on_permission_request=PermissionHandler.approve_all,
+                        infinite_sessions={"enabled": False},
+                    )
+
+                def on_event(event: Any) -> None:
+                    event_type = getattr(getattr(event, "type", None), "value", "")
+                    if event_type == "assistant.message":
+                        content_parts.append(getattr(getattr(event, "data", None), "content", ""))
+                    elif event_type == "session.idle":
+                        done.set()
+                    elif event_type in {"error", "session.error", "assistant.error"}:
+                        msg = getattr(getattr(event, "data", None), "message", None) or str(getattr(event, "data", ""))
+                        error_messages.append(f"{event_type}: {msg}")
+                        done.set()
+
+                session.on(on_event)
+                await session.send(prompt)
+                await done.wait()
+
+                if error_messages:
+                    logger.warning("Copilot SDK returned errors for squash message: %s", "; ".join(error_messages))
+                    return None
+
+                raw = (content_parts[-1] if content_parts else "").strip()
+                if not raw:
+                    return None
+                return GitHubActionsProvider._clean_sdk_commit_message(raw)
+            except Exception as exc:  # pragma: no cover - defensive runtime fallback
+                logger.warning("Copilot SDK commit message generation failed: %s", exc)
+                return None
+            finally:
+                if session is not None:
+                    try:
+                        await session.disconnect()
+                    except Exception:  # pragma: no cover - defensive cleanup
+                        pass
+                if client is not None:
+                    try:
+                        await client.stop()
+                    except Exception:  # pragma: no cover - defensive cleanup
+                        pass
+
+        try:
+            return asyncio.run(asyncio.wait_for(_run(), timeout=timeout_seconds))
+        except asyncio.TimeoutError:
+            logger.warning("Copilot SDK commit message generation timed out after %ss", timeout_seconds)
+            return None
+        except RuntimeError as exc:  # pragma: no cover - defensive runtime fallback
+            logger.warning("Copilot SDK commit message generation could not start event loop: %s", exc)
+            return None
+
     def _squash_and_force_push(
         self,
         *,
@@ -597,13 +767,26 @@ class GitHubActionsProvider(CIPlatformProvider):
         commit_count = int(self._run_git(["rev-list", "--count", f"{merge_base}..HEAD"]).strip() or "0")
         if commit_count > 1:
             subjects_raw = self._run_git(["log", "--format=%s", f"{merge_base}..HEAD"])
-            commit_message = self._build_squash_commit_message(
-                head_sha,
-                [line for line in subjects_raw.splitlines() if line.strip()],
-            )
+            commit_subjects = [line for line in subjects_raw.splitlines() if line.strip()]
+            commit_message = self._generate_commit_message_via_sdk(
+                head_sha=head_sha,
+                commit_subjects=commit_subjects,
+            ) or self._build_squash_commit_message(head_sha, commit_subjects)
             self._run_git(["reset", "--soft", merge_base])
             self._run_git(["commit", "-m", commit_message])
         self._run_git(["push", "--force-with-lease", "origin", f"HEAD:{head_branch}"])
+
+    def squash_before_publish(
+        self,
+        *,
+        pr_number: int,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+    ) -> None:
+        """Squash commits and push branch before draft PR publish."""
+        logger.info("Squashing PR #%d before publish", pr_number)
+        self._squash_and_force_push(base_branch=base_branch, head_branch=head_branch, head_sha=head_sha)
 
     def _resolve_repo(self) -> str:
         """Resolve the repository in ``owner/repo`` format."""
@@ -655,6 +838,11 @@ class GitHubActionsProvider(CIPlatformProvider):
             reset_to_remote=True,
         )
 
-        # 4. Re-request Copilot review — delegates to existing module which
+        # 4. Ensure PR is published if still draft (edge-case safety)
+        pr_meta = self.get_pr_metadata(pr_number)
+        if pr_meta.is_draft:
+            self.publish_pr(pr_number)
+
+        # 5. Re-request Copilot review — delegates to existing module which
         #    handles POST + exponential backoff verification + reviews fallback
         _request_copilot_review(pr_number, repo)

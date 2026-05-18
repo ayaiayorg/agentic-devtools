@@ -748,6 +748,22 @@ def run_ai_pr_loop(
             return EXIT_SUCCESS
         logger.info("PR #%d is a draft — publishing and requesting Copilot review", pr_number)
         try:
+            provider.squash_before_publish(
+                pr_number=pr_number,
+                base_branch=pr_meta.base_branch,
+                head_branch=pr_meta.head_branch,
+                head_sha=pr_meta.head_sha,
+            )
+        except Exception as exc:
+            logger.error("Failed to squash before publish for PR #%d: %s", pr_number, exc, exc_info=True)
+            summary["squash_error"] = str(exc)
+            summary["decision"] = "error"
+            summary["reason"] = "squash_before_publish_failed"
+            summary["exit_code"] = EXIT_MERGE_BLOCKED
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_MERGE_BLOCKED
+        try:
             provider.publish_pr(pr_number)
         except Exception as exc:
             logger.error("Failed to publish draft PR #%d: %s", pr_number, exc)
