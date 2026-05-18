@@ -86,6 +86,9 @@ class _StubAdoProvider(CIPlatformProvider):
     ) -> None:
         raise NotImplementedError("ADO provider stub")
 
+    def publish_pr(self, pr_number: int) -> None:
+        raise NotImplementedError("ADO provider stub")
+
 
 class TestCIPlatformProviderIntegration:
     """Integration tests verifying the ABC contract is satisfiable by different providers."""

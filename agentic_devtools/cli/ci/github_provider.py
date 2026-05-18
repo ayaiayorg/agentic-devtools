@@ -455,6 +455,17 @@ class GitHubActionsProvider(CIPlatformProvider):
         )
 
     @retry_with_backoff()
+    def publish_pr(self, pr_number: int) -> None:
+        """Mark a draft PR as ready for review via gh pr ready command."""
+        cmd = ["gh", "pr", "ready", str(pr_number)]
+        if self._repo:
+            cmd.extend(["--repo", self._repo])
+        result = run_safe(cmd, capture_output=True, text=True, shell=False)
+        if result.returncode != 0:
+            error_message = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+            raise RuntimeError(f"Failed to publish PR #{pr_number}: {error_message}")
+
+    @retry_with_backoff()
     def request_reviewer(self, pr_number: int, reviewer: str) -> None:
         """Request a reviewer for a pull request."""
         _gh_api(

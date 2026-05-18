@@ -100,7 +100,10 @@ class ReviewInfo:
 
 
 # Copilot login names used in review detection (provider-agnostic)
-COPILOT_LOGINS = frozenset({"Copilot", "copilot-pull-request-reviewer[bot]"})
+COPILOT_REVIEWER_LOGIN = "copilot-pull-request-reviewer[bot]"
+COPILOT_LOGINS = frozenset(
+    {"Copilot", COPILOT_REVIEWER_LOGIN}
+)
 
 
 @dataclass(frozen=True)

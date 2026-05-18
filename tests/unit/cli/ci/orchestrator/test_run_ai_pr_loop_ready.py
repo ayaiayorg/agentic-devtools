@@ -33,7 +33,7 @@ class TestRunAIPRLoopReady:
             CheckRunStatus(id=2, name="Markdown Lint ✅", status="completed", conclusion="success"),
         ]
         provider.list_reviews.return_value = [
-            ReviewInfo(id=1, user="reviewer", state="APPROVED", body="LGTM"),
+            ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm"),
         ]
         provider.find_comment.return_value = None
         provider.post_comment.return_value = 100

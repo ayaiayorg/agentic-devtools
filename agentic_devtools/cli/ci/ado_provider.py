@@ -120,6 +120,10 @@ class AzureDevOpsProvider(CIPlatformProvider):
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.merge_pr() not yet implemented")
 
+    def publish_pr(self, pr_number: int) -> None:
+        """Not implemented for ADO stub."""
+        raise NotImplementedError("AzureDevOpsProvider.publish_pr() not yet implemented")
+
     def request_reviewer(self, pr_number: int, reviewer: str) -> None:
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.request_reviewer() not yet implemented")

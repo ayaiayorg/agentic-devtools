@@ -74,6 +74,9 @@ class _ConcreteProvider(CIPlatformProvider):
     ) -> None:
         pass
 
+    def publish_pr(self, pr_number: int) -> None:
+        pass
+
 
 class TestCIPlatformProvider:
     """Tests for the CIPlatformProvider abstract base class."""
@@ -152,6 +155,11 @@ class TestCIPlatformProvider:
         assert isinstance(result, list)
         assert all(isinstance(a, str) for a in result)
 
+    def test_publish_pr_returns_none(self) -> None:
+        provider = _ConcreteProvider()
+        result = provider.publish_pr(1)
+        assert result is None
+
     def test_abstract_methods_list(self) -> None:
         """Verify all expected abstract methods are defined."""
         expected_methods = {
@@ -164,6 +172,7 @@ class TestCIPlatformProvider:
             "find_comment",
             "approve_pr",
             "merge_pr",
+            "publish_pr",
             "request_reviewer",
             "list_pr_files",
             "get_check_annotations",

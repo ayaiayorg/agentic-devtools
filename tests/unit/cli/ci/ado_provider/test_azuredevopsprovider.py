@@ -82,6 +82,8 @@ class TestAzureDevOpsProvider:
         with pytest.raises(NotImplementedError):
             provider.request_reviewer(1, "user")
         with pytest.raises(NotImplementedError):
+            provider.publish_pr(1)
+        with pytest.raises(NotImplementedError):
             provider.list_pr_files(1)
         with pytest.raises(NotImplementedError):
             provider.get_check_annotations(1, 10)

@@ -127,6 +127,14 @@ class CIPlatformProvider(ABC):
         """
 
     @abstractmethod
+    def publish_pr(self, pr_number: int) -> None:
+        """Mark a draft pull request as ready for review.
+
+        Args:
+            pr_number: Pull request number.
+        """
+
+    @abstractmethod
     def request_reviewer(self, pr_number: int, reviewer: str) -> None:
         """Request a reviewer for a pull request.
 
