@@ -28,6 +28,7 @@ from agentic_devtools.cli.ci.guards import (
     check_exclusion_labels,
     check_fork_pr,
     check_privileged_paths,
+    increment_cycle_count,
 )
 from agentic_devtools.cli.ci.models import (
     COPILOT_LOGINS,
@@ -507,6 +508,12 @@ def run_ai_pr_loop(
                 decision=decision,
                 failure_reason_out=ci_repair_failure_reason,
             )
+            if result == EXIT_REPAIR_DISPATCHED:
+                try:
+                    cycle_count = increment_cycle_count(provider, pr_number)
+                    summary["repair_cycle"] = {"count": cycle_count}
+                except Exception as exc:
+                    logger.error("Failed to increment cycle tracker for PR #%d: %s", pr_number, exc)
             summary["decision"] = "repair_dispatched" if result == EXIT_REPAIR_DISPATCHED else "repair_failed"
             if ci_repair_failure_reason:
                 summary["reason"] = ci_repair_failure_reason[0]
@@ -647,6 +654,12 @@ def run_ai_pr_loop(
             decision=decision,
             failure_reason_out=repair_failure_reason,
         )
+        if result == EXIT_REPAIR_DISPATCHED:
+            try:
+                cycle_count = increment_cycle_count(provider, pr_number)
+                summary["repair_cycle"] = {"count": cycle_count}
+            except Exception as exc:
+                logger.error("Failed to increment cycle tracker for PR #%d: %s", pr_number, exc)
         summary["decision"] = "repair_dispatched" if result == EXIT_REPAIR_DISPATCHED else "repair_failed"
         if repair_failure_reason:
             summary["reason"] = repair_failure_reason[0]

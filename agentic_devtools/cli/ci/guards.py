@@ -162,7 +162,7 @@ def check_cycle_limit(
 ) -> tuple[bool, int]:
     """Check if the AI loop cycle limit has been reached.
 
-    Reads/updates a cycle tracker comment on the PR.
+    Reads a cycle tracker comment on the PR without mutating it.
 
     Args:
         provider: CI platform provider for API calls.
@@ -174,24 +174,38 @@ def check_cycle_limit(
     """
     existing = provider.find_comment(pr_number, CYCLE_TRACKER_MARKER)
 
+    current_count = 0
+    if existing is not None:
+        _, comment_body = existing
+        count_match = re.search(r"cycle:(\d+)", comment_body)
+        current_count = int(count_match.group(1)) if count_match else 0
+
+    return (current_count >= max_cycles, current_count)
+
+
+def increment_cycle_count(provider: CIPlatformProvider, pr_number: int) -> int:
+    """Increment and persist the AI loop cycle count tracker comment.
+
+    Args:
+        provider: CI platform provider for API calls.
+        pr_number: Pull request number.
+
+    Returns:
+        The updated cycle count after incrementing.
+    """
+    existing = provider.find_comment(pr_number, CYCLE_TRACKER_MARKER)
+
     if existing is not None:
         comment_id, comment_body = existing
-        # Extract current count from body
         count_match = re.search(r"cycle:(\d+)", comment_body)
-        current_count = int(count_match.group(1)) + 1 if count_match else 1
-
-        if current_count > max_cycles:
-            return (True, current_count)
-
-        # Update count
+        next_count = int(count_match.group(1)) + 1 if count_match else 1
         if count_match:
-            new_body = re.sub(r"cycle:\d+", f"cycle:{current_count}", comment_body)
+            new_body = re.sub(r"cycle:\d+", f"cycle:{next_count}", comment_body)
         else:
-            new_body = f"{CYCLE_TRACKER_MARKER} cycle:{current_count}"
+            new_body = f"{comment_body} cycle:{next_count}"
         provider.update_comment(comment_id, new_body)
-        return (False, current_count)
+        return next_count
 
-    # First cycle — create tracker
     body = f"{CYCLE_TRACKER_MARKER} cycle:1"
     provider.post_comment(pr_number, body)
-    return (False, 1)
+    return 1

@@ -171,6 +171,7 @@ class TestRunAIPRLoop:
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_REPAIR_DISPATCHED
         provider.dispatch_repair.assert_called_once()
+        assert provider.post_comment.call_count == 2
         dispatched = provider.dispatch_repair.call_args.kwargs
         assert dispatched["repair_type"] == "ci"
 
@@ -184,6 +185,7 @@ class TestRunAIPRLoop:
         payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_MERGE_BLOCKED
+        assert provider.post_comment.call_count == 1
 
     def test_auto_approves_when_no_approval(self) -> None:
         """Auto-approves when Copilot reviewed non-actionably but no APPROVED review exists."""
@@ -233,6 +235,7 @@ class TestRunAIPRLoop:
         assert result == EXIT_REPAIR_DISPATCHED
         provider.merge_pr.assert_not_called()
         provider.dispatch_repair.assert_called_once()
+        assert provider.post_comment.call_count == 2
 
     def test_human_changes_requested_does_not_dispatch_repair(self) -> None:
         """Human CHANGES_REQUESTED blocks merge but does NOT trigger repair."""
@@ -242,6 +245,7 @@ class TestRunAIPRLoop:
         assert result == EXIT_SUCCESS
         provider.merge_pr.assert_not_called()
         provider.dispatch_repair.assert_not_called()
+        assert provider.post_comment.call_count == 1
 
     def test_merge_failure_returns_blocked(self) -> None:
         from agentic_devtools.cli.ci.orchestrator import EXIT_MERGE_BLOCKED
@@ -810,6 +814,7 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["repair"]["needed"] is True
         assert summary["repair"]["type"] == "ci"
         assert "Workflow Tests ✅" in summary["repair"]["failed_checks"]
+        assert summary["repair_cycle"]["count"] == 1
 
     def test_post_repair_finalized_emits_summary(self) -> None:
         provider = _make_provider(
