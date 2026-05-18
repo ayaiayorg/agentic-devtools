@@ -47,6 +47,17 @@ class TestBuildRepairComment:
         assert "### ❌ Python Tests" in body
         assert "### ❌ Lint" in body
 
+    def test_ci_repair_includes_job_links_when_repo_is_known(self) -> None:
+        checks = [CheckRunStatus(id=111, name="Python Tests", status="completed", conclusion="failure")]
+        body = _build_repair_comment(
+            head_sha="abc123def456",
+            repair_type="ci",
+            failed_checks=checks,
+            review_comments=[],
+            repository_full_name="owner/repo",
+        )
+        assert "https://github.com/owner/repo/runs/111" in body
+
     def test_both_repair_includes_review_and_ci(self) -> None:
         checks = [CheckRunStatus(id=1, name="test", status="completed", conclusion="failure")]
         body = _build_repair_comment(

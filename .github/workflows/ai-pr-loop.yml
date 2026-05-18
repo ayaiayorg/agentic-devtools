@@ -2,9 +2,12 @@ name: AI PR Loop
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [opened, reopened]
   pull_request_review:
     types: [submitted]
+  workflow_run:
+    workflows: ["Python Tests and Linting", "Lint", "Workflow Integration Tests"]
+    types: [completed]
 permissions:
   contents: write
   pull-requests: write
@@ -14,23 +17,29 @@ permissions:
 env:
   AGDT_USE_PYTHON_ORCHESTRATOR: "1"
 concurrency:
-  group: ai-pr-loop-${{ github.event.pull_request.number }}
+  group: ai-pr-loop-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.run_id }}
   cancel-in-progress: false
 jobs:
   ai-pr-loop:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     if: >
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      (github.event_name == 'pull_request' ||
+      ((github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository) ||
        (github.event_name == 'pull_request_review' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
         (github.event.review.user.login == 'Copilot' ||
-         github.event.review.user.login == 'copilot-pull-request-reviewer[bot]')))
+         github.event.review.user.login == 'copilot-pull-request-reviewer[bot]')) ||
+       (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.event == 'pull_request' &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        github.event.workflow_run.conclusion != 'cancelled' &&
+        github.event.workflow_run.pull_requests[0].number != null))
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.workflow_run.head_branch }}
           fetch-depth: 0
           token: ${{ secrets.AGDT_PR_APPROVER_PAT }}
       - name: Configure git identity

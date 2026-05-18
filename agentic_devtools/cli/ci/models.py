@@ -91,12 +91,14 @@ class ReviewInfo:
         user: Username of the reviewer.
         state: Review state (e.g., "APPROVED", "CHANGES_REQUESTED", "COMMENTED").
         body: Review body text.
+        commit_sha: Commit SHA that this review targets.
     """
 
     id: int
     user: str
     state: str
     body: str = ""
+    commit_sha: str = ""
 
 
 # Copilot login names used in review detection (provider-agnostic)
