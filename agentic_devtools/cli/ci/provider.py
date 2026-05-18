@@ -135,6 +135,21 @@ class CIPlatformProvider(ABC):
         """
 
     @abstractmethod
+    def squash_before_publish(
+        self,
+        *,
+        pr_number: int,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+    ) -> None:
+        """Squash branch commits and force-push before draft publish.
+
+        Implementations should treat single-commit branches as a safe no-op
+        for the squash phase while still ensuring the branch is pushed.
+        """
+
+    @abstractmethod
     def request_reviewer(self, pr_number: int, reviewer: str) -> None:
         """Request a reviewer for a pull request.
 

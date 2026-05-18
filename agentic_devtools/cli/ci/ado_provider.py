@@ -124,6 +124,17 @@ class AzureDevOpsProvider(CIPlatformProvider):
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.publish_pr() not yet implemented")
 
+    def squash_before_publish(
+        self,
+        *,
+        pr_number: int,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+    ) -> None:
+        """Not implemented for ADO stub."""
+        raise NotImplementedError("AzureDevOpsProvider.squash_before_publish() not yet implemented")
+
     def request_reviewer(self, pr_number: int, reviewer: str) -> None:
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.request_reviewer() not yet implemented")

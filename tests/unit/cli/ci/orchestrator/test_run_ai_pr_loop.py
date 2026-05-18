@@ -425,6 +425,52 @@ class TestRunAIPRLoop:
         provider.finalize_post_repair.assert_not_called()
         provider.dispatch_repair.assert_not_called()
 
+    def test_ci_completion_prior_commit_commented_list_review_comments_failure_treats_as_actionable(
+        self,
+    ) -> None:
+        """list_review_comments failure on prior COMMENTED review is treated as actionable (fail-closed)."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=8,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="COMMENTED",
+                    body="",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        provider.list_review_comments.side_effect = RuntimeError("fetch failed")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.finalize_post_repair.assert_called_once_with(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="abc123",
+            review_id=8,
+        )
+
+    def test_ci_completion_prior_commit_finalization_failure_returns_merge_blocked(self) -> None:
+        """finalize_post_repair failure in the prior-commit path returns EXIT_MERGE_BLOCKED."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=9,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="fix this",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        provider.finalize_post_repair.side_effect = RuntimeError("prior finalization failed")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_MERGE_BLOCKED
+        provider.finalize_post_repair.assert_called_once()
+
     def test_ci_completion_no_copilot_review_anywhere_waits(self) -> None:
         """CI completion + no Copilot review on any commit → still waits (regression guard)."""
         provider = _make_provider(
@@ -545,6 +591,12 @@ class TestRunAIPRLoop:
         payload = EventPayload(pr_number=42, head_sha="abc123")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
+        provider.squash_before_publish.assert_called_once_with(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="abc123",
+        )
         provider.publish_pr.assert_called_once_with(42)
         provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
         provider.approve_pr.assert_not_called()
@@ -656,9 +708,55 @@ class TestRunAIPRLoop:
         payload = EventPayload(pr_number=42, head_sha="abc123")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
+        provider.squash_before_publish.assert_called_once()
         provider.publish_pr.assert_called_once_with(42)
         provider.approve_pr.assert_not_called()
         provider.merge_pr.assert_not_called()
+
+    def test_draft_pr_squash_failure_blocks_publish(self) -> None:
+        """Squash errors before publish block draft publication."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                is_draft=True,
+            ),
+            files=["src/main.py"],
+        )
+        provider.squash_before_publish.side_effect = RuntimeError("squash failed")
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_MERGE_BLOCKED
+        provider.publish_pr.assert_not_called()
+        provider.request_reviewer.assert_not_called()
+
+    def test_draft_pr_squash_failure_recorded_in_summary(self) -> None:
+        """When squash fails, summary reports the blocked publish and squash error."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                is_draft=True,
+            ),
+            files=["src/main.py"],
+        )
+        provider.squash_before_publish.side_effect = RuntimeError("squash boom")
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+        assert summary.get("squash_error") == "squash boom"
+        assert summary.get("decision") == "error"
+        assert summary.get("reason") == "squash_before_publish_failed"
+        assert summary.get("exit_code") == EXIT_MERGE_BLOCKED
 
     def test_no_copilot_review_requests_review_and_waits(self) -> None:
         """When no Copilot review exists, requests one and returns SUCCESS without merging."""
@@ -816,6 +914,28 @@ class TestRunAIPRLoopDecisionSummary:
         assert "Workflow Tests ✅" in summary["repair"]["failed_checks"]
         assert summary["repair_cycle"]["count"] == 1
 
+    def test_repair_dispatched_summary_survives_cycle_increment_failure(self) -> None:
+        """Repair dispatch still succeeds when cycle tracking update fails."""
+        provider = _make_provider(
+            check_runs=[
+                CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="success"),
+                CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure"),
+            ],
+            reviews=[],
+        )
+        provider.dispatch_repair.return_value = 200
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+
+        with patch(
+            "agentic_devtools.cli.ci.orchestrator.increment_cycle_count",
+            side_effect=RuntimeError("cycle store failed"),
+        ):
+            summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "repair_dispatched"
+        assert summary["exit_code"] == EXIT_REPAIR_DISPATCHED
+        assert "repair_cycle" not in summary
+
     def test_post_repair_finalized_emits_summary(self) -> None:
         provider = _make_provider(
             reviews=[ReviewInfo(id=8, user="copilot-pull-request-reviewer[bot]", state="CHANGES_REQUESTED", body="fix")]
@@ -826,6 +946,25 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["decision"] == "post_repair_finalized"
         assert summary["exit_code"] == EXIT_SUCCESS
         assert summary["post_repair"]["finalized"] is True
+
+    def test_ci_completion_repair_summary_survives_cycle_increment_failure(self) -> None:
+        """CI-completion repair dispatch still succeeds when cycle tracking update fails."""
+        provider = _make_provider(
+            check_runs=[CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure")],
+            reviews=[],
+        )
+        provider.dispatch_repair.return_value = 200
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+
+        with patch(
+            "agentic_devtools.cli.ci.orchestrator.increment_cycle_count",
+            side_effect=RuntimeError("cycle store failed"),
+        ):
+            summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "repair_dispatched"
+        assert summary["exit_code"] == EXIT_REPAIR_DISPATCHED
+        assert "repair_cycle" not in summary
 
     def test_ci_completion_without_actionable_review_emits_wait_summary(self) -> None:
         provider = _make_provider(

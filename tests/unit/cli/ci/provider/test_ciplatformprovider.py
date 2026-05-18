@@ -77,6 +77,16 @@ class _ConcreteProvider(CIPlatformProvider):
     def publish_pr(self, pr_number: int) -> None:
         pass
 
+    def squash_before_publish(
+        self,
+        *,
+        pr_number: int,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+    ) -> None:
+        pass
+
 
 class TestCIPlatformProvider:
     """Tests for the CIPlatformProvider abstract base class."""
@@ -173,6 +183,7 @@ class TestCIPlatformProvider:
             "approve_pr",
             "merge_pr",
             "publish_pr",
+            "squash_before_publish",
             "request_reviewer",
             "list_pr_files",
             "get_check_annotations",
