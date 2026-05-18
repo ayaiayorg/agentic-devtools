@@ -10,15 +10,15 @@
 - [ ] CHK001 Each user story clearly articulates operator/developer value (e.g., US1 focuses on end-to-end LangGraph execution, US2 on non-regression safety, US5 on comparative validation)
 - [ ] CHK002 All five user stories follow "As a [role], I want [action] so that [benefit]" format with explicit role (AI agent operator, user, developer, operator, project maintainer)
 - [ ] CHK003 Priority assignments (P1–P3) are justified with "Why this priority" rationale and P1 stories (US1, US2, US3) correctly represent blocking deliverables
-- [ ] CHK004 Requirements FR-001 through FR-012 specify observable behaviors without prescribing internal implementation patterns (e.g., FR-003 specifies "call synchronous functions directly" which is
+- [ ] CHK004 Requirements FR-001 through FR-013 specify observable behaviors without prescribing internal implementation patterns (e.g., FR-003 specifies "call synchronous functions directly" which is
   an implementation constraint — verify this is intentional design guidance rather than premature implementation detail)
 
 ## Requirement Completeness
 
 - [ ] CHK005 Each acceptance scenario in US1–US5 is independently testable without requiring the full workflow to be deployed (confirmed by "Independent Test" sections)
-- [ ] CHK006 All six edge cases (missing dependencies, mid-execution failure, flag combinations, DB corruption,
-  `--resume` without `--engine langchain`, `--resume` with no checkpoint) have defined system behavior and exit codes
-- [ ] CHK007 Acceptance scenarios use Given/When/Then format consistently across all user stories (US1 has 5 scenarios, US2 has 3, US3 has 3, US4 has 2, US5 has 1)
+- [ ] CHK006 All seven edge cases (missing dependencies, mid-execution failure, flag combinations, DB corruption,
+  `--resume` without `--engine langchain`, `--resume` with no checkpoint, implementation-gate resume with missing/invalid `--resume-data`) have defined system behavior and exit codes
+- [ ] CHK007 Acceptance scenarios use Given/When/Then format consistently across all user stories (US1 has 6 scenarios, US2 has 3, US3 has 3, US4 has 3, US5 has 1)
 - [ ] CHK008 Success criteria SC-001 through SC-006 define measurable pass/fail conditions (end-to-end execution produces artifacts, 100% coverage, file modification isolation)
 - [ ] CHK009 Scope boundaries are explicit: FR-010 and SC-005 confirm PR review workflow is untouched; NFR-005 confirms no breaking changes to public API beyond additive flags
 - [ ] CHK010 Dependencies on the intended integration surface (`agentic_devtools.tools.*`, `orchestration/`) and external dependencies (`langgraph>=0.2.0`, `langgraph-checkpoint-sqlite>=3.0.1`) are
@@ -26,12 +26,13 @@
 
 ## Feature Readiness
 
-- [ ] CHK011 All 12 functional requirements (FR-001–FR-012) have corresponding acceptance scenarios or edge cases that validate them (e.g., FR-004 maps to US1 scenario 2 and US4; FR-011 maps to edge
+- [ ] CHK011 All 13 functional requirements (FR-001–FR-013) have corresponding acceptance scenarios or edge cases that validate them (e.g., FR-004 maps to US1 scenario 2 and US4; FR-011 maps to edge
   case 5)
 - [ ] CHK012 User scenarios cover the full lifecycle: fresh start (US1), non-regression (US2), individual node execution (US3), interrupt/resume (US4), and comparative testing (US5)
 - [ ] CHK013 Success criteria include quantifiable thresholds: SC-004 requires
   100% coverage, NFR-001 requires no more than 2x slowdown, SC-005 limits
-  production/runtime code modifications to two specific paths
+  production/runtime code modifications to three specific paths
+  (orchestration module, git tool adapter, and CLI commands entry point)
 - [ ] CHK014 Verify FR-003's mandate to "call underlying synchronous implementation functions directly" and NFR-003's checkpoint path specification are architectural constraints rather than
   implementation details leaking into the spec (these cross the boundary into design decisions — confirm intentional)
 
