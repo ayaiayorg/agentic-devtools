@@ -34,6 +34,7 @@ def _build_repair_comment(
     repair_type: str,
     failed_checks: list[CheckRunStatus],
     review_comments: list[str],
+    repository_full_name: str = "",
 ) -> str:
     """Build the @copilot-tagged comment body for repair dispatch.
 
@@ -84,6 +85,8 @@ def _build_repair_comment(
             parts.append("")
             parts.append(f"### ❌ {check.name}")
             parts.append(f"- **Conclusion**: {check.conclusion}")
+            if repository_full_name and "/" in repository_full_name:
+                parts.append(f"- **Job**: https://github.com/{repository_full_name}/runs/{check.id}")
 
     if not review_comments and not failed_checks:
         parts.append("")
@@ -376,6 +379,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 user=r["user"]["login"],
                 state=r["state"],
                 body=r.get("body") or "",
+                commit_sha=r.get("commit_id") or "",
             )
             for r in reviews
         ]
@@ -509,6 +513,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             repair_type=repair_type,
             failed_checks=failed_checks,
             review_comments=review_comments,
+            repository_full_name=(self._repo or os.environ.get("GITHUB_REPOSITORY", "")),
         )
 
         # Use AGDT_PR_APPROVER_PAT for posting comments (has issues:write permission).

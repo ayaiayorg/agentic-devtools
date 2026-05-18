@@ -17,7 +17,7 @@ class TestMinimizedCiWorkflows:
     """Validates minimized workflow structure and limits."""
 
     def test_ai_pr_loop_is_within_line_limit(self) -> None:
-        assert _non_empty_line_count(AI_PR_LOOP) <= 50
+        assert _non_empty_line_count(AI_PR_LOOP) <= 70
 
     def test_speckit_trigger_is_within_line_limit(self) -> None:
         assert _non_empty_line_count(SPECKIT_TRIGGER) <= 40
@@ -48,12 +48,12 @@ class TestMinimizedCiWorkflows:
         content = AI_PR_LOOP.read_text(encoding="utf-8")
         assert "concurrency:" in content
         assert "github.event.pull_request.number" in content
-        assert "workflow_run.pull_requests" not in content
+        assert "github.event.workflow_run.pull_requests" in content
 
-    def test_ai_pr_loop_uses_direct_pull_request_trigger(self) -> None:
+    def test_ai_pr_loop_uses_pull_request_and_ci_completion_triggers(self) -> None:
         content = AI_PR_LOOP.read_text(encoding="utf-8")
         assert "pull_request:" in content
-        assert "workflow_run:" not in content
+        assert "workflow_run:" in content
 
     def test_redundant_ai_pr_loop_workflows_are_removed(self) -> None:
         assert not AI_PR_LOOP_LINT.exists()

@@ -104,9 +104,15 @@ _DEFAULT_ACTIONABLE_CHECK_NAMES = frozenset(
 )
 
 
-def _is_post_repair_synchronize_event(event_payload: EventPayload) -> bool:
-    """Return True when this event is a Copilot-authored synchronize push."""
-    return event_payload.action == "synchronize" and event_payload.sender_login in COPILOT_LOGINS
+def _is_ci_completion_event(event_payload: EventPayload) -> bool:
+    """Return True when this run was triggered by CI-completion."""
+    return event_payload.action == "completed"
+
+
+def _is_review_submission_event(event_payload: EventPayload) -> bool:
+    """Return True when this run was triggered by a PR review submission."""
+    # Empty action keeps legacy tests/backward-compatible callers working.
+    return event_payload.action in {"submitted", ""}
 
 
 def run_ai_pr_loop(
@@ -402,8 +408,10 @@ def run_ai_pr_loop(
         _log_endgroup()
         _emit_decision_summary(summary)
         return EXIT_METADATA_FAILED
+    current_head_sha = pr_meta.head_sha
+    reviews_for_head = [review for review in reviews if not review.commit_sha or review.commit_sha == current_head_sha]
     latest_by_user: dict[str, ReviewInfo] = {}
-    for review in reviews:
+    for review in reviews_for_head:
         user_key = _COPILOT_KEY if review.user in COPILOT_LOGINS else review.user
         existing = latest_by_user.get(user_key)
         if existing is None or review.id > existing.id:
@@ -462,6 +470,7 @@ def run_ai_pr_loop(
 
     review_summary: dict[str, Any] = {
         "total_raw": len(reviews),
+        "total_on_head": len(reviews_for_head),
         "effective": len(effective_reviews),
         "has_approval": has_approval,
         "copilot_actionable": copilot_actionable_review,
@@ -471,35 +480,75 @@ def run_ai_pr_loop(
     summary["reviews"] = review_summary
     _log_endgroup()
 
-    if _is_post_repair_synchronize_event(event_payload) and copilot_actionable_review and copilot_review_id:
-        _log_group("Step 5b: Post-repair finalization")
-        try:
-            provider.finalize_post_repair(
-                pr_number=pr_number,
-                base_branch=pr_meta.base_branch,
-                head_branch=pr_meta.head_branch,
-                head_sha=pr_meta.head_sha,
-                review_id=copilot_review_id,
+    # Step 6: Dispatch repair decision (only for Copilot reviews and CI failures)
+    _log_group("Step 6: Repair decision")
+    if _is_ci_completion_event(event_payload):
+        if any_failed:
+            logger.info("PR #%d has actionable CI failures on CI-completion trigger", pr_number)
+            decision = _evaluate_repair_decision(
+                any_failed=True,
+                copilot_actionable_review=False,
+                copilot_review_id=0,
+                copilot_review_comments=[],
+                failed_checks=failed_checks,
             )
-        except Exception as exc:
-            logger.error("Post-repair finalization failed for PR #%d: %s", pr_number, exc)
-            summary["decision"] = "error"
-            summary["reason"] = "post_repair_finalization_failed"
-            summary["error"] = str(exc)
-            summary["exit_code"] = EXIT_MERGE_BLOCKED
+            summary["repair"] = {
+                "needed": True,
+                "type": decision.repair_type,
+                "review_id": decision.review_id,
+                "failed_checks": [cr.name for cr in decision.failed_checks],
+            }
+            _log_endgroup()
+            ci_repair_failure_reason: list[str] = []
+            result = _dispatch_repair(
+                provider=provider,
+                pr_number=pr_number,
+                head_sha=pr_meta.head_sha,
+                decision=decision,
+                failure_reason_out=ci_repair_failure_reason,
+            )
+            summary["decision"] = "repair_dispatched" if result == EXIT_REPAIR_DISPATCHED else "repair_failed"
+            if ci_repair_failure_reason:
+                summary["reason"] = ci_repair_failure_reason[0]
+            summary["exit_code"] = result
+            _emit_decision_summary(summary)
+            return result
+
+        if copilot_actionable_review and copilot_review_id:
+            _log_endgroup()
+            _log_group("Step 6b: Post-repair finalization")
+            try:
+                provider.finalize_post_repair(
+                    pr_number=pr_number,
+                    base_branch=pr_meta.base_branch,
+                    head_branch=pr_meta.head_branch,
+                    head_sha=pr_meta.head_sha,
+                    review_id=copilot_review_id,
+                )
+            except Exception as exc:
+                logger.error("Post-repair finalization failed for PR #%d: %s", pr_number, exc)
+                summary["decision"] = "error"
+                summary["reason"] = "post_repair_finalization_failed"
+                summary["error"] = str(exc)
+                summary["exit_code"] = EXIT_MERGE_BLOCKED
+                _log_endgroup()
+                _emit_decision_summary(summary)
+                return EXIT_MERGE_BLOCKED
+            summary["post_repair"] = {"finalized": True, "review_id": copilot_review_id}
+            summary["decision"] = "post_repair_finalized"
+            summary["exit_code"] = EXIT_SUCCESS
             _log_endgroup()
             _emit_decision_summary(summary)
-            return EXIT_MERGE_BLOCKED
+            return EXIT_SUCCESS
 
-        summary["post_repair"] = {"finalized": True, "review_id": copilot_review_id}
-        summary["decision"] = "post_repair_finalized"
+        summary["repair"] = {"needed": False}
+        summary["decision"] = "wait"
+        summary["reason"] = "awaiting_copilot_review_after_ci"
         summary["exit_code"] = EXIT_SUCCESS
         _log_endgroup()
         _emit_decision_summary(summary)
         return EXIT_SUCCESS
 
-    # Step 6: Dispatch repair decision (only for Copilot reviews and CI failures)
-    _log_group("Step 6: Repair decision")
     decision = _evaluate_repair_decision(
         any_failed=any_failed,
         copilot_actionable_review=copilot_actionable_review,
@@ -579,6 +628,15 @@ def run_ai_pr_loop(
         _emit_decision_summary(summary)
         return EXIT_SUCCESS
 
+    if not _is_review_submission_event(event_payload):
+        logger.info("PR #%d is ready but waiting for pull_request_review trigger to merge", pr_number)
+        summary["decision"] = "wait"
+        summary["reason"] = "awaiting_pull_request_review_event"
+        summary["exit_code"] = EXIT_SUCCESS
+        _log_endgroup()
+        _emit_decision_summary(summary)
+        return EXIT_SUCCESS
+
     # Step 7a: Draft PR check — publish before attempting approval or merge.
     # A draft PR cannot be merged; publishing it also allows Copilot to review.
     # Only publish when the PR is genuinely ready:
@@ -633,9 +691,7 @@ def run_ai_pr_loop(
     # so the loop requests a fresh one.
     _EFFECTIVE_REVIEW_STATES = frozenset({"APPROVED", "COMMENTED", "CHANGES_REQUESTED"})
     _copilot_review = latest_by_user.get(_COPILOT_KEY)
-    has_copilot_review = (
-        _copilot_review is not None and _copilot_review.state in _EFFECTIVE_REVIEW_STATES
-    )
+    has_copilot_review = _copilot_review is not None and _copilot_review.state in _EFFECTIVE_REVIEW_STATES
     if not has_copilot_review:
         logger.info("PR #%d has no Copilot review yet — requesting review and waiting", pr_number)
         try:
