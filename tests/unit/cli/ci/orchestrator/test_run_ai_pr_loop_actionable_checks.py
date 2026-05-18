@@ -30,7 +30,7 @@ def _make_provider(
     provider.list_pr_files.return_value = ["src/main.py"]
     provider.list_check_runs.return_value = check_runs if check_runs is not None else []
     provider.list_reviews.return_value = [
-        ReviewInfo(id=1, user="reviewer", state="APPROVED"),
+        ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm"),
     ]
     provider.find_comment.return_value = None
     provider.post_comment.return_value = 100

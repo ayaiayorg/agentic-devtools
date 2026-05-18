@@ -5,6 +5,7 @@ from io import StringIO
 from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.ci.models import (
+    COPILOT_REVIEWER_LOGIN,
     CheckRunStatus,
     EventPayload,
     PRMetadata,
@@ -46,7 +47,9 @@ def _make_provider(
         else [CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="success")]
     )
     provider.list_reviews.return_value = (
-        reviews if reviews is not None else [ReviewInfo(id=1, user="reviewer", state="APPROVED")]
+        reviews
+        if reviews is not None
+        else [ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm")]
     )
     provider.find_comment.return_value = None
     provider.post_comment.return_value = 100
@@ -156,7 +159,11 @@ class TestRunAIPRLoop:
         provider.merge_pr.assert_not_called()
 
     def test_auto_approves_when_no_approval(self) -> None:
-        provider = _make_provider(reviews=[])
+        """Auto-approves when Copilot reviewed non-actionably but no APPROVED review exists."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")]
+        )
+        provider.list_review_comments.return_value = []
         payload = EventPayload(pr_number=42, head_sha="abc123")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
@@ -251,6 +258,7 @@ class TestRunAIPRLoop:
             reviews=[
                 ReviewInfo(id=2, user="reviewer", state="CHANGES_REQUESTED", body="fix"),
                 ReviewInfo(id=7, user="reviewer", state="APPROVED", body="lgtm"),
+                ReviewInfo(id=9, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm"),
             ]
         )
         payload = EventPayload(pr_number=42, head_sha="abc123")
@@ -391,6 +399,203 @@ class TestRunAIPRLoop:
         assert result == EXIT_SUCCESS
         provider.dispatch_repair.assert_not_called()
         provider.merge_pr.assert_called_once()
+
+    def test_draft_pr_publishes_and_awaits_review(self) -> None:
+        """Draft PRs with non-WIP title and code changes are published and Copilot is requested."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                is_draft=True,
+            ),
+            files=["src/main.py"],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.publish_pr.assert_called_once_with(42)
+        provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
+        provider.approve_pr.assert_not_called()
+        provider.merge_pr.assert_not_called()
+
+    def test_draft_pr_with_wip_title_not_published(self) -> None:
+        """Draft PRs with [WIP] title are not published — they are not ready yet."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="[WIP] feat: work in progress",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                is_draft=True,
+            ),
+            files=["src/main.py"],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.publish_pr.assert_not_called()
+        provider.approve_pr.assert_not_called()
+        provider.merge_pr.assert_not_called()
+
+    def test_draft_pr_with_wip_title_case_insensitive(self) -> None:
+        """[wip] prefix (any case) blocks publishing."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="[wip] feat: lowercase wip",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                is_draft=True,
+            ),
+            files=["src/main.py"],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.publish_pr.assert_not_called()
+        provider.merge_pr.assert_not_called()
+
+    def test_draft_pr_with_no_files_not_published(self) -> None:
+        """Draft PRs with no changed files are not published — no code changes yet."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                is_draft=True,
+            ),
+            files=[],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.publish_pr.assert_not_called()
+        provider.approve_pr.assert_not_called()
+        provider.merge_pr.assert_not_called()
+
+    def test_draft_pr_publish_failure_blocks(self) -> None:
+        """Failure to publish a draft PR returns EXIT_MERGE_BLOCKED."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                is_draft=True,
+            ),
+            files=["src/main.py"],
+        )
+        provider.publish_pr.side_effect = RuntimeError("gh pr ready failed")
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_MERGE_BLOCKED
+        provider.approve_pr.assert_not_called()
+        provider.merge_pr.assert_not_called()
+
+    def test_draft_pr_review_request_failure_still_waits(self) -> None:
+        """After publish succeeds, review-request failures are non-blocking for draft flow."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                is_draft=True,
+            ),
+            files=["src/main.py"],
+        )
+        provider.request_reviewer.side_effect = RuntimeError("request failed")
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.publish_pr.assert_called_once_with(42)
+        provider.approve_pr.assert_not_called()
+        provider.merge_pr.assert_not_called()
+
+    def test_no_copilot_review_requests_review_and_waits(self) -> None:
+        """When no Copilot review exists, requests one and returns SUCCESS without merging."""
+        provider = _make_provider(reviews=[])
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
+        provider.approve_pr.assert_not_called()
+        provider.merge_pr.assert_not_called()
+
+    def test_no_copilot_review_with_human_approval_still_waits(self) -> None:
+        """Even with a human approval, no Copilot review means the loop waits for one."""
+        provider = _make_provider(reviews=[ReviewInfo(id=1, user="reviewer", state="APPROVED", body="lgtm")])
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
+        provider.merge_pr.assert_not_called()
+
+    def test_no_copilot_review_request_failure_still_waits(self) -> None:
+        """Review-request failures are non-blocking while waiting for initial Copilot review."""
+        provider = _make_provider(reviews=[])
+        provider.request_reviewer.side_effect = RuntimeError("request failed")
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.approve_pr.assert_not_called()
+        provider.merge_pr.assert_not_called()
+
+    def test_copilot_approved_proceeds_to_merge(self) -> None:
+        """Copilot APPROVED review allows the orchestrator to proceed to merge."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm")]
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.merge_pr.assert_called_once()
+        provider.dispatch_repair.assert_not_called()
+
+    def test_dismissed_copilot_review_treated_as_no_review(self) -> None:
+        """A DISMISSED Copilot review is not an effective review — the loop requests a new one."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="DISMISSED", body="")]
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
+        provider.approve_pr.assert_not_called()
+        provider.merge_pr.assert_not_called()
+
+    def test_pending_copilot_review_treated_as_no_review(self) -> None:
+        """A PENDING Copilot review is not an effective review — the loop requests a new one."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="PENDING", body="")]
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
+        provider.approve_pr.assert_not_called()
+        provider.merge_pr.assert_not_called()
 
 
 class TestRunAIPRLoopDecisionSummary:
@@ -570,7 +775,10 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["exit_code"] == EXIT_METADATA_FAILED
 
     def test_approval_error_emits_error_summary(self) -> None:
-        provider = _make_provider(reviews=[])
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")]
+        )
+        provider.list_review_comments.return_value = []
         provider.approve_pr.side_effect = RuntimeError("approval endpoint unavailable")
         payload = EventPayload(pr_number=42, head_sha="abc123")
         summary = _capture_summary(provider, payload)
@@ -616,3 +824,77 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["reason"] == "cycle_limit_check_failed"
         assert summary["error"] == "cycle api unavailable"
         assert summary["exit_code"] == EXIT_METADATA_FAILED
+
+    def test_draft_pr_emits_published_awaiting_review_summary(self) -> None:
+        """Draft PR publish emits 'published_awaiting_review' decision in summary."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                is_draft=True,
+            ),
+            files=["src/main.py"],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "published_awaiting_review"
+        assert summary["exit_code"] == EXIT_SUCCESS
+
+    def test_wip_draft_pr_emits_draft_not_ready_summary(self) -> None:
+        """[WIP] draft PR emits 'draft_not_ready' with reason 'wip_title'."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="[WIP] feat: work in progress",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                is_draft=True,
+            ),
+            files=["src/main.py"],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "draft_not_ready"
+        assert summary["reason"] == "wip_title"
+        assert summary["exit_code"] == EXIT_SUCCESS
+
+    def test_no_files_draft_pr_emits_draft_not_ready_summary(self) -> None:
+        """Draft PR with no changed files emits 'draft_not_ready' with reason 'no_changes'."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                is_draft=True,
+            ),
+            files=[],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "draft_not_ready"
+        assert summary["reason"] == "no_changes"
+        assert summary["exit_code"] == EXIT_SUCCESS
+
+    def test_no_copilot_review_emits_awaiting_copilot_review_summary(self) -> None:
+        """No Copilot review emits 'awaiting_copilot_review' decision in summary."""
+        provider = _make_provider(reviews=[])
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "awaiting_copilot_review"
+        assert summary["exit_code"] == EXIT_SUCCESS
