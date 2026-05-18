@@ -38,6 +38,11 @@ class TestMinimizedCiWorkflows:
         assert "pip install" in content
         assert "actions/checkout" in content
 
+    def test_ai_pr_loop_configures_acmarsn_agdt_identity(self) -> None:
+        content = AI_PR_LOOP.read_text(encoding="utf-8")
+        assert 'git config user.name "acmarsn-agdt"' in content
+        assert 'git config user.email "269151600+acmarsn-agdt@users.noreply.github.com"' in content
+
     def test_speckit_trigger_has_required_setup_steps(self) -> None:
         content = SPECKIT_TRIGGER.read_text(encoding="utf-8")
         assert "actions/setup-python" in content
