@@ -350,6 +350,88 @@ class TestRunAIPRLoop:
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_MERGE_BLOCKED
 
+    def test_ci_completion_prior_commit_changes_requested_triggers_finalization(self) -> None:
+        """CI completion + CHANGES_REQUESTED on prior commit → post_repair_finalized."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=5,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="fix this",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.finalize_post_repair.assert_called_once_with(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="abc123",
+            review_id=5,
+        )
+        provider.dispatch_repair.assert_not_called()
+
+    def test_ci_completion_prior_commit_commented_with_inline_comments_triggers_finalization(self) -> None:
+        """CI completion + COMMENTED with inline comments on prior commit → post_repair_finalized."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=7,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="COMMENTED",
+                    body="",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        provider.list_review_comments.return_value = ["suggestion: use const"]
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.finalize_post_repair.assert_called_once_with(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="abc123",
+            review_id=7,
+        )
+        provider.dispatch_repair.assert_not_called()
+
+    def test_ci_completion_prior_commit_commented_with_zero_inline_comments_waits(self) -> None:
+        """CI completion + COMMENTED with 0 inline comments on prior commit → still waits."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=7,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="COMMENTED",
+                    body="lgtm",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        provider.list_review_comments.return_value = []
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.finalize_post_repair.assert_not_called()
+        provider.dispatch_repair.assert_not_called()
+
+    def test_ci_completion_no_copilot_review_anywhere_waits(self) -> None:
+        """CI completion + no Copilot review on any commit → still waits (regression guard)."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=1, user="human-reviewer", state="APPROVED", body="looks good")]
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.finalize_post_repair.assert_not_called()
+        provider.dispatch_repair.assert_not_called()
+
     def test_ci_completion_green_without_actionable_review_waits(self) -> None:
         """CI completion with green checks and no actionable Copilot feedback waits."""
         provider = _make_provider(
