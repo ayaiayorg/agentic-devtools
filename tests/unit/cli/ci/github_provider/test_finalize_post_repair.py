@@ -2,7 +2,7 @@
 
 import json
 import os
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import pytest
 
@@ -43,10 +43,17 @@ class TestFinalizePostRepair:
         mock_reply.assert_any_call(42, 101, "abc123def456")
         mock_reply.assert_any_call(42, 202, "abc123def456")
         mock_resolve.assert_called_once_with(42, "owner/repo", review_id=7)
-        mock_squash.assert_called_once_with(
-            base_branch="main",
-            head_branch="feature/test",
-            head_sha="abc123def456",
+        assert mock_squash.call_count == 2
+        mock_squash.assert_has_calls(
+            [
+                call(base_branch="main", head_branch="feature/test", head_sha="abc123def456"),
+                call(
+                    base_branch="main",
+                    head_branch="feature/test",
+                    head_sha="abc123def456",
+                    reset_to_remote=True,
+                ),
+            ]
         )
         mock_request_copilot.assert_called_once_with(42, "owner/repo")
 
@@ -136,3 +143,55 @@ class TestFinalizePostRepair:
         provider._squash_and_force_push(base_branch="main", head_branch="feature/test", head_sha="abc123def456")
         called_git_args = [call.args[0] for call in mock_run_git.call_args_list]
         assert not any(args and args[0] == "commit" for args in called_git_args)
+
+    @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
+    @patch.object(GitHubActionsProvider, "_squash_and_force_push")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_review_comment_ids")
+    def test_finalize_squashes_twice_to_handle_race_condition(
+        self,
+        mock_list_ids,
+        mock_reply,
+        mock_resolve,
+        mock_squash,
+        mock_request_copilot,
+    ) -> None:
+        """finalize_post_repair calls _squash_and_force_push twice to catch post-squash commits."""
+        mock_list_ids.return_value = []
+        mock_resolve.return_value = {"threadsResolved": 0, "verified": True}
+        mock_request_copilot.return_value = {"requested": True, "verified": True}
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="abc123def456",
+            review_id=7,
+        )
+
+        assert mock_squash.call_count == 2
+        mock_squash.assert_has_calls(
+            [
+                call(base_branch="main", head_branch="feature/test", head_sha="abc123def456"),
+                call(
+                    base_branch="main",
+                    head_branch="feature/test",
+                    head_sha="abc123def456",
+                    reset_to_remote=True,
+                ),
+            ]
+        )
+
+    @patch.object(GitHubActionsProvider, "_run_git")
+    def test_squash_and_force_push_resets_to_remote_when_requested(self, mock_run_git) -> None:
+        mock_run_git.side_effect = ["", "", "", "base123\n", "1\n", ""]
+        provider = GitHubActionsProvider(repo="owner/repo")
+        provider._squash_and_force_push(
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="abc123def456",
+            reset_to_remote=True,
+        )
+        mock_run_git.assert_any_call(["reset", "--hard", "origin/feature/test"])

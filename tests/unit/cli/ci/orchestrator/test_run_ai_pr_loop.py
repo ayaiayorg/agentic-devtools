@@ -406,7 +406,7 @@ class TestRunAIPRLoop:
         provider.dispatch_repair.assert_not_called()
 
     def test_ci_completion_prior_commit_commented_with_zero_inline_comments_waits(self) -> None:
-        """CI completion + COMMENTED with 0 inline comments on prior commit → still waits."""
+        """CI completion + COMMENTED with 0 inline comments on prior commit → requests review."""
         provider = _make_provider(
             reviews=[
                 ReviewInfo(
@@ -424,9 +424,53 @@ class TestRunAIPRLoop:
         assert result == EXIT_SUCCESS
         provider.finalize_post_repair.assert_not_called()
         provider.dispatch_repair.assert_not_called()
+        provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
 
-    def test_ci_completion_no_copilot_review_anywhere_waits(self) -> None:
-        """CI completion + no Copilot review on any commit → still waits (regression guard)."""
+    def test_ci_completion_prior_commit_list_review_comments_raises_treated_as_actionable(self) -> None:
+        """list_review_comments error on prior-commit COMMENTED review → fail-closed, finalize."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=7,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="COMMENTED",
+                    body="",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        provider.list_review_comments.side_effect = RuntimeError("api failure")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.finalize_post_repair.assert_called_once_with(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="abc123",
+            review_id=7,
+        )
+
+    def test_ci_completion_prior_commit_finalization_failure_blocks(self) -> None:
+        """finalize_post_repair failure for prior-commit review returns EXIT_MERGE_BLOCKED."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=7,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="fix this",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        provider.finalize_post_repair.side_effect = RuntimeError("finalization failed")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_MERGE_BLOCKED
+
+    def test_ci_completion_no_copilot_review_anywhere_requests_review(self) -> None:
+        """CI completion + no Copilot review on any commit → requests review to unblock gate."""
         provider = _make_provider(
             reviews=[ReviewInfo(id=1, user="human-reviewer", state="APPROVED", body="looks good")]
         )
@@ -435,9 +479,21 @@ class TestRunAIPRLoop:
         assert result == EXIT_SUCCESS
         provider.finalize_post_repair.assert_not_called()
         provider.dispatch_repair.assert_not_called()
+        provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
 
-    def test_ci_completion_green_without_actionable_review_waits(self) -> None:
-        """CI completion with green checks and no actionable Copilot feedback waits."""
+    def test_ci_completion_no_copilot_review_request_reviewer_failure_is_non_blocking(self) -> None:
+        """request_reviewer failure in awaiting_copilot_review_after_ci path is non-blocking."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=1, user="human-reviewer", state="APPROVED", body="looks good")]
+        )
+        provider.request_reviewer.side_effect = RuntimeError("API error")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
+
+    def test_ci_completion_green_without_actionable_review_requests_review(self) -> None:
+        """CI completion with green checks and no actionable Copilot feedback requests review."""
         provider = _make_provider(
             reviews=[ReviewInfo(id=3, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")]
         )
@@ -449,6 +505,7 @@ class TestRunAIPRLoop:
         provider.finalize_post_repair.assert_not_called()
         provider.approve_pr.assert_not_called()
         provider.merge_pr.assert_not_called()
+        provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
 
     def test_copilot_commented_without_inline_comments_does_not_dispatch(self) -> None:
         """Copilot COMMENTED review without inline comments is not actionable."""
@@ -827,7 +884,7 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["exit_code"] == EXIT_SUCCESS
         assert summary["post_repair"]["finalized"] is True
 
-    def test_ci_completion_without_actionable_review_emits_wait_summary(self) -> None:
+    def test_ci_completion_without_actionable_review_emits_awaiting_copilot_review_after_ci_summary(self) -> None:
         provider = _make_provider(
             reviews=[ReviewInfo(id=8, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")]
         )
@@ -835,8 +892,7 @@ class TestRunAIPRLoopDecisionSummary:
         payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
         summary = _capture_summary(provider, payload)
 
-        assert summary["decision"] == "wait"
-        assert summary["reason"] == "awaiting_copilot_review_after_ci"
+        assert summary["decision"] == "awaiting_copilot_review_after_ci"
         assert summary["exit_code"] == EXIT_SUCCESS
 
     def test_no_pr_number_emits_summary(self) -> None:
@@ -1066,4 +1122,15 @@ class TestRunAIPRLoopDecisionSummary:
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "awaiting_copilot_review"
+        assert summary["exit_code"] == EXIT_SUCCESS
+
+    def test_ci_completion_no_review_emits_awaiting_copilot_review_after_ci_summary(self) -> None:
+        """CI completion with no Copilot review emits 'awaiting_copilot_review_after_ci' decision."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=1, user="human-reviewer", state="APPROVED", body="looks good")]
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "awaiting_copilot_review_after_ci"
         assert summary["exit_code"] == EXIT_SUCCESS
