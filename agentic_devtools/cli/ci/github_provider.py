@@ -580,10 +580,19 @@ class GitHubActionsProvider(CIPlatformProvider):
         bullets = "\n".join(f"- {subject}" for subject in unique_subjects[:10])
         return f"chore: squash post-repair updates\n\n{bullets}\n\nAutomated squash for `{head_sha[:8]}`."
 
-    def _squash_and_force_push(self, *, base_branch: str, head_branch: str, head_sha: str) -> None:
+    def _squash_and_force_push(
+        self,
+        *,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+        reset_to_remote: bool = False,
+    ) -> None:
         """Squash commits on head branch into one and force-push with lease."""
         self._run_git(["fetch", "origin", base_branch, head_branch])
         self._run_git(["checkout", head_branch])
+        if reset_to_remote:
+            self._run_git(["reset", "--hard", f"origin/{head_branch}"])
         merge_base = self._run_git(["merge-base", "HEAD", f"origin/{base_branch}"]).strip()
         commit_count = int(self._run_git(["rev-list", "--count", f"{merge_base}..HEAD"]).strip() or "0")
         if commit_count > 1:
@@ -635,6 +644,16 @@ class GitHubActionsProvider(CIPlatformProvider):
 
         # 3. Squash and force-push
         self._squash_and_force_push(base_branch=base_branch, head_branch=head_branch, head_sha=head_sha)
+
+        # 3b. Guard against the race where Copilot SWE agent pushes another
+        #     commit during finalization — re-fetch and hard-reset to remote
+        #     head branch before re-checking commit count.
+        self._squash_and_force_push(
+            base_branch=base_branch,
+            head_branch=head_branch,
+            head_sha=head_sha,
+            reset_to_remote=True,
+        )
 
         # 4. Re-request Copilot review — delegates to existing module which
         #    handles POST + exponential backoff verification + reviews fallback
