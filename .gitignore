@@ -86,6 +86,9 @@ specs/*/data-model.md
 specs/*/quickstart.md
 specs/*/contracts/*
 !specs/*/contracts/.gitkeep
+!specs/1430-langchain-based-work-issue/research.md
+!specs/1430-langchain-based-work-issue/data-model.md
+!specs/1430-langchain-based-work-issue/quickstart.md
 specs/*/checklists/.generation-prompt-*.md
 .specify/memory/agent-file.md
 .markdownlint-debug.log

@@ -5,7 +5,8 @@
 **Status**: Draft  
 **Input**: User description: "Get the LangChain version of the work-on-issue workflow fully functional so it can be tested alongside the existing implementation"  
 **Source Issue**: #1430 (<https://github.com/ayaiayorg/agentic-devtools/issues/1430>)
-**Artifacts**: `spec.md`, `checklists/requirements.md`, `checklists/`, `contracts/`
+**Artifacts**: `spec.md`, `plan.md`, `research.md`, `data-model.md`, `quickstart.md`,
+`checklists/requirements.md`, `checklists/`, `contracts/`
 
 ## Problem Statement
 
@@ -46,8 +47,14 @@ side-by-side comparison testing with the existing state-machine workflow in `cli
   make checkpointing unreliable.
 - Q: Should the `--engine langchain` flag be mutually exclusive with `--resume` flag validation (i.e., `--resume` requires `--engine langchain`),
   or should `--resume` work independently? → A: `--resume`
-  MUST require `--engine langchain` — it is only meaningful for LangGraph workflows. If `--resume` is provided without `--engine langchain`, the CLI MUST
+  MUST require LangChain engine selection — it is only meaningful for LangGraph workflows. If `--resume` is provided without selecting LangChain via
+  `--engine langchain` or `--use-langchain`, the CLI MUST
   exit with an error: "--resume requires --engine langchain".
+- Q: How should resume behave for the new implementation gate handoff? → A: Resume remains deterministic by gate type:
+  `planning_gate` resumes with an approval signal (`Command(resume=True)`), while `implementation_gate` requires
+  structured payload input from a new `--resume-data '<json>'` CLI argument. If `implementation_gate` is paused and
+  `--resume-data` is missing, the command MUST fail with exit code 1 and
+  "--resume-data is required when resuming from the implementation gate".
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -60,7 +67,8 @@ through completion), using real Jira, Git, and Azure DevOps tool integrations in
 **Why this priority**: This is the core deliverable — without a working `--engine langchain` flag routing to the LangGraph graph with real tool calls, nothing else in this feature is testable.
 
 **Independent Test**: Can be fully tested by running the command with a valid Jira issue key and observing that the workflow progresses through all nodes (initiate → setup → planning →
-checklist_creation → implementation → verification → commit → pull_request → completion) with real side effects (Jira comments posted, git commits created, PR created).
+checklist_creation → implementation → implementation_gate → implementation_review → verification → commit → pull_request → completion) with real side effects
+(Jira comments posted, git commits created, PR created).
 
 **Acceptance Scenarios**:
 
@@ -69,11 +77,16 @@ checklist_creation → implementation → verification → commit → pull_reque
 2. **Given** the `--engine langchain` flag is provided, **When** the workflow reaches the planning gate, **Then** execution pauses via `interrupt()` and can be resumed by re-running
    `agdt-initiate-work-on-jira-issue-workflow --engine langchain --resume --issue-key PROJECT-1234`
    (internally using `Command(resume=...)`) to continue to checklist creation.
-3. **Given** the LangGraph workflow is running, **When** verification fails with a retryable error, **Then** the workflow routes back to the implementation node
-   (up to 3 retries, i.e., `MAX_RETRIES=3`) before proceeding to commit.
-4. **Given** `dry_run=true` is set in state, **When** LangGraph nodes that normally call Jira, Git, or Azure DevOps execute, **Then** no external side effects occur and each node records a
+3. **Given** the workflow pauses at the implementation gate, **When** I resume with
+   `--resume` and `--resume-data '{"completed": true, "summary": "..."}'`, **Then** the graph resumes through
+   `Command(resume=<results>)` and continues to implementation review/verification.
+4. **Given** the LangGraph workflow is running, **When** verification fails with a retryable error, **Then** the
+   workflow routes back to the implementation node (up to 3 retries, i.e., `MAX_RETRIES=3`); if verification still
+   fails after the maximum retries, the workflow MUST transition to failure/paused-for-resume and MUST NOT proceed to
+   commit.
+5. **Given** `dry_run=true` is set in state, **When** LangGraph nodes that normally call Jira, Git, or Azure DevOps execute, **Then** no external side effects occur and each node records a
    dry-run event describing the skipped action.
-5. **Given** the LangGraph workflow executes any node, **When** the node starts and completes, **Then** structured audit-trail events are appended to the `events` channel with node name and timestamp.
+6. **Given** the LangGraph workflow executes any node, **When** the node starts and completes, **Then** structured audit-trail events are appended to the `events` channel with node name and timestamp.
 
 ---
 
@@ -98,21 +111,22 @@ As a user of the existing work-on-jira-issue workflow, I want the default behavi
 
 ### User Story 3 - Real Tool Integration in Node Functions (Priority: P1)
 
-As a developer testing the LangGraph workflow, I want the stub node functions in `pilot_workflow.py` to be replaced with real tool integrations (Jira API, Git operations, Azure DevOps PR creation) so
-that the workflow produces actual artifacts.
+As a developer testing the LangGraph workflow, I want the LangGraph execution path to use real tool integrations
+(Jira API, Git operations, Azure DevOps PR creation) so that the workflow produces actual artifacts.
 
 **Why this priority**: Without real tool calls, the LangGraph path cannot be validated against the existing implementation — stubs are not testable in an end-to-end sense.
 
 **Independent Test**: Can be tested by triggering individual node functions in isolation (unit tests) and verifying they call real synchronous implementation targets:
 
-- `planning_node` calls `agentic_devtools.tools.jira.add_comment()`
+- `planning_node` calls `agentic_devtools.tools.jira.fetch_issue_context()` to prepare plan content; `planning_gate_node` calls `agentic_devtools.tools.jira.add_comment()` after human approval
 - `commit_node` uses `agentic_devtools.tools.git` (e.g., `save_work()` or the individual `stage_changes()`, `create_commit()` / `amend_commit()`, `push()` / `force_push()`)
 - `pull_request_node` calls `agentic_devtools.tools.azure_devops.create_pull_request()`
 
 **Acceptance Scenarios**:
 
-1. **Given** the LangGraph workflow reaches the `planning_node`, **When** it executes, **Then** a plan is generated and a Jira comment is posted to the issue via the synchronous
-   `agentic_devtools.tools.jira.add_comment()` function.
+1. **Given** the LangGraph workflow reaches the `planning_node`, **When** it executes, **Then** plan content is generated from the Jira issue context via
+   `agentic_devtools.tools.jira.fetch_issue_context()` and recorded in graph state. The Jira comment is NOT posted until the `planning_gate_node` resumes
+   after human approval, at which point `agentic_devtools.tools.jira.add_comment()` publishes the plan using the content stored in state.
 2. **Given** the LangGraph workflow reaches the `commit_node`, **When** it executes, **Then** changes are staged, committed, and pushed via the tool-layer functions in
    `agentic_devtools.tools.git` (for example `save_work()`, or the individual `stage_changes()`, `create_commit()` / `amend_commit()`, and `push()` / `force_push()`).
 3. **Given** the LangGraph workflow reaches the `pull_request_node`, **When** it executes, **Then** a pull request is created via the synchronous
@@ -126,8 +140,9 @@ As an operator running long-lived workflows, I want the LangGraph workflow to pe
 
 **Why this priority**: Durability is important for production readiness but the workflow can be tested end-to-end without it (using in-memory execution).
 
-**Independent Test**: Can be tested by starting a workflow, killing the process at the planning gate interrupt, restarting the process, and resuming execution from the saved checkpoint using
-  `--engine langchain --resume --issue-key PROJECT-1234`.
+**Independent Test**: Can be tested by starting a workflow, killing the process at either gate interrupt, restarting the
+process, and resuming execution from the saved checkpoint using `--engine langchain --resume --issue-key PROJECT-1234`
+(and `--resume-data` when resuming from `implementation_gate`).
 
 **Acceptance Scenarios**:
 
@@ -136,6 +151,10 @@ As an operator running long-lived workflows, I want the LangGraph workflow to pe
    re-running previous nodes.
 2. **Given** the `--engine langchain` flag is provided, **When** the workflow is invoked, **Then** a `SqliteSaver` checkpointer is configured and state is persisted to
    `.agdt/workflows/{identity}/{worktree_key}/orchestration.db`.
+3. **Given** a LangGraph workflow is paused at `implementation_gate`, **When** resume is attempted without
+   `--resume-data`, **Then** the command exits with code 1 and
+   "--resume-data is required when resuming from the implementation gate"; **When** valid `--resume-data` is
+   provided, execution continues from the same checkpoint.
 
 ---
 
@@ -166,9 +185,13 @@ implementation.
   via the `agent_context` field in `WorkOnIssueState`.
 - What happens when the SQLite checkpoint database becomes corrupted? The system MUST detect the corruption (SQLite `DatabaseError`) and offer a reset path (delete and recreate the database file)
   without losing the ability to start a fresh workflow.
-- What happens when `--resume` is provided without `--engine langchain`? The system MUST exit with error code 1 and message: "--resume requires --engine langchain".
+- What happens when `--resume` is provided without selecting LangChain via `--engine langchain` or `--use-langchain`?
+  The system MUST exit with error code 1 and message: "--resume requires --engine langchain".
 - What happens when `--resume` is provided but no interrupted workflow exists for the given issue key? The system MUST exit with error code 1 and message:
   "No interrupted workflow found for issue key `<KEY>`. Use --engine langchain without --resume to start a fresh workflow."
+- What happens when `--resume` targets `implementation_gate` but `--resume-data` is missing or invalid JSON?
+  The system MUST exit with code 1 and an actionable validation message (missing-data or invalid-JSON cause), and it
+  MUST NOT advance the checkpoint.
 
 ## Requirements *(mandatory)*
 
@@ -189,8 +212,21 @@ implementation.
 - **FR-009**: The system MUST produce a clear, actionable error message when `--engine langchain` is used but required LangGraph dependencies are not available. The message MUST include the install
   command: `pip install agentic-devtools`.
 - **FR-010**: The pull request review workflow (`agdt-initiate-pull-request-review-workflow`) MUST NOT be modified by this feature.
-- **FR-011**: The `--resume` flag MUST require `--engine langchain`. If provided without it, the CLI MUST exit with error code 1 and message: "--resume requires --engine langchain".
+- **FR-011**: The `--resume` flag MUST require LangChain engine selection. If provided without selecting LangChain via
+  `--engine langchain` or `--use-langchain`, the CLI MUST exit with error code 1 and message:
+  "--resume requires --engine langchain".
 - **FR-012**: When `--resume` is provided but no interrupted workflow checkpoint exists for the given issue key, the system MUST exit with error code 1 and a descriptive error message.
+- **FR-013**: When resuming from `implementation_gate`, the CLI MUST require `--resume-data` as a JSON object payload
+  and pass it as `Command(resume=<results>)`. Resuming from `planning_gate` MUST continue to accept implicit approval
+  semantics without requiring `--resume-data`.
+  - Required payload schema:
+    - `completed: bool` (required, MUST be `true` for the gate to release).
+    - `summary: str` (required, non-empty human-readable implementation summary).
+    - `affected_paths: list[str]` (optional; when provided, each entry MUST be a non-empty repository-relative path).
+  - Validation behavior:
+    - Invalid JSON, non-object JSON values, or objects missing/violating required fields MUST return exit code 1 with
+      actionable validation output.
+    - Validation failures MUST happen before graph invocation so checkpoints are not advanced on invalid resume data.
 
 ### Non-Functional Requirements
 
@@ -201,13 +237,16 @@ implementation.
 - **NFR-003**: The LangGraph checkpoint SQLite database MUST be stored within the existing `.agdt/workflows/{identity}/{worktree_key}/` directory structure (as `orchestration.db`) to maintain state
   isolation across worktrees. The `get_checkpointer()` function must resolve the path via `get_state_dir()`.
 - **NFR-004**: All new code MUST have unit tests following the 1:1:1 test structure policy and achieve 100% coverage for new modules.
-- **NFR-005**: The feature MUST not introduce breaking changes to the `agentic_devtools` public API or CLI command signatures (beyond the additive `--engine langchain` and `--resume` flags).
+- **NFR-005**: The feature MUST not introduce breaking changes to the `agentic_devtools` public API or CLI command
+  signatures (beyond additive `--engine langchain`, `--use-langchain`, `--resume`, and `--resume-data` flags).
 
 ### Key Entities
 
 - **WorkOnIssueState**: LangGraph TypedDict (defined in `agentic_devtools/orchestration/state_schema.py`) representing the full workflow state — issue key, current step, status, plan content, error
   state, retry count, events audit trail (append-only via `operator.add` reducer), human approval flag, agent context, and affected file paths.
-- **WorkOnIssueEvent**: Timestamped event entry (`event: str`, `timestamp: str`) in the append-only audit trail channel.
+- **WorkOnIssueEvent**: Timestamped event entry with required keys `event: str` and `timestamp: str`, plus optional
+  keys `node: str | None` and `details: dict[str, Any] | None` (optional for backward compatibility with existing
+  stub-event producers) in the append-only audit trail channel.
 - **CompiledStateGraph**: The compiled LangGraph graph instance (from `build_work_on_issue_graph()` in `graph_builder.py`) configured with node functions and conditional edges, ready for invocation
   with a checkpointer.
 - **SqliteSaver Checkpoint**: Durable per-issue state snapshot (stored in `orchestration.db`) enabling resume across process restarts, using deterministic thread ID `work-on-issue-{issue_key}`.
@@ -219,11 +258,14 @@ implementation.
 - **SC-001**: `agdt-initiate-work-on-jira-issue-workflow --engine langchain --issue-key <KEY>` successfully executes all workflow nodes end-to-end for a real Jira issue, producing a Jira comment, git
   commit, and pull request.
 - **SC-002**: The existing workflow (without `--engine langchain`) passes all existing unit and integration tests without modification.
-- **SC-003**: The LangGraph workflow can be interrupted at the planning gate and successfully resumed from checkpoint after process restart via `--engine langchain --resume --issue-key <KEY>`.
+- **SC-003**: The LangGraph workflow can be interrupted at planning and implementation gates and successfully resumed
+  from checkpoint after process restart via `--engine langchain --resume --issue-key <KEY>` (with `--resume-data`
+  required only for implementation-gate resume).
 - **SC-004**: All new code achieves 100% test coverage with tests following the 1:1:1 structure policy.
-- **SC-005**: Production/runtime code changes are limited to the orchestration module (`agentic_devtools/orchestration/`) and the `commands.py` entry point
-  (`agentic_devtools/cli/workflows/commands.py`); test files, documentation, and spec artifacts may be updated as needed.
-- **SC-006**: The `--engine langchain` and `--resume` flags are documented in CLI help output and the copilot-instructions.
+- **SC-005**: Production/runtime code changes are limited to the orchestration module (`agentic_devtools/orchestration/`), the git tool adapter
+  (`agentic_devtools/tools/git.py`), and the `commands.py` entry point (`agentic_devtools/cli/workflows/commands.py`); test files, documentation,
+  and spec artifacts may be updated as needed.
+- **SC-006**: The `--engine langchain`, `--use-langchain`, `--resume`, and `--resume-data` flags are documented in CLI help output and the copilot-instructions.
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
