@@ -541,6 +541,73 @@ def run_ai_pr_loop(
             _emit_decision_summary(summary)
             return EXIT_SUCCESS
 
+        # No actionable review on HEAD — check for an actionable Copilot review
+        # on a prior commit.  When Copilot SWE agent pushes a repair commit the
+        # review that triggered the repair targets the old SHA.  After CI passes
+        # on the new HEAD we must still finalize (reply, resolve, squash).
+        prior_copilot_reviews = [
+            r
+            for r in reviews
+            if r.user in COPILOT_LOGINS
+            and r.commit_sha
+            and r.commit_sha != current_head_sha
+            and r.state in ("CHANGES_REQUESTED", "COMMENTED")
+        ]
+        if prior_copilot_reviews:
+            prior_copilot_reviews.sort(key=lambda r: r.id, reverse=True)
+            prior_review = prior_copilot_reviews[0]
+            prior_actionable = False
+            prior_review_id = 0
+            if prior_review.state == "CHANGES_REQUESTED":
+                prior_actionable = True
+                prior_review_id = prior_review.id
+            elif prior_review.state == "COMMENTED":
+                try:
+                    comments = provider.list_review_comments(pr_number, prior_review.id)
+                    if comments:
+                        prior_actionable = True
+                        prior_review_id = prior_review.id
+                except Exception:
+                    # Fail closed: treat as actionable when comments cannot be fetched.
+                    prior_actionable = True
+                    prior_review_id = prior_review.id
+            if prior_actionable and prior_review_id:
+                logger.info(
+                    "PR #%d: actionable Copilot review %d targets prior commit %s — post-repair scenario",
+                    pr_number,
+                    prior_review_id,
+                    prior_review.commit_sha,
+                )
+                _log_endgroup()
+                _log_group("Step 6b: Post-repair finalization (prior-commit review)")
+                try:
+                    provider.finalize_post_repair(
+                        pr_number=pr_number,
+                        base_branch=pr_meta.base_branch,
+                        head_branch=pr_meta.head_branch,
+                        head_sha=pr_meta.head_sha,
+                        review_id=prior_review_id,
+                    )
+                except Exception as exc:
+                    logger.error("Post-repair finalization failed for PR #%d: %s", pr_number, exc)
+                    summary["decision"] = "error"
+                    summary["reason"] = "post_repair_finalization_failed"
+                    summary["error"] = str(exc)
+                    summary["exit_code"] = EXIT_MERGE_BLOCKED
+                    _log_endgroup()
+                    _emit_decision_summary(summary)
+                    return EXIT_MERGE_BLOCKED
+                summary["post_repair"] = {
+                    "finalized": True,
+                    "review_id": prior_review_id,
+                    "prior_commit": True,
+                }
+                summary["decision"] = "post_repair_finalized"
+                summary["exit_code"] = EXIT_SUCCESS
+                _log_endgroup()
+                _emit_decision_summary(summary)
+                return EXIT_SUCCESS
+
         summary["repair"] = {"needed": False}
         summary["decision"] = "wait"
         summary["reason"] = "awaiting_copilot_review_after_ci"
