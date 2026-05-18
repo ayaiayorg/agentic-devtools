@@ -615,9 +615,15 @@ def run_ai_pr_loop(
                 _emit_decision_summary(summary)
                 return EXIT_SUCCESS
 
+        # No actionable review and no failures — ensure a Copilot review is
+        # requested so the gate can pass on the current HEAD.
         summary["repair"] = {"needed": False}
-        summary["decision"] = "wait"
-        summary["reason"] = "awaiting_copilot_review_after_ci"
+        logger.info("PR #%d CI passed, no Copilot review on HEAD — requesting review", pr_number)
+        try:
+            provider.request_reviewer(pr_number, COPILOT_REVIEWER_LOGIN)
+        except Exception as exc:
+            logger.warning("Failed to request Copilot review for PR #%d: %s", pr_number, exc)
+        summary["decision"] = "awaiting_copilot_review_after_ci"
         summary["exit_code"] = EXIT_SUCCESS
         _log_endgroup()
         _emit_decision_summary(summary)
