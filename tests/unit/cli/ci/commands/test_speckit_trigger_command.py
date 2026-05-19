@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agentic_devtools.cli.ci.commands import speckit_trigger_command
+from agentic_devtools.cli.ci.commands import _synthesize_workflow_dispatch_event, speckit_trigger_command
 
 
 class TestSpeckitTriggerCommand:
@@ -139,11 +139,42 @@ class TestSpeckitTriggerCommand:
         finally:
             os.unlink(event_path)
 
+    @patch("agentic_devtools.cli.ci.commands.run_safe")
+    def test_synthesize_dispatch_event_omits_processing_label(self, mock_run_safe) -> None:
+        issue_data = {
+            "number": 42,
+            "title": "Feature",
+            "body": "Do it",
+            "labels": [{"name": "speckit:processing"}, {"name": "enhancement"}],
+        }
+        mock_run_safe.return_value = subprocess.CompletedProcess(
+            args=["gh"], returncode=0, stdout=json.dumps(issue_data), stderr=""
+        )
+
+        with patch.dict(
+            os.environ,
+            {"SPECKIT_TRIGGER_LABEL": "speckit", "GITHUB_EVENT_PATH": "/tmp/original-event.json"},
+            clear=False,
+        ):
+            _synthesize_workflow_dispatch_event({"inputs": {"issue_number": "42"}}, "owner/repo")
+            synthetic_event_path = os.environ["GITHUB_EVENT_PATH"]
+
+        try:
+            with open(synthetic_event_path, encoding="utf-8") as synthetic_event_file:
+                synthetic_event = json.load(synthetic_event_file)
+            label_names = [label["name"] for label in synthetic_event["issue"]["labels"]]
+            assert "speckit:processing" not in label_names
+            assert "enhancement" in label_names
+        finally:
+            os.unlink(synthetic_event_path)
+
     @patch("shutil.which", return_value="/usr/bin/gh")
     @patch("agentic_devtools.cli.ci.commands.run_safe")
     def test_workflow_dispatch_exits_10_when_issue_payload_invalid_json(self, mock_run_safe, mock_which) -> None:
         """workflow_dispatch exits 10 when fetched issue payload is not valid JSON."""
-        mock_run_safe.return_value = subprocess.CompletedProcess(args=["gh"], returncode=0, stdout="not-json", stderr="")
+        mock_run_safe.return_value = subprocess.CompletedProcess(
+            args=["gh"], returncode=0, stdout="not-json", stderr=""
+        )
         payload = {"inputs": {"issue_number": "42"}}
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             json.dump(payload, f)
@@ -189,7 +220,9 @@ class TestSpeckitTriggerCommand:
                 "GITHUB_REPOSITORY": "owner/repo",
             }
             with patch.dict(os.environ, env, clear=False):
-                with patch("agentic_devtools.cli.ci.commands.os.unlink", side_effect=OSError("cannot delete")) as mock_unlink:
+                with patch(
+                    "agentic_devtools.cli.ci.commands.os.unlink", side_effect=OSError("cannot delete")
+                ) as mock_unlink:
                     with pytest.raises(SystemExit) as exc_info:
                         speckit_trigger_command()
                 assert exc_info.value.code == 0
