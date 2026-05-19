@@ -6,9 +6,13 @@ should be processed by the AI loop or requires human intervention.
 
 from __future__ import annotations
 
+import logging
+import os
 import re
 
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
+
+logger = logging.getLogger(__name__)
 
 # Privileged path prefixes that trigger the guard
 PRIVILEGED_PREFIXES = (
@@ -43,12 +47,24 @@ def check_privileged_paths(files: list[str]) -> bool:
     Privileged paths are `.github/workflows/`, `.github/actions/`,
     `.github/scripts/` — excluding markdown files (*.md).
 
+    This guard can be disabled by setting the environment variable
+    ``AGDT_ALLOW_PRIVILEGED_PATHS=1`` (also accepts ``true`` / ``yes``).
+    Use this only when you intentionally want the AI loop to process PRs
+    that modify workflow or action files.
+
     Args:
         files: List of file paths changed in the PR.
 
     Returns:
         True if privileged paths are touched (guard triggered), False otherwise.
     """
+    if os.environ.get("AGDT_ALLOW_PRIVILEGED_PATHS", "").strip().lower() in {"1", "true", "yes"}:
+        logger.warning(
+            "Privileged paths guard bypassed via AGDT_ALLOW_PRIVILEGED_PATHS; "
+            "PR may include workflow/action/script changes"
+        )
+        return False
+
     for f in files:
         if any(f.startswith(prefix) for prefix in PRIVILEGED_PREFIXES):
             if not f.endswith(".md"):
