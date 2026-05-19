@@ -492,6 +492,27 @@ class TestRunAIPRLoop:
         assert result == EXIT_SUCCESS
         provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
 
+    def test_ci_completion_wip_title_does_not_request_review(self) -> None:
+        """CI completion bails early for non-draft [WIP] PRs instead of requesting review."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="[WIP] feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+            ),
+            reviews=[ReviewInfo(id=1, user="human-reviewer", state="APPROVED", body="looks good")],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.request_reviewer.assert_not_called()
+        provider.finalize_post_repair.assert_not_called()
+        provider.dispatch_repair.assert_not_called()
+
     def test_ci_completion_green_without_actionable_review_requests_review(self) -> None:
         """CI completion with green checks and no actionable Copilot feedback requests review."""
         provider = _make_provider(
@@ -602,6 +623,18 @@ class TestRunAIPRLoop:
         payload = EventPayload(pr_number=42, head_sha="abc123")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
+        # Draft review requests must only happen after squash + publish so the
+        # first explicit request cannot race ahead of the ready-for-review flow.
+        relevant_calls = [
+            call
+            for call in provider.mock_calls
+            if call[0] in {"squash_before_publish", "publish_pr", "request_reviewer"}
+        ]
+        assert [call[0] for call in relevant_calls] == [
+            "squash_before_publish",
+            "publish_pr",
+            "request_reviewer",
+        ]
         provider.squash_before_publish.assert_called_once_with(
             pr_number=42,
             base_branch="main",
@@ -678,6 +711,37 @@ class TestRunAIPRLoop:
         provider.approve_pr.assert_not_called()
         provider.merge_pr.assert_not_called()
 
+    def test_non_draft_pr_with_wip_title_does_not_request_review(self) -> None:
+        """Non-draft [WIP] PRs are treated as not ready and do not request review."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="[WIP] feat: work in progress",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+            ),
+            reviews=[],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.request_reviewer.assert_not_called()
+        provider.approve_pr.assert_not_called()
+        provider.merge_pr.assert_not_called()
+
+    def test_non_draft_pr_with_no_files_does_not_request_review(self) -> None:
+        """Non-draft PRs with no changed files are treated as not ready."""
+        provider = _make_provider(files=[], reviews=[])
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.request_reviewer.assert_not_called()
+        provider.approve_pr.assert_not_called()
+        provider.merge_pr.assert_not_called()
+
     def test_draft_pr_publish_failure_blocks(self) -> None:
         """Failure to publish a draft PR returns EXIT_MERGE_BLOCKED."""
         provider = _make_provider(
@@ -721,6 +785,31 @@ class TestRunAIPRLoop:
         assert result == EXIT_SUCCESS
         provider.squash_before_publish.assert_called_once()
         provider.publish_pr.assert_called_once_with(42)
+        provider.approve_pr.assert_not_called()
+        provider.merge_pr.assert_not_called()
+
+    def test_draft_pr_publish_skips_duplicate_request_when_already_requested(self) -> None:
+        """Draft publish keeps squash/publish flow but skips redundant safety-net requests."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                requested_reviewers=[COPILOT_REVIEWER_LOGIN],
+                is_draft=True,
+            ),
+            files=["src/main.py"],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.squash_before_publish.assert_called_once()
+        provider.publish_pr.assert_called_once_with(42)
+        provider.request_reviewer.assert_not_called()
         provider.approve_pr.assert_not_called()
         provider.merge_pr.assert_not_called()
 
@@ -778,6 +867,49 @@ class TestRunAIPRLoop:
         provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
         provider.approve_pr.assert_not_called()
         provider.merge_pr.assert_not_called()
+
+    def test_no_copilot_review_skips_duplicate_request_when_already_requested(self) -> None:
+        """Pending requested_reviewers entry suppresses redundant Copilot review requests."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                requested_reviewers=[COPILOT_REVIEWER_LOGIN],
+            ),
+            reviews=[],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.request_reviewer.assert_not_called()
+        provider.approve_pr.assert_not_called()
+        provider.merge_pr.assert_not_called()
+
+    def test_ci_completion_no_reviewable_files_comment_does_not_rerequest(self) -> None:
+        """A prior 'wasn't able to review any files' Copilot review should not be re-requested."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=3,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="COMMENTED",
+                    body="Copilot wasn't able to review any files in this pull request.",
+                    commit_sha="abc123",
+                )
+            ]
+        )
+        provider.list_review_comments.return_value = []
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.request_reviewer.assert_not_called()
+        provider.dispatch_repair.assert_not_called()
+        provider.finalize_post_repair.assert_not_called()
 
     def test_copilot_review_on_previous_sha_requests_fresh_review(self) -> None:
         """Copilot review on previous commit does not satisfy current-head review requirement."""
@@ -1227,3 +1359,26 @@ class TestRunAIPRLoopDecisionSummary:
 
         assert summary["decision"] == "awaiting_copilot_review_after_ci"
         assert summary["exit_code"] == EXIT_SUCCESS
+
+    def test_ci_completion_draft_pr_waits_for_publish_without_requesting_review(self) -> None:
+        """CI completion does not request Copilot review while the PR is still draft."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: draft",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                is_draft=True,
+            ),
+            reviews=[ReviewInfo(id=1, user="human-reviewer", state="APPROVED", body="looks good")],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "draft_not_ready"
+        assert summary["reason"] == "awaiting_publish"
+        assert summary["exit_code"] == EXIT_SUCCESS
+        provider.request_reviewer.assert_not_called()

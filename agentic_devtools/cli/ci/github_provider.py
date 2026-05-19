@@ -410,6 +410,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             head_repo_full_name=data.get("head", {}).get("repo", {}).get("full_name", ""),
             base_repo_full_name=data.get("base", {}).get("repo", {}).get("full_name", ""),
             labels=[lbl["name"] for lbl in data.get("labels", [])],
+            requested_reviewers=[reviewer["login"] for reviewer in data.get("requested_reviewers", [])],
             is_draft=data.get("draft", False),
             mergeable=data.get("mergeable"),
         )

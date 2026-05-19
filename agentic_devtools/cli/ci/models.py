@@ -48,6 +48,7 @@ class PRMetadata:
         head_repo_full_name: Full name of the head (source) repository.
         base_repo_full_name: Full name of the base (target) repository.
         labels: List of label names on the PR.
+        requested_reviewers: List of pending reviewer logins on the PR.
         is_draft: Whether the PR is a draft.
         mergeable: Whether the PR is mergeable (None if unknown).
     """
@@ -60,6 +61,7 @@ class PRMetadata:
     head_repo_full_name: str = ""
     base_repo_full_name: str = ""
     labels: list[str] = field(default_factory=list)
+    requested_reviewers: list[str] = field(default_factory=list)
     is_draft: bool = False
     mergeable: bool | None = None
 
@@ -108,9 +110,7 @@ class ReviewInfo:
 
 # Copilot login names used in review detection (provider-agnostic)
 COPILOT_REVIEWER_LOGIN = "copilot-pull-request-reviewer[bot]"
-COPILOT_LOGINS = frozenset(
-    {"Copilot", COPILOT_REVIEWER_LOGIN}
-)
+COPILOT_LOGINS = frozenset({"Copilot", COPILOT_REVIEWER_LOGIN})
 
 
 @dataclass(frozen=True)

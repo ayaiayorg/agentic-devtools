@@ -30,6 +30,7 @@ class TestGetPRMetadata:
                 "head": {"ref": "feature/test", "sha": "abc123", "repo": {"full_name": "fork/repo"}},
                 "base": {"ref": "main", "repo": {"full_name": "owner/repo"}},
                 "labels": [{"name": "bug"}, {"name": "priority"}],
+                "requested_reviewers": [{"login": "copilot-pull-request-reviewer[bot]"}],
                 "draft": False,
                 "mergeable": True,
             }
@@ -47,6 +48,7 @@ class TestGetPRMetadata:
         assert result.head_repo_full_name == "fork/repo"
         assert result.base_repo_full_name == "owner/repo"
         assert result.labels == ["bug", "priority"]
+        assert result.requested_reviewers == ["copilot-pull-request-reviewer[bot]"]
         assert result.is_draft is False
         assert result.mergeable is True
 

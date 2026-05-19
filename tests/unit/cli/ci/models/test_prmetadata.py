@@ -31,6 +31,7 @@ class TestPRMetadata:
         assert meta.head_repo_full_name == ""
         assert meta.base_repo_full_name == ""
         assert meta.labels == []
+        assert meta.requested_reviewers == []
         assert meta.is_draft is False
         assert meta.mergeable is None
 
@@ -44,12 +45,14 @@ class TestPRMetadata:
             head_repo_full_name="fork/repo",
             base_repo_full_name="owner/repo",
             labels=["bug", "priority-high"],
+            requested_reviewers=["copilot-pull-request-reviewer[bot]"],
             is_draft=True,
             mergeable=False,
         )
         assert meta.head_repo_full_name == "fork/repo"
         assert meta.base_repo_full_name == "owner/repo"
         assert meta.labels == ["bug", "priority-high"]
+        assert meta.requested_reviewers == ["copilot-pull-request-reviewer[bot]"]
         assert meta.is_draft is True
         assert meta.mergeable is False
 
@@ -57,6 +60,7 @@ class TestPRMetadata:
         meta1 = PRMetadata(number=1, title="t", head_branch="b", head_sha="s", base_branch="m")
         meta2 = PRMetadata(number=2, title="t", head_branch="b", head_sha="s", base_branch="m")
         assert meta1.labels is not meta2.labels
+        assert meta1.requested_reviewers is not meta2.requested_reviewers
 
     def test_is_frozen(self) -> None:
         meta = PRMetadata(number=1, title="t", head_branch="b", head_sha="s", base_branch="m")
