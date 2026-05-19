@@ -29,7 +29,7 @@ class TestLoadCITemplate:
 
     def test_loads_ready_no_merge_template(self) -> None:
         content = load_ci_template("ready-no-merge-comment.md")
-        assert "do-not-auto-merge" in content
+        assert "ai-auto-merge-allowed" in content
 
     def test_returns_raw_string_without_substitution(self) -> None:
         """Templates are returned as raw strings with {{variables}} intact."""

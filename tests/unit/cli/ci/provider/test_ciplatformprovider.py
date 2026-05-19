@@ -36,8 +36,8 @@ class _ConcreteProvider(CIPlatformProvider):
     def find_comment(self, pr_number: int, marker: str) -> tuple[int, str] | None:
         return None
 
-    def approve_pr(self, pr_number: int, head_sha: str, body: str) -> None:
-        pass
+    def approve_pr(self, pr_number: int, head_sha: str, body: str) -> bool:
+        return True
 
     def merge_pr(self, pr_number: int, head_sha: str, method: str) -> None:
         pass
@@ -150,10 +150,10 @@ class TestCIPlatformProvider:
         result = provider.find_comment(1, "marker")
         assert result is None
 
-    def test_approve_pr_returns_none(self) -> None:
+    def test_approve_pr_returns_bool(self) -> None:
         provider = _ConcreteProvider()
         result = provider.approve_pr(1, "sha", "LGTM")
-        assert result is None
+        assert result is True
 
     def test_merge_pr_returns_none(self) -> None:
         provider = _ConcreteProvider()

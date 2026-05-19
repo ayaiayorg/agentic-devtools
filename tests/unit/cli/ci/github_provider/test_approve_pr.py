@@ -24,7 +24,7 @@ class TestApprovePR:
         provider = GitHubActionsProvider(repo="owner/repo")
         result = provider.approve_pr(42, "abc123", "LGTM!")
 
-        assert result is None
+        assert result is True
         kwargs = mock_run_safe.call_args[1]
         body = json.loads(kwargs["input"])
         assert body["event"] == "APPROVE"
@@ -38,8 +38,9 @@ class TestApprovePR:
     def test_approve_pr_skips_when_pat_empty(self, mock_run_safe) -> None:
         """Approval is skipped when AGDT_PR_APPROVER_PAT is empty."""
         provider = GitHubActionsProvider(repo="owner/repo")
-        provider.approve_pr(42, "abc123", "LGTM!")
+        result = provider.approve_pr(42, "abc123", "LGTM!")
 
+        assert result is False
         mock_run_safe.assert_not_called()
 
     @patch.dict("os.environ", {"AGDT_PR_APPROVER_PAT": "not_present"})
@@ -51,8 +52,9 @@ class TestApprovePR:
         # Remove the key after patch.dict sets it, simulating unset env var
         del os.environ["AGDT_PR_APPROVER_PAT"]
         provider = GitHubActionsProvider(repo="owner/repo")
-        provider.approve_pr(42, "abc123", "LGTM!")
+        result = provider.approve_pr(42, "abc123", "LGTM!")
 
+        assert result is False
         mock_run_safe.assert_not_called()
 
     @patch.dict("os.environ", {"AGDT_PR_APPROVER_PAT": "ghp_expired_token"})
@@ -68,8 +70,8 @@ class TestApprovePR:
         mock_run_safe.return_value = _Result()
 
         provider = GitHubActionsProvider(repo="owner/repo")
-        # Should not raise
-        provider.approve_pr(42, "abc123", "LGTM!")
+        result = provider.approve_pr(42, "abc123", "LGTM!")
+        assert result is False
 
     @patch.dict("os.environ", {"AGDT_PR_APPROVER_PAT": "ghp_token"})
     @patch("agentic_devtools.cli.ci.github_provider.run_safe")

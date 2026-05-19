@@ -19,7 +19,7 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 2. **Trigger Guards**: Prevents redundant runs — if triggered by Copilot review but checks are still pending,
    polls every 30 seconds for up to 10 minutes (skips on timeout);
    if a Copilot review on the head commit has `CHANGES_REQUESTED` state, blocks merge until resolved
-3. **Exclusion Labels**: `ai-pr-loop-ignore` skips entirely; `do-not-auto-merge` prevents merge but allows fixes/approval
+3. **Exclusion Labels**: `ai-pr-loop-ignore` skips entirely; missing `ai-auto-merge-allowed` prevents merge but allows fixes/approval
 4. **Repair dispatch**: Uses failed PR checks and Copilot review state to decide when to request fixes
 5. **Amend & Push**: Amends fixes into the last commit with `--force-with-lease`
 6. **Copilot Review Handling**: Detects outstanding Copilot review comments and blocks merge until resolved

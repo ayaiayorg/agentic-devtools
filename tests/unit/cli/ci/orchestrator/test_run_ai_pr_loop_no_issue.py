@@ -25,7 +25,7 @@ class TestRunAIPRLoopNoIssue:
             base_branch="main",
             head_repo_full_name="owner/repo",
             base_repo_full_name="owner/repo",
-            labels=[],
+            labels=["ai-auto-merge-allowed"],
         )
         provider.list_pr_files.return_value = ["src/cleanup.py"]
         provider.list_check_runs.return_value = [

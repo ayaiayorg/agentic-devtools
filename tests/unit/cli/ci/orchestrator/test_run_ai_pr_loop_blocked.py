@@ -26,7 +26,7 @@ def _base_pr_meta(head_sha: str = "abc456def789") -> PRMetadata:
         base_branch="main",
         head_repo_full_name="owner/repo",
         base_repo_full_name="owner/repo",
-        labels=[],
+        labels=["ai-auto-merge-allowed"],
     )
 
 
@@ -92,6 +92,7 @@ class TestRunAIPRLoopRepairDispatch:
         provider.list_check_runs.return_value = [
             CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="success"),
         ]
+
         # Dedup counter well above limit — should be ignored for "submitted" events.
         # Keep the mock realistic by only returning a dedup comment when the dedup
         # marker is explicitly requested; cycle-tracker lookups should not receive a

@@ -126,6 +126,20 @@ Why this matters:
 - **Atomic changes** — each PR represents a single logical change
 - **Easier reverts** — one commit = one revert if something goes wrong
 
+### ⚠️ CRITICAL: Auto-Merge Label (`ai-auto-merge-allowed`)
+
+**Before kicking off any AI agent session that will result in a PR being created, you MUST ask the user whether the `ai-auto-merge-allowed` label should be added to the PR.**
+
+Rules for AI agents:
+
+- **NEVER add `ai-auto-merge-allowed` to a PR unless you were explicitly instructed to do so** in the session instructions.
+- When starting an agent session (e.g. `/agdt.address-copilot-review`, `agdt-initiate-*-workflow`, `agdt.pr-merge-manager`, or any other workflow that will result in a PR), **ask the user first**:
+  > "Should the `ai-auto-merge-allowed` label be added to the PR? (This enables auto-merge via the AI PR loop once all checks pass and Copilot approves.)"
+- If the user says yes, **include an explicit instruction in the agent's session prompt**: `"Add the 'ai-auto-merge-allowed' label to the PR after creating it."`
+- If the user says no or does not answer, **do not add the label**.
+- Repo workflows may auto-apply this label only when explicitly enabled (for example `SPECKIT_AUTO_MERGE_ALLOWED_LABEL == 'true'`); if not enabled, agents must treat it as not approved.
+- Do not infer intent from context — only add the label when explicitly instructed.
+
 ### ⚠️ CRITICAL: Always Use agdt Commands
 
 **AI agents MUST prefer `agdt-*` CLI commands over raw equivalents wherever support exists.**
