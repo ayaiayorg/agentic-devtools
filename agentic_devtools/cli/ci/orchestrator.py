@@ -105,6 +105,7 @@ _DEFAULT_ACTIONABLE_CHECK_NAMES = frozenset(
         "Tests ✅",
         "Markdown Lint ✅",
         "Workflow Tests ✅",
+        "Code scanning results / CodeQL",
     }
 )
 
