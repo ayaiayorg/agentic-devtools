@@ -187,6 +187,12 @@ def _synthesize_workflow_dispatch_event(raw_payload: dict, repo: str) -> EventPa
         print(f"Error: Failed to parse issue data: {exc}", file=sys.stderr)
         sys.exit(10)
 
+    labels = issue_data.get("labels")
+    if isinstance(labels, list):
+        issue_data["labels"] = [
+            label for label in labels if not (isinstance(label, dict) and label.get("name") == "speckit:processing")
+        ]
+
     trigger_label = os.environ.get("SPECKIT_TRIGGER_LABEL", "speckit")
     synthetic_event = {"issue": issue_data, "action": "labeled", "label": {"name": trigger_label}}
 
