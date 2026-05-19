@@ -38,8 +38,14 @@ jobs:
             catch (error) { core.warning(`Failed to add speckit:processing label to issue #${issueNumber}: ${error.message}`); }
       - uses: actions/setup-python@v5
         with: { python-version: '3.12' }
-      - run: python -m pip install --upgrade pip && python -m pip install . --no-deps
-      - env: { GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}, COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}, SPECKIT_TRIGGER_LABEL: ${{ vars.SPECKIT_TRIGGER_LABEL || 'speckit' }} }
+      - run: |
+          python -m pip install --upgrade pip
+          python -m pip install github-copilot-sdk
+          python -m pip install . --no-deps
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          SPECKIT_TRIGGER_LABEL: ${{ vars.SPECKIT_TRIGGER_LABEL || 'speckit' }}
         run: agdt-speckit-trigger
 
       - name: Handle Failure (Comment + Label)
