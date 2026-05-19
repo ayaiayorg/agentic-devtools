@@ -35,6 +35,7 @@ from agentic_devtools.cli.ci.models import (
     COPILOT_REVIEWER_LOGIN,
     CheckRunStatus,
     EventPayload,
+    PRMetadata,
     RepairDecision,
     ReviewCommentInfo,
     ReviewInfo,
@@ -115,6 +116,76 @@ def _is_review_submission_event(event_payload: EventPayload) -> bool:
     """Return True when this run was triggered by a PR review submission."""
     # Empty action keeps legacy tests/backward-compatible callers working.
     return event_payload.action in {"submitted", ""}
+
+
+def _is_wip_title(title: str) -> bool:
+    """Return True when a PR title is explicitly marked work-in-progress."""
+    return title.upper().startswith("[WIP]")
+
+
+def _get_not_ready_reason(pr_meta: PRMetadata, files: list[str]) -> str | None:
+    """Return a reason when the PR is not ready for review or merge."""
+    if _is_wip_title(pr_meta.title):
+        return "wip_title"
+    if not files:
+        return "no_changes"
+    return None
+
+
+def _normalize_review_body(body: str) -> str:
+    """Normalize review body text for robust substring checks.
+
+    GitHub review bodies can contain typographic apostrophes depending on the
+    source client, so normalize them to straight apostrophes before matching.
+    """
+    return body.replace("’", "'").casefold()
+
+
+def _get_copilot_review_request_skip_reason(
+    pr_meta: PRMetadata,
+    copilot_review: ReviewInfo | None,
+) -> str | None:
+    """Return a reason to skip requesting Copilot review, if any."""
+    requested_reviewers = {reviewer.casefold() for reviewer in pr_meta.requested_reviewers}
+    if any(login.casefold() in requested_reviewers for login in COPILOT_LOGINS):
+        return "copilot_already_requested"
+    if (
+        copilot_review is not None
+        and copilot_review.user in COPILOT_LOGINS
+        and copilot_review.state == "COMMENTED"
+        and "wasn't able to review any files" in _normalize_review_body(copilot_review.body)
+    ):
+        return "copilot_no_reviewable_files"
+    return None
+
+
+def _request_copilot_review_if_needed(
+    provider: CIPlatformProvider,
+    pr_number: int,
+    pr_meta: PRMetadata,
+    copilot_review: ReviewInfo | None,
+    *,
+    failure_context: str,
+) -> str | None:
+    """Request Copilot review unless it is already pending or already exhausted."""
+    skip_reason = _get_copilot_review_request_skip_reason(pr_meta, copilot_review)
+    if skip_reason:
+        logger.info(
+            "PR #%d skipping Copilot review request (reason=%s)",
+            pr_number,
+            skip_reason,
+        )
+        return skip_reason
+    try:
+        provider.request_reviewer(pr_number, COPILOT_REVIEWER_LOGIN)
+    except Exception as exc:
+        logger.warning(
+            "Failed to request Copilot review for %s PR #%d: %s",
+            failure_context,
+            pr_number,
+            exc,
+        )
+    return None
 
 
 def run_ai_pr_loop(
@@ -482,8 +553,25 @@ def run_ai_pr_loop(
     summary["reviews"] = review_summary
     _log_endgroup()
 
+    # PR readiness gate — applies regardless of draft status so WIP/no-change
+    # PRs never reach repair dispatch, review requests, or merge decisions.
+    not_ready_reason = _get_not_ready_reason(pr_meta, files)
+    if not_ready_reason is not None:
+        logger.info(
+            "PR #%d is not ready for Copilot review or merge (draft=%s, reason=%s) — waiting",
+            pr_number,
+            pr_meta.is_draft,
+            not_ready_reason,
+        )
+        summary["decision"] = "draft_not_ready" if pr_meta.is_draft else "not_ready"
+        summary["reason"] = not_ready_reason
+        summary["exit_code"] = EXIT_SUCCESS
+        _emit_decision_summary(summary)
+        return EXIT_SUCCESS
+
     # Step 6: Dispatch repair decision (only for Copilot reviews and CI failures)
     _log_group("Step 6: Repair decision")
+    _copilot_review = latest_by_user.get(_COPILOT_KEY)
     if _is_ci_completion_event(event_payload):
         if any_failed:
             logger.info("PR #%d has actionable CI failures on CI-completion trigger", pr_number)
@@ -618,13 +706,30 @@ def run_ai_pr_loop(
 
         # No actionable review and no failures — ensure a Copilot review is
         # requested so the gate can pass on the current HEAD.
+        if pr_meta.is_draft:
+            logger.info(
+                "PR #%d CI passed with no actionable Copilot review, but PR is draft — waiting for publish",
+                pr_number,
+            )
+            summary["repair"] = {"needed": False}
+            summary["decision"] = "draft_not_ready"
+            summary["reason"] = "awaiting_publish"
+            summary["exit_code"] = EXIT_SUCCESS
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_SUCCESS
         summary["repair"] = {"needed": False}
         logger.info("PR #%d CI passed, no Copilot review on HEAD — requesting review", pr_number)
-        try:
-            provider.request_reviewer(pr_number, COPILOT_REVIEWER_LOGIN)
-        except Exception as exc:
-            logger.warning("Failed to request Copilot review for PR #%d: %s", pr_number, exc)
+        request_skip_reason = _request_copilot_review_if_needed(
+            provider,
+            pr_number,
+            pr_meta,
+            _copilot_review,
+            failure_context="PR",
+        )
         summary["decision"] = "awaiting_copilot_review_after_ci"
+        if request_skip_reason is not None:
+            summary["reason"] = request_skip_reason
         summary["exit_code"] = EXIT_SUCCESS
         _log_endgroup()
         _emit_decision_summary(summary)
@@ -726,27 +831,7 @@ def run_ai_pr_loop(
 
     # Step 7a: Draft PR check — publish before attempting approval or merge.
     # A draft PR cannot be merged; publishing it also allows Copilot to review.
-    # Only publish when the PR is genuinely ready:
-    #   • title must not start with "[WIP]" (case-insensitive) — Copilot often
-    #     prefixes in-progress PRs with [WIP] and we must not publish them early.
-    #   • the PR must have at least one changed file — a PR with no changes is
-    #     not ready regardless of its title.
     if pr_meta.is_draft:
-        is_wip = pr_meta.title.upper().startswith("[WIP]")
-        has_files = bool(files)
-        if is_wip or not has_files:
-            reason = "wip_title" if is_wip else "no_changes"
-            logger.info(
-                "PR #%d is a draft but not ready to publish (reason=%s) — waiting",
-                pr_number,
-                reason,
-            )
-            summary["decision"] = "draft_not_ready"
-            summary["reason"] = reason
-            summary["exit_code"] = EXIT_SUCCESS
-            _log_endgroup()
-            _emit_decision_summary(summary)
-            return EXIT_SUCCESS
         logger.info("PR #%d is a draft — publishing and requesting Copilot review", pr_number)
         try:
             provider.squash_before_publish(
@@ -775,11 +860,19 @@ def run_ai_pr_loop(
             _log_endgroup()
             _emit_decision_summary(summary)
             return EXIT_MERGE_BLOCKED
-        try:
-            provider.request_reviewer(pr_number, COPILOT_REVIEWER_LOGIN)
-        except Exception as exc:
-            logger.warning("Failed to request Copilot review for draft PR #%d: %s", pr_number, exc)
+        # Publishing already triggers GitHub's automatic Copilot review on the
+        # ready_for_review event, but we explicitly request it as a
+        # belt-and-suspenders safety net.
+        request_skip_reason = _request_copilot_review_if_needed(
+            provider,
+            pr_number,
+            pr_meta,
+            _copilot_review,
+            failure_context="draft",
+        )
         summary["decision"] = "published_awaiting_review"
+        if request_skip_reason is not None:
+            summary["reason"] = request_skip_reason
         summary["exit_code"] = EXIT_SUCCESS
         _log_endgroup()
         _emit_decision_summary(summary)
@@ -793,15 +886,19 @@ def run_ai_pr_loop(
     # review states.  DISMISSED or PENDING reviews are treated as "no review"
     # so the loop requests a fresh one.
     _EFFECTIVE_REVIEW_STATES = frozenset({"APPROVED", "COMMENTED", "CHANGES_REQUESTED"})
-    _copilot_review = latest_by_user.get(_COPILOT_KEY)
     has_copilot_review = _copilot_review is not None and _copilot_review.state in _EFFECTIVE_REVIEW_STATES
     if not has_copilot_review:
         logger.info("PR #%d has no Copilot review yet — requesting review and waiting", pr_number)
-        try:
-            provider.request_reviewer(pr_number, COPILOT_REVIEWER_LOGIN)
-        except Exception as exc:
-            logger.warning("Failed to request Copilot review for PR #%d: %s", pr_number, exc)
+        request_skip_reason = _request_copilot_review_if_needed(
+            provider,
+            pr_number,
+            pr_meta,
+            _copilot_review,
+            failure_context="PR",
+        )
         summary["decision"] = "awaiting_copilot_review"
+        if request_skip_reason is not None:
+            summary["reason"] = request_skip_reason
         summary["exit_code"] = EXIT_SUCCESS
         _log_endgroup()
         _emit_decision_summary(summary)
