@@ -8,6 +8,7 @@ from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
     PRMetadata,
+    ReviewCommentInfo,
     ReviewInfo,
 )
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
@@ -68,11 +69,12 @@ class _StubAdoProvider(CIPlatformProvider):
         head_sha: str,
         repair_type: str,
         failed_checks: list[CheckRunStatus],
-        review_comments: list[str],
+        review_comments: list[ReviewCommentInfo],
+        review_id: int = 0,
     ) -> int:
         raise NotImplementedError("ADO provider stub")
 
-    def list_review_comments(self, pr_number: int, review_id: int) -> list[str]:
+    def list_review_comments(self, pr_number: int, review_id: int) -> list[ReviewCommentInfo]:
         raise NotImplementedError("ADO provider stub")
 
     def finalize_post_repair(

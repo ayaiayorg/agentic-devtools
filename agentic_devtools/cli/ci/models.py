@@ -74,12 +74,17 @@ class CheckRunStatus:
         status: Run status (e.g., "completed", "in_progress", "queued").
         conclusion: Run conclusion (e.g., "success", "failure", "neutral").
             Empty string if not yet completed.
+        html_url: Direct HTML URL to view this check run in the GitHub UI.
+            Prefer this over constructing a URL from ``id``, since the check
+            run ID does not match the Actions workflow run ID.
+            Empty string when not available.
     """
 
     id: int
     name: str
     status: str
     conclusion: str = ""
+    html_url: str = ""
 
 
 @dataclass(frozen=True)
@@ -109,6 +114,25 @@ COPILOT_LOGINS = frozenset(
 
 
 @dataclass(frozen=True)
+class ReviewCommentInfo:
+    """Rich metadata for a single PR review comment.
+
+    Attributes:
+        id: Database ID of the review comment.
+        path: File path the comment is on.
+        body: Full comment text (the reviewer's feedback).
+        html_url: Direct link to the inline comment on GitHub.
+        is_suppressed: Whether the comment has been minimized/suppressed on GitHub.
+    """
+
+    id: int
+    path: str
+    body: str
+    html_url: str
+    is_suppressed: bool = False
+
+
+@dataclass(frozen=True)
 class RepairDecision:
     """Result of the dispatch decision for repair.
 
@@ -118,7 +142,7 @@ class RepairDecision:
             Empty string when no repair is needed.
         review_id: ID of the actionable Copilot review (CHANGES_REQUESTED or
             COMMENTED with inline comments; 0 if N/A).
-        review_comments: Review comment bodies pre-fetched during detection
+        review_comments: Rich review comment metadata pre-fetched during detection
             (populated for COMMENTED reviews; empty for CHANGES_REQUESTED so
             that ``_dispatch_repair`` fetches them lazily).
         failed_checks: Failed check run details (name, status, conclusion).
@@ -127,5 +151,5 @@ class RepairDecision:
     repair_needed: bool = False
     repair_type: str = ""
     review_id: int = 0
-    review_comments: tuple[str, ...] = ()
+    review_comments: tuple[ReviewCommentInfo, ...] = ()
     failed_checks: tuple[CheckRunStatus, ...] = ()

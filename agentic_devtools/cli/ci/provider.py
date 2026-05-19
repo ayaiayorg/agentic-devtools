@@ -14,6 +14,7 @@ from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
     PRMetadata,
+    ReviewCommentInfo,
     ReviewInfo,
 )
 
@@ -188,7 +189,8 @@ class CIPlatformProvider(ABC):
         head_sha: str,
         repair_type: str,
         failed_checks: list[CheckRunStatus],
-        review_comments: list[str],
+        review_comments: list[ReviewCommentInfo],
+        review_id: int = 0,
     ) -> int:
         """Dispatch a repair by posting a @copilot comment on the PR.
 
@@ -202,14 +204,17 @@ class CIPlatformProvider(ABC):
             head_sha: Current HEAD SHA for the PR.
             repair_type: Type of repair (``"review"``, ``"ci"``, or ``"both"``).
             failed_checks: List of failed check runs with details.
-            review_comments: List of Copilot review comment bodies to address.
+            review_comments: Rich review comment metadata to include in the
+                trigger comment.
+            review_id: ID of the Copilot review that triggered the repair
+                (used for the dedup marker and review URL in the comment body).
 
         Returns:
             The ID of the posted comment.
         """
 
     @abstractmethod
-    def list_review_comments(self, pr_number: int, review_id: int) -> list[str]:
+    def list_review_comments(self, pr_number: int, review_id: int) -> list[ReviewCommentInfo]:
         """List inline comments from a specific review.
 
         Args:
@@ -217,7 +222,7 @@ class CIPlatformProvider(ABC):
             review_id: ID of the review to list comments for.
 
         Returns:
-            List of comment body texts.
+            List of rich review comment metadata.
         """
 
     @abstractmethod

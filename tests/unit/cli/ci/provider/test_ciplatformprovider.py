@@ -6,6 +6,7 @@ from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
     PRMetadata,
+    ReviewCommentInfo,
     ReviewInfo,
 )
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
@@ -56,12 +57,13 @@ class _ConcreteProvider(CIPlatformProvider):
         head_sha: str,
         repair_type: str,
         failed_checks: list[CheckRunStatus],
-        review_comments: list[str],
+        review_comments: list[ReviewCommentInfo],
+        review_id: int = 0,
     ) -> int:
         return 200
 
-    def list_review_comments(self, pr_number: int, review_id: int) -> list[str]:
-        return ["review comment"]
+    def list_review_comments(self, pr_number: int, review_id: int) -> list[ReviewCommentInfo]:
+        return [ReviewCommentInfo(id=1, path="file.py", body="review comment", html_url="")]
 
     def finalize_post_repair(
         self,
