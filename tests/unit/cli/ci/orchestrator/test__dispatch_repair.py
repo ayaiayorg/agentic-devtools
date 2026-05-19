@@ -2,11 +2,18 @@
 
 from unittest.mock import MagicMock
 
-from agentic_devtools.cli.ci.models import CheckRunStatus, RepairDecision
+from agentic_devtools.cli.ci.models import CheckRunStatus, RepairDecision, ReviewCommentInfo
 from agentic_devtools.cli.ci.orchestrator import (
     EXIT_MERGE_BLOCKED,
     EXIT_REPAIR_DISPATCHED,
     _dispatch_repair,
+)
+
+_COMMENT = ReviewCommentInfo(
+    id=1, path="foo.py", body="Fix the null check", html_url="https://github.com/r/p#1"
+)
+_PREFETCHED = ReviewCommentInfo(
+    id=2, path="bar.py", body="pre-fetched comment", html_url="https://github.com/r/p#2"
 )
 
 
@@ -16,7 +23,7 @@ class TestDispatchRepair:
     def test_dispatches_review_repair(self) -> None:
         """FR-001: Posts @copilot comment for review repair."""
         provider = MagicMock()
-        provider.list_review_comments.return_value = ["Fix the null check"]
+        provider.list_review_comments.return_value = [_COMMENT]
         provider.dispatch_repair.return_value = 300
 
         decision = RepairDecision(
@@ -39,7 +46,8 @@ class TestDispatchRepair:
             head_sha="abc123",
             repair_type="review",
             failed_checks=[],
-            review_comments=["Fix the null check"],
+            review_comments=[_COMMENT],
+            review_id=100,
         )
 
     def test_pre_fetched_review_comments_not_refetched(self) -> None:
@@ -51,7 +59,7 @@ class TestDispatchRepair:
             repair_needed=True,
             repair_type="review",
             review_id=100,
-            review_comments=("pre-fetched comment",),
+            review_comments=(_PREFETCHED,),
             failed_checks=(),
         )
         result = _dispatch_repair(
@@ -67,7 +75,8 @@ class TestDispatchRepair:
             head_sha="abc123",
             repair_type="review",
             failed_checks=[],
-            review_comments=["pre-fetched comment"],
+            review_comments=[_PREFETCHED],
+            review_id=100,
         )
 
     def test_dispatches_ci_repair_without_review_comments(self) -> None:
@@ -95,7 +104,7 @@ class TestDispatchRepair:
     def test_dispatches_both_repair_with_review_and_ci(self) -> None:
         """Combined review + CI repair dispatches with both contexts."""
         provider = MagicMock()
-        provider.list_review_comments.return_value = ["Use better names"]
+        provider.list_review_comments.return_value = [_COMMENT]
         provider.dispatch_repair.return_value = 302
 
         failed = (CheckRunStatus(id=2, name="test", status="completed", conclusion="failure"),)
@@ -159,4 +168,5 @@ class TestDispatchRepair:
             repair_type="review",
             failed_checks=[],
             review_comments=[],
+            review_id=100,
         )

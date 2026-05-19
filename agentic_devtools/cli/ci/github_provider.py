@@ -19,6 +19,7 @@ from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
     PRMetadata,
+    ReviewCommentInfo,
     ReviewInfo,
 )
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
@@ -30,13 +31,34 @@ from agentic_devtools.cli.subprocess_utils import run_safe
 logger = logging.getLogger(__name__)
 
 
+def _format_suppressed_body(body: str, max_length: int = 200) -> str:
+    """Normalize/escape/truncate suppressed body for compact one-line trigger output."""
+    normalized = " ".join(body.split())
+    escaped = normalized.replace('"', '\\"')
+    if len(escaped) <= max_length:
+        return escaped
+    return escaped[: max_length - 1].rstrip() + "…"
+
+
+def _comment_is_suppressed(comment: dict[str, Any]) -> bool:
+    """Return True when API payload indicates the review comment is minimized/suppressed."""
+    return bool(
+        comment.get("is_suppressed")
+        or comment.get("is_minimized")
+        or comment.get("minimized")
+        or bool(comment.get("minimized_reason"))
+    )
+
+
 def _build_repair_comment(
     *,
     head_sha: str,
     repair_type: str,
     failed_checks: list[CheckRunStatus],
-    review_comments: list[str],
+    review_comments: list[ReviewCommentInfo],
     repository_full_name: str = "",
+    pr_number: int = 0,
+    review_id: int = 0,
 ) -> str:
     """Build the @copilot-tagged comment body for repair dispatch.
 
@@ -49,54 +71,90 @@ def _build_repair_comment(
         head_sha: Current HEAD SHA for context.
         repair_type: ``"review"``, ``"ci"``, or ``"both"``.
         failed_checks: List of failed check runs (for CI repair context).
-        review_comments: List of review comment bodies (for review repair context).
+        review_comments: Rich review comment metadata (for review repair context).
+        repository_full_name: Full repository name (e.g., ``"owner/repo"``).
+        pr_number: Pull request number (for building review and comment URLs).
+        review_id: ID of the Copilot review that triggered this dispatch.
+            Used for the dedup marker and review URL.
 
     Returns:
         Comment body string beginning with ``@copilot``.
     """
     parts: list[str] = ["@copilot"]
 
-    if repair_type in ("review", "both") and review_comments:
-        parts.append("")
-        parts.append("## Copilot Review Feedback")
-        parts.append("")
-        parts.append(
-            "Please address the following review comments. "
-            "For each comment, make the necessary code changes, "
-            "then reply to the comment explaining what you changed "
-            "and resolve the thread."
-        )
-        for i, comment in enumerate(review_comments, 1):
-            parts.append("")
-            parts.append(f"### Comment {i}")
-            parts.append("")
-            # Quote the original review comment
-            quoted = "\n".join(f"> {line}" for line in comment.splitlines())
-            parts.append(quoted)
+    has_review = repair_type in ("review", "both")
+    has_review_comments = has_review and bool(review_comments)
+    has_ci = repair_type in ("ci", "both") and bool(failed_checks)
 
-    if repair_type in ("ci", "both") and failed_checks:
+    if has_review and review_id:
+        # Dedup marker so the agent can identify which review triggered this
+        parts.append(f"<!-- copilot-trigger:{review_id} -->")
+
+        if repository_full_name and "/" in repository_full_name and pr_number and review_id:
+            review_url = f"https://github.com/{repository_full_name}/pull/{pr_number}#pullrequestreview-{review_id}"
+            parts.append("")
+            parts.append(f"[Review]({review_url})")
+
+    if has_review_comments:
         parts.append("")
-        parts.append("## CI Failure Context")
+        parts.append("## Comments")
         parts.append("")
-        parts.append(
-            "The following CI checks have failed. Please fix the issues "
-            "described below. Use `ruff check --fix .` and `ruff format .` "
-            "for lint/format failures."
-        )
+
+        basename_paths: dict[str, set[str]] = {}
+        for comment in review_comments:
+            basename = comment.path.rsplit("/", 1)[-1] if "/" in comment.path else comment.path
+            basename_paths.setdefault(basename, set()).add(comment.path)
+
+        file_counters: dict[str, int] = {}
+        for nc, comment in enumerate(review_comments, 1):
+            basename = comment.path.rsplit("/", 1)[-1] if "/" in comment.path else comment.path
+            filename = comment.path if len(basename_paths.get(basename, set())) > 1 else basename
+            file_counters[comment.path] = file_counters.get(comment.path, 0) + 1
+            nf = file_counters[comment.path]
+
+            if comment.is_suppressed:
+                body = _format_suppressed_body(comment.body)
+                parts.append(f'- Comment #{nc} - {filename} ({nf}): "{body}" (suppressed comment)')
+            else:
+                label = f"Comment #{nc} - {filename} ({nf})"
+                if comment.html_url:
+                    parts.append(f"- [{label}]({comment.html_url})")
+                else:
+                    parts.append(f"- {label}")
+
+    if has_ci:
+        parts.append("")
+        parts.append("## CI Failures")
+        parts.append("")
         for check in failed_checks:
-            parts.append("")
-            parts.append(f"### ❌ {check.name}")
-            parts.append(f"- **Conclusion**: {check.conclusion}")
-            if repository_full_name and "/" in repository_full_name:
-                parts.append(f"- **Job**: https://github.com/{repository_full_name}/runs/{check.id}")
+            # Only use html_url from the API response — the check run ID does not
+            # match the Actions workflow run ID, so omit the link entirely when
+            # html_url is absent to avoid emitting a broken /runs/{id} URL.
+            job_url = check.html_url
+            if job_url:
+                parts.append(f"- ❌ [{check.name}]({job_url}) — `{check.conclusion}`")
+            else:
+                parts.append(f"- ❌ {check.name} — `{check.conclusion}`")
 
-    if not review_comments and not failed_checks:
+    has_review_context = has_review and bool(review_id)
+    if not review_comments and not failed_checks and not has_review_context:
         parts.append("")
         parts.append(f"Please review the PR and fix any issues found. Current HEAD: `{head_sha[:8]}`.")
+        parts.append("")
+        parts.append("---")
+        parts.append(f"*Automated repair dispatch for commit `{head_sha[:8]}` (type: {repair_type})*")
+        return "\n".join(parts)
+
+    # Choose the appropriate skill based on what triggered the repair
+    if repair_type == "ci":
+        skill = "agdt.address-copilot-review.ci-repair.agent.md"
+    else:
+        skill = "agdt.address-copilot-review.evaluate-and-respond.agent.md"
 
     parts.append("")
-    parts.append("---")
-    parts.append(f"*Automated repair dispatch for commit `{head_sha[:8]}` (type: {repair_type})*")
+    parts.append("## Instructions")
+    parts.append("")
+    parts.append(f"Follow `.github/agents/{skill}`")
 
     return "\n".join(parts)
 
@@ -366,6 +424,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 name=cr["name"],
                 status=cr["status"],
                 conclusion=cr.get("conclusion") or "",
+                html_url=cr.get("html_url") or "",
             )
             for cr in data.get("check_runs", [])
         ]
@@ -501,7 +560,8 @@ class GitHubActionsProvider(CIPlatformProvider):
         head_sha: str,
         repair_type: str,
         failed_checks: list[CheckRunStatus],
-        review_comments: list[str],
+        review_comments: list[ReviewCommentInfo],
+        review_id: int = 0,
     ) -> int:
         """Post a @copilot-tagged comment to trigger an AI agent repair session.
 
@@ -516,6 +576,8 @@ class GitHubActionsProvider(CIPlatformProvider):
             failed_checks=failed_checks,
             review_comments=review_comments,
             repository_full_name=(self._repo or os.environ.get("GITHUB_REPOSITORY", "")),
+            pr_number=pr_number,
+            review_id=review_id,
         )
 
         # Use AGDT_PR_APPROVER_PAT for posting comments (has issues:write permission).
@@ -532,14 +594,23 @@ class GitHubActionsProvider(CIPlatformProvider):
         return data["id"]
 
     @retry_with_backoff()
-    def list_review_comments(self, pr_number: int, review_id: int) -> list[str]:
+    def list_review_comments(self, pr_number: int, review_id: int) -> list[ReviewCommentInfo]:
         """List inline comments from a specific review."""
         response = _gh_api(
             self._repo_api(f"/pulls/{pr_number}/reviews/{review_id}/comments"),
             paginate=True,
         )
         comments = _parse_paginated_json(response)
-        return [c.get("body", "") for c in comments]
+        return [
+            ReviewCommentInfo(
+                id=int(c["id"]),
+                path=c.get("path", ""),
+                body=c.get("body", ""),
+                html_url=c.get("html_url", ""),
+                is_suppressed=_comment_is_suppressed(c),
+            )
+            for c in comments
+        ]
 
     def _run_git(self, args: Iterable[str]) -> str:
         """Run git command and return stdout or raise on failure."""

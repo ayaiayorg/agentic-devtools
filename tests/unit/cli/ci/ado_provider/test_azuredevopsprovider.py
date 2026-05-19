@@ -3,7 +3,7 @@
 import pytest
 
 from agentic_devtools.cli.ci.ado_provider import AzureDevOpsProvider
-from agentic_devtools.cli.ci.models import EventPayload
+from agentic_devtools.cli.ci.models import EventPayload, ReviewCommentInfo
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
 
 
@@ -95,7 +95,14 @@ class TestAzureDevOpsProvider:
         with pytest.raises(NotImplementedError):
             provider.get_check_annotations(1, 10)
         with pytest.raises(NotImplementedError):
-            provider.dispatch_repair(1, "sha", "review", [], [])
+            provider.dispatch_repair(
+                1,
+                "sha",
+                "review",
+                [],
+                [ReviewCommentInfo(id=1, path="file.py", body="comment", html_url="")],
+                review_id=1,
+            )
         with pytest.raises(NotImplementedError):
             provider.list_review_comments(1, 1)
         with pytest.raises(NotImplementedError):

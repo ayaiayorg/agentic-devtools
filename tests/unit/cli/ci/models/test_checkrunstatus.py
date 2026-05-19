@@ -31,6 +31,20 @@ class TestCheckRunStatus:
         check = CheckRunStatus(id=1, name="lint", status="queued")
         assert check.conclusion == ""
 
+    def test_default_html_url(self) -> None:
+        check = CheckRunStatus(id=1, name="lint", status="queued")
+        assert check.html_url == ""
+
+    def test_html_url(self) -> None:
+        check = CheckRunStatus(
+            id=42,
+            name="ci/build",
+            status="completed",
+            conclusion="failure",
+            html_url="https://github.com/owner/repo/actions/runs/99/jobs/42",
+        )
+        assert check.html_url == "https://github.com/owner/repo/actions/runs/99/jobs/42"
+
     def test_failed_check(self) -> None:
         check = CheckRunStatus(
             id=5,

@@ -234,18 +234,30 @@ class TestFinalizePostRepair:
                 head_sha="abc123def456",
                 repair_type="review",
                 failed_checks=[],
-                review_comments=["fix this"],
+                review_comments=[],
             )
         assert comment_id == 3001
         assert mock_gh_api.call_args[1]["token"] == "token-123"
 
     @patch("agentic_devtools.cli.ci.github_provider._gh_api")
     @patch("agentic_devtools.cli.ci.github_provider._parse_paginated_json")
-    def test_list_review_comments_returns_bodies(self, mock_parse, mock_gh_api) -> None:
+    def test_list_review_comments_returns_review_comment_info(self, mock_parse, mock_gh_api) -> None:
+        from agentic_devtools.cli.ci.models import ReviewCommentInfo
+
         mock_gh_api.return_value = "[]"
-        mock_parse.return_value = [{"body": "one"}, {"body": "two"}]
+        mock_parse.return_value = [
+            {"id": 1, "body": "one", "path": "foo.py", "html_url": "https://github.com/r/p#1"},
+            {"id": 2, "body": "two", "path": "bar.py", "html_url": "https://github.com/r/p#2"},
+        ]
         provider = GitHubActionsProvider(repo="owner/repo")
-        assert provider.list_review_comments(42, 7) == ["one", "two"]
+        result = provider.list_review_comments(42, 7)
+        assert len(result) == 2
+        assert result[0] == ReviewCommentInfo(
+            id=1, path="foo.py", body="one", html_url="https://github.com/r/p#1"
+        )
+        assert result[1] == ReviewCommentInfo(
+            id=2, path="bar.py", body="two", html_url="https://github.com/r/p#2"
+        )
 
     def test_resolve_repo_valid_and_invalid(self) -> None:
         provider = GitHubActionsProvider(repo="owner/repo")

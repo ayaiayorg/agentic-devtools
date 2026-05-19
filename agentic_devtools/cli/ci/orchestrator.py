@@ -36,6 +36,7 @@ from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
     RepairDecision,
+    ReviewCommentInfo,
     ReviewInfo,
 )
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
@@ -423,7 +424,7 @@ def run_ai_pr_loop(
     copilot_actionable_review = False
     any_changes_requested = False
     copilot_review_id = 0
-    copilot_review_comments: list[str] = []
+    copilot_review_comments: list[ReviewCommentInfo] = []
 
     for review in effective_reviews:
         logger.info("  review by '%s' — state=%s (id=%d)", review.user, review.state, review.id)
@@ -850,7 +851,7 @@ def _evaluate_repair_decision(
     any_failed: bool,
     copilot_actionable_review: bool,
     copilot_review_id: int,
-    copilot_review_comments: list[str],
+    copilot_review_comments: list[ReviewCommentInfo],
     failed_checks: list[CheckRunStatus],
 ) -> RepairDecision:
     """Evaluate whether a repair dispatch is needed and determine the type.
@@ -865,7 +866,7 @@ def _evaluate_repair_decision(
         copilot_actionable_review: True if Copilot posted an actionable review
             (CHANGES_REQUESTED, or COMMENTED with inline comments).
         copilot_review_id: ID of the actionable Copilot review (0 if none).
-        copilot_review_comments: Review comment bodies pre-fetched during
+        copilot_review_comments: Rich review comment metadata pre-fetched during
             detection (populated for COMMENTED reviews; empty for
             CHANGES_REQUESTED so that ``_dispatch_repair`` fetches lazily).
         failed_checks: List of failed check runs.
@@ -920,13 +921,13 @@ def _dispatch_repair(
     Returns:
         EXIT_REPAIR_DISPATCHED on success, EXIT_MERGE_BLOCKED on failure.
     """
-    # Collect review comment bodies when review repair is needed.
+    # Collect rich review comment data when review repair is needed.
     # For COMMENTED reviews the comments were already fetched during detection
     # and are stored in decision.review_comments — reuse them to avoid a
     # second API call and potential inconsistency if comments change between
     # calls.  For CHANGES_REQUESTED reviews, decision.review_comments is empty
     # so we fetch lazily here.
-    review_comments: list[str] = []
+    review_comments: list[ReviewCommentInfo] = []
     if decision.review_id and decision.repair_type in ("review", "both"):
         if decision.review_comments:
             review_comments = list(decision.review_comments)
@@ -943,6 +944,7 @@ def _dispatch_repair(
             repair_type=decision.repair_type,
             failed_checks=list(decision.failed_checks),
             review_comments=review_comments,
+            review_id=decision.review_id,
         )
         logger.info(
             "PR #%d repair dispatched (type=%s, comment_id=%d)",
