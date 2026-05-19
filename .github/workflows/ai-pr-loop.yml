@@ -57,4 +57,5 @@ jobs:
           GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           AGDT_PR_APPROVER_PAT: ${{ secrets.AGDT_PR_APPROVER_PAT }}
+          AGDT_ALLOW_PRIVILEGED_PATHS: "1"
         run: agdt-ai-pr-loop
