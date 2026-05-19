@@ -7,7 +7,7 @@
 | F-01 | F | MEDIUM | Plan §1 vs `pyproject.toml` | Plan states LangGraph is `>=0.2.0` (current core dep) but spec/tasks target `>=0.4,<1.0` for the `[langchain]` extra. The plan acknowledges the migration but the version discrepancy between "current" and "target" could confuse implementers. | Clarify in plan that T001 changes the version constraint from `>=0.2.0` to `>=0.4,<1.0` during the move to optional extra. |
 | F-02 | F | MEDIUM | Plan §1 vs Spec Clarifications | Spec says `langchain-core>=0.3,<1.0`; current `pyproject.toml` has no `langchain-core` dependency at all (only implicit via `langgraph`). Plan task 2.3 covers this, but the plan's Technical Context table omits that `langchain-core` is not currently declared. | Add note in plan Technical Context that `langchain-core` is a new explicit dependency (currently transitive only). |
 | F-03 | B | LOW | Spec NFR-003 | "standard development machine" is undefined — no CPU/RAM/OS baseline specified. The 5s bound is measurable but the reference environment is vague. | Define reference hardware or accept that the mocked-timer approach in T059 makes this a deterministic assertion anyway. |
-| F-04 | F | MEDIUM | Tasks T025 vs T043 | T025 adds `engine` field to `ReviewSession`; T043 also says "Add `engine` field to session entries" in `review_state.py`. These reference the same schema change but are in different phases with different dependency chains. | Consolidate: T043 should reference T025's implementation and focus only on ensuring `state_bridge.py` writes the field, not re-adding it. |
+| F-04 | G | HIGH | Tasks T025 vs T043 | T025 adds `engine` field to `ReviewSession`; T043 also says "Add `engine` field to session entries" in `review_state.py`. This is a task overlap on the same schema dimension across different phases. | Consolidate: T043 should reference T025's implementation and focus only on ensuring `state_bridge.py` writes the field, not re-adding it. |
 | F-05 | C | LOW | Spec FR-010 | "progress milestones" is underspecified — no enumeration of which milestones beyond those in T049 (`scaffolding`, `reviewing file N/M`, `summarizing`). | Consider adding `[langchain] complete` terminal marker to spec or accept T049's implementation as the normative list. |
 | F-06 | B | LOW | Spec NFR-002 | "reliability comparable to the existing path under equivalent conditions" — no quantitative metric (e.g., success rate percentage). | Accept as qualitative for this phase; add measurable reliability SLO if/when LangChain becomes default. |
 | F-07 | D | LOW | Spec | No explicit "Security Considerations" section; NFR-004 covers credential leakage but a dedicated section would satisfy typical constitution patterns. | Add a brief Security section consolidating NFR-004 notes, or mark as acceptable if constitution doesn't mandate it. |
@@ -17,10 +17,12 @@
 
 [
   {
-    "type": "overlapping",
+    "id": "F-04",
+    "overlap_type": "overlapping",
+    "severity": "HIGH",
     "task_ids": ["T025", "T043"],
-    "summary": "Both tasks touch the `engine` session field lifecycle and should be coordinated to avoid duplicate implementation effort.",
-    "recommended_action": "Implement schema addition in T025, then scope T043 to state-bridge propagation/verification only."
+    "dimensions": ["schema_field"],
+    "rationale": "Both tasks modify the same `engine` session field; implement schema addition in T025 and keep T043 scoped to state-bridge propagation/verification."
   }
 ]
 
