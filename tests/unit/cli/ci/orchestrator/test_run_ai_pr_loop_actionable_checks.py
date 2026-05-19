@@ -56,7 +56,7 @@ class TestActionableCheckNames:
             conclusion="success",
         )
         provider = _make_provider(check_runs=[ignored, passing])
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
 
         result = run_ai_pr_loop(provider, payload)
 

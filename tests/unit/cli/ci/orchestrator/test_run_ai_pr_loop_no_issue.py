@@ -37,7 +37,7 @@ class TestRunAIPRLoopNoIssue:
         provider.find_comment.return_value = None
         provider.post_comment.return_value = 100
 
-        payload = EventPayload(pr_number=99, head_sha="nnn999")
+        payload = EventPayload(pr_number=99, head_sha="nnn999", action="submitted")
         result = run_ai_pr_loop(provider, payload)
 
         assert result == EXIT_SUCCESS

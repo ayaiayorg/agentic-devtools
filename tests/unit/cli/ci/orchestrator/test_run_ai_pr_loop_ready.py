@@ -39,7 +39,7 @@ class TestRunAIPRLoopReady:
         provider.post_comment.return_value = 100
         provider.merge_pr.return_value = None
 
-        payload = EventPayload(pr_number=42, head_sha="sha123")
+        payload = EventPayload(pr_number=42, head_sha="sha123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
 
         assert result == EXIT_SUCCESS
