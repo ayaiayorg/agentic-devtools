@@ -1,12 +1,12 @@
 <!-- markdownlint-disable MD041 -->
 ✅ **AI PR Loop — Ready (No Auto-Merge)**
 
-This PR is ready to merge but has the `do-not-auto-merge` label applied.
+This PR is ready to merge but does not have the `ai-auto-merge-allowed` label applied.
 
 **PR**: #{{pr_number}}
 **Branch**: `{{head_branch}}`
 **SHA**: `{{head_sha}}`
 **CI Status**: All checks passing
-**Reviews**: Approved
+**Reviews**: Copilot review complete
 
-Remove the `do-not-auto-merge` label to allow automated merge, or merge manually.
+Add the `ai-auto-merge-allowed` label to allow automated merge, or merge manually.

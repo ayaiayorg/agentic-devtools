@@ -500,12 +500,15 @@ class GitHubActionsProvider(CIPlatformProvider):
         return None
 
     @retry_with_backoff()
-    def approve_pr(self, pr_number: int, head_sha: str, body: str) -> None:
+    def approve_pr(self, pr_number: int, head_sha: str, body: str) -> bool:
         """Approve a pull request.
 
         Uses ``AGDT_PR_APPROVER_PAT`` when set so that the approval comes from
         a separate identity (GitHub prevents approving your own PR).  When the
         variable is unset or empty the approval is skipped with a warning.
+
+        Returns:
+            ``True`` when approval was submitted, ``False`` when skipped.
         """
         approver_token = os.environ.get("AGDT_PR_APPROVER_PAT", "").strip()
         if not approver_token:
@@ -514,7 +517,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 "Cannot approve PR without a dedicated approver token. "
                 "See repository documentation for setup instructions."
             )
-            return
+            return False
 
         try:
             _gh_api(
@@ -523,6 +526,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 body={"commit_id": head_sha, "event": "APPROVE", "body": body},
                 token=approver_token,
             )
+            return True
         except RuntimeError as exc:
             stderr = str(exc)
             if "401" in stderr or "Bad credentials" in stderr.lower():
@@ -531,7 +535,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                     "The token may be expired or invalid. "
                     "Skipping PR approval. Rotate the secret and retry."
                 )
-                return
+                return False
             raise
 
     @retry_with_backoff()

@@ -48,7 +48,7 @@ class _StubAdoProvider(CIPlatformProvider):
     def find_comment(self, pr_number: int, marker: str) -> tuple[int, str] | None:
         raise NotImplementedError("ADO provider stub")
 
-    def approve_pr(self, pr_number: int, head_sha: str, body: str) -> None:
+    def approve_pr(self, pr_number: int, head_sha: str, body: str) -> bool:
         raise NotImplementedError("ADO provider stub")
 
     def merge_pr(self, pr_number: int, head_sha: str, method: str) -> None:

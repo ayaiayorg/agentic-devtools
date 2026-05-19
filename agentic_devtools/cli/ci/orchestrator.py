@@ -22,7 +22,6 @@ from typing import Any
 from agentic_devtools.cli.ci.guards import (
     DEDUP_MARKER_PATTERN,
     DEDUP_MARKER_PREFIX,
-    LABEL_NO_AUTO_MERGE,
     LABEL_SKIP_ENTIRELY,
     PRIVILEGED_PREFIXES,
     check_cycle_limit,
@@ -164,18 +163,16 @@ def _apply_comment_triggered_post_repair_guards(
         summary["exit_code"] = EXIT_GUARD_BLOCKED
         return EXIT_GUARD_BLOCKED
 
-    should_skip, flag = check_exclusion_labels(pr_meta.labels)
-    if should_skip or flag == "do_not_merge":
-        blocked_by = "exclusion_label" if should_skip else "do_not_merge"
-        label = LABEL_SKIP_ENTIRELY if should_skip else LABEL_NO_AUTO_MERGE
+    should_skip, _ = check_exclusion_labels(pr_meta.labels)
+    if should_skip:
         logger.info(
             "PR #%d comment-triggered post-repair squash blocked by label guard (%s)",
             pr_number,
-            label,
+            LABEL_SKIP_ENTIRELY,
         )
-        summary["guards"] = {"blocked_by": blocked_by, "label": label}
+        summary["guards"] = {"blocked_by": "exclusion_label", "label": LABEL_SKIP_ENTIRELY}
         summary["decision"] = "blocked"
-        summary["reason"] = blocked_by
+        summary["reason"] = "exclusion_label"
         summary["exit_code"] = EXIT_GUARD_BLOCKED
         return EXIT_GUARD_BLOCKED
 
@@ -967,6 +964,45 @@ def run_ai_pr_loop(
                 _emit_decision_summary(summary)
                 return EXIT_SUCCESS
 
+        # CI passed + clean Copilot review on HEAD -> approve so the review gate
+        # re-runs on the pull_request_review event and can turn green.
+        _copilot_review_ci = latest_by_user.get(_COPILOT_KEY)
+        has_clean_copilot_review_on_head = (
+            _copilot_review_ci is not None
+            and (not _copilot_review_ci.commit_sha or _copilot_review_ci.commit_sha == current_head_sha)
+            and _copilot_review_ci.state in ("APPROVED", "COMMENTED")
+            and not copilot_actionable_review
+        )
+        approval_skipped_in_ci_completion = False
+        if has_clean_copilot_review_on_head:
+            logger.info(
+                "PR #%d CI passed with clean Copilot review on HEAD — approving to trigger review gate re-run",
+                pr_number,
+            )
+            try:
+                approved = provider.approve_pr(pr_number, pr_meta.head_sha, "Auto-approved by AI PR loop")
+            except Exception as exc:
+                logger.error("Failed to auto-approve PR #%d: %s", pr_number, exc)
+                summary["decision"] = "error"
+                summary["reason"] = "approval_failed"
+                summary["error"] = str(exc)
+                summary["exit_code"] = EXIT_MERGE_BLOCKED
+                _log_endgroup()
+                _emit_decision_summary(summary)
+                return EXIT_MERGE_BLOCKED
+            if approved:
+                summary["auto_approved"] = True
+                summary["decision"] = "approved_awaiting_review_gate"
+                summary["exit_code"] = EXIT_SUCCESS
+                _log_endgroup()
+                _emit_decision_summary(summary)
+                return EXIT_SUCCESS
+            logger.info(
+                "PR #%d clean Copilot review found, but auto-approval was skipped; awaiting manual approval",
+                pr_number,
+            )
+            approval_skipped_in_ci_completion = True
+
         # No actionable review and no failures — ensure a Copilot review is
         # requested so the gate can pass on the current HEAD.
         if pr_meta.is_draft:
@@ -982,6 +1018,15 @@ def run_ai_pr_loop(
             _emit_decision_summary(summary)
             return EXIT_SUCCESS
         summary["repair"] = {"needed": False}
+        if approval_skipped_in_ci_completion:
+            # Clean Copilot review exists but approval was skipped (e.g., missing approver token).
+            # Don't request another review — it already exists and won't re-trigger the gate.
+            summary["decision"] = "awaiting_copilot_review_after_ci"
+            summary["reason"] = "approval_skipped"
+            summary["exit_code"] = EXIT_SUCCESS
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_SUCCESS
         logger.info("PR #%d CI passed, no Copilot review on HEAD — requesting review", pr_number)
         request_skip_reason = _request_copilot_review_if_needed(
             provider,
@@ -1077,9 +1122,9 @@ def run_ai_pr_loop(
         return EXIT_SUCCESS
 
     if do_not_merge:
-        logger.info("PR #%d ready but do-not-auto-merge label present — skipping merge", pr_number)
+        logger.info("PR #%d ready but 'ai-auto-merge-allowed' label not present — skipping merge", pr_number)
         summary["decision"] = "skip_merge"
-        summary["reason"] = "do_not_auto_merge_label"
+        summary["reason"] = "missing_auto_merge_allowed_label"
         summary["exit_code"] = EXIT_SUCCESS
         _log_endgroup()
         _emit_decision_summary(summary)
@@ -1172,12 +1217,24 @@ def run_ai_pr_loop(
     if not has_approval:
         logger.info("PR #%d has no approval — auto-approving", pr_number)
         try:
-            provider.approve_pr(pr_number, pr_meta.head_sha, "Auto-approved by AI PR loop")
+            approved = provider.approve_pr(pr_number, pr_meta.head_sha, "Auto-approved by AI PR loop")
         except Exception as exc:
             logger.error("Failed to auto-approve PR #%d: %s", pr_number, exc)
             summary["decision"] = "error"
             summary["reason"] = "approval_failed"
             summary["error"] = str(exc)
+            summary["exit_code"] = EXIT_MERGE_BLOCKED
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_MERGE_BLOCKED
+        if not approved:
+            logger.warning(
+                "PR #%d auto-approval skipped; blocking merge until approval can be submitted",
+                pr_number,
+            )
+            summary["auto_approved"] = False
+            summary["decision"] = "blocked"
+            summary["reason"] = "approval_skipped"
             summary["exit_code"] = EXIT_MERGE_BLOCKED
             _log_endgroup()
             _emit_decision_summary(summary)

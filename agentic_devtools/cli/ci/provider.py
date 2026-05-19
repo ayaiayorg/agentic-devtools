@@ -108,13 +108,16 @@ class CIPlatformProvider(ABC):
         """
 
     @abstractmethod
-    def approve_pr(self, pr_number: int, head_sha: str, body: str) -> None:
+    def approve_pr(self, pr_number: int, head_sha: str, body: str) -> bool:
         """Approve a pull request.
 
         Args:
             pr_number: Pull request number.
             head_sha: Expected HEAD SHA (for safety check).
             body: Approval comment body.
+
+        Returns:
+            ``True`` when approval was posted, ``False`` when intentionally skipped.
         """
 
     @abstractmethod

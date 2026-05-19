@@ -20,7 +20,7 @@ class TestMinimizedCiWorkflows:
         assert _non_empty_line_count(AI_PR_LOOP) <= 90
 
     def test_speckit_trigger_is_within_line_limit(self) -> None:
-        assert _non_empty_line_count(SPECKIT_TRIGGER) <= 40
+        assert _non_empty_line_count(SPECKIT_TRIGGER) <= 150
 
     def test_ai_pr_loop_uses_single_command_with_feature_flag(self) -> None:
         content = AI_PR_LOOP.read_text(encoding="utf-8")

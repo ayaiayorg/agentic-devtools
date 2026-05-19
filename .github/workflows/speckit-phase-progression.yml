@@ -599,6 +599,35 @@ jobs:
               "${LINT_ARGS[@]}"
           fi
 
+      - name: Add ai-auto-merge-allowed label (non-clarify phases)
+        if: >-
+          steps.extract.outcome == 'success' &&
+          steps.extract.outputs.next_phase != '0' &&
+          steps.extract.outputs.next_phase != '6' &&
+          vars.SPECKIT_AUTO_MERGE_ALLOWED_LABEL == 'true' &&
+          steps.idempotency.outputs.skipped != 'true' &&
+          steps.create-pr.outputs.pr_number != '' &&
+          steps.extract.outputs.next_phase_name != 'clarify'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = parseInt('${{ steps.create-pr.outputs.pr_number }}', 10);
+            if (!prNumber) {
+              core.warning('No PR number available — skipping ai-auto-merge-allowed label');
+              return;
+            }
+            try {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                labels: ['ai-auto-merge-allowed'],
+              });
+              core.info(`Added ai-auto-merge-allowed to PR #${prNumber}`);
+            } catch (e) {
+              core.warning(`Could not add ai-auto-merge-allowed label: ${e.message}`);
+            }
+
       - name: Auto-Merge (if configured)
         if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true' && steps.create-pr.outputs.pr_number != '' && steps.generate.outputs.gate_result != 'fail'
         env:

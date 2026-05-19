@@ -113,7 +113,7 @@ class AzureDevOpsProvider(CIPlatformProvider):
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.find_comment() not yet implemented")
 
-    def approve_pr(self, pr_number: int, head_sha: str, body: str) -> None:
+    def approve_pr(self, pr_number: int, head_sha: str, body: str) -> bool:
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.approve_pr() not yet implemented")
 

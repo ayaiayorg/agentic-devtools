@@ -41,7 +41,7 @@ def _make_provider(
         base_branch="main",
         head_repo_full_name="owner/repo",
         base_repo_full_name="owner/repo",
-        labels=[],
+        labels=["ai-auto-merge-allowed"],
     )
     provider.list_pr_files.return_value = files if files is not None else ["src/main.py"]
     provider.list_check_runs.return_value = (
@@ -137,7 +137,7 @@ class TestRunAIPRLoop:
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_GUARD_BLOCKED
 
-    def test_do_not_merge_label_prevents_merge(self) -> None:
+    def test_missing_auto_merge_allowed_label_prevents_merge(self) -> None:
         provider = _make_provider(
             pr_meta=PRMetadata(
                 number=42,
@@ -147,7 +147,7 @@ class TestRunAIPRLoop:
                 base_branch="main",
                 head_repo_full_name="owner/repo",
                 base_repo_full_name="owner/repo",
-                labels=["do-not-auto-merge"],
+                labels=[],
             )
         )
         payload = EventPayload(pr_number=42, head_sha="s")
@@ -267,11 +267,25 @@ class TestRunAIPRLoop:
             reviews=[ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")]
         )
         provider.list_review_comments.return_value = []
+        provider.approve_pr.return_value = True
         payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.approve_pr.assert_called_once()
         provider.merge_pr.assert_called_once()
+
+    def test_submitted_event_approval_skipped_blocks_merge(self) -> None:
+        """Submitted path blocks merge when auto-approval is skipped."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")]
+        )
+        provider.list_review_comments.return_value = []
+        provider.approve_pr.return_value = False
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_MERGE_BLOCKED
+        provider.approve_pr.assert_called_once()
+        provider.merge_pr.assert_not_called()
 
     def test_deduplication_limit_blocks(self) -> None:
         """When dedup limit is exceeded, guard blocks."""
@@ -624,7 +638,7 @@ class TestRunAIPRLoop:
         provider.list_reviews.assert_not_called()
         provider.squash_post_repair.assert_not_called()
 
-    def test_comment_event_do_not_merge_label_is_blocked_before_squash(self) -> None:
+    def test_comment_event_ignore_label_is_blocked_before_squash(self) -> None:
         provider = _make_provider(
             pr_meta=PRMetadata(
                 number=42,
@@ -634,7 +648,7 @@ class TestRunAIPRLoop:
                 base_branch="main",
                 head_repo_full_name="owner/repo",
                 base_repo_full_name="owner/repo",
-                labels=["do-not-auto-merge"],
+                labels=["ai-pr-loop-ignore"],
             ),
             reviews=[
                 ReviewInfo(
@@ -652,7 +666,39 @@ class TestRunAIPRLoop:
         provider.list_reviews.assert_not_called()
         provider.squash_post_repair.assert_not_called()
         summary = _capture_summary(provider, payload)
-        assert summary["guards"]["label"] == "do-not-auto-merge"
+        assert summary["guards"]["label"] == "ai-pr-loop-ignore"
+
+    def test_comment_event_missing_auto_merge_allowed_does_not_block_squash(self) -> None:
+        """Missing ai-auto-merge-allowed label should not block post-repair squash."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="t",
+                head_branch="b",
+                head_sha="s",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                labels=[],  # ai-auto-merge-allowed absent
+            ),
+            reviews=[
+                ReviewInfo(
+                    id=9,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="fix this",
+                    commit_sha="oldsha",
+                )
+            ],
+        )
+        provider.list_review_comments.return_value = []
+        provider.squash_post_repair.return_value = "newshapostrepair"
+        provider.count_commits_above_merge_base.return_value = 2
+        payload = EventPayload(pr_number=42, head_sha="s", action="comment_created", sender_login="copilot[bot]")
+        result = run_ai_pr_loop(provider, payload)
+        # Guard should NOT block; squash proceeds
+        assert result != EXIT_GUARD_BLOCKED
+        provider.squash_post_repair.assert_called_once()
 
     def test_comment_event_list_reviews_failure_returns_metadata_error(self) -> None:
         provider = _make_provider()
@@ -870,7 +916,11 @@ class TestRunAIPRLoop:
     def test_ci_completion_green_without_actionable_review_requests_review(self) -> None:
         """CI completion with green checks and no actionable Copilot feedback requests review."""
         provider = _make_provider(
-            reviews=[ReviewInfo(id=3, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")]
+            reviews=[
+                ReviewInfo(
+                    id=3, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm", commit_sha="oldsha"
+                )
+            ]
         )
         provider.list_review_comments.return_value = []
         payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
@@ -881,6 +931,92 @@ class TestRunAIPRLoop:
         provider.approve_pr.assert_not_called()
         provider.merge_pr.assert_not_called()
         provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
+
+    def test_ci_completion_green_with_clean_copilot_review_on_head_auto_approves(self) -> None:
+        """CI completion + clean Copilot review on current HEAD auto-approves to re-run review gate."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=3,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="COMMENTED",
+                    body="lgtm",
+                    commit_sha="abc123",
+                )
+            ]
+        )
+        provider.list_review_comments.return_value = []
+        provider.approve_pr.return_value = True
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.approve_pr.assert_called_once_with(42, "abc123", "Auto-approved by AI PR loop")
+        provider.request_reviewer.assert_not_called()
+        provider.finalize_post_repair.assert_not_called()
+        provider.merge_pr.assert_not_called()
+
+    def test_ci_completion_empty_commit_sha_review_treated_as_on_head(self) -> None:
+        """Copilot review with empty commit_sha is treated as applying to HEAD (auto-approves)."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=3,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="COMMENTED",
+                    body="lgtm",
+                    commit_sha="",
+                )
+            ]
+        )
+        provider.list_review_comments.return_value = []
+        provider.approve_pr.return_value = True
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.approve_pr.assert_called_once_with(42, "abc123", "Auto-approved by AI PR loop")
+
+    def test_ci_completion_clean_copilot_review_on_head_approval_skipped_short_circuits(self) -> None:
+        """Skipped approval in clean-review CI path short-circuits without requesting another review."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=3,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="COMMENTED",
+                    body="lgtm",
+                    commit_sha="abc123",
+                )
+            ]
+        )
+        provider.list_review_comments.return_value = []
+        provider.approve_pr.return_value = False
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.approve_pr.assert_called_once_with(42, "abc123", "Auto-approved by AI PR loop")
+        provider.request_reviewer.assert_not_called()
+        provider.finalize_post_repair.assert_not_called()
+        provider.merge_pr.assert_not_called()
+
+    def test_ci_completion_clean_copilot_review_on_head_approval_failure_blocks(self) -> None:
+        """Approval errors in CI completion clean-review path return EXIT_MERGE_BLOCKED."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=3,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="APPROVED",
+                    body="lgtm",
+                    commit_sha="abc123",
+                )
+            ]
+        )
+        provider.approve_pr.side_effect = RuntimeError("approval failed")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_MERGE_BLOCKED
+        provider.request_reviewer.assert_not_called()
+        provider.merge_pr.assert_not_called()
 
     def test_copilot_commented_without_inline_comments_does_not_dispatch(self) -> None:
         """Copilot COMMENTED review without inline comments is not actionable."""
@@ -971,6 +1107,7 @@ class TestRunAIPRLoop:
                 head_repo_full_name="owner/repo",
                 base_repo_full_name="owner/repo",
                 is_draft=True,
+                labels=["ai-auto-merge-allowed"],
             ),
             files=["src/main.py"],
         )
@@ -1012,6 +1149,7 @@ class TestRunAIPRLoop:
                 head_repo_full_name="owner/repo",
                 base_repo_full_name="owner/repo",
                 is_draft=True,
+                labels=["ai-auto-merge-allowed"],
             ),
             files=["src/main.py"],
         )
@@ -1034,6 +1172,7 @@ class TestRunAIPRLoop:
                 head_repo_full_name="owner/repo",
                 base_repo_full_name="owner/repo",
                 is_draft=True,
+                labels=["ai-auto-merge-allowed"],
             ),
             files=["src/main.py"],
         )
@@ -1055,6 +1194,7 @@ class TestRunAIPRLoop:
                 head_repo_full_name="owner/repo",
                 base_repo_full_name="owner/repo",
                 is_draft=True,
+                labels=["ai-auto-merge-allowed"],
             ),
             files=[],
         )
@@ -1108,6 +1248,7 @@ class TestRunAIPRLoop:
                 head_repo_full_name="owner/repo",
                 base_repo_full_name="owner/repo",
                 is_draft=True,
+                labels=["ai-auto-merge-allowed"],
             ),
             files=["src/main.py"],
         )
@@ -1130,6 +1271,7 @@ class TestRunAIPRLoop:
                 head_repo_full_name="owner/repo",
                 base_repo_full_name="owner/repo",
                 is_draft=True,
+                labels=["ai-auto-merge-allowed"],
             ),
             files=["src/main.py"],
         )
@@ -1155,6 +1297,7 @@ class TestRunAIPRLoop:
                 base_repo_full_name="owner/repo",
                 requested_reviewers=[COPILOT_REVIEWER_LOGIN],
                 is_draft=True,
+                labels=["ai-auto-merge-allowed"],
             ),
             files=["src/main.py"],
         )
@@ -1179,6 +1322,7 @@ class TestRunAIPRLoop:
                 head_repo_full_name="owner/repo",
                 base_repo_full_name="owner/repo",
                 is_draft=True,
+                labels=["ai-auto-merge-allowed"],
             ),
             files=["src/main.py"],
         )
@@ -1201,6 +1345,7 @@ class TestRunAIPRLoop:
                 head_repo_full_name="owner/repo",
                 base_repo_full_name="owner/repo",
                 is_draft=True,
+                labels=["ai-auto-merge-allowed"],
             ),
             files=["src/main.py"],
         )
@@ -1541,7 +1686,11 @@ class TestCountCommitsAboveMergeBase:
 
     def test_ci_completion_without_actionable_review_emits_awaiting_copilot_review_after_ci_summary(self) -> None:
         provider = _make_provider(
-            reviews=[ReviewInfo(id=8, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")]
+            reviews=[
+                ReviewInfo(
+                    id=8, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm", commit_sha="oldsha"
+                )
+            ]
         )
         provider.list_review_comments.return_value = []
         payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
@@ -1549,6 +1698,49 @@ class TestCountCommitsAboveMergeBase:
 
         assert summary["decision"] == "awaiting_copilot_review_after_ci"
         assert summary["exit_code"] == EXIT_SUCCESS
+
+    def test_ci_completion_clean_review_on_head_emits_approved_awaiting_review_gate_summary(self) -> None:
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=8,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="COMMENTED",
+                    body="lgtm",
+                    commit_sha="abc123",
+                )
+            ]
+        )
+        provider.list_review_comments.return_value = []
+        provider.approve_pr.return_value = True
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "approved_awaiting_review_gate"
+        assert summary["exit_code"] == EXIT_SUCCESS
+        assert summary["auto_approved"] is True
+
+    def test_ci_completion_clean_review_on_head_skipped_approval_emits_approval_skipped_reason(self) -> None:
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=8,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="COMMENTED",
+                    body="lgtm",
+                    commit_sha="abc123",
+                )
+            ]
+        )
+        provider.list_review_comments.return_value = []
+        provider.approve_pr.return_value = False
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "awaiting_copilot_review_after_ci"
+        assert summary["reason"] == "approval_skipped"
+        assert summary["exit_code"] == EXIT_SUCCESS
+        assert "auto_approved" not in summary
 
     def test_no_pr_number_emits_summary(self) -> None:
         provider = MagicMock()
@@ -1558,7 +1750,7 @@ class TestCountCommitsAboveMergeBase:
         assert summary["decision"] == "skip"
         assert summary["reason"] == "no_pr_number"
 
-    def test_do_not_merge_emits_summary(self) -> None:
+    def test_missing_auto_merge_allowed_label_emits_skip_merge_summary(self) -> None:
         provider = _make_provider(
             pr_meta=PRMetadata(
                 number=42,
@@ -1568,14 +1760,14 @@ class TestCountCommitsAboveMergeBase:
                 base_branch="main",
                 head_repo_full_name="owner/repo",
                 base_repo_full_name="owner/repo",
-                labels=["do-not-auto-merge"],
+                labels=[],
             )
         )
         payload = EventPayload(pr_number=42, head_sha="s")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "skip_merge"
-        assert summary["reason"] == "do_not_auto_merge_label"
+        assert summary["reason"] == "missing_auto_merge_allowed_label"
 
     def test_summary_includes_ci_failed_check_names(self) -> None:
         provider = _make_provider(
@@ -1668,6 +1860,20 @@ class TestCountCommitsAboveMergeBase:
         assert summary["error"] == "approval endpoint unavailable"
         assert summary["exit_code"] == EXIT_MERGE_BLOCKED
 
+    def test_approval_skipped_emits_blocked_summary(self) -> None:
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")]
+        )
+        provider.list_review_comments.return_value = []
+        provider.approve_pr.return_value = False
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "blocked"
+        assert summary["reason"] == "approval_skipped"
+        assert summary["auto_approved"] is False
+        assert summary["exit_code"] == EXIT_MERGE_BLOCKED
+
     def test_merge_error_emits_error_summary(self) -> None:
         provider = _make_provider()
         provider.merge_pr.side_effect = RuntimeError("merge conflict")
@@ -1717,6 +1923,7 @@ class TestCountCommitsAboveMergeBase:
                 head_repo_full_name="owner/repo",
                 base_repo_full_name="owner/repo",
                 is_draft=True,
+                labels=["ai-auto-merge-allowed"],
             ),
             files=["src/main.py"],
         )
@@ -1738,6 +1945,7 @@ class TestCountCommitsAboveMergeBase:
                 head_repo_full_name="owner/repo",
                 base_repo_full_name="owner/repo",
                 is_draft=True,
+                labels=["ai-auto-merge-allowed"],
             ),
             files=["src/main.py"],
         )
@@ -1760,6 +1968,7 @@ class TestCountCommitsAboveMergeBase:
                 head_repo_full_name="owner/repo",
                 base_repo_full_name="owner/repo",
                 is_draft=True,
+                labels=["ai-auto-merge-allowed"],
             ),
             files=[],
         )

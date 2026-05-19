@@ -28,7 +28,7 @@ DOCKER_PATTERNS = (re.compile(r"^\.dockerignore$"), re.compile(r"^Dockerfile\..*
 
 # Labels that affect PR processing
 LABEL_SKIP_ENTIRELY = "ai-pr-loop-ignore"
-LABEL_NO_AUTO_MERGE = "do-not-auto-merge"
+LABEL_AUTO_MERGE_ALLOWED = "ai-auto-merge-allowed"
 
 # Deduplication marker format
 DEDUP_MARKER_PREFIX = "<!-- repair-dispatch:"
@@ -176,11 +176,12 @@ def check_exclusion_labels(labels: list[str]) -> tuple[bool, str | None]:
         Tuple of (should_skip, flag_name).
         - should_skip=True, flag_name=None: skip entirely (ai-pr-loop-ignore)
         - should_skip=False, flag_name="do_not_merge": process but don't merge
+          (ai-auto-merge-allowed label missing)
         - should_skip=False, flag_name=None: no exclusion
     """
     if LABEL_SKIP_ENTIRELY in labels:
         return (True, None)
-    if LABEL_NO_AUTO_MERGE in labels:
+    if LABEL_AUTO_MERGE_ALLOWED not in labels:
         return (False, "do_not_merge")
     return (False, None)
 
