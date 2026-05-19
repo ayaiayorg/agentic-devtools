@@ -8,7 +8,7 @@ from agentic_devtools.cli.ci.models import (
     PRMetadata,
     ReviewInfo,
 )
-from agentic_devtools.cli.ci.orchestrator import EXIT_SUCCESS, run_ai_pr_loop
+from agentic_devtools.cli.ci.orchestrator import EXIT_REPAIR_DISPATCHED, EXIT_SUCCESS, run_ai_pr_loop
 
 
 def _make_provider(
@@ -93,3 +93,33 @@ class TestActionableCheckNames:
 
         assert result == EXIT_SUCCESS
         provider.merge_pr.assert_not_called()
+
+    def test_codeql_failure_triggers_repair(self) -> None:
+        """A failing CodeQL check run should trigger repair dispatch."""
+        provider = _make_provider(
+            check_runs=[
+                CheckRunStatus(
+                    id=10,
+                    name="Code scanning results / CodeQL",
+                    status="completed",
+                    conclusion="failure",
+                    html_url="https://github.com/ayaiayorg/agentic-devtools/runs/123",
+                ),
+                CheckRunStatus(id=11, name="Tests ✅", status="completed", conclusion="success"),
+            ]
+        )
+        provider.dispatch_repair.return_value = 200
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
+
+        result = run_ai_pr_loop(provider, payload)
+
+        assert result == EXIT_REPAIR_DISPATCHED
+        provider.dispatch_repair.assert_called_once()
+        call_kwargs = provider.dispatch_repair.call_args[1]
+        failed_check_names = [cr.name for cr in call_kwargs["failed_checks"]]
+        assert "Code scanning results / CodeQL" in failed_check_names
+
+    def test_codeql_is_in_default_actionable_check_names(self) -> None:
+        from agentic_devtools.cli.ci.orchestrator import _DEFAULT_ACTIONABLE_CHECK_NAMES
+
+        assert "Code scanning results / CodeQL" in _DEFAULT_ACTIONABLE_CHECK_NAMES
