@@ -12,6 +12,7 @@ import logging
 import os
 import re
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Any
 
 from agentic_devtools.cli.ci.exceptions import MalformedEventError
@@ -850,6 +851,193 @@ class GitHubActionsProvider(CIPlatformProvider):
             logger.warning("Copilot SDK commit message generation could not start event loop: %s", exc)
             return None
 
+    def _resolve_conflicted_file_content_via_sdk(
+        self,
+        *,
+        file_path: str,
+        conflict_content: str,
+        base_branch: str,
+        head_branch: str,
+        timeout_seconds: int = 90,
+    ) -> str | None:
+        """Attempt to resolve a single conflicted file via Copilot SDK."""
+        token = os.environ.get("COPILOT_GITHUB_TOKEN", "").strip()
+        if not token:
+            return None
+
+        try:
+            from copilot import CopilotClient, SubprocessConfig
+            from copilot.session import PermissionHandler
+        except Exception as exc:  # pragma: no cover - optional dependency/runtime
+            logger.warning("Copilot SDK unavailable for conflict resolution: %s", exc)
+            return None
+
+        model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
+        prompt = (
+            "You are resolving a git rebase conflict.\n"
+            "Preserve valid changes from both sides where possible.\n"
+            "Output ONLY the final resolved file content with all conflict markers removed.\n"
+            "Do not wrap output in markdown fences.\n\n"
+            f"Base branch: {base_branch}\n"
+            f"Head branch: {head_branch}\n"
+            f"File path: {file_path}\n\n"
+            "Conflicted file content:\n"
+            f"{conflict_content}\n"
+        )
+
+        async def _run() -> str | None:
+            client = None
+            session = None
+            content_parts: list[str] = []
+            error_messages: list[str] = []
+            done = asyncio.Event()
+            try:
+                client = CopilotClient(SubprocessConfig(github_token=token))
+                await client.start()
+                try:
+                    session = await client.create_session(
+                        model=model,
+                        on_permission_request=PermissionHandler.approve_all,
+                        infinite_sessions={"enabled": False},
+                        github_token=token,
+                    )
+                except TypeError as exc:
+                    if "unexpected keyword argument" not in str(exc) or "github_token" not in str(exc):
+                        raise  # pragma: no cover - defensive re-raise for unrelated TypeErrors
+                    session = await client.create_session(
+                        model=model,
+                        on_permission_request=PermissionHandler.approve_all,
+                        infinite_sessions={"enabled": False},
+                    )
+
+                def on_event(event: Any) -> None:
+                    event_type = getattr(getattr(event, "type", None), "value", "")
+                    if event_type == "assistant.message":
+                        content_parts.append(getattr(getattr(event, "data", None), "content", ""))
+                    elif event_type == "session.idle":
+                        done.set()
+                    elif event_type in {"error", "session.error", "assistant.error"}:
+                        msg = getattr(getattr(event, "data", None), "message", None) or str(getattr(event, "data", ""))
+                        error_messages.append(f"{event_type}: {msg}")
+                        done.set()
+
+                session.on(on_event)
+                await session.send(prompt)
+                await done.wait()
+
+                if error_messages:
+                    logger.warning(
+                        "Copilot SDK returned errors while resolving %s: %s",
+                        file_path,
+                        "; ".join(error_messages),
+                    )
+                    return None
+
+                raw = content_parts[-1] if content_parts else ""
+                if raw == "":
+                    return None
+
+                if raw.startswith("```"):
+                    lines = raw.splitlines()
+                    if len(lines) >= 3 and lines[0].startswith("```") and lines[-1].strip() == "```":
+                        raw = "\n".join(lines[1:-1])
+                return raw
+            except Exception as exc:  # pragma: no cover - defensive runtime fallback
+                logger.warning("Copilot SDK conflict resolution failed for %s: %s", file_path, exc)
+                return None
+            finally:
+                if session is not None:
+                    try:
+                        await session.disconnect()
+                    except Exception:  # pragma: no cover - defensive cleanup
+                        pass
+                if client is not None:
+                    try:
+                        await client.stop()
+                    except Exception:  # pragma: no cover - defensive cleanup
+                        pass
+
+        try:
+            return asyncio.run(asyncio.wait_for(_run(), timeout=timeout_seconds))
+        except asyncio.TimeoutError:
+            logger.warning("Copilot SDK conflict resolution timed out for %s after %ss", file_path, timeout_seconds)
+            return None
+        except RuntimeError as exc:  # pragma: no cover - defensive runtime fallback
+            logger.warning("Copilot SDK conflict resolution could not start event loop for %s: %s", file_path, exc)
+            return None
+
+    def _resolve_rebase_conflicts_via_sdk(
+        self,
+        *,
+        base_branch: str,
+        head_branch: str,
+        max_rounds: int = 5,
+    ) -> bool:
+        """Best-effort auto-resolution of in-progress rebase conflicts via Copilot SDK."""
+
+        def _has_conflict_markers(content: str) -> bool:
+            return bool(re.search(r"(?m)^(<<<<<<<|=======|>>>>>>>)(?: .*)?$", content))
+
+        for round_index in range(max_rounds):
+            conflicted_raw = self._run_git(["diff", "--name-only", "--diff-filter=U"])
+            conflicted_files = [line.strip() for line in conflicted_raw.splitlines() if line.strip()]
+            if not conflicted_files:
+                logger.warning("No conflicted files found while attempting rebase conflict resolution.")
+                return False
+
+            logger.info(
+                "Attempting Copilot SDK conflict resolution for %d file(s) (round %d/%d).",
+                len(conflicted_files),
+                round_index + 1,
+                max_rounds,
+            )
+
+            for file_path in conflicted_files:
+                path = Path(file_path)
+                try:
+                    conflict_content = path.read_text(encoding="utf-8")
+                except Exception as exc:
+                    logger.warning("Failed to read conflicted file %s: %s", file_path, exc)
+                    return False
+
+                resolved_content = self._resolve_conflicted_file_content_via_sdk(
+                    file_path=file_path,
+                    conflict_content=conflict_content,
+                    base_branch=base_branch,
+                    head_branch=head_branch,
+                )
+                if resolved_content is None:
+                    logger.warning("Copilot SDK did not return a resolution for %s.", file_path)
+                    return False
+
+                if _has_conflict_markers(resolved_content):
+                    logger.warning(
+                        "Copilot SDK returned unresolved conflict markers for %s; refusing to stage.",
+                        file_path,
+                    )
+                    return False
+
+                path.write_text(resolved_content, encoding="utf-8")
+                self._run_git(["add", file_path])
+
+            try:
+                self._run_git(["rebase", "--continue"])
+                logger.info("Rebase conflict resolution completed successfully.")
+                return True
+            except RuntimeError as exc:
+                still_conflicted = self._run_git(["diff", "--name-only", "--diff-filter=U"]).strip()
+                if not still_conflicted:
+                    logger.warning("`git rebase --continue` failed without remaining conflicts: %s", exc)
+                    return False
+                logger.warning(
+                    "Rebase still has conflicts after SDK resolution round %d: %s",
+                    round_index + 1,
+                    exc,
+                )
+
+        logger.warning("Exceeded maximum conflict-resolution rounds (%d).", max_rounds)
+        return False
+
     def _squash_and_force_push(
         self,
         *,
@@ -874,6 +1062,30 @@ class GitHubActionsProvider(CIPlatformProvider):
             ) or self._build_squash_commit_message(head_sha, commit_subjects)
             self._run_git(["reset", "--soft", merge_base])
             self._run_git(["commit", "-m", commit_message])
+        rebase_target = f"origin/{base_branch}"
+        try:
+            logger.info("Rebasing squashed branch onto %s", rebase_target)
+            self._run_git(["rebase", rebase_target])
+            logger.info("Rebase onto %s completed successfully", rebase_target)
+        except RuntimeError as exc:
+            logger.warning("Rebase onto %s failed: %s", rebase_target, exc)
+            logger.info("Attempting conflict resolution via Copilot SDK while rebase is in progress")
+            try:
+                resolved = self._resolve_rebase_conflicts_via_sdk(
+                    base_branch=base_branch,
+                    head_branch=head_branch,
+                )
+            except RuntimeError as resolve_exc:
+                logger.warning("Conflict resolution helper raised: %s", resolve_exc)
+                resolved = False
+            if not resolved:
+                logger.warning(
+                    "Could not auto-resolve rebase conflicts. Aborting rebase and proceeding with squashed commit."
+                )
+                try:
+                    self._run_git(["rebase", "--abort"])
+                except RuntimeError as abort_exc:
+                    raise RuntimeError(f"`git rebase --abort` failed: {abort_exc}") from abort_exc
         self._run_git(["push", "--force-with-lease", "origin", f"HEAD:{head_branch}"])
 
     def squash_before_publish(
