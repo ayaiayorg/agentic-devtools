@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import uuid
 
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
 
@@ -31,7 +32,7 @@ LABEL_NO_AUTO_MERGE = "do-not-auto-merge"
 
 # Deduplication marker format
 DEDUP_MARKER_PREFIX = "<!-- repair-dispatch:"
-DEDUP_MARKER_PATTERN = re.compile(r"<!-- repair-dispatch:([a-f0-9]+):(\d+) -->")
+DEDUP_MARKER_PATTERN = re.compile(r"<!-- repair-dispatch:([a-f0-9]+):(\d+)(?::([A-Za-z0-9._-]+))? -->")
 
 # Default limits
 DEFAULT_MAX_DISPATCHES_PER_SHA = 3
@@ -39,6 +40,30 @@ DEFAULT_MAX_CYCLES = 50
 
 # Cycle tracker marker
 CYCLE_TRACKER_MARKER = "<!-- ai-pr-loop-cycle-tracker -->"
+
+_DEDUP_WRITER_TOKEN: str | None = None
+
+
+def get_dedup_writer_token() -> str:
+    """Return a per-process token stamped into dedup markers."""
+    global _DEDUP_WRITER_TOKEN
+    if _DEDUP_WRITER_TOKEN is not None:
+        return _DEDUP_WRITER_TOKEN
+
+    run_id = os.environ.get("GITHUB_RUN_ID", "").strip()
+    attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "").strip()
+    job = os.environ.get("GITHUB_JOB", "").strip().replace(" ", "-")
+    if run_id:
+        parts = [run_id]
+        if attempt:
+            parts.append(attempt)
+        if job:
+            parts.append(job)
+        _DEDUP_WRITER_TOKEN = ".".join(parts)
+    else:
+        _DEDUP_WRITER_TOKEN = f"local.{uuid.uuid4().hex[:12]}"
+
+    return _DEDUP_WRITER_TOKEN
 
 
 def check_privileged_paths(files: list[str]) -> bool:
@@ -103,7 +128,8 @@ def check_deduplication(
     """Check deduplication via marker comment on the PR.
 
     Reads/upserts a marker PR comment with format:
-    ``<!-- repair-dispatch:<sha>:<count> -->``
+    ``<!-- repair-dispatch:<sha>:<count>:<writer_token> -->``
+    (tokenless legacy markers are also accepted).
 
     Args:
         provider: CI platform provider for API calls.
@@ -115,6 +141,7 @@ def check_deduplication(
         Tuple of (should_skip, current_count). should_skip is True if
         the dispatch count has been exceeded.
     """
+    writer_token = get_dedup_writer_token()
     existing = provider.find_comment(pr_number, DEDUP_MARKER_PREFIX)
 
     if existing is not None:
@@ -123,7 +150,7 @@ def check_deduplication(
         if match and match.group(1) == head_sha:
             count = int(match.group(2)) + 1
             # Always persist the incremented count so the marker stays accurate
-            new_marker = f"<!-- repair-dispatch:{head_sha}:{count} -->"
+            new_marker = f"<!-- repair-dispatch:{head_sha}:{count}:{writer_token} -->"
             new_body = DEDUP_MARKER_PATTERN.sub(new_marker, comment_body)
             provider.update_comment(comment_id, new_body)
             if count > max_dispatches:
@@ -131,7 +158,7 @@ def check_deduplication(
             return (False, count)
 
     # New SHA or no existing marker — create/update with count 1
-    marker_body = f"<!-- repair-dispatch:{head_sha}:1 -->\nDispatch tracking for `{head_sha[:8]}`"
+    marker_body = f"<!-- repair-dispatch:{head_sha}:1:{writer_token} -->\nDispatch tracking for `{head_sha[:8]}`"
     if existing is not None:
         provider.update_comment(existing[0], marker_body)
     else:

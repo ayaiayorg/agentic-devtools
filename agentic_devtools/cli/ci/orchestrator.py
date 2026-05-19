@@ -20,6 +20,8 @@ import sys
 from typing import Any
 
 from agentic_devtools.cli.ci.guards import (
+    DEDUP_MARKER_PATTERN,
+    DEDUP_MARKER_PREFIX,
     LABEL_NO_AUTO_MERGE,
     LABEL_SKIP_ENTIRELY,
     PRIVILEGED_PREFIXES,
@@ -29,6 +31,7 @@ from agentic_devtools.cli.ci.guards import (
     check_exclusion_labels,
     check_fork_pr,
     check_privileged_paths,
+    get_dedup_writer_token,
     increment_cycle_count,
 )
 from agentic_devtools.cli.ci.models import (
@@ -96,6 +99,8 @@ EXIT_MALFORMED_EVENT = 2
 EXIT_MERGE_BLOCKED = 3
 EXIT_METADATA_FAILED = 4
 EXIT_REPAIR_DISPATCHED = 5
+
+_EFFECTIVE_REVIEW_STATES = {"APPROVED", "COMMENTED", "CHANGES_REQUESTED"}
 
 # Check run names the orchestrator waits for and evaluates for pass/fail.
 # Only checks representing actionable code failures (fixable by the AI agent)
@@ -175,6 +180,35 @@ def _apply_comment_triggered_post_repair_guards(
         return EXIT_GUARD_BLOCKED
 
     return None
+
+
+def _is_copilot_review_pending(requested_reviewers: list[str]) -> bool:
+    """Return True when Copilot is currently requested as a pending reviewer."""
+    copilot_logins = {login.casefold() for login in COPILOT_LOGINS}
+    return any(reviewer.casefold() in copilot_logins for reviewer in requested_reviewers)
+
+
+def _is_effective_review_state(state: str) -> bool:
+    """Return True when a review state counts as an effective review."""
+    return state in _EFFECTIVE_REVIEW_STATES
+
+
+def _latest_copilot_review_on_head(reviews: list[ReviewInfo], current_head_sha: str) -> ReviewInfo | None:
+    """Return the latest Copilot review targeting the current HEAD SHA.
+
+    Reviews with an empty ``commit_sha`` string are treated as applying to the
+    current head (GitHub can omit commit SHA for some review payloads), so they are
+    considered eligible when selecting the latest Copilot review.
+    """
+    latest_review: ReviewInfo | None = None
+    for review in reviews:
+        if review.user not in COPILOT_LOGINS:
+            continue
+        if review.commit_sha and review.commit_sha != current_head_sha:
+            continue
+        if latest_review is None or review.id > latest_review.id:
+            latest_review = review
+    return latest_review
 
 
 def _is_wip_title(title: str) -> bool:
@@ -590,6 +624,34 @@ def run_ai_pr_loop(
 
     # 3e: Deduplication — checked after CI pending short-circuit so that
     # re-triggers while CI is still running don't consume the dispatch budget.
+    # Also short-circuit CI-completion failures while a Copilot review is still
+    # pending and no effective Copilot review exists on HEAD, so this wait path
+    # does not consume the per-SHA dedup budget.
+    if _is_ci_completion_event(event_payload) and any_failed:
+        if _is_copilot_review_pending(pr_meta.requested_reviewers):
+            try:
+                pre_dedup_reviews = provider.list_reviews(pr_number)
+            except Exception as exc:
+                logger.error("Failed to list reviews for PR #%d: %s", pr_number, exc)
+                summary["decision"] = "error"
+                summary["reason"] = "reviews_listing_failed"
+                summary["error"] = str(exc)
+                summary["exit_code"] = EXIT_METADATA_FAILED
+                _emit_decision_summary(summary)
+                return EXIT_METADATA_FAILED
+            latest_copilot_review = _latest_copilot_review_on_head(pre_dedup_reviews, pr_meta.head_sha)
+            has_effective_copilot_review_on_head = (
+                latest_copilot_review is not None and _is_effective_review_state(latest_copilot_review.state)
+            )
+            if not has_effective_copilot_review_on_head:
+                logger.info("PR #%d has failed checks but Copilot review is still pending on HEAD — waiting", pr_number)
+                summary["repair"] = {"needed": False}
+                summary["decision"] = "wait"
+                summary["reason"] = "awaiting_copilot_review_before_ci_repair"
+                summary["exit_code"] = EXIT_SUCCESS
+                _emit_decision_summary(summary)
+                return EXIT_SUCCESS
+
     # Review submission events are external triggers (Copilot or human submitting
     # a review) and are not caused by the loop itself, so they always bypass
     # deduplication regardless of how many repair dispatches have already occurred.
@@ -598,10 +660,12 @@ def run_ai_pr_loop(
     dedup_skip = False
     dedup_count = 0
     dedup_bypassed = False
+    dedup_writer_token: str | None = None
     if _is_review_submission_event(event_payload):
         dedup_bypassed = True
         logger.info("PR #%d — review submission event; dedup check bypassed", pr_number)
     else:
+        dedup_writer_token = get_dedup_writer_token()
         try:
             dedup_skip, dedup_count = check_deduplication(provider, pr_number, dedup_sha)
         except Exception as exc:
@@ -774,9 +838,9 @@ def run_ai_pr_loop(
             logger.info("PR #%d has actionable CI failures on CI-completion trigger", pr_number)
             decision = _evaluate_repair_decision(
                 any_failed=True,
-                copilot_actionable_review=False,
-                copilot_review_id=0,
-                copilot_review_comments=[],
+                copilot_actionable_review=copilot_actionable_review,
+                copilot_review_id=copilot_review_id,
+                copilot_review_comments=copilot_review_comments,
                 failed_checks=failed_checks,
             )
             summary["repair"] = {
@@ -793,6 +857,8 @@ def run_ai_pr_loop(
                 head_sha=pr_meta.head_sha,
                 decision=decision,
                 failure_reason_out=ci_repair_failure_reason,
+                dedup_count_before_dispatch=(None if dedup_bypassed else dedup_count),
+                dedup_writer_token=dedup_writer_token,
             )
             if result == EXIT_REPAIR_DISPATCHED:
                 try:
@@ -962,6 +1028,8 @@ def run_ai_pr_loop(
             head_sha=pr_meta.head_sha,
             decision=decision,
             failure_reason_out=repair_failure_reason,
+            dedup_count_before_dispatch=(None if dedup_bypassed else dedup_count),
+            dedup_writer_token=dedup_writer_token,
         )
         if result == EXIT_REPAIR_DISPATCHED:
             try:
@@ -1082,8 +1150,7 @@ def run_ai_pr_loop(
     # Only APPROVED, COMMENTED, and CHANGES_REQUESTED count as effective
     # review states.  DISMISSED or PENDING reviews are treated as "no review"
     # so the loop requests a fresh one.
-    _EFFECTIVE_REVIEW_STATES = frozenset({"APPROVED", "COMMENTED", "CHANGES_REQUESTED"})
-    has_copilot_review = _copilot_review is not None and _copilot_review.state in _EFFECTIVE_REVIEW_STATES
+    has_copilot_review = _copilot_review is not None and _is_effective_review_state(_copilot_review.state)
     if not has_copilot_review:
         logger.info("PR #%d has no Copilot review yet — requesting review and waiting", pr_number)
         request_skip_reason = _request_copilot_review_if_needed(
@@ -1197,6 +1264,8 @@ def _dispatch_repair(
     head_sha: str,
     decision: RepairDecision,
     failure_reason_out: list[str] | None = None,
+    dedup_count_before_dispatch: int | None = None,
+    dedup_writer_token: str | None = None,
 ) -> int:
     """Dispatch repair by posting a @copilot comment on the PR.
 
@@ -1211,9 +1280,16 @@ def _dispatch_repair(
         decision: Repair decision with type and context.
         failure_reason_out: Optional list to receive a short diagnostic
             error message when dispatch fails.
+        dedup_count_before_dispatch: Optional dedup marker count observed
+            before dispatch decisioning; when provided, a fresh marker read
+            is performed immediately before dispatch and races are blocked.
+        dedup_writer_token: Optional token expected in the dedup marker for
+            this runner; when provided, a token mismatch also blocks dispatch.
 
     Returns:
-        EXIT_REPAIR_DISPATCHED on success, EXIT_MERGE_BLOCKED on failure.
+        EXIT_REPAIR_DISPATCHED on success, EXIT_MERGE_BLOCKED on dispatch
+        failure, or EXIT_GUARD_BLOCKED when a pre-dispatch dedup race is
+        detected.
     """
     # Collect rich review comment data when review repair is needed.
     # For COMMENTED reviews the comments were already fetched during detection
@@ -1230,6 +1306,35 @@ def _dispatch_repair(
                 review_comments = provider.list_review_comments(pr_number, decision.review_id)
             except Exception as exc:
                 logger.warning("Failed to fetch review comments for PR #%d: %s", pr_number, exc)
+
+    if dedup_count_before_dispatch is not None:
+        try:
+            refreshed_marker = provider.find_comment(pr_number, DEDUP_MARKER_PREFIX)
+            if refreshed_marker is not None:
+                _, marker_body = refreshed_marker
+                marker_match = DEDUP_MARKER_PATTERN.search(marker_body)
+                if marker_match and marker_match.group(1) == head_sha:
+                    refreshed_count = int(marker_match.group(2))
+                    refreshed_token = marker_match.group(3) or ""
+                    dedup_race_detected = refreshed_count > dedup_count_before_dispatch
+                    if dedup_writer_token and refreshed_token and refreshed_token != dedup_writer_token:
+                        dedup_race_detected = True
+                    if dedup_race_detected:
+                        logger.info(
+                            "PR #%d dedup marker changed before dispatch "
+                            "(before=%d, now=%d, expected_token=%s, refreshed_token=%s) "
+                            "— skipping duplicate",
+                            pr_number,
+                            dedup_count_before_dispatch,
+                            refreshed_count,
+                            dedup_writer_token or "",
+                            refreshed_token,
+                        )
+                        if failure_reason_out is not None:
+                            failure_reason_out.append("dedup_race_guard_blocked")
+                        return EXIT_GUARD_BLOCKED
+        except Exception as exc:
+            logger.warning("Failed to refresh dedup marker for PR #%d: %s", pr_number, exc)
 
     try:
         comment_id = provider.dispatch_repair(

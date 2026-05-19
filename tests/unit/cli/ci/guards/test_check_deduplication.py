@@ -86,4 +86,4 @@ class TestCheckDeduplication:
         check_deduplication(provider, 42, "abc123def")
 
         body = provider.post_comment.call_args[0][1]
-        assert "<!-- repair-dispatch:abc123def:1 -->" in body
+        assert body.startswith("<!-- repair-dispatch:abc123def:1:")

@@ -162,8 +162,8 @@ class TestRunAIPRLoop:
         assert result == EXIT_SUCCESS
         provider.merge_pr.assert_not_called()
 
-    def test_ci_completion_with_failed_checks_dispatches_ci_repair(self) -> None:
-        """CI-completion dispatches CI-only repair when actionable checks fail."""
+    def test_ci_completion_with_failed_checks_and_actionable_review_dispatches_both_repair(self) -> None:
+        """CI-completion dispatches combined repair when CI fails and Copilot is actionable."""
         provider = _make_provider(
             check_runs=[CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure")],
             reviews=[
@@ -176,6 +176,76 @@ class TestRunAIPRLoop:
         assert result == EXIT_REPAIR_DISPATCHED
         provider.dispatch_repair.assert_called_once()
         assert provider.post_comment.call_count == 2
+        dispatched = provider.dispatch_repair.call_args.kwargs
+        assert dispatched["repair_type"] == "both"
+
+    def test_ci_completion_failed_checks_waits_for_pending_copilot_review(self) -> None:
+        """CI-completion with failed checks waits while Copilot review is still pending."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                requested_reviewers=[COPILOT_REVIEWER_LOGIN],
+            ),
+            check_runs=[CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure")],
+            reviews=[ReviewInfo(id=10, user="human-reviewer", state="APPROVED", body="looks good")],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        summary = _capture_summary(provider, payload)
+        assert summary["decision"] == "wait"
+        assert summary["reason"] == "awaiting_copilot_review_before_ci_repair"
+        assert summary["exit_code"] == EXIT_SUCCESS
+        provider.dispatch_repair.assert_not_called()
+        provider.find_comment.assert_not_called()
+
+    def test_ci_completion_failed_checks_with_dismissed_copilot_review_still_waits(self) -> None:
+        """Dismissed Copilot review does not count as effective HEAD review for CI-completion."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                requested_reviewers=[COPILOT_REVIEWER_LOGIN],
+            ),
+            check_runs=[CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure")],
+            reviews=[
+                ReviewInfo(
+                    id=12,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="DISMISSED",
+                    body="dismissed",
+                )
+            ],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        summary = _capture_summary(provider, payload)
+        assert summary["decision"] == "wait"
+        assert summary["reason"] == "awaiting_copilot_review_before_ci_repair"
+        assert summary["exit_code"] == EXIT_SUCCESS
+        provider.dispatch_repair.assert_not_called()
+        provider.find_comment.assert_not_called()
+
+    def test_ci_completion_failed_checks_and_non_actionable_copilot_dispatches_ci_repair(self) -> None:
+        """CI-completion dispatches CI-only repair when Copilot already reviewed non-actionably."""
+        provider = _make_provider(
+            check_runs=[CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure")],
+            reviews=[ReviewInfo(id=11, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")],
+        )
+        provider.list_review_comments.return_value = []
+        provider.dispatch_repair.return_value = 200
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_REPAIR_DISPATCHED
+        provider.dispatch_repair.assert_called_once()
         dispatched = provider.dispatch_repair.call_args.kwargs
         assert dispatched["repair_type"] == "ci"
 
@@ -214,6 +284,23 @@ class TestRunAIPRLoop:
         payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_GUARD_BLOCKED
+
+    def test_ci_completion_dedup_race_recheck_blocks_duplicate_dispatch(self) -> None:
+        """A dedup marker increase before dispatch blocks duplicate repair comments."""
+        provider = _make_provider(
+            check_runs=[CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure")],
+            reviews=[ReviewInfo(id=11, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")],
+        )
+        provider.list_review_comments.return_value = []
+        provider.find_comment.side_effect = [
+            None,  # Initial dedup check creates marker count=1
+            None,  # Cycle guard (no tracker yet)
+            (101, "<!-- repair-dispatch:abc123:2 -->\nDispatch tracking"),  # Race re-check before dispatch
+        ]
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_GUARD_BLOCKED
+        provider.dispatch_repair.assert_not_called()
 
     def test_cycle_limit_blocks(self) -> None:
         """When cycle limit is reached, guard blocks."""

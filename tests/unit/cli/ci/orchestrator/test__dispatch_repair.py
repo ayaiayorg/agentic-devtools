@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 from agentic_devtools.cli.ci.models import CheckRunStatus, RepairDecision, ReviewCommentInfo
 from agentic_devtools.cli.ci.orchestrator import (
+    EXIT_GUARD_BLOCKED,
     EXIT_MERGE_BLOCKED,
     EXIT_REPAIR_DISPATCHED,
     _dispatch_repair,
@@ -170,3 +171,46 @@ class TestDispatchRepair:
             review_comments=[],
             review_id=100,
         )
+
+    def test_dedup_recheck_blocks_dispatch_when_marker_advanced(self) -> None:
+        """A dedup count increase before dispatch blocks duplicate repair comments."""
+        provider = MagicMock()
+        provider.find_comment.return_value = (100, "<!-- repair-dispatch:abc123:2 -->\nDispatch tracking")
+
+        decision = RepairDecision(
+            repair_needed=True,
+            repair_type="ci",
+            review_id=0,
+            failed_checks=(),
+        )
+        result = _dispatch_repair(
+            provider=provider,
+            pr_number=42,
+            head_sha="abc123",
+            decision=decision,
+            dedup_count_before_dispatch=1,
+        )
+        assert result == EXIT_GUARD_BLOCKED
+        provider.dispatch_repair.assert_not_called()
+
+    def test_dedup_recheck_blocks_dispatch_when_marker_token_changes(self) -> None:
+        """A marker token mismatch blocks duplicate dispatch even if count is unchanged."""
+        provider = MagicMock()
+        provider.find_comment.return_value = (100, "<!-- repair-dispatch:abc123:1:other-run -->\nDispatch tracking")
+
+        decision = RepairDecision(
+            repair_needed=True,
+            repair_type="ci",
+            review_id=0,
+            failed_checks=(),
+        )
+        result = _dispatch_repair(
+            provider=provider,
+            pr_number=42,
+            head_sha="abc123",
+            decision=decision,
+            dedup_count_before_dispatch=1,
+            dedup_writer_token="this-run",
+        )
+        assert result == EXIT_GUARD_BLOCKED
+        provider.dispatch_repair.assert_not_called()
