@@ -2,6 +2,7 @@
 
 import json
 from io import StringIO
+from typing import cast
 from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.ci.models import (
@@ -17,8 +18,10 @@ from agentic_devtools.cli.ci.orchestrator import (
     EXIT_METADATA_FAILED,
     EXIT_REPAIR_DISPATCHED,
     EXIT_SUCCESS,
+    _count_commits_above_merge_base,
     run_ai_pr_loop,
 )
+from agentic_devtools.cli.ci.provider import CIPlatformProvider
 
 
 def _make_provider(
@@ -54,6 +57,7 @@ def _make_provider(
     provider.find_comment.return_value = None
     provider.post_comment.return_value = 100
     provider.merge_pr.return_value = None
+    provider.count_commits_above_merge_base.return_value = 1
     return provider
 
 
@@ -355,7 +359,7 @@ class TestRunAIPRLoop:
         assert result == EXIT_MERGE_BLOCKED
 
     def test_ci_completion_prior_commit_changes_requested_triggers_finalization(self) -> None:
-        """CI completion + CHANGES_REQUESTED on prior commit → post_repair_finalized."""
+        """CI completion + CHANGES_REQUESTED on prior commit → post_repair_soft_finalized."""
         provider = _make_provider(
             reviews=[
                 ReviewInfo(
@@ -380,7 +384,7 @@ class TestRunAIPRLoop:
         provider.dispatch_repair.assert_not_called()
 
     def test_ci_completion_prior_commit_commented_with_inline_comments_triggers_finalization(self) -> None:
-        """CI completion + COMMENTED with inline comments on prior commit → post_repair_finalized."""
+        """CI completion + COMMENTED with inline comments on prior commit → post_repair_soft_finalized."""
         provider = _make_provider(
             reviews=[
                 ReviewInfo(
@@ -404,6 +408,269 @@ class TestRunAIPRLoop:
             review_id=7,
         )
         provider.dispatch_repair.assert_not_called()
+
+    def test_comment_event_squashes_when_post_repair_is_pending(self) -> None:
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=9,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="fix this",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        provider.count_commits_above_merge_base.return_value = 2
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+
+        result = run_ai_pr_loop(provider, payload)
+
+        assert result == EXIT_SUCCESS
+        provider.squash_post_repair.assert_called_once_with(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="abc123",
+        )
+        provider.finalize_post_repair.assert_not_called()
+
+    def test_comment_event_skips_when_branch_is_already_squashed(self) -> None:
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=9,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="fix this",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        provider.count_commits_above_merge_base.return_value = 1
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+
+        result = run_ai_pr_loop(provider, payload)
+
+        assert result == EXIT_SUCCESS
+        provider.squash_post_repair.assert_not_called()
+        provider.finalize_post_repair.assert_not_called()
+
+    def test_comment_event_skips_when_no_prior_actionable_review(self) -> None:
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=9,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="APPROVED",
+                    body="lgtm",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+
+        result = run_ai_pr_loop(provider, payload)
+
+        assert result == EXIT_SUCCESS
+        provider.count_commits_above_merge_base.assert_not_called()
+        provider.squash_post_repair.assert_not_called()
+
+    def test_comment_event_skips_for_non_copilot_sender(self) -> None:
+        provider = _make_provider()
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="human-reviewer",
+        )
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.list_reviews.assert_not_called()
+
+    def test_comment_event_skips_for_missing_sender(self) -> None:
+        provider = _make_provider()
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="comment_created", sender_login="")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.list_reviews.assert_not_called()
+
+    def test_comment_event_fork_pr_is_blocked_before_squash(self) -> None:
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="t",
+                head_branch="b",
+                head_sha="s",
+                base_branch="main",
+                head_repo_full_name="fork/repo",
+                base_repo_full_name="owner/repo",
+            ),
+            reviews=[
+                ReviewInfo(
+                    id=9,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="fix this",
+                    commit_sha="oldsha",
+                )
+            ],
+        )
+        payload = EventPayload(pr_number=42, head_sha="s", action="comment_created", sender_login="copilot[bot]")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_GUARD_BLOCKED
+        provider.list_reviews.assert_not_called()
+        provider.squash_post_repair.assert_not_called()
+
+    def test_comment_event_do_not_merge_label_is_blocked_before_squash(self) -> None:
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="t",
+                head_branch="b",
+                head_sha="s",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                labels=["do-not-auto-merge"],
+            ),
+            reviews=[
+                ReviewInfo(
+                    id=9,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="fix this",
+                    commit_sha="oldsha",
+                )
+            ],
+        )
+        payload = EventPayload(pr_number=42, head_sha="s", action="comment_created", sender_login="copilot[bot]")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_GUARD_BLOCKED
+        provider.list_reviews.assert_not_called()
+        provider.squash_post_repair.assert_not_called()
+        summary = _capture_summary(provider, payload)
+        assert summary["guards"]["label"] == "do-not-auto-merge"
+
+    def test_comment_event_list_reviews_failure_returns_metadata_error(self) -> None:
+        provider = _make_provider()
+        provider.list_reviews.side_effect = RuntimeError("reviews api unavailable")
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_METADATA_FAILED
+
+    def test_comment_event_prior_commented_list_review_comments_failure_is_fail_closed(self) -> None:
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=9,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="COMMENTED",
+                    body="",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        provider.list_review_comments.side_effect = RuntimeError("api failure")
+        provider.count_commits_above_merge_base.return_value = 2
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.squash_post_repair.assert_called_once()
+
+    def test_comment_event_prior_commented_with_inline_comments_triggers_squash(self) -> None:
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=9,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="COMMENTED",
+                    body="",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        provider.list_review_comments.return_value = ["suggestion: use const"]
+        provider.count_commits_above_merge_base.return_value = 2
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        provider.squash_post_repair.assert_called_once()
+
+    def test_comment_event_commit_count_failure_returns_metadata_error(self) -> None:
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=9,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="fix this",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        provider.count_commits_above_merge_base.side_effect = RuntimeError("git failure")
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_METADATA_FAILED
+
+    def test_comment_event_squash_failure_returns_merge_blocked(self) -> None:
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=9,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="fix this",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        provider.count_commits_above_merge_base.return_value = 2
+        provider.squash_post_repair.side_effect = RuntimeError("squash failed")
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_MERGE_BLOCKED
 
     def test_ci_completion_prior_commit_commented_with_zero_inline_comments_waits(self) -> None:
         """CI completion + COMMENTED with 0 inline comments on prior commit → requests review."""
@@ -1079,16 +1346,92 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["exit_code"] == EXIT_REPAIR_DISPATCHED
         assert "repair_cycle" not in summary
 
-    def test_post_repair_finalized_emits_summary(self) -> None:
+    def test_post_repair_soft_finalized_emits_summary(self) -> None:
         provider = _make_provider(
             reviews=[ReviewInfo(id=8, user="copilot-pull-request-reviewer[bot]", state="CHANGES_REQUESTED", body="fix")]
         )
         payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
         summary = _capture_summary(provider, payload)
 
-        assert summary["decision"] == "post_repair_finalized"
+        assert summary["decision"] == "post_repair_soft_finalized"
         assert summary["exit_code"] == EXIT_SUCCESS
         assert summary["post_repair"]["finalized"] is True
+
+    def test_comment_event_post_repair_squash_completed_emits_summary(self) -> None:
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=8,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="fix",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        provider.count_commits_above_merge_base.return_value = 3
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "post_repair_squash_completed"
+        assert summary["exit_code"] == EXIT_SUCCESS
+        assert summary["post_repair"]["squashed"] is True
+
+    def test_comment_event_post_repair_squash_not_needed_emits_summary(self) -> None:
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=8,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="fix",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        provider.count_commits_above_merge_base.return_value = 1
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "post_repair_squash_not_needed"
+        assert summary["reason"] == "already_squashed_or_single_commit"
+        assert summary["exit_code"] == EXIT_SUCCESS
+
+
+class TestCountCommitsAboveMergeBase:
+    def test_returns_one_when_provider_has_no_commit_counter(self) -> None:
+        provider = cast(CIPlatformProvider, object())
+
+        count = _count_commits_above_merge_base(
+            provider,
+            base_branch="main",
+            head_sha="abc123",
+        )
+        assert count == 1
+
+    def test_delegates_to_provider_commit_counter(self) -> None:
+        class _CounterProvider:
+            def count_commits_above_merge_base(self, *, base_branch: str, head_sha: str) -> int:
+                assert base_branch == "main"
+                assert head_sha == "abc123"
+                return 5
+
+        count = _count_commits_above_merge_base(
+            cast(CIPlatformProvider, _CounterProvider()),
+            base_branch="main",
+            head_sha="abc123",
+        )
+        assert count == 5
 
     def test_ci_completion_repair_summary_survives_cycle_increment_failure(self) -> None:
         """CI-completion repair dispatch still succeeds when cycle tracking update fails."""

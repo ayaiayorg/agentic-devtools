@@ -111,6 +111,8 @@ class ReviewInfo:
 # Copilot login names used in review detection (provider-agnostic)
 COPILOT_REVIEWER_LOGIN = "copilot-pull-request-reviewer[bot]"
 COPILOT_LOGINS = frozenset({"Copilot", COPILOT_REVIEWER_LOGIN})
+# All Copilot identities that may leave comments (superset of COPILOT_LOGINS)
+COPILOT_COMMENT_LOGINS = frozenset({"copilot[bot]", "Copilot", COPILOT_REVIEWER_LOGIN})
 
 
 @dataclass(frozen=True)

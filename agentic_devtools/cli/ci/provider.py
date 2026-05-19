@@ -238,6 +238,22 @@ class CIPlatformProvider(ABC):
         """Finalize a Copilot-repaired PR cycle after a synchronize commit.
 
         Performs provider-specific post-repair actions such as replying to
-        review comments, resolving review threads, squashing branch commits,
-        force-pushing the squashed commit, and re-requesting Copilot review.
+        review comments and resolving review threads. Squash + re-request
+        are handled separately via ``squash_post_repair()``.
+        """
+
+    @abstractmethod
+    def squash_post_repair(
+        self,
+        *,
+        pr_number: int,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+    ) -> None:
+        """Squash post-repair commits and re-request review.
+
+        Called after the Copilot coding agent session has completed
+        (signaled by a comment event) to avoid race conditions with
+        the agent's force-push.
         """

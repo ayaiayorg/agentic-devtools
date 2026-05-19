@@ -76,6 +76,16 @@ class _ConcreteProvider(CIPlatformProvider):
     ) -> None:
         pass
 
+    def squash_post_repair(
+        self,
+        *,
+        pr_number: int,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+    ) -> None:
+        pass
+
     def publish_pr(self, pr_number: int) -> None:
         pass
 
@@ -192,6 +202,7 @@ class TestCIPlatformProvider:
             "dispatch_repair",
             "list_review_comments",
             "finalize_post_repair",
+            "squash_post_repair",
         }
         actual_abstracts = CIPlatformProvider.__abstractmethods__
         assert actual_abstracts == expected_methods

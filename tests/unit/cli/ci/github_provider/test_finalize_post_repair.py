@@ -13,59 +13,20 @@ from agentic_devtools.cli.ci.models import PRMetadata
 class TestFinalizePostRepair:
     """Tests for post-repair finalization orchestration."""
 
-    @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
-    @patch.object(GitHubActionsProvider, "publish_pr")
-    @patch.object(GitHubActionsProvider, "get_pr_metadata")
-    @patch.object(GitHubActionsProvider, "_squash_and_force_push")
     @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
     @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "_list_review_comment_ids")
-    def test_finalize_replies_resolves_squashes_and_rerequests(
+    def test_finalize_replies_and_resolves_only(
         self,
         mock_list_ids,
         mock_addressed_parent_ids,
         mock_reply,
         mock_resolve,
-        mock_squash,
-        mock_get_meta,
-        mock_publish,
-        mock_request_copilot,
     ) -> None:
-        execution_order: list[str] = []
+        mock_list_ids.return_value = [101, 202]
         mock_addressed_parent_ids.return_value = set()
-        mock_request_copilot.return_value = {"requested": True, "verified": True}
-
-        def list_comments_side_effect(*args, **kwargs):
-            execution_order.append("list_comments")
-            return [101, 202]
-
-        def reply_side_effect(*args, **kwargs):
-            execution_order.append("reply")
-            return None
-
-        def resolve_side_effect(*args, **kwargs):
-            execution_order.append("resolve")
-            return {"threadsResolved": 2, "verified": True}
-
-        def squash_side_effect(*args, **kwargs):
-            execution_order.append("squash")
-            if kwargs.get("reset_to_remote"):
-                return "newsha22222222"
-            return "newsha11111111"
-
-        mock_list_ids.side_effect = list_comments_side_effect
-        mock_reply.side_effect = reply_side_effect
-        mock_resolve.side_effect = resolve_side_effect
-        mock_squash.side_effect = squash_side_effect
-        mock_get_meta.return_value = PRMetadata(
-            number=42,
-            title="feat: test",
-            head_branch="feature/test",
-            head_sha="abc123def456",
-            base_branch="main",
-            is_draft=False,
-        )
+        mock_resolve.return_value = {"threadsResolved": 2, "verified": True}
         provider = GitHubActionsProvider(repo="owner/repo")
 
         provider.finalize_post_repair(
@@ -79,76 +40,10 @@ class TestFinalizePostRepair:
         mock_list_ids.assert_called_once_with(42, 7)
         mock_addressed_parent_ids.assert_called_once_with(42)
         assert mock_reply.call_count == 2
-        mock_reply.assert_any_call(42, 101, "newsha22222222")
-        mock_reply.assert_any_call(42, 202, "newsha22222222")
+        mock_reply.assert_any_call(42, 101)
+        mock_reply.assert_any_call(42, 202)
         mock_resolve.assert_called_once_with(42, "owner/repo", review_id=7)
-        assert mock_squash.call_count == 2
-        mock_squash.assert_has_calls(
-            [
-                call(base_branch="main", head_branch="feature/test", head_sha="abc123def456"),
-                call(
-                    base_branch="main",
-                    head_branch="feature/test",
-                    head_sha="abc123def456",
-                    reset_to_remote=True,
-                ),
-            ]
-        )
-        assert execution_order[:2] == ["squash", "squash"]
-        last_squash_index = max(i for i, step in enumerate(execution_order) if step == "squash")
-        first_reply_index = execution_order.index("reply")
-        list_comments_index = execution_order.index("list_comments")
-        resolve_index = execution_order.index("resolve")
-        assert list_comments_index > last_squash_index
-        assert first_reply_index > last_squash_index
-        assert resolve_index > first_reply_index
-        mock_publish.assert_not_called()
-        mock_request_copilot.assert_called_once_with(42, "owner/repo")
 
-    @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
-    @patch.object(GitHubActionsProvider, "publish_pr")
-    @patch.object(GitHubActionsProvider, "get_pr_metadata")
-    @patch.object(GitHubActionsProvider, "_squash_and_force_push")
-    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
-    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
-    @patch.object(GitHubActionsProvider, "_list_review_comment_ids")
-    def test_finalize_post_repair_publishes_when_still_draft(
-        self,
-        mock_list_ids,
-        mock_reply,
-        mock_resolve,
-        mock_squash,
-        mock_get_meta,
-        mock_publish,
-        mock_request_copilot,
-    ) -> None:
-        mock_list_ids.return_value = []
-        mock_resolve.return_value = {"threadsResolved": 0, "verified": True}
-        mock_request_copilot.return_value = {"requested": True, "verified": True}
-        mock_get_meta.return_value = PRMetadata(
-            number=42,
-            title="feat: test",
-            head_branch="feature/test",
-            head_sha="abc123def456",
-            base_branch="main",
-            is_draft=True,
-        )
-        provider = GitHubActionsProvider(repo="owner/repo")
-
-        provider.finalize_post_repair(
-            pr_number=42,
-            base_branch="main",
-            head_branch="feature/test",
-            head_sha="abc123def456",
-            review_id=7,
-        )
-
-        mock_publish.assert_called_once_with(42)
-        mock_request_copilot.assert_called_once_with(42, "owner/repo")
-
-    @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
-    @patch.object(GitHubActionsProvider, "get_pr_metadata")
-    @patch.object(GitHubActionsProvider, "_squash_and_force_push")
     @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
     @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
@@ -159,21 +54,9 @@ class TestFinalizePostRepair:
         mock_addressed_parent_ids,
         mock_reply,
         mock_resolve,
-        mock_squash,
-        mock_get_meta,
-        mock_request_copilot,
     ) -> None:
-        mock_squash.side_effect = ["newsha11111111", "newsha22222222"]
         mock_list_ids.return_value = [101]
         mock_addressed_parent_ids.return_value = {101}
-        mock_get_meta.return_value = PRMetadata(
-            number=42,
-            title="feat: test",
-            head_branch="feature/test",
-            head_sha="abc123def456",
-            base_branch="main",
-            is_draft=False,
-        )
         provider = GitHubActionsProvider(repo="owner/repo")
 
         provider.finalize_post_repair(
@@ -186,23 +69,7 @@ class TestFinalizePostRepair:
 
         mock_reply.assert_not_called()
         mock_resolve.assert_called_once_with(42, "owner/repo", review_id=7)
-        assert mock_squash.call_count == 2
-        mock_squash.assert_has_calls(
-            [
-                call(base_branch="main", head_branch="feature/test", head_sha="abc123def456"),
-                call(
-                    base_branch="main",
-                    head_branch="feature/test",
-                    head_sha="abc123def456",
-                    reset_to_remote=True,
-                ),
-            ]
-        )
-        mock_request_copilot.assert_called_once_with(42, "owner/repo")
 
-    @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
-    @patch.object(GitHubActionsProvider, "get_pr_metadata")
-    @patch.object(GitHubActionsProvider, "_squash_and_force_push")
     @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
     @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
@@ -213,21 +80,9 @@ class TestFinalizePostRepair:
         mock_addressed_parent_ids,
         mock_reply,
         mock_resolve,
-        mock_squash,
-        mock_get_meta,
-        mock_request_copilot,
     ) -> None:
-        mock_squash.side_effect = ["newsha11111111", "newsha22222222"]
         mock_list_ids.return_value = [101, 202, 303]
         mock_addressed_parent_ids.return_value = {202}
-        mock_get_meta.return_value = PRMetadata(
-            number=42,
-            title="feat: test",
-            head_branch="feature/test",
-            head_sha="abc123def456",
-            base_branch="main",
-            is_draft=False,
-        )
         provider = GitHubActionsProvider(repo="owner/repo")
 
         provider.finalize_post_repair(
@@ -239,22 +94,9 @@ class TestFinalizePostRepair:
         )
 
         assert mock_reply.call_count == 2
-        mock_reply.assert_any_call(42, 101, "newsha22222222")
-        mock_reply.assert_any_call(42, 303, "newsha22222222")
+        mock_reply.assert_any_call(42, 101)
+        mock_reply.assert_any_call(42, 303)
         mock_resolve.assert_called_once_with(42, "owner/repo", review_id=7)
-        assert mock_squash.call_count == 2
-        mock_squash.assert_has_calls(
-            [
-                call(base_branch="main", head_branch="feature/test", head_sha="abc123def456"),
-                call(
-                    base_branch="main",
-                    head_branch="feature/test",
-                    head_sha="abc123def456",
-                    reset_to_remote=True,
-                ),
-            ]
-        )
-        mock_request_copilot.assert_called_once_with(42, "owner/repo")
 
     @patch("agentic_devtools.cli.ci.github_provider._gh_api")
     def test_dispatch_repair_uses_token_and_returns_comment_id(self, mock_gh_api) -> None:
@@ -314,6 +156,21 @@ class TestFinalizePostRepair:
         with pytest.raises(RuntimeError):
             provider._run_git(["status"])
 
+    @patch.object(GitHubActionsProvider, "_run_git")
+    def test_count_commits_above_merge_base(self, mock_run_git) -> None:
+        mock_run_git.side_effect = ["", "", "base123\n", "2\n"]
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.count_commits_above_merge_base(base_branch="main", head_sha="abc123def456")
+        assert result == 2
+        mock_run_git.assert_has_calls(
+            [
+                call(["fetch", "origin", "main"]),
+                call(["fetch", "origin", "abc123def456"]),
+                call(["merge-base", "abc123def456", "origin/main"]),
+                call(["rev-list", "--count", "base123..abc123def456"]),
+            ]
+        )
+
     @patch("agentic_devtools.cli.ci.github_provider._parse_paginated_json")
     @patch("agentic_devtools.cli.ci.github_provider._gh_api")
     def test_list_review_comment_ids(self, mock_gh_api, mock_parse) -> None:
@@ -325,11 +182,8 @@ class TestFinalizePostRepair:
     @patch("agentic_devtools.cli.ci.github_provider._gh_api")
     def test_reply_to_review_comment(self, mock_gh_api) -> None:
         provider = GitHubActionsProvider(repo="owner/repo")
-        provider._reply_to_review_comment(42, 99, "abcdef123456")
-        assert (
-            "Addressed by fix commit [`abcdef12`](https://github.com/owner/repo/commit/abcdef123456)."
-            in str(mock_gh_api.call_args[1]["body"])
-        )
+        provider._reply_to_review_comment(42, 99)
+        assert "Addressed on the updated PR branch." in str(mock_gh_api.call_args[1]["body"])
 
     def test_build_squash_commit_message_variants(self) -> None:
         provider = GitHubActionsProvider(repo="owner/repo")
@@ -340,23 +194,18 @@ class TestFinalizePostRepair:
 
     @patch.object(GitHubActionsProvider, "_run_git")
     def test_squash_and_force_push_when_multiple_commits(self, mock_run_git) -> None:
-        mock_run_git.side_effect = ["", "", "base123\n", "2\n", "first\nsecond\n", "", "", "", "", "newsha\n"]
+        mock_run_git.side_effect = ["", "", "base123\n", "2\n", "first\nsecond\n", "", "", "", ""]
         provider = GitHubActionsProvider(repo="owner/repo")
-        new_sha = provider._squash_and_force_push(
-            base_branch="main",
-            head_branch="feature/test",
-            head_sha="abc123def456",
-        )
+        provider._squash_and_force_push(base_branch="main", head_branch="feature/test", head_sha="abc123def456")
         mock_run_git.assert_any_call(["reset", "--soft", "base123"])
         mock_run_git.assert_any_call(["rebase", "origin/main"])
         mock_run_git.assert_any_call(["push", "--force-with-lease", "origin", "HEAD:feature/test"])
-        assert new_sha == "newsha"
 
     @patch.object(GitHubActionsProvider, "_generate_commit_message_via_sdk")
     @patch.object(GitHubActionsProvider, "_run_git")
     def test_squash_and_force_push_uses_sdk_commit_message(self, mock_run_git, mock_sdk_message) -> None:
         mock_sdk_message.return_value = "feat: generated by sdk"
-        mock_run_git.side_effect = ["", "", "base123\n", "2\n", "first\nsecond\n", "", "", "", "", "newsha\n"]
+        mock_run_git.side_effect = ["", "", "base123\n", "2\n", "first\nsecond\n", "", "", "", ""]
         provider = GitHubActionsProvider(repo="owner/repo")
         provider._squash_and_force_push(base_branch="main", head_branch="feature/test", head_sha="abc123def456")
         mock_sdk_message.assert_called_once_with(
@@ -373,7 +222,7 @@ class TestFinalizePostRepair:
         mock_sdk_message,
     ) -> None:
         mock_sdk_message.return_value = None
-        mock_run_git.side_effect = ["", "", "base123\n", "2\n", "first\nsecond\n", "", "", "", "", "newsha\n"]
+        mock_run_git.side_effect = ["", "", "base123\n", "2\n", "first\nsecond\n", "", "", "", ""]
         provider = GitHubActionsProvider(repo="owner/repo")
         provider._squash_and_force_push(base_branch="main", head_branch="feature/test", head_sha="abc123def456")
         expected_message = provider._build_squash_commit_message("abc123def456", ["first", "second"])
@@ -381,39 +230,25 @@ class TestFinalizePostRepair:
 
     @patch.object(GitHubActionsProvider, "_run_git")
     def test_squash_and_force_push_single_commit(self, mock_run_git) -> None:
-        mock_run_git.side_effect = ["", "", "base123\n", "1\n", "", "", "newsha\n"]
+        mock_run_git.side_effect = ["", "", "base123\n", "1\n", "", ""]
         provider = GitHubActionsProvider(repo="owner/repo")
-        new_sha = provider._squash_and_force_push(
-            base_branch="main",
-            head_branch="feature/test",
-            head_sha="abc123def456",
-        )
+        provider._squash_and_force_push(base_branch="main", head_branch="feature/test", head_sha="abc123def456")
         called_git_args = [call.args[0] for call in mock_run_git.call_args_list]
         assert not any(args and args[0] == "commit" for args in called_git_args)
         mock_run_git.assert_any_call(["rebase", "origin/main"])
-        assert new_sha == "newsha"
 
-    @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
+    @patch.object(GitHubActionsProvider, "_squash_and_force_push")
     @patch.object(GitHubActionsProvider, "publish_pr")
     @patch.object(GitHubActionsProvider, "get_pr_metadata")
-    @patch.object(GitHubActionsProvider, "_squash_and_force_push")
-    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
-    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
-    @patch.object(GitHubActionsProvider, "_list_review_comment_ids")
-    def test_finalize_squashes_twice_to_handle_race_condition(
+    @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
+    def test_squash_post_repair_squashes_twice_to_handle_race_condition(
         self,
-        mock_list_ids,
-        mock_reply,
-        mock_resolve,
-        mock_squash,
+        mock_request_copilot,
         mock_get_meta,
         mock_publish,
-        mock_request_copilot,
+        mock_squash,
     ) -> None:
-        """finalize_post_repair calls _squash_and_force_push twice to catch post-squash commits."""
-        mock_squash.side_effect = ["newsha11111111", "newsha22222222"]
-        mock_list_ids.return_value = []
-        mock_resolve.return_value = {"threadsResolved": 0, "verified": True}
+        """Comment-triggered squash runs twice to catch agent commits pushed during finalization."""
         mock_request_copilot.return_value = {"requested": True, "verified": True}
         mock_get_meta.return_value = PRMetadata(
             number=42,
@@ -425,12 +260,8 @@ class TestFinalizePostRepair:
         )
         provider = GitHubActionsProvider(repo="owner/repo")
 
-        provider.finalize_post_repair(
-            pr_number=42,
-            base_branch="main",
-            head_branch="feature/test",
-            head_sha="abc123def456",
-            review_id=7,
+        provider.squash_post_repair(
+            pr_number=42, base_branch="main", head_branch="feature/test", head_sha="abc123def456"
         )
 
         assert mock_squash.call_count == 2
@@ -446,19 +277,52 @@ class TestFinalizePostRepair:
             ]
         )
         mock_publish.assert_not_called()
+        mock_request_copilot.assert_called_once_with(42, "owner/repo")
+
+    @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
+    @patch.object(GitHubActionsProvider, "publish_pr")
+    @patch.object(GitHubActionsProvider, "get_pr_metadata")
+    @patch.object(GitHubActionsProvider, "_squash_and_force_push")
+    def test_squash_post_repair_publishes_when_still_draft(
+        self,
+        mock_squash,
+        mock_get_meta,
+        mock_publish,
+        mock_request_copilot,
+    ) -> None:
+        mock_request_copilot.return_value = {"requested": True, "verified": True}
+        mock_get_meta.return_value = PRMetadata(
+            number=42,
+            title="feat: test",
+            head_branch="feature/test",
+            head_sha="abc123def456",
+            base_branch="main",
+            is_draft=True,
+        )
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        provider.squash_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="abc123def456",
+        )
+
+        assert mock_squash.call_count == 2
+        mock_publish.assert_called_once_with(42)
+        mock_request_copilot.assert_called_once_with(42, "owner/repo")
 
     @patch.object(GitHubActionsProvider, "_run_git")
     def test_squash_and_force_push_resets_to_remote_when_requested(self, mock_run_git) -> None:
-        mock_run_git.side_effect = ["", "", "", "base123\n", "1\n", "", "", "newsha\n"]
+        mock_run_git.side_effect = ["", "", "", "base123\n", "1\n", "", ""]
         provider = GitHubActionsProvider(repo="owner/repo")
-        new_sha = provider._squash_and_force_push(
+        provider._squash_and_force_push(
             base_branch="main",
             head_branch="feature/test",
             head_sha="abc123def456",
             reset_to_remote=True,
         )
         mock_run_git.assert_any_call(["reset", "--hard", "origin/feature/test"])
-        assert new_sha == "newsha"
 
     @patch.object(GitHubActionsProvider, "_resolve_rebase_conflicts_via_sdk")
     @patch.object(GitHubActionsProvider, "_run_git")
@@ -475,7 +339,6 @@ class TestFinalizePostRepair:
             "1\n",
             RuntimeError("git rebase origin/main failed: CONFLICT"),
             "",
-            "newsha\n",
         ]
         provider = GitHubActionsProvider(repo="owner/repo")
         provider._squash_and_force_push(base_branch="main", head_branch="feature/test", head_sha="abc123def456")
@@ -500,7 +363,6 @@ class TestFinalizePostRepair:
             RuntimeError("git rebase origin/main failed: CONFLICT"),
             "",
             "",
-            "newsha\n",
         ]
         provider = GitHubActionsProvider(repo="owner/repo")
         provider._squash_and_force_push(base_branch="main", head_branch="feature/test", head_sha="abc123def456")
@@ -548,7 +410,6 @@ class TestFinalizePostRepair:
             RuntimeError("git rebase origin/main failed: CONFLICT"),
             "",
             "",
-            "newsha\n",
         ]
         provider = GitHubActionsProvider(repo="owner/repo")
 

@@ -113,6 +113,13 @@ class TestAzureDevOpsProvider:
                 head_sha="abc123",
                 review_id=1,
             )
+        with pytest.raises(NotImplementedError):
+            provider.squash_post_repair(
+                pr_number=1,
+                base_branch="main",
+                head_branch="feature/test",
+                head_sha="abc123",
+            )
 
     def test_malformed_payload_raises_error(self) -> None:
         """Payload that causes TypeError/ValueError raises MalformedEventError."""

@@ -1,0 +1,22 @@
+{
+  "action": "created",
+  "issue": {
+    "number": 42,
+    "pull_request": {
+      "url": "https://api.github.com/repos/owner/repo/pulls/42"
+    }
+  },
+  "comment": {
+    "id": 123456789,
+    "user": {
+      "login": "copilot[bot]"
+    },
+    "body": "Addressed in abc123def"
+  },
+  "repository": {
+    "full_name": "owner/repo"
+  },
+  "sender": {
+    "login": "copilot[bot]"
+  }
+}
