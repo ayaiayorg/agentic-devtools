@@ -32,10 +32,32 @@ class TestFinalizePostRepair:
         mock_publish,
         mock_request_copilot,
     ) -> None:
-        mock_list_ids.return_value = [101, 202]
+        execution_order: list[str] = []
         mock_addressed_parent_ids.return_value = set()
-        mock_resolve.return_value = {"threadsResolved": 2, "verified": True}
         mock_request_copilot.return_value = {"requested": True, "verified": True}
+
+        def list_comments_side_effect(*args, **kwargs):
+            execution_order.append("list_comments")
+            return [101, 202]
+
+        def reply_side_effect(*args, **kwargs):
+            execution_order.append("reply")
+            return None
+
+        def resolve_side_effect(*args, **kwargs):
+            execution_order.append("resolve")
+            return {"threadsResolved": 2, "verified": True}
+
+        def squash_side_effect(*args, **kwargs):
+            execution_order.append("squash")
+            if kwargs.get("reset_to_remote"):
+                return "newsha22222222"
+            return "newsha11111111"
+
+        mock_list_ids.side_effect = list_comments_side_effect
+        mock_reply.side_effect = reply_side_effect
+        mock_resolve.side_effect = resolve_side_effect
+        mock_squash.side_effect = squash_side_effect
         mock_get_meta.return_value = PRMetadata(
             number=42,
             title="feat: test",
@@ -57,8 +79,8 @@ class TestFinalizePostRepair:
         mock_list_ids.assert_called_once_with(42, 7)
         mock_addressed_parent_ids.assert_called_once_with(42)
         assert mock_reply.call_count == 2
-        mock_reply.assert_any_call(42, 101, "abc123def456")
-        mock_reply.assert_any_call(42, 202, "abc123def456")
+        mock_reply.assert_any_call(42, 101, "newsha22222222")
+        mock_reply.assert_any_call(42, 202, "newsha22222222")
         mock_resolve.assert_called_once_with(42, "owner/repo", review_id=7)
         assert mock_squash.call_count == 2
         mock_squash.assert_has_calls(
@@ -72,6 +94,14 @@ class TestFinalizePostRepair:
                 ),
             ]
         )
+        assert execution_order[:2] == ["squash", "squash"]
+        last_squash_index = max(i for i, step in enumerate(execution_order) if step == "squash")
+        first_reply_index = execution_order.index("reply")
+        list_comments_index = execution_order.index("list_comments")
+        resolve_index = execution_order.index("resolve")
+        assert list_comments_index > last_squash_index
+        assert first_reply_index > last_squash_index
+        assert resolve_index > first_reply_index
         mock_publish.assert_not_called()
         mock_request_copilot.assert_called_once_with(42, "owner/repo")
 
@@ -133,6 +163,7 @@ class TestFinalizePostRepair:
         mock_get_meta,
         mock_request_copilot,
     ) -> None:
+        mock_squash.side_effect = ["newsha11111111", "newsha22222222"]
         mock_list_ids.return_value = [101]
         mock_addressed_parent_ids.return_value = {101}
         mock_get_meta.return_value = PRMetadata(
@@ -186,6 +217,7 @@ class TestFinalizePostRepair:
         mock_get_meta,
         mock_request_copilot,
     ) -> None:
+        mock_squash.side_effect = ["newsha11111111", "newsha22222222"]
         mock_list_ids.return_value = [101, 202, 303]
         mock_addressed_parent_ids.return_value = {202}
         mock_get_meta.return_value = PRMetadata(
@@ -207,8 +239,8 @@ class TestFinalizePostRepair:
         )
 
         assert mock_reply.call_count == 2
-        mock_reply.assert_any_call(42, 101, "abc123def456")
-        mock_reply.assert_any_call(42, 303, "abc123def456")
+        mock_reply.assert_any_call(42, 101, "newsha22222222")
+        mock_reply.assert_any_call(42, 303, "newsha22222222")
         mock_resolve.assert_called_once_with(42, "owner/repo", review_id=7)
         assert mock_squash.call_count == 2
         mock_squash.assert_has_calls(
@@ -252,12 +284,8 @@ class TestFinalizePostRepair:
         provider = GitHubActionsProvider(repo="owner/repo")
         result = provider.list_review_comments(42, 7)
         assert len(result) == 2
-        assert result[0] == ReviewCommentInfo(
-            id=1, path="foo.py", body="one", html_url="https://github.com/r/p#1"
-        )
-        assert result[1] == ReviewCommentInfo(
-            id=2, path="bar.py", body="two", html_url="https://github.com/r/p#2"
-        )
+        assert result[0] == ReviewCommentInfo(id=1, path="foo.py", body="one", html_url="https://github.com/r/p#1")
+        assert result[1] == ReviewCommentInfo(id=2, path="bar.py", body="two", html_url="https://github.com/r/p#2")
 
     def test_resolve_repo_valid_and_invalid(self) -> None:
         provider = GitHubActionsProvider(repo="owner/repo")
@@ -298,7 +326,10 @@ class TestFinalizePostRepair:
     def test_reply_to_review_comment(self, mock_gh_api) -> None:
         provider = GitHubActionsProvider(repo="owner/repo")
         provider._reply_to_review_comment(42, 99, "abcdef123456")
-        assert "Addressed by fix commit `abcdef12`." in str(mock_gh_api.call_args[1]["body"])
+        assert (
+            "Addressed by fix commit [`abcdef12`](https://github.com/owner/repo/commit/abcdef123456)."
+            in str(mock_gh_api.call_args[1]["body"])
+        )
 
     def test_build_squash_commit_message_variants(self) -> None:
         provider = GitHubActionsProvider(repo="owner/repo")
@@ -309,18 +340,23 @@ class TestFinalizePostRepair:
 
     @patch.object(GitHubActionsProvider, "_run_git")
     def test_squash_and_force_push_when_multiple_commits(self, mock_run_git) -> None:
-        mock_run_git.side_effect = ["", "", "base123\n", "2\n", "first\nsecond\n", "", "", "", ""]
+        mock_run_git.side_effect = ["", "", "base123\n", "2\n", "first\nsecond\n", "", "", "", "", "newsha\n"]
         provider = GitHubActionsProvider(repo="owner/repo")
-        provider._squash_and_force_push(base_branch="main", head_branch="feature/test", head_sha="abc123def456")
+        new_sha = provider._squash_and_force_push(
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="abc123def456",
+        )
         mock_run_git.assert_any_call(["reset", "--soft", "base123"])
         mock_run_git.assert_any_call(["rebase", "origin/main"])
         mock_run_git.assert_any_call(["push", "--force-with-lease", "origin", "HEAD:feature/test"])
+        assert new_sha == "newsha"
 
     @patch.object(GitHubActionsProvider, "_generate_commit_message_via_sdk")
     @patch.object(GitHubActionsProvider, "_run_git")
     def test_squash_and_force_push_uses_sdk_commit_message(self, mock_run_git, mock_sdk_message) -> None:
         mock_sdk_message.return_value = "feat: generated by sdk"
-        mock_run_git.side_effect = ["", "", "base123\n", "2\n", "first\nsecond\n", "", "", "", ""]
+        mock_run_git.side_effect = ["", "", "base123\n", "2\n", "first\nsecond\n", "", "", "", "", "newsha\n"]
         provider = GitHubActionsProvider(repo="owner/repo")
         provider._squash_and_force_push(base_branch="main", head_branch="feature/test", head_sha="abc123def456")
         mock_sdk_message.assert_called_once_with(
@@ -337,7 +373,7 @@ class TestFinalizePostRepair:
         mock_sdk_message,
     ) -> None:
         mock_sdk_message.return_value = None
-        mock_run_git.side_effect = ["", "", "base123\n", "2\n", "first\nsecond\n", "", "", "", ""]
+        mock_run_git.side_effect = ["", "", "base123\n", "2\n", "first\nsecond\n", "", "", "", "", "newsha\n"]
         provider = GitHubActionsProvider(repo="owner/repo")
         provider._squash_and_force_push(base_branch="main", head_branch="feature/test", head_sha="abc123def456")
         expected_message = provider._build_squash_commit_message("abc123def456", ["first", "second"])
@@ -345,12 +381,17 @@ class TestFinalizePostRepair:
 
     @patch.object(GitHubActionsProvider, "_run_git")
     def test_squash_and_force_push_single_commit(self, mock_run_git) -> None:
-        mock_run_git.side_effect = ["", "", "base123\n", "1\n", "", ""]
+        mock_run_git.side_effect = ["", "", "base123\n", "1\n", "", "", "newsha\n"]
         provider = GitHubActionsProvider(repo="owner/repo")
-        provider._squash_and_force_push(base_branch="main", head_branch="feature/test", head_sha="abc123def456")
+        new_sha = provider._squash_and_force_push(
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="abc123def456",
+        )
         called_git_args = [call.args[0] for call in mock_run_git.call_args_list]
         assert not any(args and args[0] == "commit" for args in called_git_args)
         mock_run_git.assert_any_call(["rebase", "origin/main"])
+        assert new_sha == "newsha"
 
     @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
     @patch.object(GitHubActionsProvider, "publish_pr")
@@ -370,6 +411,7 @@ class TestFinalizePostRepair:
         mock_request_copilot,
     ) -> None:
         """finalize_post_repair calls _squash_and_force_push twice to catch post-squash commits."""
+        mock_squash.side_effect = ["newsha11111111", "newsha22222222"]
         mock_list_ids.return_value = []
         mock_resolve.return_value = {"threadsResolved": 0, "verified": True}
         mock_request_copilot.return_value = {"requested": True, "verified": True}
@@ -407,15 +449,16 @@ class TestFinalizePostRepair:
 
     @patch.object(GitHubActionsProvider, "_run_git")
     def test_squash_and_force_push_resets_to_remote_when_requested(self, mock_run_git) -> None:
-        mock_run_git.side_effect = ["", "", "", "base123\n", "1\n", "", ""]
+        mock_run_git.side_effect = ["", "", "", "base123\n", "1\n", "", "", "newsha\n"]
         provider = GitHubActionsProvider(repo="owner/repo")
-        provider._squash_and_force_push(
+        new_sha = provider._squash_and_force_push(
             base_branch="main",
             head_branch="feature/test",
             head_sha="abc123def456",
             reset_to_remote=True,
         )
         mock_run_git.assert_any_call(["reset", "--hard", "origin/feature/test"])
+        assert new_sha == "newsha"
 
     @patch.object(GitHubActionsProvider, "_resolve_rebase_conflicts_via_sdk")
     @patch.object(GitHubActionsProvider, "_run_git")
@@ -432,6 +475,7 @@ class TestFinalizePostRepair:
             "1\n",
             RuntimeError("git rebase origin/main failed: CONFLICT"),
             "",
+            "newsha\n",
         ]
         provider = GitHubActionsProvider(repo="owner/repo")
         provider._squash_and_force_push(base_branch="main", head_branch="feature/test", head_sha="abc123def456")
@@ -456,6 +500,7 @@ class TestFinalizePostRepair:
             RuntimeError("git rebase origin/main failed: CONFLICT"),
             "",
             "",
+            "newsha\n",
         ]
         provider = GitHubActionsProvider(repo="owner/repo")
         provider._squash_and_force_push(base_branch="main", head_branch="feature/test", head_sha="abc123def456")
@@ -503,6 +548,7 @@ class TestFinalizePostRepair:
             RuntimeError("git rebase origin/main failed: CONFLICT"),
             "",
             "",
+            "newsha\n",
         ]
         provider = GitHubActionsProvider(repo="owner/repo")
 

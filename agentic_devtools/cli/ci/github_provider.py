@@ -638,10 +638,16 @@ class GitHubActionsProvider(CIPlatformProvider):
     @retry_with_backoff()
     def _reply_to_review_comment(self, pr_number: int, comment_id: int, head_sha: str) -> None:
         """Post addressed reply to a single review comment."""
+        repo = self._resolve_repo()
         _gh_api(
             self._repo_api(f"/pulls/{pr_number}/comments/{comment_id}/replies"),
             method="POST",
-            body={"body": f"Addressed by fix commit `{head_sha[:8]}`."},
+            body={
+                "body": (
+                    f"Addressed by fix commit [`{head_sha[:8]}`]"
+                    f"(https://github.com/{repo}/commit/{head_sha})."
+                )
+            },
         )
 
     @retry_with_backoff()
@@ -1045,7 +1051,7 @@ class GitHubActionsProvider(CIPlatformProvider):
         head_branch: str,
         head_sha: str,
         reset_to_remote: bool = False,
-    ) -> None:
+    ) -> str:
         """Squash commits on head branch into one and force-push with lease."""
         self._run_git(["fetch", "origin", base_branch, head_branch])
         self._run_git(["checkout", head_branch])
@@ -1087,6 +1093,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 except RuntimeError as abort_exc:
                     raise RuntimeError(f"`git rebase --abort` failed: {abort_exc}") from abort_exc
         self._run_git(["push", "--force-with-lease", "origin", f"HEAD:{head_branch}"])
+        return self._run_git(["rev-parse", "HEAD"]).strip()
 
     def squash_before_publish(
         self,
@@ -1128,7 +1135,24 @@ class GitHubActionsProvider(CIPlatformProvider):
         """
         repo = self._resolve_repo()
 
-        # 1. Reply to each review comment (individually retried via decorator)
+        # 1. Squash and force-push
+        post_squash_head_sha = self._squash_and_force_push(
+            base_branch=base_branch,
+            head_branch=head_branch,
+            head_sha=head_sha,
+        )
+
+        # 1b. Guard against the race where Copilot SWE agent pushes another
+        #     commit during finalization — re-fetch and hard-reset to remote
+        #     head branch before re-checking commit count.
+        post_squash_head_sha = self._squash_and_force_push(
+            base_branch=base_branch,
+            head_branch=head_branch,
+            head_sha=head_sha,
+            reset_to_remote=True,
+        )
+
+        # 2. Reply to each review comment (individually retried via decorator)
         comment_ids = self._list_review_comment_ids(pr_number, review_id)
         addressed_reply_parent_comment_ids = set()
         if comment_ids:
@@ -1136,24 +1160,11 @@ class GitHubActionsProvider(CIPlatformProvider):
         for comment_id in comment_ids:
             if self._has_existing_addressed_reply(pr_number, comment_id, addressed_reply_parent_comment_ids):
                 continue
-            self._reply_to_review_comment(pr_number, comment_id, head_sha)
+            self._reply_to_review_comment(pr_number, comment_id, post_squash_head_sha)
 
-        # 2. Resolve threads — delegates to existing resolve_review_threads()
+        # 3. Resolve threads — delegates to existing resolve_review_threads()
         #    which already handles GraphQL pagination, retry, and verification
         _resolve_review_threads(pr_number, repo, review_id=review_id)
-
-        # 3. Squash and force-push
-        self._squash_and_force_push(base_branch=base_branch, head_branch=head_branch, head_sha=head_sha)
-
-        # 3b. Guard against the race where Copilot SWE agent pushes another
-        #     commit during finalization — re-fetch and hard-reset to remote
-        #     head branch before re-checking commit count.
-        self._squash_and_force_push(
-            base_branch=base_branch,
-            head_branch=head_branch,
-            head_sha=head_sha,
-            reset_to_remote=True,
-        )
 
         # 4. Ensure PR is published if still draft (edge-case safety)
         pr_meta = self.get_pr_metadata(pr_number)
