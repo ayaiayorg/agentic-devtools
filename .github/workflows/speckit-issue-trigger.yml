@@ -17,7 +17,6 @@ permissions:
 
 env:
   AGDT_USE_PYTHON_ORCHESTRATOR: "1"
-  AGDT_VERSION: '0.42.0'
 
 concurrency:
   group: speckit-trigger-${{ github.event.issue.number || inputs.issue_number }}
@@ -38,7 +37,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install "agentic-devtools==${{ env.AGDT_VERSION }}"
+      - run: |
+          python -m pip install --upgrade pip
+          python -m pip install . --no-deps
       - env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
