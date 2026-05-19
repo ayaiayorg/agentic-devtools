@@ -315,31 +315,84 @@ directly to Phase 7 (replies).
 ## Phase 7: Post Structured Summary Comment on the PR
 
 After all evaluations and changes are complete, post a **single** summary comment on the
-PR using `gh api`.
+PR using `gh api`. This comment MUST be machine-parseable for downstream automation.
 
 ### Summary Comment Format
 
-```markdown
-## Review Comment Resolution
+The comment MUST:
 
-| # | File | Link | Decision | Confidence | Explanation |
-|---|------|------|----------|------------|-------------|
-| 1 | orchestrator.py | [→](url) | ✅ Implemented | 🟢 High | Fixed the null guard |
-| 2 | orchestrator.py | [→](url) | ❌ No changes | 🔴 Low | Already handled by retry logic on line 45 |
-| 3 | github_provider.py | [→](url) | ✅ Implemented | 🟡 Medium | Narrowed type annotation |
-| 4 | models.py | (suppressed) | 🟡 Partially | 🟡 Medium | Extracted helper, kept original API |
-| 5 | provider.py | (suppressed) | ❌ No changes | 🔴 Low | Subjective style preference |
+1. Begin and end with HTML sentinel comments (`<!-- copilot-agent-result -->` / `<!-- /copilot-agent-result -->`)
+2. Include metadata HTML comments for `review-id` and, when code changes were made, `commit` (between the sentinels)
+3. Link back to the specific Copilot review that was addressed
+4. Include the commit SHA as a clickable link
+5. Present comment resolutions in a structured table
+6. Present CI failure resolutions in a separate table (if applicable)
+
+Include commit metadata and the commit link only when code changes were made.
+Include the CI section only when the trigger comment contained `## CI Failures`.
+
+```markdown
+<!-- copilot-agent-result -->
+<!-- review-id:{review_id} -->
+<!-- commit:{COMMIT_FULL} -->
+
+## Evaluated & Addressed [Copilot Code Review {review_id}](https://github.com/{owner}/{repo}/pull/{pr_number}#pullrequestreview-{review_id})
+
+**Commit:** [`{COMMIT_SHORT}`](https://github.com/{owner}/{repo}/commit/{COMMIT_FULL})
+
+### Comment Resolutions
+
+| # | File | Comment | Decision | Explanation |
+|---|------|---------|----------|-------------|
+| 1 | `orchestrator.py` | [→](https://github.com/{owner}/{repo}/pull/{pr_number}#discussion_r123) | ✅ Accepted | Fixed the null guard as suggested |
+| 2 | `orchestrator.py` | [→](https://github.com/{owner}/{repo}/pull/{pr_number}#discussion_r124) | ❌ Declined | Already handled by existing retry logic on L45 |
+| 3 | `github_provider.py` | [→](https://github.com/{owner}/{repo}/pull/{pr_number}#discussion_r125) | 🟡 Partial | Narrowed annotation; kept return type for backward compat |
+| 4 | `models.py` | _(suppressed)_ | ✅ Accepted | Extracted helper as suggested |
+| 5 | `provider.py` | _(suppressed)_ | ❌ Declined | Subjective style preference |
+
+### CI Failures Addressed
+
+| Check | Status | Fix |
+|-------|--------|-----|
+| [ruff](https://github.com/{owner}/{repo}/actions/runs/{run_id}/job/{job_id}) | ✅ Fixed | Auto-formatted 2 files |
+
+<!-- /copilot-agent-result -->
 ```
 
-For suppressed comments, use `(suppressed)` in the Link column (no hyperlink).
+### Decision Vocabulary
 
-Post the comment using:
+Use exactly these decision labels (emoji + keyword) for programmatic parsing:
+
+| Decision | Emoji + Keyword | When to use |
+|----------|-----------------|-------------|
+| Accepted | `✅ Accepted` | Feedback is valid; code change implemented |
+| Partial | `🟡 Partial` | Feedback partially valid; some aspects implemented, others deferred |
+| Declined | `❌ Declined` | False positive, already correct, out of scope, or subjective preference |
+
+### Comment Column Rules
+
+- For visible comments: use `[→]({comment_url})` linking to the PR review comment
+- For suppressed comments: use `_(suppressed)_` (italic, no hyperlink)
+
+### CI Failures Table Rules
+
+- Only include the `### CI Failures Addressed` section if the trigger comment contained a `## CI Failures` section
+- Status values: `✅ Fixed` or `⚠️ Unable to fix` (with explanation)
+- If no CI failures existed, omit this section entirely
+
+### Posting the Comment
 
 ```bash
 gh api "repos/{owner}/{repo}/issues/{pr_number}/comments" \
   -X POST \
   -f body="$(cat /tmp/summary.md)"
 ```
+
+### Edge Case: No Code Changes Made
+
+If every comment was ❌ Declined and there are no CI failures, still post the summary
+comment (it documents the evaluation) but omit the `**Commit:**` line and the
+`<!-- commit:... -->` metadata comment.
 
 ---
 
