@@ -81,7 +81,7 @@ class TestRunAIPRLoop:
     def test_full_happy_path_merges(self) -> None:
         """PR with passing checks and approval gets merged."""
         provider = _make_provider()
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
 
         result = run_ai_pr_loop(provider, payload)
 
@@ -106,13 +106,13 @@ class TestRunAIPRLoop:
 
     def test_privileged_paths_blocked(self) -> None:
         provider = _make_provider(files=[".github/workflows/ci.yml"])
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_GUARD_BLOCKED
 
     def test_docker_files_blocked(self) -> None:
         provider = _make_provider(files=["Dockerfile"])
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_GUARD_BLOCKED
 
@@ -153,7 +153,7 @@ class TestRunAIPRLoop:
 
     def test_pending_checks_waits(self) -> None:
         provider = _make_provider(check_runs=[CheckRunStatus(id=1, name="Tests ✅", status="in_progress")])
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.merge_pr.assert_not_called()
@@ -193,7 +193,7 @@ class TestRunAIPRLoop:
             reviews=[ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")]
         )
         provider.list_review_comments.return_value = []
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.approve_pr.assert_called_once()
@@ -207,7 +207,7 @@ class TestRunAIPRLoop:
             100,
             "<!-- repair-dispatch:abc123:3 -->\nTracking",
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_GUARD_BLOCKED
 
@@ -219,7 +219,7 @@ class TestRunAIPRLoop:
             None,  # dedup: no marker
             (200, "<!-- ai-pr-loop-cycle-tracker --> cycle:50"),  # cycle: at limit
         ]
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_GUARD_BLOCKED
 
@@ -230,7 +230,7 @@ class TestRunAIPRLoop:
         )
         provider.dispatch_repair.return_value = 200
         provider.list_review_comments.return_value = ["fix this"]
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_REPAIR_DISPATCHED
         provider.merge_pr.assert_not_called()
@@ -240,7 +240,7 @@ class TestRunAIPRLoop:
     def test_human_changes_requested_does_not_dispatch_repair(self) -> None:
         """Human CHANGES_REQUESTED blocks merge but does NOT trigger repair."""
         provider = _make_provider(reviews=[ReviewInfo(id=1, user="reviewer", state="CHANGES_REQUESTED", body="fix")])
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.merge_pr.assert_not_called()
@@ -252,7 +252,7 @@ class TestRunAIPRLoop:
 
         provider = _make_provider()
         provider.merge_pr.side_effect = RuntimeError("merge conflict")
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_MERGE_BLOCKED
 
@@ -265,7 +265,7 @@ class TestRunAIPRLoop:
                 CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="cancelled"),
             ]
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_MERGE_BLOCKED
 
@@ -277,7 +277,7 @@ class TestRunAIPRLoop:
                 ReviewInfo(id=5, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm"),
             ]
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.dispatch_repair.assert_not_called()
@@ -292,7 +292,7 @@ class TestRunAIPRLoop:
                 ReviewInfo(id=9, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm"),
             ]
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.merge_pr.assert_called_once()
@@ -307,7 +307,7 @@ class TestRunAIPRLoop:
         )
         provider.dispatch_repair.return_value = 200
         provider.list_review_comments.return_value = ["fix this"]
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_REPAIR_DISPATCHED
         provider.dispatch_repair.assert_called_once()
@@ -319,7 +319,7 @@ class TestRunAIPRLoop:
         )
         provider.dispatch_repair.return_value = 200
         provider.list_review_comments.return_value = ["suggestion: use const"]
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_REPAIR_DISPATCHED
         provider.dispatch_repair.assert_called_once()
@@ -534,7 +534,7 @@ class TestRunAIPRLoop:
             reviews=[ReviewInfo(id=3, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")]
         )
         provider.list_review_comments.return_value = []
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.dispatch_repair.assert_not_called()
@@ -548,7 +548,7 @@ class TestRunAIPRLoop:
                 ReviewInfo(id=8, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm"),
             ]
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.dispatch_repair.assert_not_called()
@@ -559,7 +559,7 @@ class TestRunAIPRLoop:
         provider = _make_provider(reviews=[ReviewInfo(id=4, user="Copilot", state="COMMENTED", body="")])
         provider.dispatch_repair.return_value = 200
         provider.list_review_comments.return_value = ["please fix this"]
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_REPAIR_DISPATCHED
         provider.dispatch_repair.assert_called_once()
@@ -572,7 +572,7 @@ class TestRunAIPRLoop:
                 ReviewInfo(id=5, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm"),
             ]
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.dispatch_repair.assert_not_called()
@@ -585,7 +585,7 @@ class TestRunAIPRLoop:
         )
         provider.list_review_comments.side_effect = RuntimeError("network error")
         provider.dispatch_repair.return_value = 200
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_REPAIR_DISPATCHED
         provider.dispatch_repair.assert_called_once()
@@ -599,7 +599,7 @@ class TestRunAIPRLoop:
                 ReviewInfo(id=8, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm"),
             ]
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.dispatch_repair.assert_not_called()
@@ -620,7 +620,7 @@ class TestRunAIPRLoop:
             ),
             files=["src/main.py"],
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         # Draft review requests must only happen after squash + publish so the
@@ -661,7 +661,7 @@ class TestRunAIPRLoop:
             ),
             files=["src/main.py"],
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.publish_pr.assert_not_called()
@@ -683,7 +683,7 @@ class TestRunAIPRLoop:
             ),
             files=["src/main.py"],
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.publish_pr.assert_not_called()
@@ -704,7 +704,7 @@ class TestRunAIPRLoop:
             ),
             files=[],
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.publish_pr.assert_not_called()
@@ -725,7 +725,7 @@ class TestRunAIPRLoop:
             ),
             reviews=[],
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.request_reviewer.assert_not_called()
@@ -735,7 +735,7 @@ class TestRunAIPRLoop:
     def test_non_draft_pr_with_no_files_does_not_request_review(self) -> None:
         """Non-draft PRs with no changed files are treated as not ready."""
         provider = _make_provider(files=[], reviews=[])
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.request_reviewer.assert_not_called()
@@ -758,7 +758,7 @@ class TestRunAIPRLoop:
             files=["src/main.py"],
         )
         provider.publish_pr.side_effect = RuntimeError("gh pr ready failed")
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_MERGE_BLOCKED
         provider.approve_pr.assert_not_called()
@@ -780,7 +780,7 @@ class TestRunAIPRLoop:
             files=["src/main.py"],
         )
         provider.request_reviewer.side_effect = RuntimeError("request failed")
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.squash_before_publish.assert_called_once()
@@ -804,7 +804,7 @@ class TestRunAIPRLoop:
             ),
             files=["src/main.py"],
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.squash_before_publish.assert_called_once()
@@ -829,7 +829,7 @@ class TestRunAIPRLoop:
             files=["src/main.py"],
         )
         provider.squash_before_publish.side_effect = RuntimeError("squash failed")
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_MERGE_BLOCKED
         provider.publish_pr.assert_not_called()
@@ -851,7 +851,7 @@ class TestRunAIPRLoop:
             files=["src/main.py"],
         )
         provider.squash_before_publish.side_effect = RuntimeError("squash boom")
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
         assert summary.get("squash_error") == "squash boom"
         assert summary.get("decision") == "error"
@@ -861,7 +861,7 @@ class TestRunAIPRLoop:
     def test_no_copilot_review_requests_review_and_waits(self) -> None:
         """When no Copilot review exists, requests one and returns SUCCESS without merging."""
         provider = _make_provider(reviews=[])
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
@@ -883,7 +883,7 @@ class TestRunAIPRLoop:
             ),
             reviews=[],
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.request_reviewer.assert_not_called()
@@ -933,7 +933,7 @@ class TestRunAIPRLoop:
     def test_no_copilot_review_with_human_approval_still_waits(self) -> None:
         """Even with a human approval, no Copilot review means the loop waits for one."""
         provider = _make_provider(reviews=[ReviewInfo(id=1, user="reviewer", state="APPROVED", body="lgtm")])
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
@@ -943,7 +943,7 @@ class TestRunAIPRLoop:
         """Review-request failures are non-blocking while waiting for initial Copilot review."""
         provider = _make_provider(reviews=[])
         provider.request_reviewer.side_effect = RuntimeError("request failed")
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.approve_pr.assert_not_called()
@@ -954,7 +954,7 @@ class TestRunAIPRLoop:
         provider = _make_provider(
             reviews=[ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm")]
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.merge_pr.assert_called_once()
@@ -975,7 +975,7 @@ class TestRunAIPRLoop:
         provider = _make_provider(
             reviews=[ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="DISMISSED", body="")]
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
@@ -987,7 +987,7 @@ class TestRunAIPRLoop:
         provider = _make_provider(
             reviews=[ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="PENDING", body="")]
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
@@ -1000,7 +1000,7 @@ class TestRunAIPRLoopDecisionSummary:
 
     def test_merged_pr_emits_summary(self) -> None:
         provider = _make_provider()
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "merged"
@@ -1031,7 +1031,7 @@ class TestRunAIPRLoopDecisionSummary:
 
     def test_pending_checks_emits_wait_summary(self) -> None:
         provider = _make_provider(check_runs=[CheckRunStatus(id=1, name="Tests ✅", status="in_progress")])
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "wait"
@@ -1047,7 +1047,7 @@ class TestRunAIPRLoopDecisionSummary:
             reviews=[],
         )
         provider.dispatch_repair.return_value = 200
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "repair_dispatched"
@@ -1067,7 +1067,7 @@ class TestRunAIPRLoopDecisionSummary:
             reviews=[],
         )
         provider.dispatch_repair.return_value = 200
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
 
         with patch(
             "agentic_devtools.cli.ci.orchestrator.increment_cycle_count",
@@ -1157,7 +1157,7 @@ class TestRunAIPRLoopDecisionSummary:
             reviews=[],
         )
         provider.dispatch_repair.return_value = 200
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
         assert "Tests ✅" in summary["ci"]["failed"]
@@ -1171,7 +1171,7 @@ class TestRunAIPRLoopDecisionSummary:
                 CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="cancelled"),
             ]
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "blocked"
@@ -1181,7 +1181,7 @@ class TestRunAIPRLoopDecisionSummary:
     def test_pr_files_error_emits_error_summary(self) -> None:
         provider = _make_provider()
         provider.list_pr_files.side_effect = RuntimeError("api unavailable")
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "error"
@@ -1195,7 +1195,7 @@ class TestRunAIPRLoopDecisionSummary:
             reviews=[],
         )
         provider.dispatch_repair.side_effect = RuntimeError("dispatch endpoint timeout")
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "repair_failed"
@@ -1205,7 +1205,7 @@ class TestRunAIPRLoopDecisionSummary:
     def test_check_runs_error_emits_error_summary(self) -> None:
         provider = _make_provider()
         provider.list_check_runs.side_effect = RuntimeError("checks api unavailable")
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "error"
@@ -1216,7 +1216,7 @@ class TestRunAIPRLoopDecisionSummary:
     def test_list_reviews_error_emits_error_summary(self) -> None:
         provider = _make_provider()
         provider.list_reviews.side_effect = RuntimeError("reviews api unavailable")
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "error"
@@ -1230,7 +1230,7 @@ class TestRunAIPRLoopDecisionSummary:
         )
         provider.list_review_comments.return_value = []
         provider.approve_pr.side_effect = RuntimeError("approval endpoint unavailable")
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "error"
@@ -1241,7 +1241,7 @@ class TestRunAIPRLoopDecisionSummary:
     def test_merge_error_emits_error_summary(self) -> None:
         provider = _make_provider()
         provider.merge_pr.side_effect = RuntimeError("merge conflict")
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "error"
@@ -1252,7 +1252,7 @@ class TestRunAIPRLoopDecisionSummary:
     def test_deduplication_check_error_emits_error_summary(self) -> None:
         provider = _make_provider()
         provider.find_comment.side_effect = RuntimeError("dedup api unavailable")
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "error"
@@ -1267,7 +1267,7 @@ class TestRunAIPRLoopDecisionSummary:
             None,  # dedup: no existing marker → calls post_comment; succeeds
             RuntimeError("cycle api unavailable"),  # cycle: raises
         ]
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "error"
@@ -1290,7 +1290,7 @@ class TestRunAIPRLoopDecisionSummary:
             ),
             files=["src/main.py"],
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "published_awaiting_review"
@@ -1311,7 +1311,7 @@ class TestRunAIPRLoopDecisionSummary:
             ),
             files=["src/main.py"],
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "draft_not_ready"
@@ -1333,7 +1333,7 @@ class TestRunAIPRLoopDecisionSummary:
             ),
             files=[],
         )
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "draft_not_ready"
@@ -1343,7 +1343,7 @@ class TestRunAIPRLoopDecisionSummary:
     def test_no_copilot_review_emits_awaiting_copilot_review_summary(self) -> None:
         """No Copilot review emits 'awaiting_copilot_review' decision in summary."""
         provider = _make_provider(reviews=[])
-        payload = EventPayload(pr_number=42, head_sha="abc123")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "awaiting_copilot_review"

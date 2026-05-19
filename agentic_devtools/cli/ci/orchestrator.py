@@ -114,8 +114,7 @@ def _is_ci_completion_event(event_payload: EventPayload) -> bool:
 
 def _is_review_submission_event(event_payload: EventPayload) -> bool:
     """Return True when this run was triggered by a PR review submission."""
-    # Empty action keeps legacy tests/backward-compatible callers working.
-    return event_payload.action in {"submitted", ""}
+    return event_payload.action == "submitted"
 
 
 def _is_wip_title(title: str) -> bool:
@@ -410,33 +409,43 @@ def run_ai_pr_loop(
 
     # 3e: Deduplication — checked after CI pending short-circuit so that
     # re-triggers while CI is still running don't consume the dispatch budget.
+    # Review submission events are external triggers (Copilot or human submitting
+    # a review) and are not caused by the loop itself, so they always bypass
+    # deduplication regardless of how many repair dispatches have already occurred.
     _log_group("Step 3e–3f: Deduplication and cycle guards")
     dedup_sha = event_payload.head_sha or pr_meta.head_sha
-    try:
-        dedup_skip, dedup_count = check_deduplication(provider, pr_number, dedup_sha)
-    except Exception as exc:
-        logger.error("Deduplication check failed for PR #%d: %s", pr_number, exc)
-        summary["decision"] = "error"
-        summary["reason"] = "deduplication_failed"
-        summary["error"] = str(exc)
-        summary["exit_code"] = EXIT_METADATA_FAILED
-        _log_endgroup()
-        _emit_decision_summary(summary)
-        return EXIT_METADATA_FAILED
-    if dedup_skip:
-        logger.info(
-            "PR #%d dispatch limit reached for sha=%s (count=%d) — skipping",
-            pr_number,
-            dedup_sha[:8],
-            dedup_count,
-        )
-        summary["guards"] = {"blocked_by": "deduplication", "sha": dedup_sha[:8], "count": dedup_count}
-        summary["decision"] = "blocked"
-        summary["reason"] = "dedup_limit"
-        summary["exit_code"] = EXIT_GUARD_BLOCKED
-        _log_endgroup()
-        _emit_decision_summary(summary)
-        return EXIT_GUARD_BLOCKED
+    dedup_skip = False
+    dedup_count = 0
+    dedup_bypassed = False
+    if _is_review_submission_event(event_payload):
+        dedup_bypassed = True
+        logger.info("PR #%d — review submission event; dedup check bypassed", pr_number)
+    else:
+        try:
+            dedup_skip, dedup_count = check_deduplication(provider, pr_number, dedup_sha)
+        except Exception as exc:
+            logger.error("Deduplication check failed for PR #%d: %s", pr_number, exc)
+            summary["decision"] = "error"
+            summary["reason"] = "deduplication_failed"
+            summary["error"] = str(exc)
+            summary["exit_code"] = EXIT_METADATA_FAILED
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_METADATA_FAILED
+        if dedup_skip:
+            logger.info(
+                "PR #%d dispatch limit reached for sha=%s (count=%d) — skipping",
+                pr_number,
+                dedup_sha[:8],
+                dedup_count,
+            )
+            summary["guards"] = {"blocked_by": "deduplication", "sha": dedup_sha[:8], "count": dedup_count}
+            summary["decision"] = "blocked"
+            summary["reason"] = "dedup_limit"
+            summary["exit_code"] = EXIT_GUARD_BLOCKED
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_GUARD_BLOCKED
 
     # 3f: Cycle limit — checked after CI pending short-circuit so that
     # re-triggers while CI is still running don't exhaust the cycle budget.
@@ -460,7 +469,14 @@ def run_ai_pr_loop(
         _log_endgroup()
         _emit_decision_summary(summary)
         return EXIT_GUARD_BLOCKED
-    logger.info("PR #%d passed dedup (count=%d) and cycle (count=%d) guards", pr_number, dedup_count, cycle_count)
+    if dedup_bypassed:
+        logger.info(
+            "PR #%d dedup bypassed (review submission) and cycle (count=%d) guards passed",
+            pr_number,
+            cycle_count,
+        )
+    else:
+        logger.info("PR #%d passed dedup (count=%d) and cycle (count=%d) guards", pr_number, dedup_count, cycle_count)
     _log_endgroup()
 
     # Step 5: Evaluate reviews
