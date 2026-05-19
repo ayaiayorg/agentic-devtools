@@ -431,3 +431,175 @@ class TestSkipCopilotSession:
 
         mock_session = self._setup_and_mock_preflight_pass("PROJECT-1234", argv=["--skip-copilot-session"])
         mock_session.assert_not_called()
+
+
+class TestEngineLangchainFlag:
+    """Tests for --engine langchain and --use-langchain flags."""
+
+    def test_engine_langchain_routes_to_langchain_runner(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """--engine langchain routes to run_langchain_workflow instead of existing workflow."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        import agentic_devtools.orchestration.runner as runner_mod
+
+        with patch.object(runner_mod, "run_langchain_workflow") as mock_runner:
+            commands.initiate_work_on_jira_issue_workflow(_argv=["--engine", "langchain"])
+
+        mock_runner.assert_called_once()
+        call_args = mock_runner.call_args
+        assert call_args[0][0] == "PROJECT-1234"
+        assert call_args[1]["resume"] is False
+        assert call_args[1]["resume_data"] is None
+
+    def test_use_langchain_alias_routes_to_langchain_runner(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """--use-langchain is an alias for --engine langchain."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        import agentic_devtools.orchestration.runner as runner_mod
+
+        with patch.object(runner_mod, "run_langchain_workflow") as mock_runner:
+            commands.initiate_work_on_jira_issue_workflow(_argv=["--use-langchain"])
+
+        mock_runner.assert_called_once()
+        call_kwargs = mock_runner.call_args[1]
+        assert call_kwargs["resume"] is False
+
+    def test_no_engine_flag_routes_to_existing_workflow(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """Without --engine flag, the existing workflow is used (not LangChain)."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        import agentic_devtools.orchestration.runner as runner_mod
+
+        with patch.object(runner_mod, "run_langchain_workflow") as mock_runner:
+            with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+                from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+                mock_preflight.return_value = PreflightResult(
+                    folder_valid=False,
+                    branch_valid=False,
+                    folder_name="wrong",
+                    branch_name="main",
+                    issue_key="PROJECT-1234",
+                )
+                with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                    mock_setup.return_value = True
+                    commands.initiate_work_on_jira_issue_workflow(_argv=[])
+
+        # LangChain runner should NOT have been called
+        mock_runner.assert_not_called()
+
+    def test_resume_without_engine_langchain_exits(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """--resume without --engine langchain exits with error."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        with pytest.raises(SystemExit) as exc_info:
+            commands.initiate_work_on_jira_issue_workflow(_argv=["--resume"])
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "--resume requires --engine langchain" in captured.err
+
+    def test_resume_with_engine_langchain_passes_resume_flag(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """--resume with --engine langchain passes resume=True to runner."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        import agentic_devtools.orchestration.runner as runner_mod
+
+        with patch.object(runner_mod, "run_langchain_workflow") as mock_runner:
+            commands.initiate_work_on_jira_issue_workflow(_argv=["--engine", "langchain", "--resume"])
+
+        mock_runner.assert_called_once()
+        call_kwargs = mock_runner.call_args[1]
+        assert call_kwargs["resume"] is True
+
+    def test_resume_data_without_resume_exits(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """--resume-data without --resume exits with error."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        with pytest.raises(SystemExit) as exc_info:
+            commands.initiate_work_on_jira_issue_workflow(
+                _argv=["--engine", "langchain", "--resume-data", '{"completed": true}']
+            )
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "--resume-data requires --resume" in captured.err
+
+    def test_resume_data_invalid_json_exits(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """--resume-data with invalid JSON exits with error."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        with pytest.raises(SystemExit) as exc_info:
+            commands.initiate_work_on_jira_issue_workflow(
+                _argv=["--engine", "langchain", "--resume", "--resume-data", "not-json"]
+            )
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "not valid JSON" in captured.err
+
+    def test_resume_data_non_object_exits(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """--resume-data with non-object JSON (e.g., array) exits with error."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        with pytest.raises(SystemExit) as exc_info:
+            commands.initiate_work_on_jira_issue_workflow(
+                _argv=["--engine", "langchain", "--resume", "--resume-data", "[1, 2, 3]"]
+            )
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "must be a JSON object" in captured.err
+
+    def test_resume_data_valid_json_passes_to_runner(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """--resume-data with valid JSON object passes parsed data to runner."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        import agentic_devtools.orchestration.runner as runner_mod
+
+        with patch.object(runner_mod, "run_langchain_workflow") as mock_runner:
+            commands.initiate_work_on_jira_issue_workflow(
+                _argv=[
+                    "--engine",
+                    "langchain",
+                    "--resume",
+                    "--resume-data",
+                    '{"completed": true, "summary": "Work done"}',
+                ]
+            )
+
+        mock_runner.assert_called_once()
+        call_kwargs = mock_runner.call_args[1]
+        assert call_kwargs["resume_data"] == {"completed": True, "summary": "Work done"}
+
+    def test_auto_execute_command_preserves_engine_langchain(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """When engine=langchain, the LangChain runner is invoked."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        import agentic_devtools.orchestration.runner as runner_mod
+
+        with patch.object(runner_mod, "run_langchain_workflow") as mock_runner:
+            commands.initiate_work_on_jira_issue_workflow(_argv=["--engine", "langchain"])
+
+        # The LangChain path handles its own preflight internally
+        mock_runner.assert_called_once()

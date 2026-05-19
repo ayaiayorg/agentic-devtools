@@ -564,6 +564,9 @@ def initiate_work_on_jira_issue_workflow(
     Usage:
         agdt-initiate-work-on-jira-issue-workflow [--issue-key PROJECT-1234]
         agdt-initiate-work-on-jira-issue-workflow --issue-key PROJECT-1234 --interactive true
+        agdt-initiate-work-on-jira-issue-workflow --issue-key PROJECT-1234 --engine langchain
+        agdt-initiate-work-on-jira-issue-workflow --issue-key PROJECT-1234 --use-langchain
+        agdt-initiate-work-on-jira-issue-workflow --issue-key PROJECT-1234 --engine langchain --resume
 
     Args:
         issue_key: Jira issue key (e.g., PROJECT-1234). If not provided, uses jira.issue_key from state.
@@ -602,6 +605,33 @@ def initiate_work_on_jira_issue_workflow(
         default=False,
         help="Skip starting a Copilot session (used by auto-execute to avoid duplicate sessions).",
     )
+    parser.add_argument(
+        "--engine",
+        dest="engine",
+        choices=["langchain"],
+        default=None,
+        help="Orchestration engine to use. 'langchain' routes to the LangGraph-based implementation.",
+    )
+    parser.add_argument(
+        "--use-langchain",
+        dest="use_langchain",
+        action="store_true",
+        default=False,
+        help="Alias for --engine langchain. Routes to the LangGraph-based implementation.",
+    )
+    parser.add_argument(
+        "--resume",
+        dest="resume",
+        action="store_true",
+        default=False,
+        help="Resume from an existing LangGraph checkpoint. Requires --engine langchain or --use-langchain.",
+    )
+    parser.add_argument(
+        "--resume-data",
+        dest="resume_data",
+        default=None,
+        help="JSON string with structured resume payload for gate nodes. Requires --resume.",
+    )
     args = parser.parse_args(_effective_argv(_argv, issue_key, interactive, model, skip_copilot_session))
 
     # CLI values override programmatic values only when not already set
@@ -619,6 +649,32 @@ def initiate_work_on_jira_issue_workflow(
         model = get_default_copilot_model()
     if not skip_copilot_session and args.skip_copilot_session:
         skip_copilot_session = True
+
+    # Resolve engine selection: --use-langchain is an alias for --engine langchain
+    engine = args.engine
+    if args.use_langchain:
+        engine = "langchain"
+
+    # Validate --resume requires LangChain engine selection
+    if args.resume and engine != "langchain":
+        print("ERROR: --resume requires --engine langchain or --use-langchain.", file=sys.stderr)
+        sys.exit(1)
+
+    # Validate --resume-data requires --resume
+    resume_data = None
+    if args.resume_data is not None:
+        if not args.resume:
+            print("ERROR: --resume-data requires --resume.", file=sys.stderr)
+            sys.exit(1)
+        # Parse and validate resume data JSON
+        try:
+            resume_data = json.loads(args.resume_data)
+        except json.JSONDecodeError as e:
+            print(f"ERROR: --resume-data is not valid JSON: {e}", file=sys.stderr)
+            sys.exit(1)
+        if not isinstance(resume_data, dict):
+            print("ERROR: --resume-data must be a JSON object.", file=sys.stderr)
+            sys.exit(1)
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
@@ -640,6 +696,19 @@ def initiate_work_on_jira_issue_workflow(
             sys.exit(1)
         if isinstance(issue_key, str):
             set_value("jira.issue_key", issue_key)
+
+    # Route to LangGraph-based workflow when --engine langchain is selected.
+    if engine == "langchain":
+        from ...orchestration.runner import run_langchain_workflow
+
+        run_langchain_workflow(
+            issue_key,
+            interactive=interactive,
+            model=model,
+            resume=args.resume,
+            resume_data=resume_data,
+        )
+        return
 
     # Run pre-flight checks
     preflight_result = check_worktree_and_branch(issue_key)
