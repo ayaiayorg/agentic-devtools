@@ -65,9 +65,11 @@ workflows, commands, or artifacts.
 
 ## User Stories
 
-### US-001 [P1]: Select LangChain review path explicitly
+### User Story 1 [P1] (US-001): Select LangChain review path explicitly
 
 As a maintainer, I want an explicit command/workflow switch for LangChain review so that I can opt in safely without changing the default review behavior.
+
+**Mapped Requirements**: FR-001, FR-002, FR-003
 
 #### Acceptance Scenarios (Given/When/Then)
 
@@ -93,9 +95,11 @@ As a maintainer, I want an explicit command/workflow switch for LangChain review
    - Then the existing review path is used
    - And no LangChain-specific behavior is activated
 
-### US-002 [P1]: Preserve workflow compatibility
+### User Story 2 [P1] (US-002): Preserve workflow compatibility
 
 As a maintainer, I want the LangChain review path to produce compatible review-state artifacts so that existing follow-up commands continue to function.
+
+**Mapped Requirements**: FR-004, FR-005, FR-006, FR-007, FR-008
 
 #### Acceptance Scenarios (Given/When/Then)
 
@@ -105,9 +109,11 @@ As a maintainer, I want the LangChain review path to produce compatible review-s
    - Then artifact locations and required schema fields remain compatible with existing consumers
    - And the `review-state.json` file is readable by all existing review lifecycle commands (`agdt-approve-file`, `agdt-request-changes`, `agdt-submit-file-review`, etc.)
 
-### US-003 [P2]: Compare outcomes between both paths
+### User Story 3 [P2] (US-003): Compare outcomes between both paths
 
 As a maintainer, I want to run the existing and LangChain paths on similar PRs so that I can evaluate quality, reliability, and operational trade-offs.
+
+**Mapped Requirements**: FR-004, FR-005
 
 #### Acceptance Scenarios (Given/When/Then)
 
@@ -117,9 +123,11 @@ As a maintainer, I want to run the existing and LangChain paths on similar PRs s
    - Then both runs expose equivalent high-level statuses and actionable outputs
    - And both produce review-state files with the same schema and required fields
 
-### US-004 [P3]: Diagnose failures quickly
+### User Story 4 [P3] (US-004): Diagnose failures quickly
 
 As a maintainer, I want clear failure messaging for LangChain routing and execution errors so that I can recover quickly without breaking normal review operations.
+
+**Mapped Requirements**: FR-007, FR-008, FR-009, FR-010, FR-011
 
 #### Acceptance Scenarios (Given/When/Then)
 
