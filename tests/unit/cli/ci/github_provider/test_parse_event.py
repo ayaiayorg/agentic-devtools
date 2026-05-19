@@ -59,6 +59,15 @@ class TestParseEvent:
         assert result.head_sha == "abc123def456789012345678901234567890abcd"
         assert result.action == "completed"
 
+    def test_issue_comment_created_for_pull_request(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = _load_fixture("issue_comment_created.json")
+        result = provider.parse_event(payload, "issue_comment")
+        assert result.pr_number == 42
+        assert result.action == "comment_created"
+        assert result.repository_full_name == "owner/repo"
+        assert result.sender_login == "copilot[bot]"
+
     def test_malformed_payload_missing_pull_request(self) -> None:
         provider = GitHubActionsProvider(repo="owner/repo")
         with pytest.raises(MalformedEventError) as exc_info:
@@ -88,6 +97,41 @@ class TestParseEvent:
         provider = GitHubActionsProvider(repo="owner/repo")
         with pytest.raises(MalformedEventError, match="missing 'workflow_run' field"):
             provider.parse_event({"action": "completed"}, "workflow_run")
+
+    def test_issue_comment_without_issue_field_raises_error(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+        with pytest.raises(MalformedEventError, match="missing 'issue' field"):
+            provider.parse_event({"action": "created"}, "issue_comment")
+
+    def test_issue_comment_on_issue_not_pr_raises_error(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "action": "created",
+            "issue": {"number": 42},
+            "repository": {"full_name": "owner/repo"},
+        }
+        with pytest.raises(MalformedEventError, match="not on a pull request"):
+            provider.parse_event(payload, "issue_comment")
+
+    def test_issue_comment_missing_issue_number_raises_error(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "action": "created",
+            "issue": {"pull_request": {"url": "https://api.github.com/repos/owner/repo/pulls/42"}},
+            "repository": {"full_name": "owner/repo"},
+        }
+        with pytest.raises(MalformedEventError, match="missing or invalid 'issue.number' field"):
+            provider.parse_event(payload, "issue_comment")
+
+    def test_issue_comment_non_positive_issue_number_raises_error(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "action": "created",
+            "issue": {"number": 0, "pull_request": {"url": "https://api.github.com/repos/owner/repo/pulls/42"}},
+            "repository": {"full_name": "owner/repo"},
+        }
+        with pytest.raises(MalformedEventError, match="missing or invalid 'issue.number' field"):
+            provider.parse_event(payload, "issue_comment")
 
     def test_empty_repo_uses_relative_path(self) -> None:
         """When repo is empty, _repo_api returns the path as-is."""

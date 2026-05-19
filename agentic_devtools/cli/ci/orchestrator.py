@@ -20,6 +20,7 @@ import sys
 from typing import Any
 
 from agentic_devtools.cli.ci.guards import (
+    LABEL_NO_AUTO_MERGE,
     LABEL_SKIP_ENTIRELY,
     PRIVILEGED_PREFIXES,
     check_cycle_limit,
@@ -31,6 +32,7 @@ from agentic_devtools.cli.ci.guards import (
     increment_cycle_count,
 )
 from agentic_devtools.cli.ci.models import (
+    COPILOT_COMMENT_LOGINS,
     COPILOT_LOGINS,
     COPILOT_REVIEWER_LOGIN,
     CheckRunStatus,
@@ -115,6 +117,63 @@ def _is_ci_completion_event(event_payload: EventPayload) -> bool:
 def _is_review_submission_event(event_payload: EventPayload) -> bool:
     """Return True when this run was triggered by a PR review submission."""
     return event_payload.action == "submitted"
+
+
+def _is_issue_comment_created(event_payload: EventPayload) -> bool:
+    """Return True when this run was triggered by an ``issue_comment`` create event."""
+    return event_payload.action == "comment_created"
+
+
+def _count_commits_above_merge_base(
+    provider: CIPlatformProvider,
+    *,
+    base_branch: str,
+    head_sha: str,
+) -> int:
+    """Return commit count above merge-base, defaulting to 1 when unsupported."""
+    counter = getattr(provider, "count_commits_above_merge_base", None)
+    if not callable(counter):
+        logger.info("Provider does not expose commit-count probe; treating post-repair squash as not needed")
+        return 1
+    count = counter(base_branch=base_branch, head_sha=head_sha)
+    return int(count)
+
+
+def _apply_comment_triggered_post_repair_guards(
+    pr_number: int,
+    pr_meta: PRMetadata,
+    summary: dict[str, Any],
+) -> int | None:
+    """Apply fail-closed guards before comment-triggered post-repair squash."""
+    if check_fork_pr(pr_meta.head_repo_full_name, pr_meta.base_repo_full_name):
+        logger.info(
+            "PR #%d comment-triggered post-repair squash blocked for fork PR (head=%s, base=%s)",
+            pr_number,
+            pr_meta.head_repo_full_name,
+            pr_meta.base_repo_full_name,
+        )
+        summary["guards"] = {"blocked_by": "fork_pr"}
+        summary["decision"] = "blocked"
+        summary["reason"] = "fork_pr"
+        summary["exit_code"] = EXIT_GUARD_BLOCKED
+        return EXIT_GUARD_BLOCKED
+
+    should_skip, flag = check_exclusion_labels(pr_meta.labels)
+    if should_skip or flag == "do_not_merge":
+        blocked_by = "exclusion_label" if should_skip else "do_not_merge"
+        label = LABEL_SKIP_ENTIRELY if should_skip else LABEL_NO_AUTO_MERGE
+        logger.info(
+            "PR #%d comment-triggered post-repair squash blocked by label guard (%s)",
+            pr_number,
+            label,
+        )
+        summary["guards"] = {"blocked_by": blocked_by, "label": label}
+        summary["decision"] = "blocked"
+        summary["reason"] = blocked_by
+        summary["exit_code"] = EXIT_GUARD_BLOCKED
+        return EXIT_GUARD_BLOCKED
+
+    return None
 
 
 def _is_wip_title(title: str) -> bool:
@@ -267,6 +326,127 @@ def run_ai_pr_loop(
         return EXIT_METADATA_FAILED
     logger.info("PR #%d metadata resolved: head_sha=%s, base=%s", pr_number, pr_meta.head_sha, pr_meta.base_branch)
     _log_endgroup()
+
+    # Step 2b: Comment-triggered deferred post-repair squash finalization.
+    # This path intentionally skips merge-only logic, but still re-applies
+    # fork/label guards before any force-push behavior.
+    if _is_issue_comment_created(event_payload):
+        _log_group("Step 2b: Post-repair squash finalization")
+        summary["post_repair"] = {"phase": "comment_triggered"}
+        sender_login = event_payload.sender_login
+        if not sender_login or sender_login not in COPILOT_COMMENT_LOGINS:
+            summary["decision"] = "post_repair_squash_not_needed"
+            summary["reason"] = "non_copilot_comment"
+            summary["exit_code"] = EXIT_SUCCESS
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_SUCCESS
+
+        guard_exit = _apply_comment_triggered_post_repair_guards(pr_number, pr_meta, summary)
+        if guard_exit is not None:
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return guard_exit
+
+        try:
+            reviews = provider.list_reviews(pr_number)
+        except Exception as exc:
+            logger.error("Failed to list reviews for PR #%d during comment finalization: %s", pr_number, exc)
+            summary["decision"] = "error"
+            summary["reason"] = "reviews_listing_failed"
+            summary["error"] = str(exc)
+            summary["exit_code"] = EXIT_METADATA_FAILED
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_METADATA_FAILED
+
+        prior_copilot_reviews = [
+            r
+            for r in reviews
+            if r.user in COPILOT_LOGINS
+            and r.commit_sha
+            and r.commit_sha != pr_meta.head_sha
+            and r.state in ("CHANGES_REQUESTED", "COMMENTED")
+        ]
+        prior_review_id = 0
+        if prior_copilot_reviews:
+            prior_copilot_reviews.sort(key=lambda r: r.id, reverse=True)
+            prior_review = prior_copilot_reviews[0]
+            if prior_review.state == "CHANGES_REQUESTED":
+                prior_review_id = prior_review.id
+            else:
+                try:
+                    if provider.list_review_comments(pr_number, prior_review.id):
+                        prior_review_id = prior_review.id
+                except Exception:
+                    # Fail closed when comments cannot be fetched.
+                    prior_review_id = prior_review.id
+
+        if not prior_review_id:
+            summary["decision"] = "post_repair_squash_not_needed"
+            summary["reason"] = "no_prior_actionable_review"
+            summary["exit_code"] = EXIT_SUCCESS
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_SUCCESS
+
+        try:
+            commit_count = _count_commits_above_merge_base(
+                provider,
+                base_branch=pr_meta.base_branch,
+                head_sha=pr_meta.head_sha,
+            )
+        except Exception as exc:
+            logger.error("Failed to count post-repair commits for PR #%d: %s", pr_number, exc)
+            summary["decision"] = "error"
+            summary["reason"] = "post_repair_commit_count_failed"
+            summary["error"] = str(exc)
+            summary["exit_code"] = EXIT_METADATA_FAILED
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_METADATA_FAILED
+
+        if commit_count <= 1:
+            summary["post_repair"] = {
+                "phase": "comment_triggered",
+                "review_id": prior_review_id,
+                "commit_count": commit_count,
+            }
+            summary["decision"] = "post_repair_squash_not_needed"
+            summary["reason"] = "already_squashed_or_single_commit"
+            summary["exit_code"] = EXIT_SUCCESS
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_SUCCESS
+
+        try:
+            provider.squash_post_repair(
+                pr_number=pr_number,
+                base_branch=pr_meta.base_branch,
+                head_branch=pr_meta.head_branch,
+                head_sha=pr_meta.head_sha,
+            )
+        except Exception as exc:
+            logger.error("Post-repair squash finalization failed for PR #%d: %s", pr_number, exc)
+            summary["decision"] = "error"
+            summary["reason"] = "post_repair_squash_failed"
+            summary["error"] = str(exc)
+            summary["exit_code"] = EXIT_MERGE_BLOCKED
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_MERGE_BLOCKED
+
+        summary["post_repair"] = {
+            "phase": "comment_triggered",
+            "review_id": prior_review_id,
+            "commit_count": commit_count,
+            "squashed": True,
+        }
+        summary["decision"] = "post_repair_squash_completed"
+        summary["exit_code"] = EXIT_SUCCESS
+        _log_endgroup()
+        _emit_decision_summary(summary)
+        return EXIT_SUCCESS
 
     # Step 3: Evaluate guards
     _log_group("Step 3: Evaluate guards")
@@ -647,7 +827,7 @@ def run_ai_pr_loop(
                 _emit_decision_summary(summary)
                 return EXIT_MERGE_BLOCKED
             summary["post_repair"] = {"finalized": True, "review_id": copilot_review_id}
-            summary["decision"] = "post_repair_finalized"
+            summary["decision"] = "post_repair_soft_finalized"
             summary["exit_code"] = EXIT_SUCCESS
             _log_endgroup()
             _emit_decision_summary(summary)
@@ -656,7 +836,7 @@ def run_ai_pr_loop(
         # No actionable review on HEAD — check for an actionable Copilot review
         # on a prior commit.  When Copilot SWE agent pushes a repair commit the
         # review that triggered the repair targets the old SHA.  After CI passes
-        # on the new HEAD we must still finalize (reply, resolve, squash).
+        # on the new HEAD we must still soft-finalize (reply, resolve).
         prior_copilot_reviews = [
             r
             for r in reviews
@@ -714,7 +894,7 @@ def run_ai_pr_loop(
                     "review_id": prior_review_id,
                     "prior_commit": True,
                 }
-                summary["decision"] = "post_repair_finalized"
+                summary["decision"] = "post_repair_soft_finalized"
                 summary["exit_code"] = EXIT_SUCCESS
                 _log_endgroup()
                 _emit_decision_summary(summary)

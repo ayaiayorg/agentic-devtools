@@ -12,11 +12,13 @@ def test__list_addressed_reply_parent_comment_ids_filters_addressed_replies(mock
     mock_parse.return_value = [
         {"in_reply_to_id": 10, "body": "Addressed by fix commit `abc12345`."},
         {"in_reply_to_id": "20", "body": "  ADDRESSED BY FIX COMMIT `def67890`."},
-        {"in_reply_to_id": 25, "body": "not addressed by fix commit"},
+        {"in_reply_to_id": 25, "body": "Addressed on the updated PR branch."},
+        {"in_reply_to_id": 27, "body": "  addressed on the updated pr branch.  "},
+        {"in_reply_to_id": 28, "body": "not addressed by fix commit"},
         {"in_reply_to_id": 30, "body": "Not addressed yet"},
-        {"body": "Addressed by fix commit `fedcba98`."},
+        {"body": "Addressed on the updated PR branch."},
     ]
     provider = GitHubActionsProvider(repo="owner/repo")
 
-    assert provider._list_addressed_reply_parent_comment_ids(42) == {10, 20}
+    assert provider._list_addressed_reply_parent_comment_ids(42) == {10, 20, 25, 27}
     mock_gh_api.assert_called_once_with("/repos/owner/repo/pulls/42/comments", paginate=True)

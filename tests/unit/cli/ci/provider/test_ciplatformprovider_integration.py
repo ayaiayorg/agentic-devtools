@@ -88,6 +88,16 @@ class _StubAdoProvider(CIPlatformProvider):
     ) -> None:
         raise NotImplementedError("ADO provider stub")
 
+    def squash_post_repair(
+        self,
+        *,
+        pr_number: int,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+    ) -> None:
+        raise NotImplementedError("ADO provider stub")
+
     def publish_pr(self, pr_number: int) -> None:
         raise NotImplementedError("ADO provider stub")
 

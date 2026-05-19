@@ -175,3 +175,14 @@ class AzureDevOpsProvider(CIPlatformProvider):
     ) -> None:
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.finalize_post_repair() not yet implemented")
+
+    def squash_post_repair(
+        self,
+        *,
+        pr_number: int,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+    ) -> None:
+        """Not implemented for ADO stub."""
+        raise NotImplementedError("AzureDevOpsProvider.squash_post_repair() not yet implemented")

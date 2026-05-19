@@ -31,6 +31,9 @@ from agentic_devtools.cli.subprocess_utils import run_safe
 
 logger = logging.getLogger(__name__)
 
+_ADDRESSED_REPLY_BODY = "Addressed on the updated PR branch."
+_LEGACY_ADDRESSED_REPLY_PREFIXES = ("addressed by fix commit",)
+
 
 def _format_suppressed_body(body: str, max_length: int = 200) -> str:
     """Normalize/escape/truncate suppressed body for compact one-line trigger output."""
@@ -329,6 +332,8 @@ class GitHubActionsProvider(CIPlatformProvider):
                 return self._parse_pull_request_event(raw_payload)
             if event_name == "pull_request_review":
                 return self._parse_pull_request_review_event(raw_payload, event_name)
+            if event_name == "issue_comment":
+                return self._parse_issue_comment_event(raw_payload, event_name)
             if event_name == "issues":
                 return self._parse_issues_event(raw_payload)
             if event_name == "workflow_run":
@@ -371,6 +376,23 @@ class GitHubActionsProvider(CIPlatformProvider):
             trigger_label=label.get("name", ""),
             repository_full_name=raw.get("repository", {}).get("full_name", ""),
             sender_login=raw.get("sender", {}).get("login", ""),
+        )
+
+    def _parse_issue_comment_event(self, raw: dict, event_name: str) -> EventPayload:
+        issue = raw.get("issue")
+        if issue is None:
+            raise MalformedEventError(event_name, "missing 'issue' field")
+        if issue.get("pull_request") is None:
+            raise MalformedEventError(event_name, "issue_comment is not on a pull request")
+        issue_number = issue.get("number")
+        if not isinstance(issue_number, int) or issue_number <= 0:
+            raise MalformedEventError(event_name, "missing or invalid 'issue.number' field")
+        commenter_login = raw.get("comment", {}).get("user", {}).get("login", "")
+        return EventPayload(
+            pr_number=issue_number,
+            action="comment_created",
+            repository_full_name=raw.get("repository", {}).get("full_name", ""),
+            sender_login=commenter_login or raw.get("sender", {}).get("login", ""),
         )
 
     def _parse_workflow_run_event(self, raw: dict, event_name: str) -> EventPayload:
@@ -637,18 +659,12 @@ class GitHubActionsProvider(CIPlatformProvider):
         return [int(c["id"]) for c in comments if c.get("id")]
 
     @retry_with_backoff()
-    def _reply_to_review_comment(self, pr_number: int, comment_id: int, head_sha: str) -> None:
+    def _reply_to_review_comment(self, pr_number: int, comment_id: int) -> None:
         """Post addressed reply to a single review comment."""
-        repo = self._resolve_repo()
         _gh_api(
             self._repo_api(f"/pulls/{pr_number}/comments/{comment_id}/replies"),
             method="POST",
-            body={
-                "body": (
-                    f"Addressed by fix commit [`{head_sha[:8]}`]"
-                    f"(https://github.com/{repo}/commit/{head_sha})."
-                )
-            },
+            body={"body": _ADDRESSED_REPLY_BODY},
         )
 
     @retry_with_backoff()
@@ -663,7 +679,10 @@ class GitHubActionsProvider(CIPlatformProvider):
             int(comment["in_reply_to_id"])
             for comment in comments
             if comment.get("in_reply_to_id")
-            and str(comment.get("body", "")).strip().lower().startswith("addressed by fix commit")
+            and (
+                str(comment.get("body", "")).strip().lower() == _ADDRESSED_REPLY_BODY.lower()
+                or str(comment.get("body", "")).strip().lower().startswith(_LEGACY_ADDRESSED_REPLY_PREFIXES)
+            )
         }
 
     def _has_existing_addressed_reply(
@@ -1052,7 +1071,7 @@ class GitHubActionsProvider(CIPlatformProvider):
         head_branch: str,
         head_sha: str,
         reset_to_remote: bool = False,
-    ) -> str:
+    ) -> None:
         """Squash commits on head branch into one and force-push with lease."""
         self._run_git(["fetch", "origin", base_branch, head_branch])
         self._run_git(["checkout", head_branch])
@@ -1094,7 +1113,6 @@ class GitHubActionsProvider(CIPlatformProvider):
                 except RuntimeError as abort_exc:
                     raise RuntimeError(f"`git rebase --abort` failed: {abort_exc}") from abort_exc
         self._run_git(["push", "--force-with-lease", "origin", f"HEAD:{head_branch}"])
-        return self._run_git(["rev-parse", "HEAD"]).strip()
 
     def squash_before_publish(
         self,
@@ -1107,6 +1125,19 @@ class GitHubActionsProvider(CIPlatformProvider):
         """Squash commits and push branch before draft PR publish."""
         logger.info("Squashing PR #%d before publish", pr_number)
         self._squash_and_force_push(base_branch=base_branch, head_branch=head_branch, head_sha=head_sha)
+
+    def count_commits_above_merge_base(
+        self,
+        *,
+        base_branch: str,
+        head_sha: str,
+    ) -> int:
+        """Return commit count above merge-base between origin/base and ``head_sha``."""
+        self._run_git(["fetch", "origin", base_branch])
+        self._run_git(["fetch", "origin", head_sha])
+        merge_base = self._run_git(["merge-base", head_sha, f"origin/{base_branch}"]).strip()
+        commit_count_raw = self._run_git(["rev-list", "--count", f"{merge_base}..{head_sha}"]).strip()
+        return int(commit_count_raw or "0")
 
     def _resolve_repo(self) -> str:
         """Resolve the repository in ``owner/repo`` format."""
@@ -1124,36 +1155,18 @@ class GitHubActionsProvider(CIPlatformProvider):
         head_sha: str,
         review_id: int,
     ) -> None:
-        """Finalize a post-repair cycle after Copilot pushes a fix commit.
+        """Perform soft post-repair finalization after Copilot pushes a fix commit.
 
         Each sub-operation is individually retried so that a transient failure
         partway through does not re-execute already-completed steps (addresses
         the non-idempotent retry concern).
 
-        Delegates thread resolution and Copilot re-request to the existing
-        ``cli/github`` modules to avoid duplicating GraphQL pagination,
-        verification, and retry logic.
+        Delegates thread resolution to the existing ``cli/github`` module to
+        avoid duplicating GraphQL pagination and retry logic.
         """
         repo = self._resolve_repo()
 
-        # 1. Squash and force-push
-        post_squash_head_sha = self._squash_and_force_push(
-            base_branch=base_branch,
-            head_branch=head_branch,
-            head_sha=head_sha,
-        )
-
-        # 1b. Guard against the race where Copilot SWE agent pushes another
-        #     commit during finalization — re-fetch and hard-reset to remote
-        #     head branch before re-checking commit count.
-        post_squash_head_sha = self._squash_and_force_push(
-            base_branch=base_branch,
-            head_branch=head_branch,
-            head_sha=head_sha,
-            reset_to_remote=True,
-        )
-
-        # 2. Reply to each review comment (individually retried via decorator)
+        # 1. Reply to each review comment (individually retried via decorator)
         comment_ids = self._list_review_comment_ids(pr_number, review_id)
         addressed_reply_parent_comment_ids = set()
         if comment_ids:
@@ -1161,17 +1174,44 @@ class GitHubActionsProvider(CIPlatformProvider):
         for comment_id in comment_ids:
             if self._has_existing_addressed_reply(pr_number, comment_id, addressed_reply_parent_comment_ids):
                 continue
-            self._reply_to_review_comment(pr_number, comment_id, post_squash_head_sha)
+            self._reply_to_review_comment(pr_number, comment_id)
 
-        # 3. Resolve threads — delegates to existing resolve_review_threads()
+        # 2. Resolve threads — delegates to existing resolve_review_threads()
         #    which already handles GraphQL pagination, retry, and verification
         _resolve_review_threads(pr_number, repo, review_id=review_id)
 
-        # 4. Ensure PR is published if still draft (edge-case safety)
+    def squash_post_repair(
+        self,
+        *,
+        pr_number: int,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+    ) -> None:
+        """Squash post-repair commits and re-request Copilot review.
+
+        Called from the comment-triggered post-repair phase after the
+        Copilot coding agent session has completed.
+        """
+        # 1. Squash and force-push
+        self._squash_and_force_push(base_branch=base_branch, head_branch=head_branch, head_sha=head_sha)
+
+        # 1b. Guard against the race where Copilot SWE agent pushes another
+        #     commit during finalization — re-fetch and hard-reset to remote
+        #     head branch before re-checking commit count.
+        self._squash_and_force_push(
+            base_branch=base_branch,
+            head_branch=head_branch,
+            head_sha=head_sha,
+            reset_to_remote=True,
+        )
+
+        # 2. Ensure PR is published if still draft (edge-case safety)
         pr_meta = self.get_pr_metadata(pr_number)
         if pr_meta.is_draft:
             self.publish_pr(pr_number)
 
-        # 5. Re-request Copilot review — delegates to existing module which
+        # 3. Re-request Copilot review — delegates to existing module which
         #    handles POST + exponential backoff verification + reviews fallback
+        repo = self._resolve_repo()
         _request_copilot_review(pr_number, repo)
