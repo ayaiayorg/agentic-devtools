@@ -3,6 +3,7 @@
 **Feature Branch**: `speckit/1486/phase-1-specify`
 **Created**: 2026-05-19
 **Status**: Draft
+**Input**: User description: "GitHub Issue #1486 - Post-Agent Copilot Review Evaluator: Programmatic & Agentic Automation for Stuck PRs"
 **Source Issue**: #1486 (<https://github.com/ayaiayorg/agentic-devtools/issues/1486>)
 
 ## Problem Statement
