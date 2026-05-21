@@ -7,6 +7,7 @@ contract without changes to orchestration code (acceptance scenario 2).
 from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
+    IssueEvent,
     PRMetadata,
     ReviewCommentInfo,
     ReviewInfo,
@@ -97,6 +98,9 @@ class _StubAdoProvider(CIPlatformProvider):
         head_sha: str,
     ) -> None:
         raise NotImplementedError("ADO provider stub")
+
+    def list_pr_issue_events(self, pr_number: int) -> list[IssueEvent]:
+        return []
 
     def publish_pr(self, pr_number: int) -> None:
         raise NotImplementedError("ADO provider stub")

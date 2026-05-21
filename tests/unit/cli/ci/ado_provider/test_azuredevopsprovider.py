@@ -121,6 +121,12 @@ class TestAzureDevOpsProvider:
                 head_sha="abc123",
             )
 
+    def test_list_pr_issue_events_returns_empty_list(self) -> None:
+        """ADO provider list_pr_issue_events always returns an empty list."""
+        provider = AzureDevOpsProvider()
+        result = provider.list_pr_issue_events(42)
+        assert result == []
+
     def test_malformed_payload_raises_error(self) -> None:
         """Payload that causes TypeError/ValueError raises MalformedEventError."""
         from agentic_devtools.cli.ci.exceptions import MalformedEventError

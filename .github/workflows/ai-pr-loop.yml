@@ -10,6 +10,16 @@ on:
   workflow_run:
     workflows: ["Python Tests and Linting", "Lint", "Workflow Integration Tests"]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to process (for squash-wait-scheduler invocations)'
+        required: false
+        type: string
+      trigger_reason:
+        description: 'Reason for manual dispatch'
+        required: false
+        type: string
 permissions:
   contents: write
   pull-requests: write
@@ -19,29 +29,30 @@ permissions:
 env:
   AGDT_USE_PYTHON_ORCHESTRATOR: "1"
 concurrency:
-  group: ai-pr-loop-${{ github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.run_id }}
+  group: ai-pr-loop-${{ github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.event.inputs.pr_number || github.run_id }}
   cancel-in-progress: false
 jobs:
   ai-pr-loop:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     if: >
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number != '') ||
       ((github.event_name == 'pull_request' &&
         github.event.pull_request.head.repo.full_name == github.repository) ||
        (github.event_name == 'pull_request_review' &&
-        github.event.pull_request.head.repo.full_name == github.repository &&
-        (github.event.review.user.login == 'Copilot' ||
-          github.event.review.user.login == 'copilot-pull-request-reviewer[bot]')) ||
+         github.event.pull_request.head.repo.full_name == github.repository &&
+         (github.event.review.user.login == 'Copilot' ||
+           github.event.review.user.login == 'copilot-pull-request-reviewer[bot]')) ||
        (github.event_name == 'issue_comment' &&
-        github.event.issue.pull_request &&
-        (github.event.comment.user.login == 'copilot[bot]' ||
-         github.event.comment.user.login == 'Copilot' ||
-         github.event.comment.user.login == 'copilot-pull-request-reviewer[bot]')) ||
+         github.event.issue.pull_request &&
+         (github.event.comment.user.login == 'copilot[bot]' ||
+          github.event.comment.user.login == 'Copilot' ||
+          github.event.comment.user.login == 'copilot-pull-request-reviewer[bot]')) ||
        (github.event_name == 'workflow_run' &&
-        github.event.workflow_run.event == 'pull_request' &&
-        github.event.workflow_run.head_repository.full_name == github.repository &&
-        github.event.workflow_run.conclusion != 'cancelled' &&
-        github.event.workflow_run.pull_requests[0].number != null))
+         github.event.workflow_run.event == 'pull_request' &&
+         github.event.workflow_run.head_repository.full_name == github.repository &&
+         github.event.workflow_run.conclusion != 'cancelled' &&
+         github.event.workflow_run.pull_requests[0].number != null))
     steps:
       - name: Resolve PR head ref for issue_comment trigger
         if: github.event_name == 'issue_comment'
@@ -55,6 +66,21 @@ jobs:
           same_repo="$( [ "$is_cross_repo" = "true" ] && echo "false" || echo "true" )"
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
           echo "same_repo=$same_repo" >> "$GITHUB_OUTPUT"
+      - name: Resolve PR head ref for workflow_dispatch trigger
+        if: github.event_name == 'workflow_dispatch'
+        id: dispatch-pr
+        env:
+          GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
+        run: |
+          set -euo pipefail
+          pr_number='${{ github.event.inputs.pr_number }}'
+          if [[ ! "$pr_number" =~ ^[0-9]+$ ]]; then
+            echo "::error::workflow_dispatch input pr_number must be a numeric pull request number"
+            exit 1
+          fi
+          pr_json="$(gh pr view "$pr_number" --repo "${{ github.repository }}" --json headRefName)"
+          head_ref="$(echo "$pr_json" | jq -r '.headRefName')"
+          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
       - name: Skip issue_comment from cross-repository PR
         if: github.event_name == 'issue_comment' && steps.issue-comment-pr.outputs.same_repo != 'true'
         run: echo "Skipping issue_comment event for cross-repository PR."
@@ -62,7 +88,7 @@ jobs:
         if: github.event_name != 'issue_comment' || steps.issue-comment-pr.outputs.same_repo == 'true'
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref || github.event.workflow_run.head_branch || steps.issue-comment-pr.outputs.head_ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.event.workflow_run.head_branch || steps.issue-comment-pr.outputs.head_ref || steps.dispatch-pr.outputs.head_ref }}
           fetch-depth: 0
           token: ${{ secrets.AGDT_PR_APPROVER_PAT }}
       - name: Configure git identity

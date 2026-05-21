@@ -19,6 +19,7 @@ from agentic_devtools.cli.ci.exceptions import MalformedEventError
 from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
+    IssueEvent,
     PRMetadata,
     ReviewCommentInfo,
     ReviewInfo,
@@ -338,6 +339,8 @@ class GitHubActionsProvider(CIPlatformProvider):
                 return self._parse_issues_event(raw_payload)
             if event_name == "workflow_run":
                 return self._parse_workflow_run_event(raw_payload, event_name)
+            if event_name == "workflow_dispatch":
+                return self._parse_workflow_dispatch_event(raw_payload)
         except (KeyError, TypeError) as exc:
             raise MalformedEventError(event_name, str(exc)) from exc
 
@@ -414,6 +417,25 @@ class GitHubActionsProvider(CIPlatformProvider):
             head_sha=wf.get("head_sha", ""),
             base_branch=base_branch,
             action=raw.get("action", ""),
+            repository_full_name=raw.get("repository", {}).get("full_name", ""),
+            sender_login=raw.get("sender", {}).get("login", ""),
+        )
+
+    def _parse_workflow_dispatch_event(self, raw: dict) -> EventPayload:
+        """Parse a workflow_dispatch event, extracting pr_number from inputs.
+
+        Treats the dispatch as equivalent to a ``workflow_run`` completion event
+        (action="completed") so the orchestrator routes it to the squash-wait path.
+        """
+        inputs = raw.get("inputs") or {}
+        pr_number_str = str(inputs.get("pr_number", "") or "").strip()
+        try:
+            pr_number = int(pr_number_str) if pr_number_str else 0
+        except (ValueError, TypeError):
+            pr_number = 0
+        return EventPayload(
+            pr_number=pr_number,
+            action="completed",
             repository_full_name=raw.get("repository", {}).get("full_name", ""),
             sender_login=raw.get("sender", {}).get("login", ""),
         )
@@ -639,6 +661,36 @@ class GitHubActionsProvider(CIPlatformProvider):
             )
             for c in comments
         ]
+
+    @retry_with_backoff()
+    def list_pr_issue_events(self, pr_number: int) -> list[IssueEvent]:
+        """List Copilot session events for a pull request from the Issues Events API.
+
+        Calls ``GET /repos/{owner}/{repo}/issues/{pr_number}/events`` with
+        pagination and returns only Copilot session events
+        (copilot_work_finished, copilot_work_finished_failure, copilot_work_started)
+        in ascending chronological order.
+        """
+        from agentic_devtools.cli.ci.models import _COPILOT_SESSION_EVENTS  # noqa: PLC0415
+
+        response = _gh_api(self._repo_api(f"/issues/{pr_number}/events"), paginate=True)
+        raw_events = _parse_paginated_json(response)
+        events: list[IssueEvent] = []
+        for ev in raw_events:
+            event_type = ev.get("event", "")
+            if event_type not in _COPILOT_SESSION_EVENTS:
+                continue
+            actor = ev.get("actor") or {}
+            events.append(
+                IssueEvent(
+                    id=int(ev.get("id", 0)),
+                    event=event_type,
+                    created_at=ev.get("created_at", ""),
+                    actor_login=actor.get("login", "") if isinstance(actor, dict) else "",
+                )
+            )
+        events.sort(key=lambda e: e.id)
+        return events
 
     def _run_git(self, args: Iterable[str]) -> str:
         """Run git command and return stdout or raise on failure."""

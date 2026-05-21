@@ -5,6 +5,7 @@ import pytest
 from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
+    IssueEvent,
     PRMetadata,
     ReviewCommentInfo,
     ReviewInfo,
@@ -85,6 +86,9 @@ class _ConcreteProvider(CIPlatformProvider):
         head_sha: str,
     ) -> None:
         pass
+
+    def list_pr_issue_events(self, pr_number: int) -> list[IssueEvent]:
+        return []
 
     def publish_pr(self, pr_number: int) -> None:
         pass
@@ -203,6 +207,7 @@ class TestCIPlatformProvider:
             "list_review_comments",
             "finalize_post_repair",
             "squash_post_repair",
+            "list_pr_issue_events",
         }
         actual_abstracts = CIPlatformProvider.__abstractmethods__
         assert actual_abstracts == expected_methods

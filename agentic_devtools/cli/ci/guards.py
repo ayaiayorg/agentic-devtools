@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import uuid
+from datetime import datetime, timezone
 
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
 
@@ -33,6 +34,10 @@ LABEL_AUTO_MERGE_ALLOWED = "ai-auto-merge-allowed"
 # Deduplication marker format
 DEDUP_MARKER_PREFIX = "<!-- repair-dispatch:"
 DEDUP_MARKER_PATTERN = re.compile(r"<!-- repair-dispatch:([a-f0-9]+):(\d+)(?::([A-Za-z0-9._-]+))? -->")
+
+# Squash-wait marker constants
+SQUASH_WAIT_MARKER_PREFIX = "<!-- squash-wait\n"
+SQUASH_WAIT_MAX_ATTEMPTS = 24  # 24 × 5 min cron = ~120 minutes
 
 # Default limits
 DEFAULT_MAX_DISPATCHES_PER_SHA = 3
@@ -253,3 +258,196 @@ def increment_cycle_count(provider: CIPlatformProvider, pr_number: int) -> int:
     body = f"{CYCLE_TRACKER_MARKER} cycle:1"
     provider.post_comment(pr_number, body)
     return 1
+
+
+# ---------------------------------------------------------------------------
+# Squash-wait marker helpers
+# ---------------------------------------------------------------------------
+
+_SQUASH_WAIT_FIELD_RE = re.compile(r"^(\w+)=(.*)$", re.MULTILINE)
+
+
+def _build_squash_wait_body(
+    *,
+    pr_number: int,
+    sha: str,
+    attempt: int,
+    head_pushed_at: str,
+    ci_passed: bool,
+    copilot_session_terminal: bool,
+    copilot_session_outcome: str,
+    squash_done: bool,
+) -> str:
+    """Build the full comment body for a squash-wait marker."""
+    now = datetime.now(timezone.utc).isoformat()
+    return (
+        f"{SQUASH_WAIT_MARKER_PREFIX}"
+        f"sha={sha}\n"
+        f"attempt={attempt}\n"
+        f"head_pushed_at={head_pushed_at}\n"
+        f"ci_passed={'true' if ci_passed else 'false'}\n"
+        f"copilot_session_terminal={'true' if copilot_session_terminal else 'false'}\n"
+        f"copilot_session_outcome={copilot_session_outcome}\n"
+        f"squash_done={'true' if squash_done else 'false'}\n"
+        f"-->\n"
+        f"Squash wait in progress for PR #{pr_number} — last checked {now}"
+    )
+
+
+def read_squash_wait_marker(
+    provider: CIPlatformProvider,
+    pr_number: int,
+    head_sha: str,
+) -> dict | None:
+    """Read and parse the squash-wait marker comment for this PR.
+
+    Returns a dict of parsed field values if the marker exists and the
+    ``sha`` field matches ``head_sha``.  Returns ``None`` if the marker
+    is absent or the SHA does not match the current head (indicating the
+    marker is stale and belongs to a previous commit).
+
+    Args:
+        provider: CI platform provider for API calls.
+        pr_number: Pull request number.
+        head_sha: Current HEAD SHA to validate against the marker's sha field.
+
+    Returns:
+        Dict with keys sha, attempt (int), head_pushed_at, ci_passed (bool),
+        copilot_session_terminal (bool), copilot_session_outcome, squash_done (bool),
+        and comment_id (int).  Returns None when not found or SHA mismatch.
+    """
+    existing = provider.find_comment(pr_number, SQUASH_WAIT_MARKER_PREFIX)
+    if existing is None:
+        return None
+
+    comment_id, comment_body = existing
+    fields: dict[str, str] = {}
+    for match in _SQUASH_WAIT_FIELD_RE.finditer(comment_body):
+        fields[match.group(1)] = match.group(2).strip()
+
+    marker_sha = fields.get("sha", "")
+    if marker_sha != head_sha:
+        logger.info(
+            "PR #%d squash-wait marker SHA mismatch (marker=%s, head=%s) — treating as absent",
+            pr_number,
+            marker_sha[:8] if marker_sha else "",
+            head_sha[:8] if head_sha else "",
+        )
+        return None
+
+    def _bool(val: str) -> bool:
+        return val.strip().lower() == "true"
+
+    try:
+        attempt = int(fields.get("attempt", "0"))
+    except ValueError:
+        logger.warning(
+            "PR #%d squash-wait marker has non-integer attempt value (%r) — treating marker as absent",
+            pr_number,
+            fields.get("attempt"),
+        )
+        return None
+
+    copilot_session_terminal = _bool(fields.get("copilot_session_terminal", "false"))
+    copilot_session_outcome = fields.get("copilot_session_outcome", "pending").strip().lower()
+    valid_outcomes = {"pending", "success", "failure"}
+    if copilot_session_outcome not in valid_outcomes:
+        logger.warning(
+            "PR #%d squash-wait marker has invalid copilot_session_outcome value (%r) — treating marker as absent",
+            pr_number,
+            fields.get("copilot_session_outcome"),
+        )
+        return None
+    if copilot_session_terminal and copilot_session_outcome == "pending":
+        logger.warning(
+            "PR #%d squash-wait marker has inconsistent terminal/outcome values (terminal=true, outcome=pending) "
+            "— treating marker as absent",
+            pr_number,
+        )
+        return None
+    if not copilot_session_terminal and copilot_session_outcome in {"success", "failure"}:
+        logger.warning(
+            "PR #%d squash-wait marker has inconsistent terminal/outcome values (terminal=false, outcome=%s) "
+            "— treating marker as absent",
+            pr_number,
+            copilot_session_outcome,
+        )
+        return None
+
+    return {
+        "comment_id": comment_id,
+        "sha": marker_sha,
+        "attempt": attempt,
+        "head_pushed_at": fields.get("head_pushed_at", ""),
+        "ci_passed": _bool(fields.get("ci_passed", "false")),
+        "copilot_session_terminal": copilot_session_terminal,
+        "copilot_session_outcome": copilot_session_outcome,
+        "squash_done": _bool(fields.get("squash_done", "false")),
+    }
+
+
+def write_squash_wait_marker(
+    provider: CIPlatformProvider,
+    pr_number: int,
+    *,
+    sha: str,
+    attempt: int,
+    head_pushed_at: str,
+    ci_passed: bool,
+    copilot_session_terminal: bool,
+    copilot_session_outcome: str,
+    squash_done: bool,
+) -> None:
+    """Upsert the squash-wait marker comment on the PR.
+
+    Creates the marker comment if it does not exist; updates it in-place
+    if it already exists (identified by ``SQUASH_WAIT_MARKER_PREFIX``).
+
+    Args:
+        provider: CI platform provider for API calls.
+        pr_number: Pull request number.
+        sha: Full head SHA this marker tracks.
+        attempt: Current attempt number (1-based).
+        head_pushed_at: ISO 8601 UTC reference timestamp used to scope
+            Copilot session events for the tracked head SHA.
+        ci_passed: Whether CI has passed for this SHA (always True when first written).
+        copilot_session_terminal: Whether a terminal session event was found.
+        copilot_session_outcome: One of ``"pending"``, ``"success"``, ``"failure"``.
+        squash_done: Whether the squash has been executed.
+    """
+    body = _build_squash_wait_body(
+        pr_number=pr_number,
+        sha=sha,
+        attempt=attempt,
+        head_pushed_at=head_pushed_at,
+        ci_passed=ci_passed,
+        copilot_session_terminal=copilot_session_terminal,
+        copilot_session_outcome=copilot_session_outcome,
+        squash_done=squash_done,
+    )
+    existing = provider.find_comment(pr_number, SQUASH_WAIT_MARKER_PREFIX)
+    if existing is not None:
+        provider.update_comment(existing[0], body)
+    else:
+        provider.post_comment(pr_number, body)
+
+
+def delete_squash_wait_marker(
+    provider: CIPlatformProvider,
+    pr_number: int,
+) -> None:
+    """Finalise the squash-wait marker after squash completes.
+
+    Updates the marker comment to a completion note so that the
+    squash-wait-scheduler no longer re-triggers for this PR.
+
+    Args:
+        provider: CI platform provider for API calls.
+        pr_number: Pull request number.
+    """
+    existing = provider.find_comment(pr_number, SQUASH_WAIT_MARKER_PREFIX)
+    if existing is None:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    completed_body = f"<!-- squash-wait-completed -->\nSquash-wait completed for PR #{pr_number} at {now}"
+    provider.update_comment(existing[0], completed_body)

@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
+    IssueEvent,
     PRMetadata,
     ReviewCommentInfo,
     ReviewInfo,
@@ -256,7 +257,25 @@ class CIPlatformProvider(ABC):
     ) -> None:
         """Squash post-repair commits and re-request review.
 
-        Called after the Copilot coding agent session has completed
-        (signaled by a comment event) to avoid race conditions with
-        the agent's force-push.
+        Called from the workflow_run/workflow_dispatch squash-wait flow
+        after a terminal Copilot session event has been observed to avoid
+        race conditions with the agent's force-push.
+        """
+
+    @abstractmethod
+    def list_pr_issue_events(self, pr_number: int) -> list[IssueEvent]:
+        """List issue/PR timeline events for a pull request.
+
+        Fetches Copilot session events (copilot_work_finished,
+        copilot_work_finished_failure, copilot_work_started) from the
+        GitHub Issues Events API. Returns events in chronological order
+        (ascending by id).
+
+        Args:
+            pr_number: Pull request number.
+
+        Returns:
+            List of IssueEvent dataclasses, filtered to Copilot session events.
+            Returns an empty list when the platform does not support this concept
+            (e.g., Azure DevOps).
         """

@@ -17,7 +17,7 @@ class TestMinimizedCiWorkflows:
     """Validates minimized workflow structure and limits."""
 
     def test_ai_pr_loop_is_within_line_limit(self) -> None:
-        assert _non_empty_line_count(AI_PR_LOOP) <= 90
+        assert _non_empty_line_count(AI_PR_LOOP) <= 115
 
     def test_speckit_trigger_is_within_line_limit(self) -> None:
         assert _non_empty_line_count(SPECKIT_TRIGGER) <= 150
