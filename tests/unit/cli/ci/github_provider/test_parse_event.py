@@ -137,3 +137,38 @@ class TestParseEvent:
         """When repo is empty, _repo_api returns the path as-is."""
         provider = GitHubActionsProvider(repo="")
         assert provider._repo_api("/pulls/1") == "/pulls/1"
+
+    def test_workflow_dispatch_with_pr_number(self) -> None:
+        """workflow_dispatch event with pr_number input → action='completed'."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "inputs": {"pr_number": "42", "trigger_reason": "squash_wait_scheduler"},
+            "repository": {"full_name": "owner/repo"},
+            "sender": {"login": "github-actions[bot]"},
+        }
+        result = provider.parse_event(payload, "workflow_dispatch")
+        assert result.pr_number == 42
+        assert result.action == "completed"
+        assert result.repository_full_name == "owner/repo"
+
+    def test_workflow_dispatch_without_pr_number(self) -> None:
+        """workflow_dispatch event with no pr_number → pr_number=0."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "inputs": {},
+            "repository": {"full_name": "owner/repo"},
+        }
+        result = provider.parse_event(payload, "workflow_dispatch")
+        assert result.pr_number == 0
+        assert result.action == "completed"
+
+    def test_workflow_dispatch_invalid_pr_number_defaults_to_zero(self) -> None:
+        """workflow_dispatch event with non-integer pr_number → pr_number=0."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "inputs": {"pr_number": "not-a-number"},
+            "repository": {"full_name": "owner/repo"},
+        }
+        result = provider.parse_event(payload, "workflow_dispatch")
+        assert result.pr_number == 0
+        assert result.action == "completed"

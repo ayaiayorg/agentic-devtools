@@ -1,0 +1,43 @@
+name: Squash Wait Scheduler
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # every 5 minutes
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: write
+
+jobs:
+  schedule-squash-waits:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Find PRs with active squash-wait markers and trigger ai-pr-loop
+        env:
+          GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
+        run: |
+          set -euo pipefail
+          # Search PRs once using issue index (includes comments), then dispatch.
+          # Keep this phrase aligned with _build_squash_wait_body() in guards.py.
+          mapfile -t prs < <(
+            gh api /search/issues \
+              -f q="repo:${{ github.repository }} is:pr is:open \"Squash wait in progress for PR #\"" \
+              --paginate \
+              --jq '.items[].number' | sort -u
+          )
+
+          if [ ${#prs[@]} -eq 0 ]; then
+            echo "No active squash-wait markers found."
+            exit 0
+          fi
+
+          for pr in "${prs[@]}"; do
+            echo "Triggering ai-pr-loop for PR #$pr (active squash-wait marker)"
+            gh workflow run ai-pr-loop.yml \
+              --repo ${{ github.repository }} \
+              --field pr_number="$pr" \
+              --field trigger_reason=squash_wait_scheduler
+          done

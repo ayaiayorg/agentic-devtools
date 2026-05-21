@@ -8,9 +8,10 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 
 **Automated AI PR Fix → Review → Merge Loop**
 
-- Runs on: `pull_request` (`opened`, `reopened`, `synchronize`) and `pull_request_review` (Copilot)
+- Runs on: `pull_request` (`opened`, `reopened`, `synchronize`), `pull_request_review` (Copilot),
+  `issue_comment` (Copilot completion — exits immediately, no squash), `workflow_run` (CI completion),
+  and `workflow_dispatch` (squash-wait-scheduler re-invocations)
 - Purpose: Fully autonomous PR handling — inspect failed checks and review comments, repair issues, approve, and merge
-- Supersedes the former `auto-fix-on-failure.yml`
 
 **How it works**:
 
@@ -27,6 +28,17 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 8. **Stale Review Re-request**: Re-requests Copilot review if >30 minutes stale
 9. **Cycle Tracking**: Maximum 50 outer cycles before posting exhaustion notice
 
+**Post-repair squash flow** (new, replaces `issue_comment`-triggered squash):
+
+After Copilot pushes a repair commit and CI passes, the squash is deferred until a terminal
+`copilot_work_finished` / `copilot_work_finished_failure` event is detected (via the GitHub Issues
+Events API). A `<!-- squash-wait` marker comment tracks state on the PR. The
+`squash-wait-scheduler.yml` workflow re-invokes ai-pr-loop every 5 minutes for any PR with an
+active marker, up to 24 attempts (~120 minutes).
+
+`issue_comment` events from Copilot are now ignored for squash purposes — they return immediately
+with no action. The squash always happens via `workflow_run` or `workflow_dispatch` triggers.
+
 **Required Permissions**:
 
 - `contents: write`
@@ -36,6 +48,65 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 - `checks: read`
 
 **Concurrency**: Single instance per PR (`ai-pr-loop-{pr_number}`), non-cancelling
+
+### squash-wait-scheduler.yml
+
+**Post-Repair Squash Wait Scheduler**
+
+- Runs on: `schedule` (every 5 minutes, `*/5 * * * *`) and `workflow_dispatch` (manual)
+- Purpose: Finds open PRs with an active `<!-- squash-wait` marker comment and triggers
+  `workflow_dispatch` on `ai-pr-loop.yml` for each one, so the squash-wait state machine
+  can check the GitHub Issues Events API and proceed when ready
+
+**How it works**:
+
+1. Uses a single GitHub Search API query to find open PRs that contain an active `<!-- squash-wait` marker comment
+2. Parses the matching PR numbers from search results (no per-PR comment scan loop)
+3. Triggers `gh workflow run ai-pr-loop.yml` with `pr_number` and `trigger_reason=squash_wait_scheduler` for each match
+4. The ai-pr-loop reads the marker and makes its decision (wait / squash) via Python — zero decision logic in the YAML
+
+**Squash-wait marker format**:
+
+```text
+<!-- squash-wait
+sha=<full-head-sha>
+attempt=<N>
+head_pushed_at=<ISO8601 UTC timestamp>
+ci_passed=true
+copilot_session_terminal=<true|false>
+copilot_session_outcome=<pending|success|failure>
+squash_done=false
+-->
+Squash wait in progress for PR #<N> — last checked <ISO8601 timestamp>
+```
+
+**Field semantics**:
+
+- `sha` — head SHA this wait is tracking; SHA mismatch → treated as first visit (marker reset)
+- `attempt` — incremented each cron tick; at attempt 24 (~120 min) squash is forced if no terminal event
+- `head_pushed_at` — ISO 8601 UTC timestamp used as context reference
+- `ci_passed=true` — always true when the marker is first written (CI passing is the write precondition)
+- `copilot_session_terminal` — set to `true` once a terminal event (`copilot_work_finished` or
+  `copilot_work_finished_failure`) is found; never re-checked after that
+- `copilot_session_outcome` — `pending` until terminal; then `success` or `failure`
+- `squash_done` — set to `true` and marker replaced with a completion note after squash executes
+
+**Decision table**:
+
+| State | Per-cron-tick action | When to squash |
+|---|---|---|
+| `outcome=pending` | Query events API; update marker if terminal found | Immediately on `copilot_work_finished` |
+| `outcome=success` | — | Already squashed |
+| `outcome=failure` | Wait, no API calls | Attempt 24 (~120 min from push), with recovery comment |
+| `outcome=pending` + attempt 24 | Timeout fallback | Attempt 24, with timeout comment |
+
+**Required Permissions**:
+
+- `contents: read`
+- `pull-requests: read`
+- `actions: write`
+
+**Required Secrets**: `AGDT_PR_APPROVER_PAT`
 
 ### synthetic-copilot-review.yml
 

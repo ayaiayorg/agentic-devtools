@@ -134,6 +134,38 @@ class ReviewCommentInfo:
     is_suppressed: bool = False
 
 
+# Copilot session event type strings from the GitHub Issues Events API
+COPILOT_SESSION_EVENT_FINISHED = "copilot_work_finished"
+COPILOT_SESSION_EVENT_FINISHED_FAILURE = "copilot_work_finished_failure"
+COPILOT_SESSION_EVENT_STARTED = "copilot_work_started"
+
+_COPILOT_SESSION_EVENTS = frozenset(
+    {
+        COPILOT_SESSION_EVENT_FINISHED,
+        COPILOT_SESSION_EVENT_FINISHED_FAILURE,
+        COPILOT_SESSION_EVENT_STARTED,
+    }
+)
+
+
+@dataclass(frozen=True)
+class IssueEvent:
+    """A single issue/PR timeline event from the GitHub Issues Events API.
+
+    Attributes:
+        id: Event ID.
+        event: Event type string (e.g., "copilot_work_finished",
+               "copilot_work_finished_failure", "copilot_work_started").
+        created_at: ISO 8601 timestamp string when the event was created.
+        actor_login: Login of the actor who triggered the event (empty if unknown).
+    """
+
+    id: int
+    event: str
+    created_at: str
+    actor_login: str = ""
+
+
 @dataclass(frozen=True)
 class RepairDecision:
     """Result of the dispatch decision for repair.

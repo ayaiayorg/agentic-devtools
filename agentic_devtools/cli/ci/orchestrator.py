@@ -17,6 +17,7 @@ import json
 import logging
 import os
 import sys
+from datetime import datetime, timezone
 from typing import Any
 
 from agentic_devtools.cli.ci.guards import (
@@ -24,21 +25,28 @@ from agentic_devtools.cli.ci.guards import (
     DEDUP_MARKER_PREFIX,
     LABEL_SKIP_ENTIRELY,
     PRIVILEGED_PREFIXES,
+    SQUASH_WAIT_MAX_ATTEMPTS,
     check_cycle_limit,
     check_deduplication,
     check_docker_files,
     check_exclusion_labels,
     check_fork_pr,
     check_privileged_paths,
+    delete_squash_wait_marker,
     get_dedup_writer_token,
     increment_cycle_count,
+    read_squash_wait_marker,
+    write_squash_wait_marker,
 )
 from agentic_devtools.cli.ci.models import (
-    COPILOT_COMMENT_LOGINS,
     COPILOT_LOGINS,
     COPILOT_REVIEWER_LOGIN,
+    COPILOT_SESSION_EVENT_FINISHED,
+    COPILOT_SESSION_EVENT_FINISHED_FAILURE,
+    COPILOT_SESSION_EVENT_STARTED,
     CheckRunStatus,
     EventPayload,
+    IssueEvent,
     PRMetadata,
     RepairDecision,
     ReviewCommentInfo,
@@ -101,6 +109,22 @@ EXIT_REPAIR_DISPATCHED = 5
 
 _EFFECTIVE_REVIEW_STATES = {"APPROVED", "COMMENTED", "CHANGES_REQUESTED"}
 
+# Squash-wait execution comment bodies
+_SQUASH_WAIT_COMMENT_FAILURE_RECOVERY = (
+    "Squash executed after 120-minute recovery wait. "
+    "A Copilot session failure (copilot_work_finished_failure) was detected during this cycle, "
+    "but the session had already pushed a commit which passed CI — indicating the required changes "
+    "were likely completed successfully. The wait was to allow the Copilot system to recover before "
+    "proceeding. The PR process should continue normally from here; manual review of the PR state "
+    "is recommended only if unexpected issues arise."
+)
+_SQUASH_WAIT_COMMENT_TIMEOUT_FALLBACK = (
+    "Squash executed after 120-minute timeout. "
+    "No terminal Copilot session event (copilot_work_finished / copilot_work_finished_failure) "
+    "was detected for this commit — this may indicate a GitHub event delivery issue. "
+    "The commit passed CI and the squash has been performed; the PR process should continue normally."
+)
+
 # Check run names the orchestrator waits for and evaluates for pass/fail.
 # Only checks representing actionable code failures (fixable by the AI agent)
 # are included. All other checks are ignored entirely.
@@ -144,39 +168,274 @@ def _count_commits_above_merge_base(
     return int(count)
 
 
-def _apply_comment_triggered_post_repair_guards(
+def _parse_iso8601_timestamp(timestamp: object) -> datetime | None:
+    """Parse an ISO 8601 timestamp string to UTC datetime, or None on parse failure."""
+    if not isinstance(timestamp, str) or not timestamp:
+        return None
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _find_prior_actionable_review_id(
+    provider: CIPlatformProvider,
+    pr_number: int,
+    reviews: list[ReviewInfo],
+    current_head_sha: str,
+) -> int:
+    """Find the most recent actionable Copilot review targeting a prior commit.
+
+    Returns the review ID (non-zero) when a CHANGES_REQUESTED or COMMENTED
+    review with inline comments exists on an older SHA.  Returns 0 if none found.
+    """
+    prior_copilot_reviews = [
+        r
+        for r in reviews
+        if r.user in COPILOT_LOGINS
+        and r.commit_sha
+        and r.commit_sha != current_head_sha
+        and r.state in ("CHANGES_REQUESTED", "COMMENTED")
+    ]
+    if not prior_copilot_reviews:
+        return 0
+
+    prior_copilot_reviews.sort(key=lambda r: r.id, reverse=True)
+    prior_review = prior_copilot_reviews[0]
+
+    if prior_review.state == "CHANGES_REQUESTED":
+        return prior_review.id
+
+    # COMMENTED — check for inline comments
+    try:
+        comments = provider.list_review_comments(pr_number, prior_review.id)
+        if comments:
+            return prior_review.id
+    except Exception:
+        # Fail closed: treat as actionable when comments cannot be fetched.
+        return prior_review.id
+
+    return 0
+
+
+def _run_squash_wait_step(
+    provider: CIPlatformProvider,
     pr_number: int,
     pr_meta: PRMetadata,
+    prior_review_id: int,
     summary: dict[str, Any],
-) -> int | None:
-    """Apply fail-closed guards before comment-triggered post-repair squash."""
-    if check_fork_pr(pr_meta.head_repo_full_name, pr_meta.base_repo_full_name):
-        logger.info(
-            "PR #%d comment-triggered post-repair squash blocked for fork PR (head=%s, base=%s)",
-            pr_number,
-            pr_meta.head_repo_full_name,
-            pr_meta.base_repo_full_name,
-        )
-        summary["guards"] = {"blocked_by": "fork_pr"}
-        summary["decision"] = "blocked"
-        summary["reason"] = "fork_pr"
-        summary["exit_code"] = EXIT_GUARD_BLOCKED
-        return EXIT_GUARD_BLOCKED
+) -> int:
+    """Execute the squash-wait state machine for a post-repair scenario.
 
-    should_skip, _ = check_exclusion_labels(pr_meta.labels)
-    if should_skip:
-        logger.info(
-            "PR #%d comment-triggered post-repair squash blocked by label guard (%s)",
-            pr_number,
-            LABEL_SKIP_ENTIRELY,
-        )
-        summary["guards"] = {"blocked_by": "exclusion_label", "label": LABEL_SKIP_ENTIRELY}
-        summary["decision"] = "blocked"
-        summary["reason"] = "exclusion_label"
-        summary["exit_code"] = EXIT_GUARD_BLOCKED
-        return EXIT_GUARD_BLOCKED
+    Reads or initialises the squash-wait marker, queries the events API
+    when needed, and either performs the squash or defers to the next
+    cron tick.
 
-    return None
+    Returns an exit code.
+    """
+    head_sha = pr_meta.head_sha
+    sw_summary: dict[str, Any] = {
+        "phase": "workflow_run_triggered",
+        "review_id": prior_review_id,
+    }
+
+    marker = read_squash_wait_marker(provider, pr_number, head_sha)
+
+    # Determine current state from marker (or set up defaults for first visit).
+    if marker is not None:
+        attempt = marker["attempt"]
+        head_pushed_at = marker["head_pushed_at"]
+        copilot_session_terminal = marker["copilot_session_terminal"]
+        copilot_session_outcome = marker["copilot_session_outcome"]
+        sw_summary["attempt"] = attempt
+        sw_summary["terminal"] = copilot_session_terminal
+        sw_summary["outcome"] = copilot_session_outcome
+    else:
+        # First visit — initialise the marker.
+        attempt = 1
+        head_pushed_at = datetime.now(timezone.utc).isoformat()
+        copilot_session_terminal = False
+        copilot_session_outcome = "pending"
+        sw_summary["attempt"] = attempt
+
+    # Query the events API when the session outcome is still pending.
+    squash_comment: str | None = None
+    do_squash = False
+
+    if not copilot_session_terminal:
+        if attempt >= SQUASH_WAIT_MAX_ATTEMPTS:
+            # Timeout fallback — force squash regardless.
+            logger.info(
+                "PR #%d squash-wait attempt %d reached max (%d) with outcome still pending — timeout squash",
+                pr_number,
+                attempt,
+                SQUASH_WAIT_MAX_ATTEMPTS,
+            )
+            do_squash = True
+            squash_comment = _SQUASH_WAIT_COMMENT_TIMEOUT_FALLBACK
+            sw_summary["squash_reason"] = "timeout_fallback"
+        else:
+            # Check the events API for a terminal session event.
+            try:
+                events = provider.list_pr_issue_events(pr_number)
+            except Exception as exc:
+                logger.warning(
+                    "PR #%d list_pr_issue_events failed (attempt %d) — treating as no terminal event: %s",
+                    pr_number,
+                    attempt,
+                    exc,
+                )
+                events = []
+
+            scoped_events = events
+            head_pushed_at_filter_applied = False
+            if marker is not None:
+                head_pushed_at_dt = _parse_iso8601_timestamp(head_pushed_at)
+                if head_pushed_at_dt is not None:
+                    head_pushed_at_filter_applied = True
+                    scoped_events = []
+                    for event in events:
+                        event_dt = _parse_iso8601_timestamp(event.created_at)
+                        if event_dt is not None and event_dt >= head_pushed_at_dt:
+                            scoped_events.append(event)
+
+            def _latest_terminal_event(candidate_events: list[IssueEvent]) -> IssueEvent | None:
+                latest_started_event = max(
+                    (event for event in candidate_events if event.event == COPILOT_SESSION_EVENT_STARTED),
+                    key=lambda event: event.id,
+                    default=None,
+                )
+                terminal_events = [
+                    event
+                    for event in candidate_events
+                    if event.event in {COPILOT_SESSION_EVENT_FINISHED, COPILOT_SESSION_EVENT_FINISHED_FAILURE}
+                ]
+                if latest_started_event is not None:
+                    terminal_events = [event for event in terminal_events if event.id > latest_started_event.id]
+                return max(terminal_events, key=lambda event: event.id, default=None)
+
+            latest_terminal_event = _latest_terminal_event(scoped_events)
+            if latest_terminal_event is None and head_pushed_at_filter_applied:
+                # Retry without timestamp filtering to tolerate eventual-consistency delays
+                # in the Issues Events API that can persist for multiple scheduler ticks.
+                latest_terminal_event = _latest_terminal_event(events)
+            if latest_terminal_event is not None and latest_terminal_event.event == COPILOT_SESSION_EVENT_FINISHED:
+                # Session completed successfully — squash immediately.
+                logger.info(
+                    "PR #%d copilot_work_finished event found (id=%d) — proceeding to squash",
+                    pr_number,
+                    latest_terminal_event.id,
+                )
+                copilot_session_terminal = True
+                copilot_session_outcome = "success"
+                do_squash = True
+                sw_summary["squash_reason"] = "copilot_work_finished"
+            elif (
+                latest_terminal_event is not None
+                and latest_terminal_event.event == COPILOT_SESSION_EVENT_FINISHED_FAILURE
+            ):
+                # Session failed — record terminal state and defer to recovery wait.
+                logger.info(
+                    "PR #%d copilot_work_finished_failure event found (id=%d) — entering recovery wait",
+                    pr_number,
+                    latest_terminal_event.id,
+                )
+                copilot_session_terminal = True
+                copilot_session_outcome = "failure"
+            else:
+                # No terminal event yet — increment attempt and wait.
+                logger.info(
+                    "PR #%d no terminal Copilot session event found (attempt %d) — deferring to next cron tick",
+                    pr_number,
+                    attempt,
+                )
+    else:
+        # Terminal state already recorded — decide based on outcome.
+        if copilot_session_outcome == "success":
+            # Should have been squashed already; squash now if somehow missed.
+            logger.info("PR #%d squash-wait outcome=success — squashing now", pr_number)
+            do_squash = True
+            sw_summary["squash_reason"] = "outcome_success_catch_up"
+        elif copilot_session_outcome == "failure":
+            if attempt >= SQUASH_WAIT_MAX_ATTEMPTS:
+                logger.info(
+                    "PR #%d squash-wait outcome=failure at attempt %d — recovery squash",
+                    pr_number,
+                    attempt,
+                )
+                do_squash = True
+                squash_comment = _SQUASH_WAIT_COMMENT_FAILURE_RECOVERY
+                sw_summary["squash_reason"] = "failure_recovery"
+            else:
+                logger.info(
+                    "PR #%d squash-wait outcome=failure (attempt %d/%d) — waiting for recovery",
+                    pr_number,
+                    attempt,
+                    SQUASH_WAIT_MAX_ATTEMPTS,
+                )
+
+    if do_squash:
+        # Post contextual comment before squash when one is needed.
+        if squash_comment:
+            try:
+                provider.post_comment(pr_number, squash_comment)
+            except Exception as exc:
+                logger.warning("PR #%d failed to post squash-wait context comment: %s", pr_number, exc)
+
+        try:
+            provider.squash_post_repair(
+                pr_number=pr_number,
+                base_branch=pr_meta.base_branch,
+                head_branch=pr_meta.head_branch,
+                head_sha=head_sha,
+            )
+        except Exception as exc:
+            logger.error("PR #%d squash-wait squash failed: %s", pr_number, exc)
+            sw_summary["squash_error"] = str(exc)
+            summary["post_repair"] = sw_summary
+            summary["decision"] = "error"
+            summary["reason"] = "post_repair_squash_failed"
+            summary["error"] = str(exc)
+            summary["exit_code"] = EXIT_MERGE_BLOCKED
+            return EXIT_MERGE_BLOCKED
+
+        # Finalise the marker.
+        try:
+            delete_squash_wait_marker(provider, pr_number)
+        except Exception as exc:
+            logger.warning("PR #%d failed to delete squash-wait marker: %s", pr_number, exc)
+
+        sw_summary["squashed"] = True
+        summary["post_repair"] = sw_summary
+        summary["decision"] = "post_repair_squash_completed"
+        summary["exit_code"] = EXIT_SUCCESS
+        return EXIT_SUCCESS
+
+    # Not squashing yet — update/write the marker and exit.
+    next_attempt = attempt if marker is None else attempt + 1
+    try:
+        write_squash_wait_marker(
+            provider,
+            pr_number,
+            sha=head_sha,
+            attempt=next_attempt,
+            head_pushed_at=head_pushed_at,
+            ci_passed=True,
+            copilot_session_terminal=copilot_session_terminal,
+            copilot_session_outcome=copilot_session_outcome,
+            squash_done=False,
+        )
+    except Exception as exc:
+        logger.warning("PR #%d failed to write squash-wait marker: %s", pr_number, exc)
+
+    sw_summary["waiting"] = True
+    summary["post_repair"] = sw_summary
+    summary["decision"] = "post_repair_squash_waiting"
+    summary["exit_code"] = EXIT_SUCCESS
+    return EXIT_SUCCESS
 
 
 def _is_copilot_review_pending(requested_reviewers: list[str]) -> bool:
@@ -359,122 +618,21 @@ def run_ai_pr_loop(
     logger.info("PR #%d metadata resolved: head_sha=%s, base=%s", pr_number, pr_meta.head_sha, pr_meta.base_branch)
     _log_endgroup()
 
-    # Step 2b: Comment-triggered deferred post-repair squash finalization.
-    # This path intentionally skips merge-only logic, but still re-applies
-    # fork/label guards before any force-push behavior.
+    # Step 2b: issue_comment events no longer trigger post-repair squash.
+    # Squash is now handled exclusively via workflow_run + squash-wait-scheduler.
+    # Return early for ALL issue_comment events so they do not proceed to the
+    # guards / review / merge pipeline (which is reserved for workflow_run and
+    # pull_request_review triggers).
     if _is_issue_comment_created(event_payload):
-        _log_group("Step 2b: Post-repair squash finalization")
-        summary["post_repair"] = {"phase": "comment_triggered"}
-        sender_login = event_payload.sender_login
-        if not sender_login or sender_login not in COPILOT_COMMENT_LOGINS:
-            summary["decision"] = "post_repair_squash_not_needed"
-            summary["reason"] = "non_copilot_comment"
-            summary["exit_code"] = EXIT_SUCCESS
-            _log_endgroup()
-            _emit_decision_summary(summary)
-            return EXIT_SUCCESS
-
-        guard_exit = _apply_comment_triggered_post_repair_guards(pr_number, pr_meta, summary)
-        if guard_exit is not None:
-            _log_endgroup()
-            _emit_decision_summary(summary)
-            return guard_exit
-
-        try:
-            reviews = provider.list_reviews(pr_number)
-        except Exception as exc:
-            logger.error("Failed to list reviews for PR #%d during comment finalization: %s", pr_number, exc)
-            summary["decision"] = "error"
-            summary["reason"] = "reviews_listing_failed"
-            summary["error"] = str(exc)
-            summary["exit_code"] = EXIT_METADATA_FAILED
-            _log_endgroup()
-            _emit_decision_summary(summary)
-            return EXIT_METADATA_FAILED
-
-        prior_copilot_reviews = [
-            r
-            for r in reviews
-            if r.user in COPILOT_LOGINS
-            and r.commit_sha
-            and r.commit_sha != pr_meta.head_sha
-            and r.state in ("CHANGES_REQUESTED", "COMMENTED")
-        ]
-        prior_review_id = 0
-        if prior_copilot_reviews:
-            prior_copilot_reviews.sort(key=lambda r: r.id, reverse=True)
-            prior_review = prior_copilot_reviews[0]
-            if prior_review.state == "CHANGES_REQUESTED":
-                prior_review_id = prior_review.id
-            else:
-                try:
-                    if provider.list_review_comments(pr_number, prior_review.id):
-                        prior_review_id = prior_review.id
-                except Exception:
-                    # Fail closed when comments cannot be fetched.
-                    prior_review_id = prior_review.id
-
-        if not prior_review_id:
-            summary["decision"] = "post_repair_squash_not_needed"
-            summary["reason"] = "no_prior_actionable_review"
-            summary["exit_code"] = EXIT_SUCCESS
-            _log_endgroup()
-            _emit_decision_summary(summary)
-            return EXIT_SUCCESS
-
-        try:
-            commit_count = _count_commits_above_merge_base(
-                provider,
-                base_branch=pr_meta.base_branch,
-                head_sha=pr_meta.head_sha,
-            )
-        except Exception as exc:
-            logger.error("Failed to count post-repair commits for PR #%d: %s", pr_number, exc)
-            summary["decision"] = "error"
-            summary["reason"] = "post_repair_commit_count_failed"
-            summary["error"] = str(exc)
-            summary["exit_code"] = EXIT_METADATA_FAILED
-            _log_endgroup()
-            _emit_decision_summary(summary)
-            return EXIT_METADATA_FAILED
-
-        if commit_count <= 1:
-            summary["post_repair"] = {
-                "phase": "comment_triggered",
-                "review_id": prior_review_id,
-                "commit_count": commit_count,
-            }
-            summary["decision"] = "post_repair_squash_not_needed"
-            summary["reason"] = "already_squashed_or_single_commit"
-            summary["exit_code"] = EXIT_SUCCESS
-            _log_endgroup()
-            _emit_decision_summary(summary)
-            return EXIT_SUCCESS
-
-        try:
-            provider.squash_post_repair(
-                pr_number=pr_number,
-                base_branch=pr_meta.base_branch,
-                head_branch=pr_meta.head_branch,
-                head_sha=pr_meta.head_sha,
-            )
-        except Exception as exc:
-            logger.error("Post-repair squash finalization failed for PR #%d: %s", pr_number, exc)
-            summary["decision"] = "error"
-            summary["reason"] = "post_repair_squash_failed"
-            summary["error"] = str(exc)
-            summary["exit_code"] = EXIT_MERGE_BLOCKED
-            _log_endgroup()
-            _emit_decision_summary(summary)
-            return EXIT_MERGE_BLOCKED
-
-        summary["post_repair"] = {
-            "phase": "comment_triggered",
-            "review_id": prior_review_id,
-            "commit_count": commit_count,
-            "squashed": True,
-        }
-        summary["decision"] = "post_repair_squash_completed"
+        _log_group("Step 2b: issue_comment — squash now via workflow_run")
+        logger.info(
+            "PR #%d issue_comment event received — post-repair squash is handled via "
+            "workflow_run + squash-wait-scheduler; no action taken here",
+            pr_number,
+        )
+        summary["post_repair"] = {"phase": "comment_noop"}
+        summary["decision"] = "post_repair_squash_not_needed"
+        summary["reason"] = "squash_via_workflow_run"
         summary["exit_code"] = EXIT_SUCCESS
         _log_endgroup()
         _emit_decision_summary(summary)
@@ -549,6 +707,77 @@ def run_ai_pr_loop(
 
     logger.info("PR #%d passed path guards (files=%d, do_not_merge=%s)", pr_number, len(files), do_not_merge)
     _log_endgroup()
+
+    # Step 3.5: workflow_run / workflow_dispatch triggered post-repair squash-wait.
+    # This runs only after all guards pass, so excluded/fork/unsafe PRs never
+    # execute force-push squash behavior.
+    if _is_ci_completion_event(event_payload):
+        _log_group("Step 3.5: Post-repair squash-wait check")
+        try:
+            reviews_for_squash_check = provider.list_reviews(pr_number)
+        except Exception as exc:
+            logger.error("Failed to list reviews for PR #%d in squash-wait check: %s", pr_number, exc)
+            summary["decision"] = "error"
+            summary["reason"] = "reviews_listing_failed"
+            summary["error"] = str(exc)
+            summary["exit_code"] = EXIT_METADATA_FAILED
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_METADATA_FAILED
+
+        prior_review_id = _find_prior_actionable_review_id(
+            provider, pr_number, reviews_for_squash_check, pr_meta.head_sha
+        )
+
+        if prior_review_id:
+            # Check commit count — only enter squash-wait when there is more than
+            # one commit above the merge base (i.e. the repair commit exists alongside
+            # the original).  With a single commit there is nothing to squash.
+            try:
+                commit_count = _count_commits_above_merge_base(
+                    provider,
+                    base_branch=pr_meta.base_branch,
+                    head_sha=pr_meta.head_sha,
+                )
+            except Exception as exc:
+                logger.error("Failed to count commits for PR #%d squash-wait: %s", pr_number, exc)
+                summary["decision"] = "error"
+                summary["reason"] = "post_repair_commit_count_failed"
+                summary["error"] = str(exc)
+                summary["exit_code"] = EXIT_METADATA_FAILED
+                _log_endgroup()
+                _emit_decision_summary(summary)
+                return EXIT_METADATA_FAILED
+
+            if commit_count > 1:
+                logger.info(
+                    "PR #%d post-repair scenario detected (prior_review=%d, commits=%d) — entering squash-wait",
+                    pr_number,
+                    prior_review_id,
+                    commit_count,
+                )
+                result = _run_squash_wait_step(provider, pr_number, pr_meta, prior_review_id, summary)
+                _log_endgroup()
+                _emit_decision_summary(summary)
+                return result
+            else:
+                logger.info(
+                    "PR #%d prior actionable review found but commit_count=%d ≤ 1 — skipping squash-wait, "
+                    "falling through to normal finalization",
+                    pr_number,
+                    commit_count,
+                )
+                try:
+                    delete_squash_wait_marker(provider, pr_number)
+                except Exception as exc:
+                    logger.warning(
+                        "PR #%d failed to clean up stale squash-wait marker after commit_count<=1: %s",
+                        pr_number,
+                        exc,
+                    )
+        else:
+            logger.info("PR #%d no prior actionable Copilot review — squash-wait not applicable", pr_number)
+        _log_endgroup()
 
     # Step 4: Check CI status
     _log_group("Step 4: Check CI status")
@@ -637,8 +866,8 @@ def run_ai_pr_loop(
                 _emit_decision_summary(summary)
                 return EXIT_METADATA_FAILED
             latest_copilot_review = _latest_copilot_review_on_head(pre_dedup_reviews, pr_meta.head_sha)
-            has_effective_copilot_review_on_head = (
-                latest_copilot_review is not None and _is_effective_review_state(latest_copilot_review.state)
+            has_effective_copilot_review_on_head = latest_copilot_review is not None and _is_effective_review_state(
+                latest_copilot_review.state
             )
             if not has_effective_copilot_review_on_head:
                 logger.info("PR #%d has failed checks but Copilot review is still pending on HEAD — waiting", pr_number)

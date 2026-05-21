@@ -11,6 +11,7 @@ from agentic_devtools.cli.ci.exceptions import MalformedEventError
 from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
+    IssueEvent,
     PRMetadata,
     ReviewCommentInfo,
     ReviewInfo,
@@ -186,3 +187,7 @@ class AzureDevOpsProvider(CIPlatformProvider):
     ) -> None:
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.squash_post_repair() not yet implemented")
+
+    def list_pr_issue_events(self, pr_number: int) -> list[IssueEvent]:
+        """ADO does not support the GitHub Issues Events API — returns empty list."""
+        return []

@@ -510,7 +510,8 @@ class TestRunAIPRLoop:
         )
         provider.dispatch_repair.assert_not_called()
 
-    def test_comment_event_squashes_when_post_repair_is_pending(self) -> None:
+    def test_comment_event_returns_immediately_with_no_squash(self) -> None:
+        """All issue_comment events now return EXIT_SUCCESS immediately — squash is via workflow_run."""
         provider = _make_provider(
             reviews=[
                 ReviewInfo(
@@ -533,15 +534,14 @@ class TestRunAIPRLoop:
         result = run_ai_pr_loop(provider, payload)
 
         assert result == EXIT_SUCCESS
-        provider.squash_post_repair.assert_called_once_with(
-            pr_number=42,
-            base_branch="main",
-            head_branch="feature/test",
-            head_sha="abc123",
-        )
+        # Squash no longer happens from issue_comment events.
+        provider.squash_post_repair.assert_not_called()
         provider.finalize_post_repair.assert_not_called()
+        # No reviews listed — we exit before any review logic.
+        provider.list_reviews.assert_not_called()
 
     def test_comment_event_skips_when_branch_is_already_squashed(self) -> None:
+        """issue_comment events return EXIT_SUCCESS immediately regardless of commit count."""
         provider = _make_provider(
             reviews=[
                 ReviewInfo(
@@ -568,6 +568,7 @@ class TestRunAIPRLoop:
         provider.finalize_post_repair.assert_not_called()
 
     def test_comment_event_skips_when_no_prior_actionable_review(self) -> None:
+        """issue_comment events return EXIT_SUCCESS immediately regardless of review state."""
         provider = _make_provider(
             reviews=[
                 ReviewInfo(
@@ -611,7 +612,8 @@ class TestRunAIPRLoop:
         assert result == EXIT_SUCCESS
         provider.list_reviews.assert_not_called()
 
-    def test_comment_event_fork_pr_is_blocked_before_squash(self) -> None:
+    def test_comment_event_fork_pr_returns_success_immediately(self) -> None:
+        """Fork PR guard no longer applies to issue_comment — all return EXIT_SUCCESS immediately."""
         provider = _make_provider(
             pr_meta=PRMetadata(
                 number=42,
@@ -634,11 +636,12 @@ class TestRunAIPRLoop:
         )
         payload = EventPayload(pr_number=42, head_sha="s", action="comment_created", sender_login="copilot[bot]")
         result = run_ai_pr_loop(provider, payload)
-        assert result == EXIT_GUARD_BLOCKED
+        assert result == EXIT_SUCCESS
         provider.list_reviews.assert_not_called()
         provider.squash_post_repair.assert_not_called()
 
-    def test_comment_event_ignore_label_is_blocked_before_squash(self) -> None:
+    def test_comment_event_ignore_label_returns_success_immediately(self) -> None:
+        """Exclusion label guard no longer applies to issue_comment — all return EXIT_SUCCESS immediately."""
         provider = _make_provider(
             pr_meta=PRMetadata(
                 number=42,
@@ -662,14 +665,12 @@ class TestRunAIPRLoop:
         )
         payload = EventPayload(pr_number=42, head_sha="s", action="comment_created", sender_login="copilot[bot]")
         result = run_ai_pr_loop(provider, payload)
-        assert result == EXIT_GUARD_BLOCKED
+        assert result == EXIT_SUCCESS
         provider.list_reviews.assert_not_called()
         provider.squash_post_repair.assert_not_called()
-        summary = _capture_summary(provider, payload)
-        assert summary["guards"]["label"] == "ai-pr-loop-ignore"
 
-    def test_comment_event_missing_auto_merge_allowed_does_not_block_squash(self) -> None:
-        """Missing ai-auto-merge-allowed label should not block post-repair squash."""
+    def test_comment_event_missing_auto_merge_allowed_returns_success_immediately(self) -> None:
+        """Missing ai-auto-merge-allowed no longer has any effect on issue_comment events."""
         provider = _make_provider(
             pr_meta=PRMetadata(
                 number=42,
@@ -691,16 +692,14 @@ class TestRunAIPRLoop:
                 )
             ],
         )
-        provider.list_review_comments.return_value = []
-        provider.squash_post_repair.return_value = "newshapostrepair"
-        provider.count_commits_above_merge_base.return_value = 2
         payload = EventPayload(pr_number=42, head_sha="s", action="comment_created", sender_login="copilot[bot]")
         result = run_ai_pr_loop(provider, payload)
-        # Guard should NOT block; squash proceeds
-        assert result != EXIT_GUARD_BLOCKED
-        provider.squash_post_repair.assert_called_once()
+        assert result == EXIT_SUCCESS
+        provider.list_reviews.assert_not_called()
+        provider.squash_post_repair.assert_not_called()
 
-    def test_comment_event_list_reviews_failure_returns_metadata_error(self) -> None:
+    def test_comment_event_no_metadata_error_even_if_reviews_would_fail(self) -> None:
+        """issue_comment events exit before listing reviews — API failures are irrelevant."""
         provider = _make_provider()
         provider.list_reviews.side_effect = RuntimeError("reviews api unavailable")
         payload = EventPayload(
@@ -710,9 +709,12 @@ class TestRunAIPRLoop:
             sender_login="copilot[bot]",
         )
         result = run_ai_pr_loop(provider, payload)
-        assert result == EXIT_METADATA_FAILED
+        # Returns EXIT_SUCCESS immediately — does NOT error on list_reviews failure.
+        assert result == EXIT_SUCCESS
+        provider.list_reviews.assert_not_called()
 
-    def test_comment_event_prior_commented_list_review_comments_failure_is_fail_closed(self) -> None:
+    def test_comment_event_prior_commented_no_squash(self) -> None:
+        """issue_comment events no longer squash even when prior COMMENTED review exists."""
         provider = _make_provider(
             reviews=[
                 ReviewInfo(
@@ -724,7 +726,6 @@ class TestRunAIPRLoop:
                 )
             ]
         )
-        provider.list_review_comments.side_effect = RuntimeError("api failure")
         provider.count_commits_above_merge_base.return_value = 2
         payload = EventPayload(
             pr_number=42,
@@ -734,33 +735,10 @@ class TestRunAIPRLoop:
         )
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
-        provider.squash_post_repair.assert_called_once()
+        provider.squash_post_repair.assert_not_called()
 
-    def test_comment_event_prior_commented_with_inline_comments_triggers_squash(self) -> None:
-        provider = _make_provider(
-            reviews=[
-                ReviewInfo(
-                    id=9,
-                    user="copilot-pull-request-reviewer[bot]",
-                    state="COMMENTED",
-                    body="",
-                    commit_sha="oldsha",
-                )
-            ]
-        )
-        provider.list_review_comments.return_value = ["suggestion: use const"]
-        provider.count_commits_above_merge_base.return_value = 2
-        payload = EventPayload(
-            pr_number=42,
-            head_sha="abc123",
-            action="comment_created",
-            sender_login="copilot[bot]",
-        )
-        result = run_ai_pr_loop(provider, payload)
-        assert result == EXIT_SUCCESS
-        provider.squash_post_repair.assert_called_once()
-
-    def test_comment_event_commit_count_failure_returns_metadata_error(self) -> None:
+    def test_comment_event_no_commit_count_failure(self) -> None:
+        """issue_comment events exit before checking commit count."""
         provider = _make_provider(
             reviews=[
                 ReviewInfo(
@@ -780,9 +758,12 @@ class TestRunAIPRLoop:
             sender_login="copilot[bot]",
         )
         result = run_ai_pr_loop(provider, payload)
-        assert result == EXIT_METADATA_FAILED
+        # Does NOT call count_commits_above_merge_base — exits immediately.
+        assert result == EXIT_SUCCESS
+        provider.count_commits_above_merge_base.assert_not_called()
 
-    def test_comment_event_squash_failure_returns_merge_blocked(self) -> None:
+    def test_comment_event_no_squash_failure(self) -> None:
+        """issue_comment events no longer trigger squash — squash failure cannot occur."""
         provider = _make_provider(
             reviews=[
                 ReviewInfo(
@@ -803,7 +784,9 @@ class TestRunAIPRLoop:
             sender_login="copilot[bot]",
         )
         result = run_ai_pr_loop(provider, payload)
-        assert result == EXIT_MERGE_BLOCKED
+        # No longer EXIT_MERGE_BLOCKED — issue_comment returns EXIT_SUCCESS immediately.
+        assert result == EXIT_SUCCESS
+        provider.squash_post_repair.assert_not_called()
 
     def test_ci_completion_prior_commit_commented_with_zero_inline_comments_waits(self) -> None:
         """CI completion + COMMENTED with 0 inline comments on prior commit → requests review."""
@@ -1589,7 +1572,8 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["exit_code"] == EXIT_SUCCESS
         assert summary["post_repair"]["finalized"] is True
 
-    def test_comment_event_post_repair_squash_completed_emits_summary(self) -> None:
+    def test_comment_event_post_repair_squash_not_needed_via_workflow_run_emits_summary(self) -> None:
+        """All issue_comment events now emit squash_via_workflow_run reason."""
         provider = _make_provider(
             reviews=[
                 ReviewInfo(
@@ -1610,9 +1594,10 @@ class TestRunAIPRLoopDecisionSummary:
         )
         summary = _capture_summary(provider, payload)
 
-        assert summary["decision"] == "post_repair_squash_completed"
+        assert summary["decision"] == "post_repair_squash_not_needed"
+        assert summary["reason"] == "squash_via_workflow_run"
+        assert summary["post_repair"]["phase"] == "comment_noop"
         assert summary["exit_code"] == EXIT_SUCCESS
-        assert summary["post_repair"]["squashed"] is True
 
     def test_comment_event_post_repair_squash_not_needed_emits_summary(self) -> None:
         provider = _make_provider(
@@ -1636,7 +1621,8 @@ class TestRunAIPRLoopDecisionSummary:
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "post_repair_squash_not_needed"
-        assert summary["reason"] == "already_squashed_or_single_commit"
+        assert summary["reason"] == "squash_via_workflow_run"
+        assert summary["post_repair"]["phase"] == "comment_noop"
         assert summary["exit_code"] == EXIT_SUCCESS
 
 
