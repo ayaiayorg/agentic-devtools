@@ -5,9 +5,10 @@
 # The monorepo approach keeps AGDT-specific code atomic and easier to evolve
 # without cross-repo maintenance burden. See issue #1444 for rationale.
 #
-# NOTE: These pins intentionally resolve to repo-local packages that ship in
-# this monorepo. `specify install` uses the checked-out extension and preset
-# directly, so AGDT-specific workflows and templates stay versioned in-repo.
+# NOTE: These entries intentionally resolve to repo-local packages that ship in
+# this monorepo. The checked-out files work as-is in the repository, and an
+# optional `specify install` will also use the same local extension and preset
+# paths when you want the Spec-Kit CLI to refresh local configuration.
 #
 # T027-T030 review status (community adoption):
 # No community extension currently meets the ≥80% overlap threshold against

@@ -10,10 +10,10 @@ Sync Impact Report
    - VII. Performance & Responsiveness
 - Removed sections: None
 - Templates requiring updates:
-   - .specify/templates/spec-template.md ✅ updated
-   - .specify/templates/tasks-template.md ✅ updated
-   - .specify/templates/commands/tasks.md ✅ updated
-   - .specify/templates/commands/implement.md ✅ updated
+   - .specify/presets/agdt-templates/templates/spec-template.md ✅ updated
+   - .specify/presets/agdt-templates/templates/tasks-template.md ✅ updated
+   - .specify/extensions/agdt-workflows/commands/tasks.md ✅ updated
+   - .specify/extensions/agdt-workflows/commands/implement.md ✅ updated
    - README.md ✅ updated
    - SPEC_DRIVEN_DEVELOPMENT.md ✅ updated
 - Follow-up TODOs: None

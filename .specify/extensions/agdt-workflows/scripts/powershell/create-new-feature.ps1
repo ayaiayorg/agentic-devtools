@@ -285,7 +285,7 @@ if ($hasGit) {
 $featureDir = Join-Path $specsDir $branchName
 New-Item -ItemType Directory -Path $featureDir -Force | Out-Null
 
-$template = Join-Path $repoRoot '.specify/templates/spec-template.md'
+$template = Join-Path $repoRoot '.specify/presets/agdt-templates/templates/spec-template.md'
 $specFile = Join-Path $featureDir 'spec.md'
 if (Test-Path $template) { 
     Copy-Item $template $specFile -Force 
@@ -311,4 +311,3 @@ if ($Json) {
     Write-Output "HAS_GIT: $hasGit"
     Write-Output "SPECIFY_FEATURE environment variable set to: $branchName"
 }
-

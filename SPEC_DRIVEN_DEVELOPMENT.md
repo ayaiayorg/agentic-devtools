@@ -52,7 +52,7 @@ Use the helper script:
 
 ```bash
 # Create feature branch and directory (pass the GitHub issue number)
-.specify/scripts/bash/create-new-feature.sh --issue 42 "add-webhook-support"
+.specify/extensions/agdt-workflows/scripts/bash/create-new-feature.sh --issue 42 "add-webhook-support"
 
 # This creates:
 # - Branch: 42-add-webhook-support
@@ -137,60 +137,50 @@ AI assistant will:
 
 ## Extension & Preset Architecture
 
-The SDD infrastructure uses a **split-package model** to maintain upstream
-spec-kit compatibility while preserving AGDT-specific customizations:
+The SDD infrastructure uses a **monorepo-based split-package model** to maintain
+upstream spec-kit compatibility while preserving AGDT-specific customizations.
+Both packages are local to this repository and referenced via relative paths in
+`.specify/config.yml` — no external installation or publishing is required.
 
-> **Placeholder links**: The `speckit-ext-agdt` and `speckit-preset-agdt`
-> repositories listed below are not yet created (see T001/T002 and T016/T017
-> in the migration tasks). Links may 404 until those tasks are completed.
-
-| Package | Repository | Purpose |
-|---------|-----------|---------|
+| Package | Location | Purpose |
+|---------|----------|---------|
 | spec-kit core | [github/spec-kit](https://github.com/github/spec-kit) | Base SDD framework (upstream) |
-| `speckit-ext-agdt` | [ayaiayorg/speckit-ext-agdt](https://github.com/ayaiayorg/speckit-ext-agdt) | AGDT commands and scripts |
-| `speckit-preset-agdt` | [ayaiayorg/speckit-preset-agdt](https://github.com/ayaiayorg/speckit-preset-agdt) | AGDT template overrides |
+| `agdt-workflows` | `.specify/extensions/agdt-workflows/` | AGDT commands and scripts |
+| `agdt-templates` | `.specify/presets/agdt-templates/` | AGDT template overrides |
 
-Version pins are declared in `.specify/config.yml` for reproducible builds.
-See [#1408](https://github.com/ayaiayorg/agentic-devtools/issues/1408) for
-current migration status.
+See [#1444](https://github.com/ayaiayorg/agentic-devtools/issues/1444) for the
+monorepo strategy rationale.
 
-### Installation & Setup (Post-Migration)
+### Installation & Setup
 
-> **Not yet available**: The steps below require the extension and preset
-> packages to be published (see T016/T017 in the migration tasks). Until
-> then, use the repo-local scripts in `.specify/scripts/` and templates
-> in `.specify/templates/` directly.
+After cloning agentic-devtools, the extension and preset files are **already
+present in the repository** because `.specify/config.yml` uses relative paths
+that resolve to the in-repo packages:
 
-After cloning agentic-devtools, install the extension and preset:
+```yaml
+extensions:
+  - "./.specify/extensions/agdt-workflows"
 
-```bash
-# Install spec-kit core (if not already installed)
-npm install -g @github/spec-kit
-
-# Install the AGDT extension and preset (reads .specify/config.yml)
-specify install
+presets:
+  - "./.specify/presets/agdt-templates"
 ```
 
-This installs the pinned versions of both packages. After migration,
-AGDT-specific commands will be namespaced with an `agdt:` prefix
+AGDT-specific commands are namespaced with an `agdt:` prefix
 (e.g., `/speckit.agdt:plan`, `/speckit.agdt:tasks`) to avoid collision
-with spec-kit core commands (see T007/T010/T019 in the migration tasks).
-The AGDT extension adds custom scripts and lifecycle hooks invoked via
-spec-kit's extension system; template overrides from the preset become
-available immediately.
+with spec-kit core commands.
 
-### When to Edit Preset vs Local Override
+Running `specify install` is therefore **optional**: use it only when you want
+the Spec-Kit CLI to refresh/apply the local extension and preset configuration
+in your environment. It does not download separate AGDT packages.
+
+### When to Edit Extension or Preset
 
 | Scenario | Where to Edit | Why |
 |----------|---------------|-----|
-| Change applies to all AGDT users | `speckit-preset-agdt` repo → publish new version | Shared improvement |
-| Change is specific to your fork/branch | Create a local override in `.specify/templates/` | Won't affect others |
-| New template section needed | `speckit-preset-agdt` repo | Template structure change |
-| One-off experiment | Local `.specify/templates/` override | Temporary, not shared |
-
-**Local overrides**: Place a file with the same name in `.specify/templates/`
-to override the preset version. Local files take precedence over preset
-templates.
+| Change applies to all AGDT users | `.specify/extensions/agdt-workflows/` or `.specify/presets/agdt-templates/` | Shared improvement, versioned in-repo |
+| New command template | `.specify/extensions/agdt-workflows/commands/` | Extension command |
+| New document template | `.specify/presets/agdt-templates/templates/` | Preset template |
+| New helper script | `.specify/extensions/agdt-workflows/scripts/` | Extension script |
 
 ### Upgrade Strategy
 
@@ -200,60 +190,34 @@ templates.
 # Check for available updates
 specify doctor
 
-# Upgrade core (extension/preset versions remain pinned)
+# Upgrade core (local packages remain unchanged)
 specify upgrade
 ```
 
-Core upgrades do not affect extension or preset files — they are managed
-separately via version pins.
-
-#### Upgrading the extension or preset
-
-1. Review the changelog in the package repository
-2. Assess breaking changes against current workflows
-3. Update the version pin in `.specify/config.yml`:
-
-   ```yaml
-   extensions:
-     speckit-ext-agdt: "1.1.0"  # Updated from 1.0.0
-   ```
-
-4. Run `specify install` to apply the update
-5. Run `specify doctor` to verify compatibility
-6. Test all SDD commands work correctly
-
-#### Rollback procedure
-
-If an upgrade causes issues, revert the version pin in `.specify/config.yml`
-and run `specify install` again.
+Core upgrades do not affect the local extension or preset packages — they are
+managed as part of this repository.
 
 ## Repository SDD Assets
 
-> **Transition note**: The extension and preset packages (`speckit-ext-agdt`,
-> `speckit-preset-agdt`) are not yet published. Until they are, the
-> `.specify/templates/` and `.specify/scripts/` directories remain the
-> canonical source for all templates and commands. Once the packages are
-> published and installed via `specify install`, the repo-local files will be
-> superseded and can be removed (see Phase 9 in the migration tasks).
-
-The `.specify/` directory contains local per-project configuration and memory.
-After migration, commands and templates will be managed by the extension and
-preset packages:
+The `.specify/` directory contains local per-project configuration, memory,
+and the monorepo-based extension and preset packages:
 
 ```text
 .specify/
-├── config.yml               # Version pins for extension + preset
+├── config.yml               # References local extension + preset via paths
+├── extensions/
+│   └── agdt-workflows/      # Extension package (commands + scripts)
+│       ├── extension.yml    # Extension manifest
+│       ├── commands/        # AI command templates
+│       └── scripts/         # Helper scripts (bash + powershell)
+├── presets/
+│   └── agdt-templates/      # Preset package (document templates)
+│       ├── preset.yml       # Preset manifest
+│       └── templates/       # Template overrides
 ├── memory/
 │   ├── constitution.md      # Project principles and governance
 │   └── markdown-rules.md    # Markdown formatting rules
-├── SDD_QUICK_REFERENCE.md   # Quick reference (local docs)
-├── templates/               # Template overrides (preset provides defaults)
-│   ├── spec-template.md     # Feature specification template
-│   ├── plan-template.md     # Implementation plan template
-│   ├── tasks-template.md    # Task breakdown template
-│   ├── checklist-template.md
-│   └── commands/            # SDD workflow command templates
-└── scripts/                 # Helper scripts (bash & PowerShell)
+└── SDD_QUICK_REFERENCE.md   # Quick reference (local docs)
 ```
 
 ### SDD Command Templates
@@ -263,7 +227,7 @@ preset packages:
 > [Extension & Preset Architecture](#extension--preset-architecture) for details.
 
 AI assistants can use these command templates (in
-`.specify/templates/commands/`):
+`.specify/extensions/agdt-workflows/commands/`):
 
 - `/speckit.agdt:constitution` - Update project principles
 - `/speckit.agdt:specify` - Create feature specifications
@@ -280,22 +244,17 @@ agentic-devtools/
 ├── .specify/                    # SDD infrastructure
 │   ├── memory/
 │   │   └── constitution.md      # Project principles
-│   ├── templates/
-│   │   ├── spec-template.md     # Feature spec template
-│   │   ├── plan-template.md     # Implementation plan template
-│   │   ├── tasks-template.md    # Task list template
-│   │   ├── checklist-template.md
-│   │   └── commands/            # AI command templates
-│   │       ├── constitution.md  # Update constitution
-│   │       ├── specify.md       # Create specs
-│   │       ├── plan.md          # Create plans
-│   │       ├── tasks.md         # Create tasks
-│   │       ├── implement.md     # Execute implementation
-│   │       ├── analyze.md       # Validate consistency
-│   │       └── clarify.md       # Clarify requirements
-│   └── scripts/                 # Helper scripts
-│       ├── bash/                # Linux/macOS scripts
-│       └── powershell/          # Windows scripts
+│   ├── extensions/
+│   │   └── agdt-workflows/      # Extension package
+│   │       ├── extension.yml    # Extension manifest
+│   │       ├── commands/        # AI command templates
+│   │       └── scripts/         # Helper scripts
+│   │           ├── bash/        # Linux/macOS scripts
+│   │           └── powershell/  # Windows scripts
+│   └── presets/
+│       └── agdt-templates/      # Preset package
+│           ├── preset.yml       # Preset manifest
+│           └── templates/       # Document templates
 ├── specs/                       # Feature specifications
 │   ├── 001-example-feature/
 │   │   ├── spec.md             # The specification
@@ -581,15 +540,15 @@ agdt-task-wait
 ### Scripts Not Executable
 
 ```bash
-chmod +x .specify/scripts/bash/*.sh
+chmod +x .specify/extensions/agdt-workflows/scripts/bash/*.sh
 ```
 
 ### Commands Not Available
 
-Ensure templates are in place:
+Ensure command templates are in place:
 
 ```bash
-ls .specify/templates/commands/
+ls .specify/extensions/agdt-workflows/commands/
 ```
 
 ### Constitution Conflicts
@@ -610,8 +569,7 @@ Run consistency check:
 
 - [GitHub spec-kit](https://github.com/github/spec-kit) - Official SDD toolkit
 - [Spec-Driven Development Guide](https://github.github.io/spec-kit/) - Full documentation
-- [Constitution Template](../.specify/templates/commands/constitution.md) - How
-
+- [Constitution Template](.specify/extensions/agdt-workflows/commands/constitution.md) - How
   to manage constitution
 
 - [Example Spec](../specs/001-example-feature/spec.md) - Reference

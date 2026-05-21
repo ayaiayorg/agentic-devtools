@@ -77,7 +77,7 @@ Q_FILE="$REPO_ROOT/AGENTS.md"
 BOB_FILE="$REPO_ROOT/AGENTS.md"
 
 # Template file
-TEMPLATE_FILE="$REPO_ROOT/.specify/templates/agent-file-template.md"
+TEMPLATE_FILE="$REPO_ROOT/.specify/presets/agdt-templates/templates/agent-file-template.md"
 
 # Shared markdown rules file injected into generated agent context (FR-001, FR-007)
 MARKDOWN_RULES_FILE="$REPO_ROOT/.specify/memory/markdown-rules.md"
@@ -908,4 +908,3 @@ main() {
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi
-
