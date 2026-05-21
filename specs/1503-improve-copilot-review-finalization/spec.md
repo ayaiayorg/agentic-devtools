@@ -234,7 +234,7 @@ any errors encountered.
 - **SC-005**: `--dry-run` mode reports resolution decisions for a PR with 5 review
   comments in under 10 seconds (excluding SDK latency) without calling any resolve APIs.
 
-## Clarification Items
+## Clarifications
 
 - **CLARIFY-001**: What is the exact reply text content to post when resolving a thread
   (e.g., "Addressed on the updated PR branch." vs a dynamically generated summary from the
