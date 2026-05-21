@@ -36,7 +36,7 @@ verification is pointless because the code hasn't changed.
 current HEAD SHA and verifying that `finalize_post_repair()` exits early without resolving
 any threads.
 
-**Applies to**: FR-001, FR-002
+**Applies to**: FR-001, FR-002, FR-014
 
 **Acceptance Scenarios**:
 
@@ -158,7 +158,7 @@ any errors encountered.
   PR branch before entering the per-comment verification loop.
 - **FR-002**: System MUST skip finalization (no replies, no resolves) and log a warning
   when `review.commit_sha` equals the current HEAD SHA.
-- **FR-002a**: System MUST treat a null, empty, or unresolvable `review.commit_sha` as a
+- **FR-014**: System MUST treat a null, empty, or unresolvable `review.commit_sha` as a
   fail-safe condition: skip finalization entirely and log an error (higher severity than
   the warning in FR-002).
 - **FR-003**: System MUST fetch the diff between `review.commit_sha` and the current HEAD
@@ -207,7 +207,7 @@ any errors encountered.
 ### Key Entities
 
 - **ReviewCommitSHA**: The commit SHA recorded on the Copilot review at the time it was
-  posted; used by FR-001/FR-002 as the guard reference point.
+  posted; used by FR-001/FR-002/FR-014 as the guard reference point.
 - **HeadSHA**: Current HEAD commit SHA of the PR branch; fetched once at the start of
   finalization.
 - **UnresolvedComment**: A Copilot review comment whose thread is not yet resolved; the
