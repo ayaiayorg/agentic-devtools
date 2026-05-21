@@ -214,3 +214,25 @@ class TestDispatchRepair:
         )
         assert result == EXIT_GUARD_BLOCKED
         provider.dispatch_repair.assert_not_called()
+
+    def test_dedup_recheck_exception_still_dispatches(self) -> None:
+        """Exception during dedup marker refresh is non-fatal and dispatch proceeds."""
+        provider = MagicMock()
+        provider.find_comment.side_effect = RuntimeError("API timeout")
+        provider.dispatch_repair.return_value = 999
+
+        decision = RepairDecision(
+            repair_needed=True,
+            repair_type="ci",
+            review_id=0,
+            failed_checks=(),
+        )
+        result = _dispatch_repair(
+            provider=provider,
+            pr_number=42,
+            head_sha="abc123",
+            decision=decision,
+            dedup_count_before_dispatch=1,
+        )
+        assert result == EXIT_REPAIR_DISPATCHED
+        provider.dispatch_repair.assert_called_once()

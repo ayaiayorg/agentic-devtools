@@ -20,6 +20,7 @@ from .config import (
     DEFAULT_ORGANIZATION,
     DEFAULT_PROJECT,
     DEFAULT_REPOSITORY,
+    PR_ITERATION_CHANGES_API_VERSION,
     AzureDevOpsConfig,
 )
 
@@ -39,7 +40,10 @@ def _get_repository_id_via_rest(
     # percent-encoded (e.g. from a git remote URL).
     project_encoded = quote(unquote(project), safe="")
     repository_encoded = quote(unquote(repository), safe="")
-    url = f"{organization.rstrip('/')}/{project_encoded}/_apis/git/repositories/{repository_encoded}?api-version={API_VERSION}"
+    url = (
+        f"{organization.rstrip('/')}/{project_encoded}/_apis/git/repositories/"
+        f"{repository_encoded}?api-version={API_VERSION}"
+    )
 
     response = requests.get(url, headers=headers, timeout=30)
     if response.status_code != 200:
@@ -548,6 +552,87 @@ def get_pull_request_details(
 
     except Exception as e:
         print(f"Error getting PR details: {e}", file=sys.stderr)
+        return None
+
+
+def get_pull_request_changed_files(
+    pull_request_id: int,
+    config: AzureDevOpsConfig | None = None,
+    headers: dict[str, str] | None = None,
+) -> list[str] | None:
+    """Get changed file paths for a pull request from the latest iteration."""
+    requests = require_requests()
+
+    if config is None:
+        config = AzureDevOpsConfig.from_state()
+
+    if headers is None:
+        from .auth import get_auth_headers, get_pat
+
+        pat = get_pat()  # pragma: no cover
+        headers = get_auth_headers(pat)  # pragma: no cover
+
+    try:
+        repo_id = get_repository_id(
+            organization=config.organization,
+            project=config.project,
+            repository=config.repository,
+        )
+    except RuntimeError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return None
+
+    organization = config.organization.rstrip("/")
+    project_encoded = quote(unquote(config.project), safe="")
+    iterations_url = (
+        f"{organization}/{project_encoded}/_apis/git/repositories/"
+        f"{repo_id}/pullrequests/{pull_request_id}/iterations?api-version={API_VERSION}"
+    )
+
+    try:
+        iterations_response = requests.get(iterations_url, headers=headers, timeout=30)
+        if iterations_response.status_code != 200:
+            print(
+                f"Error: Failed to get PR #{pull_request_id} iterations: {iterations_response.status_code}",
+                file=sys.stderr,
+            )
+            return None
+
+        iterations = iterations_response.json().get("value", [])
+        if not iterations:
+            return []
+
+        latest_iteration_id = max((it.get("id", 0) for it in iterations), default=0)
+        if latest_iteration_id <= 0:
+            return []
+
+        changes_url = (
+            f"{organization}/{project_encoded}/_apis/git/repositories/{repo_id}/pullrequests/"
+            f"{pull_request_id}/iterations/{latest_iteration_id}/changes"
+            f"?api-version={PR_ITERATION_CHANGES_API_VERSION}"
+        )
+        changes_response = requests.get(changes_url, headers=headers, timeout=30)
+        if changes_response.status_code != 200:
+            print(
+                (
+                    f"Error: Failed to get PR #{pull_request_id} iteration "
+                    f"{latest_iteration_id} changes: {changes_response.status_code}"
+                ),
+                file=sys.stderr,
+            )
+            return None
+
+        change_entries = changes_response.json().get("changeEntries", [])
+        changed_paths: list[str] = []
+        for entry in change_entries:
+            if not isinstance(entry, dict):
+                continue
+            path = entry.get("item", {}).get("path", "")
+            if path:
+                changed_paths.append(path)
+        return changed_paths
+    except Exception as e:
+        print(f"Error getting PR changed files: {e}", file=sys.stderr)
         return None
 
 

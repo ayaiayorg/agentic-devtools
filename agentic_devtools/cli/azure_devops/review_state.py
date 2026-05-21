@@ -338,10 +338,11 @@ class ReviewSession:
     status: str = "pending"
     commitHash: str | None = None  # Full 40-char SHA of the commit this session reviewed (differs on re-reviews)
     activityLogCommentId: int | None = None
+    engine: str | None = None  # Review engine used: "default" or "langchain" (None for backward compat)
 
     def to_dict(self) -> dict:
         """Serialize to JSON-compatible dictionary."""
-        return {
+        result = {
             "sessionId": self.sessionId,
             "modelId": self.modelId,
             "startedUtc": self.startedUtc,
@@ -350,6 +351,9 @@ class ReviewSession:
             "commitHash": self.commitHash,
             "activityLogCommentId": self.activityLogCommentId,
         }
+        if self.engine is not None:
+            result["engine"] = self.engine
+        return result
 
     @classmethod
     def from_dict(cls, data: dict) -> "ReviewSession":
@@ -362,6 +366,7 @@ class ReviewSession:
             status=data.get("status", "pending"),
             commitHash=data.get("commitHash"),
             activityLogCommentId=data.get("activityLogCommentId"),
+            engine=data.get("engine"),
         )
 
 

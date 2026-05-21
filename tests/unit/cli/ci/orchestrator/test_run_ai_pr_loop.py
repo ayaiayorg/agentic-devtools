@@ -2021,3 +2021,75 @@ class TestCountCommitsAboveMergeBase:
         assert summary["reason"] == "awaiting_publish"
         assert summary["exit_code"] == EXIT_SUCCESS
         provider.request_reviewer.assert_not_called()
+
+    def test_ci_completion_copilot_already_requested_emits_skip_reason(self) -> None:
+        """CI completion path emits skip reason when Copilot is already requested."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                labels=["ai-auto-merge-allowed"],
+                requested_reviewers=[COPILOT_REVIEWER_LOGIN],
+            ),
+            reviews=[ReviewInfo(id=1, user="human-reviewer", state="APPROVED", body="looks good")],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "awaiting_copilot_review_after_ci"
+        assert summary["reason"] == "copilot_already_requested"
+        assert summary["exit_code"] == EXIT_SUCCESS
+
+    def test_no_copilot_review_copilot_already_requested_emits_skip_reason(self) -> None:
+        """Step 7b emits skip reason when Copilot is already a requested reviewer."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                labels=["ai-auto-merge-allowed"],
+                requested_reviewers=[COPILOT_REVIEWER_LOGIN],
+            ),
+            reviews=[ReviewInfo(id=1, user="human-reviewer", state="APPROVED", body="looks good")],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "awaiting_copilot_review"
+        assert summary["reason"] == "copilot_already_requested"
+        assert summary["exit_code"] == EXIT_SUCCESS
+
+    def test_ci_completion_pre_dedup_list_reviews_failure(self) -> None:
+        """CI completion with failed checks errors when pre-dedup list_reviews fails."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                labels=["ai-auto-merge-allowed"],
+                requested_reviewers=[COPILOT_REVIEWER_LOGIN],
+            ),
+            check_runs=[CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="failure")],
+            reviews=[],
+        )
+        # The pre-dedup list_reviews call (line 630) throws
+        provider.list_reviews.side_effect = RuntimeError("API timeout")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "error"
+        assert summary["reason"] == "reviews_listing_failed"
+        assert summary["exit_code"] == EXIT_METADATA_FAILED
