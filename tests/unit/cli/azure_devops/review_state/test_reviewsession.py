@@ -137,3 +137,41 @@ class TestReviewSession:
                 status=status,
             )
             assert s.status == status
+
+    def test_engine_field_default_none(self):
+        """Test engine field defaults to None."""
+        s = ReviewSession(sessionId="x", modelId="m", startedUtc="2026-01-01T00:00:00Z")
+        assert s.engine is None
+
+    def test_to_dict_omits_engine_when_none(self):
+        """Test to_dict does not include engine key when engine is None."""
+        s = ReviewSession(sessionId="x", modelId="m", startedUtc="2026-01-01T00:00:00Z")
+        d = s.to_dict()
+        assert "engine" not in d
+
+    def test_to_dict_includes_engine_when_set(self):
+        """Test to_dict includes engine key when engine is not None."""
+        s = ReviewSession(
+            sessionId="x", modelId="m", startedUtc="2026-01-01T00:00:00Z", engine="langchain"
+        )
+        d = s.to_dict()
+        assert d["engine"] == "langchain"
+
+    def test_from_dict_with_engine(self):
+        """Test from_dict correctly restores engine field."""
+        data = {
+            "sessionId": "x",
+            "modelId": "m",
+            "startedUtc": "2026-01-01T00:00:00Z",
+            "engine": "langchain",
+        }
+        s = ReviewSession.from_dict(data)
+        assert s.engine == "langchain"
+
+    def test_roundtrip_with_engine(self):
+        """Test round-trip preserves engine field."""
+        original = ReviewSession(
+            sessionId="x", modelId="m", startedUtc="2026-01-01T00:00:00Z", engine="langchain"
+        )
+        restored = ReviewSession.from_dict(original.to_dict())
+        assert restored.engine == "langchain"

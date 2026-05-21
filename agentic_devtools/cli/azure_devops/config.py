@@ -36,6 +36,7 @@ DEFAULT_ORGANIZATION = "https://dev.azure.com/example-org"
 DEFAULT_PROJECT = "ExampleProject"
 DEFAULT_REPOSITORY = "example-repo-name"
 API_VERSION = "7.0"
+PR_ITERATION_CHANGES_API_VERSION = "7.1-preview.1"
 
 
 # =============================================================================

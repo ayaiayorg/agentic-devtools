@@ -192,6 +192,8 @@ def initiate_pull_request_review_workflow(
     interactive: bool | None = None,
     model: str | None = None,
     skip_copilot_session: bool | None = None,
+    use_langchain: bool | None = None,
+    engine: str | None = None,
     _argv: list[str] | None = None,
 ) -> None:
     """
@@ -281,8 +283,30 @@ Examples:
             "when running inside a background task."
         ),
     )
+    parser.add_argument(
+        "--engine",
+        dest="engine",
+        default=None,
+        help="Review engine to use: 'default' or 'langchain'. Default: 'default'.",
+    )
+    parser.add_argument(
+        "--use-langchain",
+        dest="use_langchain",
+        action="store_true",
+        default=False,
+        help="Deprecated alias for --engine langchain. Use --engine langchain instead.",
+    )
     args = parser.parse_args(
-        _effective_argv(_argv, pull_request_id, issue_key, interactive, model, skip_copilot_session)
+        _effective_argv(
+            _argv,
+            pull_request_id,
+            issue_key,
+            interactive,
+            model,
+            skip_copilot_session,
+            use_langchain,
+            engine,
+        )
     )
 
     # CLI values override programmatic values only when not already set
@@ -302,6 +326,23 @@ Examples:
         model = get_default_copilot_model()
     if not skip_copilot_session and args.skip_copilot_session:
         skip_copilot_session = True
+
+    # Resolve engine: --use-langchain is a deprecated alias for --engine langchain
+    if engine is None and args.engine:
+        engine = args.engine
+    if use_langchain is None and args.use_langchain:
+        use_langchain = True
+    if use_langchain and engine and engine != "langchain":
+        import warnings
+
+        warnings.warn(
+            "--use-langchain is ignored because --engine was explicitly set to"
+            f" '{engine}'. Use --engine langchain instead.",
+            UserWarning,
+            stacklevel=2,
+        )
+    if use_langchain and not engine:
+        engine = "langchain"
 
     # Resolve identity and set the worktree_key scope BEFORE any state I/O (including
     # the clear below), so that get_state_dir() resolves to the correct scoped directory
@@ -509,6 +550,29 @@ Examples:
 
     print(f"\nInitiating pull request review for PR #{resolved_pr_id}...")
 
+    # Resolve the effective review engine using priority logic.
+    # Done here (after state dir is set up) so we can read review.engine from state.
+    from .engine_resolution import resolve_review_engine
+
+    state_engine = get_value("review.engine")
+    resolved_engine = resolve_review_engine(cli_flag=engine, state_key=state_engine)
+
+    if resolved_engine == "langchain":
+        # LangChain path: validate dependencies and run the LangGraph pipeline
+        from ...orchestration.review.preflight import validate_langchain_dependencies
+
+        validate_langchain_dependencies()
+        from ...orchestration.review.runner import run_langchain_review
+
+        print("[langchain] Using LangChain/LangGraph review engine")
+        run_langchain_review(
+            pr_id=int(resolved_pr_id),
+            config={"model": model} if model else {},
+            state_dir=str(resolved_state_dir),
+        )
+        return
+
+    # Default engine path (existing workflow — unchanged)
     if skip_copilot_session:
         # When --skip-copilot-session is set, this is a nested auto-execute
         # invocation running inside a background task. Run setup synchronously
