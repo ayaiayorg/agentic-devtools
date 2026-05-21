@@ -33,7 +33,7 @@ AI agent files have special needs:
 - Contain YAML front matter → disable MD041 (first-line-heading)
 - Contain long instructional prompts → disable MD013 (line-length)
 
-### Template Directories (`.specify/templates/commands/`, `.github/scripts/speckit-trigger/templates/`)
+### Template Directories (`.specify/extensions/agdt-workflows/commands/`, `.github/scripts/speckit-trigger/templates/`)
 
 Template files also have special requirements:
 

@@ -1,0 +1,358 @@
+name: Spec-Kit Package Validation
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - '.specify/extensions/**'
+      - '.specify/presets/**'
+      - '.specify/config.yml'
+  pull_request:
+    paths:
+      - '.specify/extensions/**'
+      - '.specify/presets/**'
+      - '.specify/config.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-extension:
+    name: Validate Extension Package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate extension manifest exists
+        run: |
+          set -e
+          if [ ! -f ".specify/extensions/agdt-workflows/extension.yml" ]; then
+            echo "ERROR: extension.yml manifest not found"
+            exit 1
+          fi
+          echo "✅ extension.yml manifest exists"
+
+      - name: Validate extension manifest fields
+        run: |
+          set -e
+          manifest=".specify/extensions/agdt-workflows/extension.yml"
+
+          # Check required fields
+          for field in name version description commands scripts; do
+            if ! grep -q "^${field}:" "$manifest"; then
+              echo "ERROR: Required field '${field}' missing from extension.yml"
+              exit 1
+            fi
+          done
+          echo "✅ All required manifest fields present"
+
+      - name: Validate command files exist
+        run: |
+          set -e
+          python <<'PY'
+          from pathlib import Path
+          import sys
+
+          def parse_manifest_lists(path: Path) -> dict[str, list[str] | dict[str, list[str]]]:
+              result: dict[str, list[str] | dict[str, list[str]]] = {}
+              current_section: str | None = None
+              current_nested: str | None = None
+
+              for raw_line in path.read_text(encoding="utf-8").splitlines():
+                  stripped = raw_line.strip()
+                  if not stripped or stripped.startswith("#"):
+                      continue
+
+                  indent = len(raw_line) - len(raw_line.lstrip(" "))
+                  if indent == 0 and stripped.endswith(":"):
+                      current_section = stripped[:-1]
+                      current_nested = None
+                      if current_section == "scripts":
+                          result[current_section] = {}
+                      else:
+                          result.setdefault(current_section, [])
+                  elif indent == 2 and stripped.endswith(":") and current_section == "scripts":
+                      current_nested = stripped[:-1]
+                      result.setdefault(current_section, {})
+                      result[current_section].setdefault(current_nested, [])
+                  elif stripped.startswith("- "):
+                      value = stripped[2:].strip().strip("'\"")
+                      if current_section == "scripts" and current_nested:
+                          result[current_section][current_nested].append(value)
+                      elif isinstance(result.get(current_section), list):
+                          result[current_section].append(value)
+
+              return result
+
+          extension_dir = Path(".specify/extensions/agdt-workflows")
+          manifest_data = parse_manifest_lists(extension_dir / "extension.yml")
+          commands = manifest_data.get("commands", [])
+          if not commands:
+              sys.exit("ERROR: No commands declared in extension.yml")
+
+          missing = [command for command in commands if not (extension_dir / "commands" / command).is_file()]
+          if missing:
+              sys.exit(f"ERROR: Command files declared in extension.yml are missing: {', '.join(missing)}")
+
+          print(f"✅ All {len(commands)} declared command files are present")
+          PY
+
+      - name: Validate script files exist
+        run: |
+          set -e
+          python <<'PY'
+          from pathlib import Path
+          import sys
+
+          def parse_manifest_lists(path: Path) -> dict[str, list[str] | dict[str, list[str]]]:
+              result: dict[str, list[str] | dict[str, list[str]]] = {}
+              current_section: str | None = None
+              current_nested: str | None = None
+
+              for raw_line in path.read_text(encoding="utf-8").splitlines():
+                  stripped = raw_line.strip()
+                  if not stripped or stripped.startswith("#"):
+                      continue
+
+                  indent = len(raw_line) - len(raw_line.lstrip(" "))
+                  if indent == 0 and stripped.endswith(":"):
+                      current_section = stripped[:-1]
+                      current_nested = None
+                      if current_section == "scripts":
+                          result[current_section] = {}
+                      else:
+                          result.setdefault(current_section, [])
+                  elif indent == 2 and stripped.endswith(":") and current_section == "scripts":
+                      current_nested = stripped[:-1]
+                      result.setdefault(current_section, {})
+                      result[current_section].setdefault(current_nested, [])
+                  elif stripped.startswith("- "):
+                      value = stripped[2:].strip().strip("'\"")
+                      if current_section == "scripts" and current_nested:
+                          result[current_section][current_nested].append(value)
+                      elif isinstance(result.get(current_section), list):
+                          result[current_section].append(value)
+
+              return result
+
+          extension_dir = Path(".specify/extensions/agdt-workflows")
+          scripts = parse_manifest_lists(extension_dir / "extension.yml").get("scripts", {})
+          bash_scripts = scripts.get("bash", [])
+          powershell_scripts = scripts.get("powershell", [])
+
+          if not bash_scripts:
+              sys.exit("ERROR: No bash scripts declared in extension.yml")
+          if not powershell_scripts:
+              sys.exit("ERROR: No powershell scripts declared in extension.yml")
+
+          missing_bash = [script for script in bash_scripts if not (extension_dir / "scripts" / "bash" / script).is_file()]
+          if missing_bash:
+              sys.exit(f"ERROR: Bash scripts declared in extension.yml are missing: {', '.join(missing_bash)}")
+
+          missing_ps = [
+              script for script in powershell_scripts if not (extension_dir / "scripts" / "powershell" / script).is_file()
+          ]
+          if missing_ps:
+              sys.exit(
+                  f"ERROR: PowerShell scripts declared in extension.yml are missing: {', '.join(missing_ps)}"
+              )
+
+          print(
+              f"✅ All declared script files are present "
+              f"({len(bash_scripts)} bash, {len(powershell_scripts)} PowerShell)"
+          )
+          PY
+
+      - name: Validate bash scripts are executable
+        run: |
+          set -e
+          bash_dir=".specify/extensions/agdt-workflows/scripts/bash"
+          non_executable=()
+          for script in "$bash_dir"/*.sh; do
+            if [ ! -x "$script" ]; then
+              non_executable+=("$script")
+            fi
+          done
+          if [ ${#non_executable[@]} -gt 0 ]; then
+            echo "WARNING: Non-executable bash scripts:"
+            for script in "${non_executable[@]}"; do
+              echo "  - $script"
+            done
+            printf 'Consider running: chmod +x'
+            printf ' %q' "${non_executable[@]}"
+            printf '\n'
+          fi
+          echo "✅ Bash script permissions checked"
+
+  validate-preset:
+    name: Validate Preset Package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate preset manifest exists
+        run: |
+          set -e
+          if [ ! -f ".specify/presets/agdt-templates/preset.yml" ]; then
+            echo "ERROR: preset.yml manifest not found"
+            exit 1
+          fi
+          echo "✅ preset.yml manifest exists"
+
+      - name: Validate preset manifest fields
+        run: |
+          set -e
+          manifest=".specify/presets/agdt-templates/preset.yml"
+
+          # Check required fields
+          for field in name version description templates; do
+            if ! grep -q "^${field}:" "$manifest"; then
+              echo "ERROR: Required field '${field}' missing from preset.yml"
+              exit 1
+            fi
+          done
+          echo "✅ All required manifest fields present"
+
+      - name: Validate template files exist
+        run: |
+          set -e
+          python <<'PY'
+          from pathlib import Path
+          import sys
+
+          def parse_manifest_lists(path: Path) -> dict[str, list[str]]:
+              result: dict[str, list[str]] = {}
+              current_section: str | None = None
+
+              for raw_line in path.read_text(encoding="utf-8").splitlines():
+                  stripped = raw_line.strip()
+                  if not stripped or stripped.startswith("#"):
+                      continue
+
+                  indent = len(raw_line) - len(raw_line.lstrip(" "))
+                  if indent == 0 and stripped.endswith(":"):
+                      current_section = stripped[:-1]
+                      result.setdefault(current_section, [])
+                  elif stripped.startswith("- ") and current_section:
+                      result[current_section].append(stripped[2:].strip().strip("'\""))
+
+              return result
+
+          preset_dir = Path(".specify/presets/agdt-templates")
+          manifest_data = parse_manifest_lists(preset_dir / "preset.yml")
+          templates = manifest_data.get("templates", [])
+          assets = manifest_data.get("assets", [])
+          expected_files = templates + assets
+
+          if not expected_files:
+              sys.exit("ERROR: No templates or assets declared in preset.yml")
+
+          missing = [entry for entry in expected_files if not (preset_dir / "templates" / entry).is_file()]
+          if missing:
+              sys.exit(f"ERROR: Files declared in preset.yml are missing from templates/: {', '.join(missing)}")
+
+          print(f"✅ All {len(expected_files)} declared preset files are present")
+          PY
+
+  validate-config:
+    name: Validate Config References
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate config.yml references resolve
+        run: |
+          set -e
+          python <<'PY'
+          from pathlib import Path
+          import sys
+
+          def parse_config_lists(path: Path) -> dict[str, list[str]]:
+              result: dict[str, list[str]] = {}
+              current_section: str | None = None
+
+              for raw_line in path.read_text(encoding="utf-8").splitlines():
+                  stripped = raw_line.strip()
+                  if not stripped or stripped.startswith("#"):
+                      continue
+
+                  indent = len(raw_line) - len(raw_line.lstrip(" "))
+                  if indent == 0 and stripped.endswith(":"):
+                      current_section = stripped[:-1]
+                      result.setdefault(current_section, [])
+                  elif stripped.startswith("- ") and current_section in {"extensions", "presets"}:
+                      result[current_section].append(stripped[2:].strip().strip("'\""))
+
+              return result
+
+          config_path = Path(".specify/config.yml")
+          config_data = parse_config_lists(config_path)
+          references = {
+              "extensions": config_data.get("extensions", []),
+              "presets": config_data.get("presets", []),
+          }
+
+          missing_sections = [section for section, entries in references.items() if not entries]
+          if missing_sections:
+              sys.exit(f"ERROR: Missing config.yml entries for: {', '.join(missing_sections)}")
+
+          missing_paths: list[str] = []
+          for section, entries in references.items():
+              for entry in entries:
+                  if not Path(entry).is_dir():
+                      missing_paths.append(f"{section}:{entry}")
+
+          if missing_paths:
+              sys.exit(
+                  "ERROR: config.yml contains unresolved package paths: "
+                  + ", ".join(missing_paths)
+              )
+
+          total = sum(len(entries) for entries in references.values())
+          print(f"✅ All {total} config.yml extension/preset references resolve to existing directories")
+          PY
+
+      - name: Check for stale path references
+        run: |
+          set -e
+          # Ensure old .specify/scripts/ and .specify/templates/ directories don't exist
+          stale_found=false
+          if [ -d ".specify/scripts" ]; then
+            echo "ERROR: Legacy .specify/scripts/ directory still exists"
+            stale_found=true
+          fi
+          if [ -d ".specify/templates" ]; then
+            echo "ERROR: Legacy .specify/templates/ directory still exists"
+            stale_found=true
+          fi
+          # Ensure extension scripts/commands do not reference legacy paths
+          if grep -R -n --exclude-dir='.git' -E '\.specify/(scripts|templates)/' \
+            .specify/extensions/agdt-workflows/scripts \
+            .specify/extensions/agdt-workflows/commands; then
+            echo "ERROR: Found stale .specify/scripts or .specify/templates references in extension scripts/commands"
+            stale_found=true
+          fi
+          if [ "$stale_found" = true ]; then
+            exit 1
+          fi
+          echo "✅ No stale legacy directories or extension path references found"
+
+  speckit-packages-gate:
+    name: Spec-Kit Packages ✅
+    needs: [validate-extension, validate-preset, validate-config]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        run: |
+          set -e
+          if [[ "${{ needs.validate-extension.result }}" != "success" || \
+                "${{ needs.validate-preset.result }}" != "success" || \
+                "${{ needs.validate-config.result }}" != "success" ]]; then
+            echo "Spec-Kit package validation failed (results: extension=${{ needs.validate-extension.result }}, preset=${{ needs.validate-preset.result }}, config=${{ needs.validate-config.result }})"
+            exit 1
+          fi
+          echo "All Spec-Kit package validations passed"

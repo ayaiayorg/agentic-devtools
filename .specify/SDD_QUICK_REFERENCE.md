@@ -19,23 +19,22 @@ Quick reference for using Spec-Driven Development with agentic-devtools.
 
 ### For Manual Use
 
-> **Transition note**: The scripts below are repo-local helpers that remain
-> available today. Once the extension package (`speckit-ext-agdt`) is published
-> and installed via `specify install`, these scripts will be superseded by
-> the extension's built-in commands.
+The scripts below are available from the extension package at
+`.specify/extensions/agdt-workflows/scripts/`:
+they consume templates from `.specify/presets/agdt-templates/templates/`.
 
 ```bash
 # Create new feature (pass the GitHub issue number)
-.specify/scripts/bash/create-new-feature.sh --issue 1175 "feature-name"
+.specify/extensions/agdt-workflows/scripts/bash/create-new-feature.sh --issue 1175 "feature-name"
 
 # Check prerequisites
-.specify/scripts/bash/check-prerequisites.sh
+.specify/extensions/agdt-workflows/scripts/bash/check-prerequisites.sh
 
 # Setup plan
-.specify/scripts/bash/setup-plan.sh
+.specify/extensions/agdt-workflows/scripts/bash/setup-plan.sh
 
 # Update agent context
-.specify/scripts/bash/update-agent-context.sh
+.specify/extensions/agdt-workflows/scripts/bash/update-agent-context.sh
 ```
 
 ### Package Management (Post-Migration)
@@ -45,7 +44,7 @@ Quick reference for using Spec-Driven Development with agentic-devtools.
 > core spec-kit commands.
 
 ```bash
-# Install extension + preset (reads .specify/config.yml)
+# Optional: refresh/apply local extension + preset config from .specify/config.yml
 specify install
 
 # Check compatibility and health
@@ -59,18 +58,21 @@ specify upgrade
 
 ```text
 .specify/
-├── config.yml                   # Version pins for extension + preset
+├── config.yml                   # References local extension + preset
+├── extensions/
+│   └── agdt-workflows/          # Extension package
+│       ├── extension.yml        # Extension manifest
+│       ├── commands/            # AI command workflows
+│       └── scripts/             # Helper scripts
+│           ├── bash/            # Linux/macOS
+│           └── powershell/      # Windows
+├── presets/
+│   └── agdt-templates/          # Preset package
+│       ├── preset.yml           # Preset manifest
+│       └── templates/           # Document templates
 ├── memory/constitution.md       # Project governance
 ├── memory/markdown-rules.md     # Markdown formatting rules
-├── SDD_QUICK_REFERENCE.md       # This file
-├── templates/                   # Template overrides (preset provides defaults)
-│   ├── spec-template.md
-│   ├── plan-template.md
-│   ├── tasks-template.md
-│   └── commands/               # AI command workflows
-└── scripts/                    # Helper scripts
-    ├── bash/                   # Linux/macOS
-    └── powershell/             # Windows
+└── SDD_QUICK_REFERENCE.md       # This file
 
 specs/
 └── ISSUE-feature-name/           # Feature directory (ISSUE = GitHub issue number)
@@ -102,7 +104,7 @@ Or via AI:
 
 ```bash
 # Manual (pass the GitHub issue number)
-.specify/scripts/bash/create-new-feature.sh --issue 42 "webhook-support"
+.specify/extensions/agdt-workflows/scripts/bash/create-new-feature.sh --issue 42 "webhook-support"
 # Creates branch 42-webhook-support and specs/42-webhook-support/
 
 # Or via AI
@@ -195,17 +197,17 @@ As a [role], I want to [action], so that [benefit].
 
 ## Template Locations
 
-- Specification: `.specify/templates/spec-template.md`
-- Plan: `.specify/templates/plan-template.md`
-- Tasks: `.specify/templates/tasks-template.md`
-- Checklist: `.specify/templates/checklist-template.md`
+- Specification: `.specify/presets/agdt-templates/templates/spec-template.md`
+- Plan: `.specify/presets/agdt-templates/templates/plan-template.md`
+- Tasks: `.specify/presets/agdt-templates/templates/tasks-template.md`
+- Checklist: `.specify/presets/agdt-templates/templates/checklist-template.md`
 
 ## Documentation
 
 - **Full Guide**: `SPEC_DRIVEN_DEVELOPMENT.md`
 - **Specs Guide**: `specs/README.md`
 - **Constitution**: `.specify/memory/constitution.md`
-- **Command Workflows**: `.specify/templates/commands/*.md`
+- **Command Workflows**: `.specify/extensions/agdt-workflows/commands/`
 
 ## Example
 
@@ -249,10 +251,6 @@ agdt-task-status
 - [GitHub spec-kit](https://github.com/github/spec-kit)
 - [Full Documentation](https://github.github.io/spec-kit/)
 - [Local Guide](../SPEC_DRIVEN_DEVELOPMENT.md)
-- [AGDT Extension](https://github.com/ayaiayorg/speckit-ext-agdt) — Commands and scripts
-- [AGDT Preset](https://github.com/ayaiayorg/speckit-preset-agdt) — Template overrides
+- [AGDT Extension](.specify/extensions/agdt-workflows/) — Commands and scripts (local monorepo package)
+- [AGDT Preset](.specify/presets/agdt-templates/) — Template overrides (local monorepo package)
 - [Migration Inventory](../docs/speckit-migration-inventory.md) — File categorization
-
-> **Note**: The AGDT Extension and Preset links above are placeholder
-> repositories that may 404 until published (see T016/T017 in the
-> [migration issue](https://github.com/ayaiayorg/agentic-devtools/issues/1408)).

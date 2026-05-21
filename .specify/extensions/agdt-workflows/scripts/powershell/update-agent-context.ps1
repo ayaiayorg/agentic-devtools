@@ -61,7 +61,7 @@ $SHAI_FILE     = Join-Path $REPO_ROOT 'SHAI.md'
 $Q_FILE        = Join-Path $REPO_ROOT 'AGENTS.md'
 $BOB_FILE      = Join-Path $REPO_ROOT 'AGENTS.md'
 
-$TEMPLATE_FILE = Join-Path $REPO_ROOT '.specify/templates/agent-file-template.md'
+$TEMPLATE_FILE = Join-Path $REPO_ROOT '.specify/presets/agdt-templates/templates/agent-file-template.md'
 
 # Shared markdown rules file injected into generated agent context (FR-001, FR-007)
 $MARKDOWN_RULES_FILE = Join-Path $REPO_ROOT '.specify/memory/markdown-rules.md'
@@ -511,4 +511,3 @@ function Main {
 }
 
 Main
-

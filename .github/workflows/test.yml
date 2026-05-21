@@ -120,6 +120,9 @@ jobs:
               - 'tests/helpers.py'
             e2e_smoke:
               - 'tests/e2e_smoke/**'
+              - '.specify/extensions/**'
+              - '.specify/presets/**'
+              - '.specify/config.yml'
 
       - name: Check if any module changed
         id: has-modules
