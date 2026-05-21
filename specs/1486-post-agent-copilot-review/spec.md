@@ -285,10 +285,11 @@ cannot resolve and verifying a Copilot agent session is triggered with the corre
   (in `agentic_devtools/cli/ci/models.py`) to add `start_line` (int | None) and
   `end_line` (int | None) fields, populated from the GitHub REST API's `start_line`
   and `line` fields on review comments.
-  `ThreadInfo.thread_id` is the review comment's integer REST `id` cast to str; it is
-  used as a stable key for diff matching and resolution. GraphQL node IDs are not
-  required for this heuristic; thread resolution continues through the existing
-  `CIPlatformProvider` abstraction.
+  `ThreadInfo.comment_id` is the review comment's integer REST `id`; it is used as a
+  stable key for diff matching. Resolution uses the existing
+  `agentic_devtools/cli/github/resolve_review_threads.py::resolve_review_threads`
+  pathway with `comment_ids=...` (the helper maps REST comment IDs to GraphQL thread IDs
+  internally), so GraphQL node IDs are not required in this snapshot model.
 - **FR-009**: System MUST request a Copilot re-review after resolving threads via
   `CIPlatformProvider.request_reviewer`.
 - **FR-010**: System MUST provide a CLI entry point (`agdt-evaluate-post-agent-state`) that
@@ -342,8 +343,8 @@ cannot resolve and verifying a Copilot agent session is triggered with the corre
   - `lock_age_seconds` (int | None)
 
   `ThreadInfo` fields:
-  - `thread_id` (str) — REST review comment `id` cast to str; stable key for diff
-    matching and resolution
+  - `comment_id` (int) — REST review comment `id`; stable key for diff matching and
+    for the existing `resolve_review_threads(comment_ids=...)` resolution flow
   - `body_excerpt` (str, max 500 chars)
   - `path` (str)
   - `start_line` (int | None) — populated from the extended `ReviewCommentInfo`
