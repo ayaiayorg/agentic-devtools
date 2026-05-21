@@ -140,10 +140,10 @@ no sentinel, a properly formatted result comment with the sentinel is posted.
 
 **Acceptance Scenarios**:
 
-1. **Given** a classified state where the agent completed successfully but no sentinel is
-   present, **When** the synthesize action runs, **Then** a PR comment is posted containing
-   the shared sentinel marker value used for `CIPlatformProvider.find_comment(...)` and a
-   summary of what the agent did.
+1. **Given** a classified state of `threads_resolved_no_sentinel` (no unresolved threads and
+   no sentinel present), **When** the synthesize action runs, **Then** a PR comment is posted
+   containing the shared sentinel marker value used for
+   `CIPlatformProvider.find_comment(...)` and a summary of what the agent did.
 2. **Given** the synthesized result, **When** downstream automation reads the PR comments,
    **Then** it can detect the sentinel and proceed normally.
 
@@ -276,7 +276,8 @@ cannot resolve and verifying a Copilot agent session is triggered with the corre
 - **FR-006**: System MUST provide action handlers for each classified state, following the
   provider abstraction pattern (`CIPlatformProvider`).
 - **FR-007**: System MUST synthesize a sentinel-containing result comment when the agent
-  fails to produce one, using the same shared marker value used for detection.
+  fails to produce one and the classified state is `threads_resolved_no_sentinel`, using
+  the same shared marker value used for detection.
 - **FR-008**: System MUST verify that review feedback is addressed in code before resolving
   threads, using heuristic diff line-range overlap matching (checking whether lines
   referenced by the review comment have been modified in the HEAD diff).
