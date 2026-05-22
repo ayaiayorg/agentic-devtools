@@ -171,7 +171,8 @@ input.
 
 ### User Story 5 — Configurable Thresholds (Priority: P3)
 
-As a SpecKit maintainer, I want validation thresholds (minimum FR count, minimum user story count, minimum byte size, retry limit) to be defined as named constants at the top of `lib/spec-validation.sh`,
+As a SpecKit maintainer, I want validation thresholds (minimum FR count, minimum user story count, minimum byte size, retry limit) to be defined as named constants at the top of
+`lib/spec-validation.sh`,
 so that they can be tuned without modifying validation logic.
 
 **Why this priority**: Threshold values may need adjustment as the LLM improves or as spec expectations evolve. Centralizing them makes tuning straightforward and auditable.
@@ -202,8 +203,8 @@ so that they can be tuned without modifying validation logic.
   patterns within the User Scenarios section. If fewer than 3 user stories (headings matched with a case-insensitive `### user story` prefix check) have at least one acceptance scenario each,
   validation fails.
 
-- **What happens if `strip_llm_preamble` removes content that causes the spec to drop below thresholds?** Validation runs AFTER `strip_llm_preamble` and `ensure_heading_start`, so the validated content
-  is exactly what would be written to disk.
+- **What happens if `strip_llm_preamble` removes content that causes the spec to drop below thresholds?** Validation runs AFTER `strip_llm_preamble` and `ensure_heading_start`,
+  so the validated content is exactly what would be written to disk.
 
 - **What happens if the validation library file `lib/spec-validation.sh` is missing when sourced?** The sourcing script (`generate-spec-from-issue.sh`) uses:
 
