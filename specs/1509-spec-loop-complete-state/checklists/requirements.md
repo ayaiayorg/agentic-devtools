@@ -11,9 +11,9 @@
 - [ ] CHK002 All user stories follow "As a [role], I want [capability], so that [benefit]" format with explicit priority (P1/P2/P3) and independent testability statement
 - [ ] CHK003 Priority assignments (P1: thread evaluation, rebase merge, conflict context; P2: test validation, commit message, review re-trigger; P3: workflow approval) are justified with rationale in
   "Why this priority" sections
-- [ ] CHK004 Functional requirements FR-001 through FR-014 and FR-003a specify observable behaviors (MUST evaluate, MUST resolve, MUST run tests) without prescribing internal class hierarchies, variable
-  names, or
-  algorithmic implementation details
+- [ ] CHK004 Functional requirements FR-001 through FR-014 and FR-003a specify observable
+  behaviors (MUST evaluate, MUST resolve, MUST run tests) without prescribing internal class
+  hierarchies, variable names, or algorithmic implementation details
 
 ## Requirement Completeness
 
@@ -37,9 +37,10 @@
   generation (US5) → review re-trigger (US6) → workflow approval (US7)
 - [ ] CHK013 Success criteria SC-003 (≥20% conflict resolution improvement over 30 occurrences) and SC-005 (≥99% review trigger within 120s) define baseline measurement methodology and observation
   period
-- [ ] CHK014 Requirements stay at the behavioral contract level — verify that references to stable symbols or workflow steps (e.g., Step 9 merge gate in `orchestrator.py` Key Entities) are informational
-  context
-  only and not implementation prescriptions in the requirements themselves
+- [ ] CHK014 Requirements stay at the behavioral contract level — verify that references to
+  stable symbols or workflow steps (e.g., Step 9 merge gate in `orchestrator.py` Key Entities)
+  are informational context only and not implementation prescriptions in the requirements
+  themselves
 
 ## Notes
 
