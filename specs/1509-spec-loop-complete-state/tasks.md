@@ -33,7 +33,7 @@
 ## Phase 2: Foundational — Retry & Shared Infrastructure
 
 - [ ] T005 Verify `retry.py` `retry_with_backoff` supports base 2s / max 16s exponential backoff per NFR-006 (FR-014); add configuration parameters if missing
-- [ ] T006 Write unit test `tests/unit/cli/ci/retry/test_retry_with_backoff_exponential.py` confirming 3 retries with exponential backoff per FR-014
+- [ ] T006 Write unit test `tests/unit/cli/ci/retry/test_retry_with_backoff_exponential.py` confirming happy-path 3 retries with exponential backoff per FR-014
 - [ ] T007 [P] Create helper `_get_three_way_context(file_path)` in `agentic_devtools/cli/ci/github_provider.py` extracting `:1:`, `:2:`, `:3:` content via `git show` (FR-004)
 - [ ] T008 [P] Create helper `_get_file_commit_messages(file_path, base_branch, head_branch)` in `agentic_devtools/cli/ci/github_provider.py` (FR-005)
 - [ ] T009 [P] Create helper `_get_file_type_hint(file_path)` in `agentic_devtools/cli/ci/github_provider.py` returning resolution hints by extension (FR-006)
@@ -47,7 +47,7 @@
 - [ ] T012 [US2] Modify Step 9 merge handling in `agentic_devtools/cli/ci/orchestrator.py` to call `merge_pr(…, strategy="rebase")` instead of `"squash"` (FR-003)
 - [ ] T013 [US2] Add pre-merge guard in `agentic_devtools/cli/ci/orchestrator.py` calling `count_commits_above_merge_base()` and re-triggering squash if count > 1 (FR-003)
 - [ ] T014 [US2] Update `merge_pr()` in `agentic_devtools/cli/ci/github_provider.py` to pass `--rebase` to the GitHub merge API (FR-003)
-- [ ] T015 [US2] Write integration test `tests/unit/cli/ci/github_provider/test_merge_pr_rebase.py` verifying rebase merge produces identical commit message on target branch (FR-003)
+- [ ] T015 [US2] Write happy-path integration test `tests/unit/cli/ci/github_provider/test_merge_pr_rebase.py` verifying rebase merge produces identical commit message on target branch (FR-003)
 
 ---
 
@@ -60,14 +60,14 @@
 - [ ] T020 [US3] Modify `_resolve_conflicted_file_content_via_sdk()` to include commit messages from both branches in prompt (FR-005)
 - [ ] T021 [US3] Modify `_resolve_conflicted_file_content_via_sdk()` to include file-type-specific resolution hints in prompt (FR-006)
 - [ ] T022 [US3] Update `_resolve_rebase_conflicts_via_sdk()` to gather three-way context, commit messages, and hints, passing them to the resolution method
-- [ ] T023 [US3] Write integration test `tests/unit/cli/ci/github_provider/test__resolve_conflicted_enriched.py` verifying full enriched prompt assembly (FR-004, FR-005, FR-006)
+- [ ] T023 [US3] Write happy-path integration test `tests/unit/cli/ci/github_provider/test__resolve_conflicted_enriched.py` verifying full enriched prompt assembly (FR-004, FR-005, FR-006)
 
 ---
 
 ## Phase 5: User Story 1 — SDK-Based Thread Evaluation (P1)
 
-- [ ] T024 [US1] Write unit test `tests/unit/cli/ci/thread_evaluator/test_evaluate_thread.py` verifying `ADDRESSED`/`NOT_ADDRESSED` verdicts (FR-001)
-- [ ] T025 [US1] Write unit test `tests/unit/cli/ci/thread_evaluator/test_evaluate_thread_timeout.py` verifying 30s timeout leaves thread unresolved (FR-002, NFR-001)
+- [ ] T024 [US1] Write happy-path unit test `tests/unit/cli/ci/thread_evaluator/test_evaluate_thread.py` verifying `ADDRESSED`/`NOT_ADDRESSED` verdicts (FR-001)
+- [ ] T025 [US1] Write happy-path unit test `tests/unit/cli/ci/thread_evaluator/test_evaluate_thread_timeout.py` covering pre-timeout success and 30s unresolved timeout behavior (FR-002, NFR-001)
 - [ ] T026 [US1] Write unit test `tests/unit/cli/ci/thread_evaluator/test_evaluate_thread_ambiguous.py` verifying `AMBIGUOUS` leaves thread unresolved immediately without retry (FR-002)
 - [ ] T027 [US1] Implement `evaluate_thread(comment_body, file_diff, agent_response) → ThreadVerdict` in `agentic_devtools/cli/ci/thread_evaluator.py` with 30s timeout (FR-001, FR-002, NFR-001)
 - [ ] T028 [US1] Add SDK prompt construction in `evaluate_thread()` including comment body, file diff, and agent response context (FR-001)
@@ -180,7 +180,7 @@ T068 → T069 → T070
 | FR-008 | T042, T045 |
 | FR-009 | T035, T036, T038 |
 | FR-010 | T035, T037, T039, T040 |
-| FR-011 | T048-T055 |
+| FR-011 | T048, T049, T050, T051, T052, T053, T055 |
 | FR-012 | T057, T058, T061, T062, T063, T064, T065, T066 |
 | FR-013 | T056, T059, T060, T063, T067 |
 | FR-014 | T005, T006, T030, T054, T058, T062 |
