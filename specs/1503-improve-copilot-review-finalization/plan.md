@@ -206,7 +206,7 @@ def finalize_post_repair(self, *, pr_number, base_branch, head_branch, head_sha,
 | --- | --- | --- |
 | Copilot SDK unavailable in CI | SDK calls fail → all threads left unresolved | Fail-safe default (FR-007); log warning and return gracefully |
 | Token estimation inaccuracy | Context too large → SDK truncates or errors | Use conservative 4-char/token estimate; hard cap at 16,000 chars |
-| Breaking change: `None` → `FinalizationResult` return type | Callers expecting `None` | Callers currently ignore return value; ensure `FinalizationResult` is truthy |
+| Breaking change: `None` → `FinalizationResult` return type | Callers expecting old `None`/non-`None` semantics | Update call sites and orchestrator logic to branch on `FinalizationResult.skipped` and counts/errors instead of relying on truthiness |
 | Rate limiting mid-loop | Partially processed reviews | FR-008: stop processing, include remaining in errors list |
 | SDK latency (60s timeout per comment) | Slow finalization for many comments | Log progress; consider parallel batching in future |
 | `review_id` parameter change to optional | ABC contract change | Update both providers (GitHub + ADO stub) simultaneously |
