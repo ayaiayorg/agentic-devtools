@@ -85,6 +85,8 @@ unaddressed feedback is not silently dismissed.
 **Independent Test**: Can be tested by mocking the Copilot SDK to return "addressed" or "not_addressed" for different comment/diff pairs and verifying threads are only resolved when the SDK confirms
 the fix.
 
+**Functional Requirements**: FR-001, FR-002, FR-014
+
 **Acceptance Scenarios**:
 
 1. **Given** a Copilot review comment requesting a null check on line 42 and the coding agent adds a null check on that line, **When** the SDK evaluates the comment against the latest diff, **Then**
@@ -114,6 +116,8 @@ merge, rebase merge preserves the message verbatim.
 **Independent Test**: Can be tested by verifying the merge API call uses `--rebase` instead of `--squash` and that the resulting commit on the target branch has the exact same message as the PR branch
 commit.
 
+**Functional Requirements**: FR-003
+
 **Acceptance Scenarios**:
 
 1. **Given** a PR with a single squashed commit and all merge conditions met, **When** the ai-pr-loop executes the merge, **Then** `merge_pr()` is called with strategy `"rebase"` instead of
@@ -139,6 +143,8 @@ significantly improves the SDK's ability to understand what each side intended.
 
 **Independent Test**: Can be tested by verifying the SDK prompt includes the three git stages (`:1:`, `:2:`, `:3:`) and relevant commit messages for each conflicted file.
 
+**Functional Requirements**: FR-004, FR-005, FR-006
+
 **Acceptance Scenarios**:
 
 1. **Given** a conflicted file during rebase, **When** the SDK is invoked for resolution, **Then** the prompt includes the common ancestor version (`git show :1:<path>`), the ours version (`git show
@@ -160,6 +166,8 @@ As a repository maintainer, I want the system to run tests after conflict resolu
 early.
 
 **Independent Test**: Can be tested by mocking the test runner to return success/failure and verifying the force-push only proceeds on test success.
+
+**Functional Requirements**: FR-007, FR-008
 
 **Acceptance Scenarios**:
 
@@ -184,6 +192,8 @@ content.
 
 **Independent Test**: Can be tested by verifying the SDK prompt includes the diff stat summary and the content of `COMMIT_CONVENTION.md`.
 
+**Functional Requirements**: FR-009, FR-010
+
 **Acceptance Scenarios**:
 
 1. **Given** a PR with changes across 5 files, **When** the commit message is generated via SDK, **Then** the prompt includes a `git diff --stat` summary of all changed files.
@@ -204,6 +214,8 @@ blocked waiting for a review that never arrives.
 the loop can stall indefinitely.
 
 **Independent Test**: Can be tested by mocking the review status check to return "no review pending" after the force-push window and verifying the fallback `request_copilot_review()` is called.
+
+**Functional Requirements**: FR-011
 
 **Acceptance Scenarios**:
 
@@ -226,6 +238,8 @@ approval requirements.
 trust, which workflows to approve).
 
 **Independent Test**: Can be tested by mocking the GitHub Actions API to return runs in `action_required` state and verifying the approval API is called for trusted bot PRs.
+
+**Functional Requirements**: FR-012, FR-013
 
 **Acceptance Scenarios**:
 
