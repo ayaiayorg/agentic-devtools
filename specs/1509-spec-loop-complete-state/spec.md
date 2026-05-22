@@ -116,7 +116,7 @@ merge, rebase merge preserves the message verbatim.
 **Independent Test**: Can be tested by verifying the merge API call uses `--rebase` instead of `--squash` and that the resulting commit on the target branch has the exact same message as the PR branch
 commit.
 
-**Functional Requirements**: FR-003
+**Functional Requirements**: FR-003 (including the commit-count guard in scenario 4)
 
 **Acceptance Scenarios**:
 
