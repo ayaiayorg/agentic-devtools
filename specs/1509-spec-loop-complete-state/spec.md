@@ -69,7 +69,7 @@ The ai-pr-loop currently handles the core PR lifecycle (publish, squash, review 
 - Q: For the Copilot review re-trigger verification (FR-011), what polling mechanism should be used — a loop within the workflow step, or a separate delayed step? → A: Use a polling loop within the
   same workflow job step (the `squash_post_repair` method). After the force-push completes, poll `agdt-gh-copilot-review-status` every 10 seconds for up to 60 seconds. If no review appears, call
   `request_copilot_review()` explicitly and then poll for an additional 60 seconds. This keeps the logic self-contained in the provider method and avoids needing an additional workflow trigger or
-  step. The existing `_request_copilot_review` import in `github_provider.py` already supports this pattern.
+  step. The existing Copilot review request capability in `github_provider.py` already supports this pattern.
 
 ---
 
