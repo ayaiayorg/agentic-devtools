@@ -34,8 +34,10 @@
 
 - [ ] T012 [US1] Write failing happy-path tests for commit guard: HEAD SHA == review commit SHA → skip finalization with warning (FR-001, FR-002) in
   `tests/unit/cli/ci/github_provider/test_finalize_post_repair.py`
-- [ ] T013 [US1] Write failing happy-path tests for commit guard fail-safe: null/empty review commit SHA → skip with error log (FR-014) in `tests/unit/cli/ci/github_provider/test_finalize_post_repair.py`
-- [ ] T014 [US1] Write failing happy-path tests for commit guard proceed case: HEAD SHA != review commit SHA → proceed to verification loop (FR-001) in `tests/unit/cli/ci/github_provider/test_finalize_post_repair.py`
+- [ ] T013 [US1] Write failing happy-path tests for commit guard fail-safe: null/empty review commit SHA → skip with error log (FR-014) in
+  `tests/unit/cli/ci/github_provider/test_finalize_post_repair.py`
+- [ ] T014 [US1] Write failing happy-path tests for commit guard proceed case: HEAD SHA != review commit SHA → proceed to verification loop (FR-001) in
+  `tests/unit/cli/ci/github_provider/test_finalize_post_repair.py`
 - [ ] T015 [US1] Update `finalize_post_repair` return type from `None` to `FinalizationResult` in `agentic_devtools/cli/ci/provider.py` abstract signature
 - [ ] T016 [US1] Update `finalize_post_repair` in `agentic_devtools/cli/ci/ado_provider.py` to return `FinalizationResult` (stub)
 - [ ] T017 [US1] Implement commit guard logic at top of `finalize_post_repair()` in `agentic_devtools/cli/ci/github_provider.py`: compare `review.commit_sha` vs `head_sha`, skip when equal (FR-001,
@@ -49,7 +51,8 @@
   `tests/unit/cli/ci/github_provider/test_verification_context_helper.py`
 - [ ] T020 [US2] Write failing happy-path tests for `_verify_comment_via_sdk()`: returns `COMMENT_RESOLVE` on addressed comment (FR-004, FR-006) in
   `tests/unit/cli/ci/github_provider/test_verify_comment_via_sdk.py`
-- [ ] T021 [US2] Write failing happy-path tests for `_verify_comment_via_sdk()`: returns `COMMENT_UNRESOLVE` on unaddressed comment (FR-007) in `tests/unit/cli/ci/github_provider/test_verify_comment_via_sdk.py`
+- [ ] T021 [US2] Write failing happy-path tests for `_verify_comment_via_sdk()`: returns `COMMENT_UNRESOLVE` on unaddressed comment (FR-007) in
+  `tests/unit/cli/ci/github_provider/test_verify_comment_via_sdk.py`
 - [ ] T022 [US2] Write failing happy-path tests for `_verify_comment_via_sdk()`: unexpected SDK response treated as `COMMENT_UNRESOLVE` with warning (FR-005) in
   `tests/unit/cli/ci/github_provider/test_verify_comment_via_sdk.py`
 - [ ] T023 [US2] Write failing happy-path tests for `_verify_comment_via_sdk()`: SDK timeout/error → `COMMENT_UNRESOLVE` fail-safe (FR-007, FR-008) in
