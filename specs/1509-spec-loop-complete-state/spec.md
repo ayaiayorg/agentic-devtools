@@ -1,6 +1,6 @@
 # Feature Specification: ai-pr-loop Complete Should State — Event-Driven PR Lifecycle Automation
 
-**Feature Branch**: `speckit/1509/phase-1-specify`
+**Feature Branch**: `speckit/1509/phase-2-clarify`
 **Created**: 2026-05-21
 **Status**: Draft
 **Source Issue**: #1509 (<https://github.com/ayaiayorg/agentic-devtools/issues/1509>)
@@ -42,6 +42,37 @@ The ai-pr-loop currently handles the core PR lifecycle (publish, squash, review 
 
 ---
 
+## Clarifications
+
+### Session 2026-05-22
+
+- Q: Should the post-conflict test run execute the full test suite or a subset (e.g., only tests related to changed files)? Full suite provides higher confidence but may exceed the 5-minute timeout
+  for large projects. → A: Run the full test suite (via the existing `scripts/run-pr-checks.sh` or the project's CI test command). The 5-minute timeout provides the safety valve — if the full suite
+  exceeds it, the system proceeds with force-push and logs a warning (graceful degradation). This matches NFR-002's existing specification and avoids the complexity of determining "related tests"
+  which is error-prone.
+
+- Q: Should the workflow approval monitor be a standalone workflow (`workflow-approval-monitor.yml`) or integrated into the existing `ai-pr-loop.yml` as an additional trigger path? → A: Implement as a
+  standalone workflow (`workflow-approval-monitor.yml`) triggered on `schedule` (every 5 minutes) and `workflow_dispatch`. This avoids complicating the existing `ai-pr-loop.yml` concurrency model and
+  event filtering, keeps concerns separated, and allows independent iteration on the approval monitor without risk to the core loop. The monitor's Python implementation lives in
+  `agentic_devtools/cli/ci/` alongside the existing provider/orchestrator.
+
+- Q: When the SDK evaluation for thread resolution returns "ambiguous", should the system retry with additional context (e.g., full file content instead of just diff), or leave the thread unresolved
+  immediately? → A: Leave the thread unresolved immediately on "ambiguous" — do not retry with enriched context. Rationale: (1) the fail-safe principle (FR-002) favors leaving threads open over
+  risking false resolution; (2) adding retry-with-enriched-context doubles token cost and increases per-thread latency toward the 30-second NFR-001 timeout; (3) unresolved threads will be re-evaluated
+  on the next loop iteration when the coding agent may have made additional changes. The "ambiguous" response and raw SDK output are logged for post-hoc debugging.
+
+- Q: What is the expected behavior when `merge_pr()` is called with `"rebase"` strategy but the PR has more than one commit (e.g., due to a race condition where the coding agent pushes between squash
+  and merge)? → A: The orchestrator already re-counts commits above merge-base before proceeding to merge (via `count_commits_above_merge_base`). If the commit count is >1 at merge time, the system
+  MUST re-trigger the squash step and exit the current iteration rather than attempting a rebase merge with multiple commits. This preserves the invariant that rebase merge always operates on a single
+  commit. Add an explicit guard before `merge_pr()` that verifies `commit_count == 1`.
+
+- Q: For the Copilot review re-trigger verification (FR-011), what polling mechanism should be used — a loop within the workflow step, or a separate delayed step? → A: Use a polling loop within the
+  same workflow job step (the `squash_post_repair` method). After the force-push completes, poll `agdt-gh-copilot-review-status` every 10 seconds for up to 60 seconds. If no review appears, call
+  `request_copilot_review()` explicitly and then poll for an additional 60 seconds. This keeps the logic self-contained in the provider method and avoids needing an additional workflow trigger or
+  step. The existing `_request_copilot_review` import in `github_provider.py` already supports this pattern.
+
+---
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 — SDK-Based Thread Evaluation Before Resolution (Priority: P1)
@@ -51,7 +82,7 @@ unaddressed feedback is not silently dismissed.
 
 **Why this priority**: This is the most impactful gap — unconditional thread resolution can mask real issues that the coding agent failed to address, leading to merged PRs with unresolved feedback.
 
-**Independent Test**: Can be tested by mocking the Copilot SDK to return "addressed" or "not addressed" for different comment/diff pairs and verifying threads are only resolved when the SDK confirms
+**Independent Test**: Can be tested by mocking the Copilot SDK to return "addressed" or "not_addressed" for different comment/diff pairs and verifying threads are only resolved when the SDK confirms
 the fix.
 
 **Acceptance Scenarios**:
@@ -60,14 +91,15 @@ the fix.
    the evaluation returns "addressed" and the thread is resolved.
 
 2. **Given** a Copilot review comment requesting error handling and the coding agent pushes a commit that doesn't modify the relevant file, **When** the SDK evaluates the comment, **Then** the
-   evaluation returns "not addressed" and the thread remains unresolved.
+   evaluation returns "not_addressed" and the thread remains unresolved.
 
 3. **Given** a Copilot review comment and the coding agent leaves an explanation comment without code changes, **When** the SDK evaluates the comment with the agent's response, **Then** the evaluation
    considers the explanation and may return "addressed" if the reasoning is sound.
 
 4. **Given** the SDK evaluation times out (>30 seconds), **When** the timeout is detected, **Then** the thread is left unresolved (fail-safe: don't resolve without confirmation).
 
-5. **Given** the SDK returns an ambiguous or unparseable response, **When** the response is processed, **Then** the thread is left unresolved and the raw response is logged for debugging.
+5. **Given** the SDK returns an ambiguous or unparseable response, **When** the response is processed, **Then** the thread is left unresolved immediately (no retry with enriched context) and the raw
+   response is logged for debugging.
 
 ---
 
@@ -91,6 +123,9 @@ commit.
 
 3. **Given** a PR where rebase merge fails due to conflicts with the target branch, **When** the failure is detected, **Then** the system logs the error and does NOT fall back to squash merge
    automatically (requires a new squash+rebase cycle).
+
+4. **Given** a PR with more than one commit at merge time (race condition), **When** the orchestrator detects `commit_count > 1` before calling `merge_pr()`, **Then** the system re-triggers the squash
+   step and exits the current iteration without attempting the merge.
 
 ---
 
@@ -128,7 +163,8 @@ early.
 
 **Acceptance Scenarios**:
 
-1. **Given** conflict resolution succeeds and tests pass, **When** the post-resolution validation completes, **Then** the force-push proceeds normally.
+1. **Given** conflict resolution succeeds and tests pass (full test suite via the project's CI test command), **When** the post-resolution validation completes, **Then** the force-push proceeds
+   normally.
 
 2. **Given** conflict resolution succeeds but tests fail, **When** the failure is detected, **Then** the rebase is aborted (`git rebase --abort`), the original squashed commit is preserved, and a
    warning comment is posted on the PR.
@@ -171,7 +207,8 @@ the loop can stall indefinitely.
 
 **Acceptance Scenarios**:
 
-1. **Given** a force-push is completed successfully, **When** a Copilot review appears within 60 seconds, **Then** no fallback action is taken and the loop proceeds normally.
+1. **Given** a force-push is completed successfully, **When** a Copilot review appears within 60 seconds (polled every 10 seconds via `agdt-gh-copilot-review-status`), **Then** no fallback action is
+   taken and the loop proceeds normally.
 
 2. **Given** a force-push is completed but no Copilot review appears within 60 seconds, **When** the timeout fires, **Then** `request_copilot_review()` is called explicitly as a fallback.
 
@@ -221,6 +258,12 @@ trust, which workflows to approve).
 - **What happens when the force-push fails (e.g., branch protection, network error)?** The error is caught, logged, and a comment is posted on the PR. The loop exits this iteration and will retry on
   the next event.
 
+- **What happens when the PR has more than one commit at merge time due to a race condition?** The orchestrator re-triggers the squash step and exits the current iteration without attempting the
+  merge. The next cycle will squash and proceed normally.
+
+- **What happens when the SDK evaluation returns "ambiguous"?** The thread is left unresolved immediately (no retry with enriched context). The raw SDK response is logged. The thread will be
+  re-evaluated on the next loop iteration after additional changes.
+
 ---
 
 ## Requirements *(mandatory)*
@@ -229,9 +272,13 @@ trust, which workflows to approve).
 
 - **FR-001**: The system MUST evaluate each Copilot review comment thread via the Copilot SDK before resolving, providing the SDK with the file diff, comment content, and any agent response comment.
 
-- **FR-002**: The system MUST only resolve a thread when the SDK evaluation confirms the comment was adequately addressed; unconfirmed threads MUST remain open.
+- **FR-002**: The system MUST only resolve a thread when the SDK evaluation confirms the comment was adequately addressed (verdict: "addressed"); threads with "not_addressed" or "ambiguous" verdicts
+  MUST remain open without retry.
 
 - **FR-003**: The system MUST use rebase merge strategy (not squash) when merging approved PRs, since commits are already squashed in the force-push step.
+
+- **FR-003a**: The system MUST verify that the PR has exactly one commit above the merge-base before calling `merge_pr()` with rebase strategy; if commit count is >1, the system MUST re-trigger the
+  squash step and exit the current iteration.
 
 - **FR-004**: The system MUST provide the Copilot SDK with three-way merge context (common ancestor `:1:`, ours `:2:`, theirs `:3:`) for each conflicted file during conflict resolution.
 
@@ -240,7 +287,8 @@ trust, which workflows to approve).
 - **FR-006**: The system MUST include file-type-specific resolution hints in the SDK conflict resolution prompt (JSON: merge + re-sort; Markdown: preserve numbering; Code: preserve both logical
   changes).
 
-- **FR-007**: The system MUST run the project test suite after conflict resolution and before force-pushing the resolved commit.
+- **FR-007**: The system MUST run the project's full test suite after conflict resolution and before force-pushing the resolved commit, using the same test command as CI (e.g.,
+  `scripts/run-pr-checks.sh` or equivalent).
 
 - **FR-008**: The system MUST abort the rebase and preserve the original commit if post-resolution tests fail, posting a warning comment on the PR.
 
@@ -248,9 +296,11 @@ trust, which workflows to approve).
 
 - **FR-010**: The system MUST include the content of `COMMIT_CONVENTION.md` in the commit message generation SDK prompt when the file exists.
 
-- **FR-011**: The system MUST verify that a Copilot review is triggered within 60 seconds after a force-push; if not, it MUST explicitly call `request_copilot_review()` as a fallback.
+- **FR-011**: The system MUST verify that a Copilot review is triggered within 60 seconds after a force-push (polling every 10 seconds via `agdt-gh-copilot-review-status`); if not, it MUST explicitly
+  call `request_copilot_review()` as a fallback and poll for an additional 60 seconds.
 
-- **FR-012**: The system MUST implement a workflow approval monitor that detects `action_required` workflow runs for trusted bot PRs and approves them via the GitHub API.
+- **FR-012**: The system MUST implement a workflow approval monitor as a standalone workflow (`workflow-approval-monitor.yml`) that detects `action_required` workflow runs for trusted bot PRs and
+  approves them via the GitHub API.
 
 - **FR-013**: The workflow approval monitor MUST only approve runs for PR authors listed in the trusted bot allow-list (`.github/ai-pr-loop-config.json`).
 
@@ -260,11 +310,11 @@ trust, which workflows to approve).
 
 - **NFR-001**: SDK evaluation for thread resolution MUST complete within 30 seconds per comment; timeouts result in the thread being left unresolved (fail-safe).
 
-- **NFR-002**: Post-conflict test validation MUST complete within 5 minutes; timeouts result in graceful degradation (proceed with force-push, log warning).
+- **NFR-002**: Post-conflict test validation MUST complete within 5 minutes (full test suite); timeouts result in graceful degradation (proceed with force-push, log warning).
 
-- **NFR-003**: The Copilot review re-trigger verification window MUST be 60 seconds for the initial check and 120 seconds total including the fallback request.
+- **NFR-003**: The Copilot review re-trigger verification window MUST be 60 seconds for the initial check (polling every 10 seconds) and 120 seconds total including the fallback request.
 
-- **NFR-004**: The workflow approval monitor MUST run on a schedule (every 5 minutes) and complete within 30 seconds per execution.
+- **NFR-004**: The workflow approval monitor MUST run on a schedule (every 5 minutes via cron trigger) as a standalone workflow and complete within 30 seconds per execution.
 
 - **NFR-005**: All new functionality MUST be implemented in the existing Python package (`agentic_devtools/cli/ci/`) following established patterns (provider pattern, orchestrator pattern).
 
@@ -278,18 +328,22 @@ trust, which workflows to approve).
 ### Key Entities
 
 - **Thread Evaluator**: A function that invokes the Copilot SDK with a review comment, the file diff, and any agent response, returning a structured verdict ("addressed" / "not_addressed" /
-  "ambiguous").
+  "ambiguous"). On "ambiguous", the thread is left unresolved immediately without retry.
 
-- **Merge Strategy Configuration**: The merge method parameter passed to `merge_pr()`, changed from `"squash"` to `"rebase"` in the orchestrator merge gate.
+- **Merge Strategy Configuration**: The merge method parameter passed to `merge_pr()`, changed from `"squash"` to `"rebase"` in the Step 9 merge gate of `orchestrator.py`. Guarded by a pre-merge
+  commit count verification.
 
 - **Three-Way Conflict Context**: The three git object stages (`:1:` common ancestor, `:2:` ours, `:3:` theirs) extracted for each conflicted file during interactive rebase, passed to the SDK
   alongside the conflicted content.
 
-- **Post-Resolution Validator**: A function that runs the project test suite after conflict resolution, returning pass/fail status with output logs.
+- **Post-Resolution Validator**: A function that runs the project's full test suite (via the CI test command) after conflict resolution, returning pass/fail status with output logs. Subject to a
+  5-minute timeout with graceful degradation.
 
-- **Review Trigger Verifier**: A polling mechanism that checks for a pending Copilot review after force-push, with a fallback to explicit `request_copilot_review()` on timeout.
+- **Review Trigger Verifier**: A polling loop within `squash_post_repair` that checks for a pending Copilot review after force-push (polling every 10 seconds), with a fallback to explicit
+  `request_copilot_review()` on 60-second timeout.
 
-- **Workflow Approval Monitor**: A scheduled GitHub Actions workflow (`workflow-approval-monitor.yml`) that scans for `action_required` runs and auto-approves those associated with trusted bot PRs.
+- **Workflow Approval Monitor**: A standalone GitHub Actions workflow (`workflow-approval-monitor.yml`) triggered on cron schedule (every 5 minutes) that scans for `action_required` runs and
+  auto-approves those associated with trusted bot PRs. Python implementation in `agentic_devtools/cli/ci/`.
 
 - **Trusted Bot Allow-List**: A JSON configuration file (`.github/ai-pr-loop-config.json`) listing GitHub accounts whose PRs are eligible for automatic workflow approval.
 
@@ -317,14 +371,13 @@ trust, which workflows to approve).
 
 ## Clarifications Needed
 
-1. **Test suite scope for post-conflict validation**: Should the post-conflict test run execute the full test suite or a subset (e.g., only tests related to changed files)? Full suite provides higher
-   confidence but may exceed the 5-minute timeout for large projects.
+All clarifications from the original draft have been resolved in the [Clarifications](#clarifications) section above:
 
-2. **Workflow approval monitor deployment**: Should the monitor be a standalone workflow (`workflow-approval-monitor.yml`) or integrated into the existing `ai-pr-loop.yml` as an additional trigger
-   path?
+1. ~~**Test suite scope for post-conflict validation**~~ → Resolved: Full test suite with 5-minute timeout and graceful degradation.
 
-3. **SDK evaluation retry budget**: When the SDK evaluation for thread resolution returns "ambiguous", should the system retry with additional context (e.g., full file content instead of just diff),
-   or leave the thread unresolved immediately?
+2. ~~**Workflow approval monitor deployment**~~ → Resolved: Standalone workflow (`workflow-approval-monitor.yml`) with cron trigger.
+
+3. ~~**SDK evaluation retry budget**~~ → Resolved: No retry on "ambiguous" — leave thread unresolved immediately.
 
 ---
 
