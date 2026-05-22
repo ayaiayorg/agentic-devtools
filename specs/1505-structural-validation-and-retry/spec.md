@@ -75,6 +75,8 @@ that no underspecified or summary-only spec ever makes it out of Phase 1.
 **Independent Test**: Can be fully tested by feeding the validation function a known-bad spec (e.g., a bullet-point summary with only 2 requirements and no user stories) and verifying it returns
 failure with actionable feedback.
 
+**Mapped Functional Requirements**: FR-001, FR-002, FR-003, FR-004, FR-005, FR-006
+
 **Acceptance Scenarios**:
 
 1. **Given** Phase 1 generates a `spec.md` with fewer than 5 functional requirements, **When** the output is validated, **Then** validation fails with feedback specifying the minimum FR count
@@ -106,6 +108,8 @@ matching the proven pattern from Phase 2 clarify.
 **Independent Test**: Can be tested by mocking `call_llm` to return an underspecified output on the first call and a valid spec on the second call, then verifying the retry logic fires exactly once
 with the correct structured feedback.
 
+**Mapped Functional Requirements**: FR-008, FR-009, FR-010, FR-011, FR-012
+
 **Acceptance Scenarios**:
 
 1. **Given** Phase 1 validation fails on the initial LLM output, **When** the retry mechanism fires, **Then** the LLM receives a re-prompt containing the full original specify prompt, the failed
@@ -133,6 +137,8 @@ body. It builds on the core validation (US1) with a more nuanced heuristic.
 **Independent Test**: Can be tested by crafting a spec that has all mandatory section headings but where each section contains only 1-2 bullet points and no prose paragraphs, then verifying the
 validator rejects it.
 
+**Mapped Functional Requirements**: FR-007
+
 **Acceptance Scenarios**:
 
 1. **Given** a spec where more than 80% of non-heading lines are bullet points (lines starting with `-` or `*`), **When** validated, **Then** validation fails with feedback "BULLET_SUMMARY_DETECTED:
@@ -156,6 +162,8 @@ candidate to original). Phase 1 needs a related but distinct validation (checkin
 **Independent Test**: Can be tested by invoking the shared helpers from both the Phase 1 validation function and the existing Phase 2 flow, verifying both produce consistent results for the same
 input.
 
+**Mapped Functional Requirements**: FR-013, FR-014
+
 **Acceptance Scenarios**:
 
 1. **Given** a new shared helper `validate_spec_quality` is created in `lib/spec-validation.sh`, **When** called with a spec file path, **Then** it checks all Phase 1 quality rules (mandatory
@@ -178,6 +186,8 @@ so that they can be tuned without modifying validation logic.
 **Why this priority**: Threshold values may need adjustment as the LLM improves or as spec expectations evolve. Centralizing them makes tuning straightforward and auditable.
 
 **Independent Test**: Can be tested by overriding threshold constants in a test script and verifying the validator uses the overridden values.
+
+**Mapped Functional Requirements**: FR-003, FR-004
 
 **Acceptance Scenarios**:
 
