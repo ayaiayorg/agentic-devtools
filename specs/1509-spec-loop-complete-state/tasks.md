@@ -32,7 +32,7 @@
 
 ## Phase 2: Foundational — Retry & Shared Infrastructure
 
-- [ ] T005 Verify `retry.py` `retry_with_backoff` supports base 2s / max 16s exponential backoff per NFR-006 (FR-014); add configuration parameters if missing
+- [ ] T005 Verify `agentic_devtools/cli/ci/retry.py` `retry_with_backoff` supports base 2s / max 16s exponential backoff per NFR-006 (FR-014); add configuration parameters if missing
 - [ ] T006 Write unit test `tests/unit/cli/ci/retry/test_retry_with_backoff_exponential.py` confirming happy-path 3 retries with exponential backoff per FR-014
 - [ ] T007 [P] Create helper `_get_three_way_context(file_path)` in `agentic_devtools/cli/ci/github_provider.py` extracting `:1:`, `:2:`, `:3:` content via `git show` (FR-004)
 - [ ] T008 [P] Create helper `_get_file_commit_messages(file_path, base_branch, head_branch)` in `agentic_devtools/cli/ci/github_provider.py` (FR-005)
