@@ -1,6 +1,6 @@
 # Feature Specification: Improve Copilot Review Finalization
 
-**Feature Branch**: `speckit/1503/phase-1-specify`
+**Feature Branch**: `speckit/1503/phase-2-clarify`
 **Created**: 2026-05-21
 **Status**: Draft
 **Source Issue**: #1503 (<https://github.com/ayaiayorg/agentic-devtools/issues/1503>)
@@ -20,6 +20,44 @@ The two root causes are:
    finalization begins.
 2. No per-comment, SDK-driven verification that the diff genuinely addresses the
    original feedback before resolving the corresponding thread.
+
+## Clarifications
+
+### Session 2026-05-21
+
+- Q: What is the exact reply text content to post when resolving a thread — a static
+  message or a dynamically generated summary from the SDK response? → A: Use the
+  existing static reply text already defined in the codebase:
+  `Addressed on the updated PR branch.` (the `_ADDRESSED_REPLY_BODY` constant in
+  `github_provider.py`). This maintains consistency with the current behavior and
+  avoids introducing LLM-generated reply text that could be unpredictable or verbose.
+- Q: Which LLM model/endpoint should be used for the `COMMENT_RESOLVE` /
+  `COMMENT_UNRESOLVE` structured SDK call — the existing Copilot SDK model, a
+  configurable model alias, or a hard-coded model name? → A: Use the existing
+  Copilot SDK endpoint authenticated via `COPILOT_GITHUB_TOKEN`, consistent with the
+  existing `_generate_commit_message_via_sdk` and
+  `_resolve_conflicted_file_content_via_sdk` patterns in `github_provider.py`. No
+  new model configuration is needed; the implementation follows the same token-based
+  auth and endpoint pattern already established for other SDK calls in the provider.
+- Q: What is the maximum diff context window to pass to the SDK call per comment
+  (e.g., full diff, ±50 lines around the commented line, or a token budget)? → A:
+  Use ±50 lines around the commented line(s) as the default context window. If the
+  comment does not reference a specific line (e.g., a general PR-level comment),
+  include the full PR diff (all changed files) up to a 4,000-token budget, using a
+  deterministic truncation strategy (stable file order, then diff order) when the
+  diff exceeds the budget. This balances sufficient context for accurate
+  verification against token limits and latency.
+- Q: How should the system handle a PR where the same comment appears across multiple
+  reviews (duplicate feedback from separate Copilot review cycles)? → A: Process
+  each comment independently based on its thread resolution status. If a comment's
+  thread is already resolved (from a prior review cycle or manual resolution), skip
+  it. Duplicate feedback across reviews is expected — the per-thread resolution
+  status is the source of truth, not comment content deduplication.
+- Q: What is the expected behavior when a thread was already manually resolved before
+  finalization runs (idempotency guarantee)? → A: The system MUST check each thread's
+  resolution status before attempting to resolve it. If already resolved, skip it
+  silently (no error, no warning, no duplicate reply). This is the idempotency
+  guarantee required by NFR-002.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -70,7 +108,9 @@ resolved while the other remains open.
 **Acceptance Scenarios**:
 
 1. **Given** an unresolved Copilot review comment and a diff that addresses it, **When**
-   the SDK call returns `COMMENT_RESOLVE`, **Then** the thread is replied to and resolved.
+   the SDK call returns `COMMENT_RESOLVE`, **Then** the thread is replied to with
+   `_ADDRESSED_REPLY_BODY` (exact text: `Addressed on the updated PR branch.`) and
+   resolved.
 2. **Given** an unresolved Copilot review comment and a diff that does not address it,
    **When** the SDK call returns `COMMENT_UNRESOLVE`, **Then** the thread is left
    unresolved and no reply is posted.
@@ -139,16 +179,30 @@ any errors encountered.
 
 ### Edge Cases
 
-- What happens when `review.commit_sha` is `null` or the review record is incomplete?
-- How does the system handle a PR where the same comment appears in multiple reviews?
-- What if the diff between the review commit and HEAD is empty (force-push without
-  content change)?
-- What if the Copilot SDK call returns a valid response but with unexpected fields?
-- What if GitHub API rate limiting occurs mid-loop (some threads processed, others not)?
-- How does the system behave when a thread was already manually resolved before
-  finalization runs (idempotency)?
-- What if the PR branch is deleted or the PR is closed between the guard check and
-  thread resolution?
+- **Null/incomplete review commit SHA**: When `review.commit_sha` is `null` or the
+  review record is incomplete, the system treats this as a fail-safe condition per
+  FR-014 — finalization is skipped entirely and an error is logged at higher
+  severity than the "no new commit" warning.
+- **Duplicate comments across reviews**: Each comment is processed independently
+  based on its thread resolution status. If a thread is already resolved (from a
+  prior cycle or manual resolution), it is skipped silently per NFR-002.
+- **Empty diff (force-push without content change)**: If the diff between `review.commit_sha`
+  and HEAD is empty, the SDK call receives an empty diff context. The system does not
+  assume a specific SDK output: it resolves only on explicit `COMMENT_RESOLVE` and leaves
+  the thread unresolved for `COMMENT_UNRESOLVE`, unexpected responses, or SDK failures.
+- **Unexpected SDK response fields**: Per FR-005, any response not exactly
+  `COMMENT_RESOLVE` or `COMMENT_UNRESOLVE` is treated as `COMMENT_UNRESOLVE` with a
+  warning logged.
+- **GitHub API rate limiting mid-loop (HTTP 429)**: Per FR-008, the system stops
+  processing remaining threads, leaves them unresolved, and includes them in the
+  `FinalizationResult` errors list rather than retrying indefinitely.
+- **Already-resolved threads (idempotency)**: Per NFR-002, the system checks each
+  thread's resolution status before attempting to resolve it. Already-resolved
+  threads are skipped silently — no error, no warning, no duplicate reply.
+- **PR branch deleted or PR closed mid-finalization**: If a resolve API call fails
+  because the PR is closed or branch deleted, the error is caught per FR-008 and the
+  thread is left unresolved. The `FinalizationResult` records the error for that
+  thread.
 
 ## Requirements *(mandatory)*
 
@@ -163,14 +217,20 @@ any errors encountered.
   the warning in FR-002).
 - **FR-003**: System MUST fetch the diff between `review.commit_sha` and the current HEAD
   SHA for each Copilot review being processed.
-- **FR-004**: System MUST make a Copilot SDK call (or equivalent LLM call) for each
-  unresolved review comment, passing the original comment body and the relevant diff
-  context.
+- **FR-004**: System MUST make a Copilot SDK call (authenticated via
+  `COPILOT_GITHUB_TOKEN`, consistent with existing
+  `_generate_commit_message_via_sdk` and `_resolve_conflicted_file_content_via_sdk`
+  patterns) for each unresolved review comment, passing the original comment body and
+  the relevant diff context (±50 lines around the commented line; full PR diff up to
+  4,000 tokens for general PR-level comments, truncated deterministically in stable
+  file/diff order when needed).
 - **FR-005**: System MUST require the SDK response to be exactly `COMMENT_RESOLVE` or
   `COMMENT_UNRESOLVE`; any other response MUST be treated as `COMMENT_UNRESOLVE` and
   a warning MUST be logged recording the unexpected response value.
 - **FR-006**: System MUST reply to and resolve a review thread only when the SDK returns
-  `COMMENT_RESOLVE`.
+  `COMMENT_RESOLVE`. The reply text MUST be the static string
+  `Addressed on the updated PR branch.` (matching the existing
+  `_ADDRESSED_REPLY_BODY` constant).
 - **FR-007**: System MUST leave a review thread unresolved when the SDK returns
   `COMMENT_UNRESOLVE` or when the SDK call fails.
 - **FR-008**: System MUST handle SDK/API call failures gracefully: catch exceptions, log
@@ -195,8 +255,9 @@ any errors encountered.
 - **NFR-001**: The commit guard check MUST add no more than 500 ms of latency (one API
   call to fetch the current HEAD SHA).
 - **NFR-002**: The per-comment verification loop MUST be idempotent: re-running
-  finalization on an already-resolved thread MUST be a no-op and MUST NOT produce errors
-  or duplicate replies.
+  finalization on an already-resolved thread MUST be a no-op (thread resolution
+  status checked before any action; already-resolved threads skipped silently with
+  no error, no warning, and no duplicate reply).
 - **NFR-003**: All new logic MUST follow the existing `CIPlatformProvider` abstraction so
   that the verification loop is fully unit-testable with mocked API providers.
 - **NFR-004**: The fail-safe default (leave thread unresolved on any unexpected condition)
@@ -213,7 +274,10 @@ any errors encountered.
 - **UnresolvedComment**: A Copilot review comment whose thread is not yet resolved; the
   unit of work for the SDK verification loop.
 - **VerificationPayload**: The input to the SDK call — the original comment body plus the
-  relevant diff lines between ReviewCommitSHA and HeadSHA.
+  relevant diff lines between ReviewCommitSHA and HeadSHA (±50 lines around
+  commented line for line-anchored comments; full PR diff up to a 4,000-token
+  budget for general PR-level comments, with deterministic truncation in stable
+  file/diff order).
 - **VerificationVerdict**: The structured SDK response — exactly `COMMENT_RESOLVE` or
   `COMMENT_UNRESOLVE`.
 - **FinalizationResult**: Structured summary of the finalization run (resolved list,
@@ -234,18 +298,7 @@ any errors encountered.
 - **SC-005**: `--dry-run` mode reports resolution decisions for a PR with 5 review
   comments in under 10 seconds (excluding SDK latency) without calling any resolve APIs.
 
-## Clarifications
-
-- **CLARIFY-001**: What is the exact reply text content to post when resolving a thread
-  (e.g., "Addressed on the updated PR branch." vs a dynamically generated summary from the
-  SDK response)? [NEEDS CLARIFICATION]
-- **CLARIFY-002**: Which LLM model/endpoint should be used for the `COMMENT_RESOLVE` /
-  `COMMENT_UNRESOLVE` structured SDK call — the existing Copilot SDK model, a configurable
-  model alias, or a hard-coded model name? [NEEDS CLARIFICATION]
-- **CLARIFY-003**: What is the maximum diff context window to pass to the SDK call per
-  comment (e.g., full diff, ±50 lines around the commented line, or a token budget)?
-  [NEEDS CLARIFICATION]
-
 ---
 
-*Generated from issue #1503 — Phase 1 specification*
+*Phase 2 clarification for issue #1503, derived from the Phase 1 specification and
+produced via Copilot SDK workflow automation.*
