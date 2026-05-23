@@ -186,6 +186,16 @@ class TestCIPlatformProvider:
         result = provider.publish_pr(1)
         assert result is None
 
+    def test_get_pr_diff_default_raises_not_implemented(self) -> None:
+        provider = _ConcreteProvider()
+        with pytest.raises(NotImplementedError, match="does not implement get_pr_diff"):
+            provider.get_pr_diff(1)
+
+    def test_get_commit_range_diff_default_raises_not_implemented(self) -> None:
+        provider = _ConcreteProvider()
+        with pytest.raises(NotImplementedError, match="does not implement get_commit_range_diff"):
+            provider.get_commit_range_diff("abc", "def")
+
     def test_abstract_methods_list(self) -> None:
         """Verify all expected abstract methods are defined."""
         expected_methods = {

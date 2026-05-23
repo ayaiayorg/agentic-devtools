@@ -9,7 +9,13 @@ from agentic_devtools.cli.ci.models import (
     PRMetadata,
     ReviewInfo,
 )
-from agentic_devtools.cli.ci.orchestrator import EXIT_GUARD_BLOCKED, EXIT_MERGE_BLOCKED, EXIT_SUCCESS, run_ai_pr_loop
+from agentic_devtools.cli.ci.orchestrator import (
+    EXIT_GUARD_BLOCKED,
+    EXIT_MERGE_BLOCKED,
+    EXIT_METADATA_FAILED,
+    EXIT_SUCCESS,
+    run_ai_pr_loop,
+)
 
 
 def _make_pr_meta(**kwargs) -> PRMetadata:
@@ -532,9 +538,17 @@ class TestSquashWaitFlow:
     def test_delete_marker_failure_is_swallowed(self) -> None:
         """When delete_squash_wait_marker raises after squash, swallow and return EXIT_SUCCESS."""
         finished_event = IssueEvent(id=1001, event="copilot_work_finished", created_at="2026-05-20T06:05:00+00:00")
+        marker = _make_marker_body(
+            sha="abc123",
+            attempt=1,
+            head_pushed_at="2026-05-20T06:00:00+00:00",
+            copilot_session_terminal=True,
+            copilot_session_outcome="success",
+        )
         provider = _make_provider(
             reviews=[_make_prior_review()],
             commit_count=2,
+            marker_body=marker,
             issue_events=[finished_event],
         )
         provider.update_comment.side_effect = RuntimeError("delete failed")
@@ -545,3 +559,39 @@ class TestSquashWaitFlow:
         # Squash succeeded even if marker deletion failed
         assert result == EXIT_SUCCESS
         provider.squash_post_repair.assert_called_once()
+
+    def test_commit_count_probe_failure_returns_metadata_failed(self) -> None:
+        """When commit-count probe fails, orchestrator returns EXIT_METADATA_FAILED."""
+        provider = _make_provider(
+            reviews=[_make_prior_review()],
+            commit_count=2,
+        )
+        provider.count_commits_above_merge_base.side_effect = RuntimeError("count failed")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+
+        result = run_ai_pr_loop(provider, payload)
+
+        assert result == EXIT_METADATA_FAILED
+        provider.squash_post_repair.assert_not_called()
+
+    def test_cleanup_marker_failure_when_commit_count_le_one_is_swallowed(self) -> None:
+        """Marker cleanup failures after commit_count<=1 are swallowed."""
+        marker = _make_marker_body(
+            sha="abc123",
+            attempt=1,
+            head_pushed_at="2026-05-20T06:00:00+00:00",
+            copilot_session_terminal=False,
+            copilot_session_outcome="pending",
+        )
+        provider = _make_provider(
+            reviews=[_make_prior_review()],
+            commit_count=1,
+            marker_body=marker,
+        )
+        provider.update_comment.side_effect = RuntimeError("cleanup failed")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+
+        result = run_ai_pr_loop(provider, payload)
+
+        assert result == EXIT_SUCCESS
+        provider.squash_post_repair.assert_not_called()

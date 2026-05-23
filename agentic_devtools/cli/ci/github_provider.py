@@ -21,6 +21,7 @@ from agentic_devtools.cli.ci.models import (
     CommentResolution,
     EventPayload,
     FinalizationResult,
+    IssueCommentInfo,
     IssueEvent,
     PRMetadata,
     ReviewCommentInfo,
@@ -37,6 +38,23 @@ logger = logging.getLogger(__name__)
 
 _ADDRESSED_REPLY_BODY = "Addressed on the updated PR branch."
 _LEGACY_ADDRESSED_REPLY_PREFIXES = ("addressed by fix commit",)
+_REVIEW_THREADS_QUERY = """
+query($owner: String!, $repoName: String!, $prNumber: Int!, $threadsCursor: String) {
+  repository(owner: $owner, name: $repoName) {
+    pullRequest(number: $prNumber) {
+      reviewThreads(first: 100, after: $threadsCursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          isResolved
+          comments(first: 100) {
+            nodes { databaseId }
+          }
+        }
+      }
+    }
+  }
+}
+"""
 
 
 def _format_suppressed_body(body: str, max_length: int = 200) -> str:
@@ -56,6 +74,14 @@ def _comment_is_suppressed(comment: dict[str, Any]) -> bool:
         or comment.get("minimized")
         or bool(comment.get("minimized_reason"))
     )
+
+
+def _is_transient_gh_failure(stderr: str) -> bool:
+    """Return True when stderr indicates a retryable transient GitHub/CLI failure."""
+    stderr_lower = stderr.lower()
+    if "rate limit" in stderr_lower or "secondary rate limit" in stderr_lower:
+        return True
+    return bool(re.search(r"\b(?:http|status(?: code)?)\D*(429|500|502|503|504)\b", stderr_lower))
 
 
 def _build_repair_comment(
@@ -525,6 +551,61 @@ class GitHubActionsProvider(CIPlatformProvider):
         return None
 
     @retry_with_backoff()
+    def list_issue_comments(self, pr_number: int) -> list[IssueCommentInfo]:
+        """List PR issue comments ordered by API response order."""
+        response = _gh_api(self._repo_api(f"/issues/{pr_number}/comments"), paginate=True)
+        comments = _parse_paginated_json(response)
+        return [
+            IssueCommentInfo(
+                id=int(comment.get("id", 0)),
+                author=(comment.get("user") or {}).get("login", ""),
+                body=comment.get("body", "") or "",
+                created_at=comment.get("created_at", "") or "",
+            )
+            for comment in comments
+            if comment.get("id")
+        ]
+
+    @retry_with_backoff()
+    def list_review_thread_states(self, pr_number: int) -> dict[int, tuple[bool, bool]]:
+        """Return review comment -> (is_resolved, has_reply) mapping via GraphQL threads."""
+        owner, repo_name = self._repo.split("/", maxsplit=1)
+        cursor: str | None = None
+        status_map: dict[int, tuple[bool, bool]] = {}
+
+        while True:
+            variables: dict[str, Any] = {
+                "owner": owner,
+                "repoName": repo_name,
+                "prNumber": pr_number,
+            }
+            if cursor is not None:
+                variables["threadsCursor"] = cursor
+            response = _gh_api(
+                "graphql",
+                method="POST",
+                body={"query": _REVIEW_THREADS_QUERY, "variables": variables},
+            )
+            data = json.loads(response)
+            thread_data = data["data"]["repository"]["pullRequest"]["reviewThreads"]
+            for thread in thread_data.get("nodes", []):
+                is_resolved = bool(thread.get("isResolved", False))
+                comment_nodes = thread.get("comments", {}).get("nodes", [])
+                has_reply = len(comment_nodes) > 1
+                for node in comment_nodes:
+                    comment_id = node.get("databaseId")
+                    if isinstance(comment_id, int):
+                        status_map[comment_id] = (is_resolved, has_reply)
+
+            page_info = thread_data.get("pageInfo", {})
+            if page_info.get("hasNextPage") is True and page_info.get("endCursor"):
+                cursor = page_info["endCursor"]
+            else:
+                break
+
+        return status_map
+
+    @retry_with_backoff()
     def approve_pr(self, pr_number: int, head_sha: str, body: str) -> bool:
         """Approve a pull request.
 
@@ -661,6 +742,8 @@ class GitHubActionsProvider(CIPlatformProvider):
                 body=c.get("body", ""),
                 html_url=c.get("html_url", ""),
                 is_suppressed=_comment_is_suppressed(c),
+                start_line=c.get("start_line") if c.get("start_line") is not None else c.get("line"),
+                end_line=c.get("line"),
                 line=c.get("line"),
                 position=c.get("position"),
                 diff_hunk=c.get("diff_hunk", ""),
@@ -697,6 +780,46 @@ class GitHubActionsProvider(CIPlatformProvider):
             )
         events.sort(key=lambda e: e.id)
         return events
+
+    @retry_with_backoff()
+    def get_pr_diff(self, pr_number: int) -> str:
+        """Get the unified diff for a pull request via ``gh pr diff``."""
+        result = run_safe(
+            ["gh", "pr", "diff", str(pr_number), "--repo", self._repo],
+            capture_output=True,
+            text=True,
+            shell=False,
+        )
+        if result.returncode != 0:
+            stderr = result.stderr.strip()
+            if _is_transient_gh_failure(stderr):
+                raise RetryableError(f"gh pr diff failed: {stderr}")
+            raise RuntimeError(f"gh pr diff failed: {stderr}")
+        return result.stdout
+
+    @retry_with_backoff()
+    def get_commit_range_diff(self, base_sha: str, head_sha: str) -> str:
+        """Get unified diff for ``base_sha...head_sha`` via GitHub compare API."""
+        result = run_safe(
+            [
+                "gh",
+                "api",
+                self._repo_api(f"/compare/{base_sha}...{head_sha}"),
+                "--method",
+                "GET",
+                "-H",
+                "Accept: application/vnd.github.v3.diff",
+            ],
+            capture_output=True,
+            text=True,
+            shell=False,
+        )
+        if result.returncode != 0:
+            stderr = result.stderr.strip()
+            if _is_transient_gh_failure(stderr):
+                raise RetryableError(f"gh api compare diff failed: {stderr}")
+            raise RuntimeError(f"gh api compare diff failed: {stderr}")
+        return result.stdout
 
     def _run_git(self, args: Iterable[str]) -> str:
         """Run git command and return stdout or raise on failure."""
@@ -1589,7 +1712,7 @@ class GitHubActionsProvider(CIPlatformProvider):
         model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
         prompt = self._build_comment_verification_prompt(comment_body, diff_context)
 
-        async def _run() -> VerificationVerdict:
+        async def _run() -> VerificationVerdict:  # pragma: no cover - optional runtime SDK integration
             client = None
             session = None
             content_parts: list[str] = []
@@ -1650,11 +1773,11 @@ class GitHubActionsProvider(CIPlatformProvider):
                         pass
 
         try:
-            return asyncio.run(asyncio.wait_for(_run(), timeout=timeout_seconds))
-        except asyncio.TimeoutError:
+            return asyncio.run(asyncio.wait_for(_run(), timeout=timeout_seconds))  # pragma: no cover
+        except asyncio.TimeoutError:  # pragma: no cover
             logger.warning("Copilot SDK comment verification timed out after %ds", timeout_seconds)
             return VerificationVerdict.COMMENT_UNRESOLVE
-        except Exception as exc:
+        except Exception as exc:  # pragma: no cover
             logger.warning("Copilot SDK comment verification unexpected error: %s", exc)
             return VerificationVerdict.COMMENT_UNRESOLVE
 

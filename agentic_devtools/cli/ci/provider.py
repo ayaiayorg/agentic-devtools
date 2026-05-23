@@ -283,3 +283,36 @@ class CIPlatformProvider(ABC):
             Returns an empty list when the platform does not support this concept
             (e.g., Azure DevOps).
         """
+
+    def get_pr_diff(self, pr_number: int) -> str:
+        """Get the unified diff for a pull request.
+
+        Args:
+            pr_number: Pull request number.
+
+        Returns:
+            Unified diff text as a string.
+
+        Raises:
+            NotImplementedError: If the provider does not support this operation.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement get_pr_diff"
+        )
+
+    def get_commit_range_diff(self, base_sha: str, head_sha: str) -> str:
+        """Get unified diff text between two commit SHAs.
+
+        Args:
+            base_sha: Base commit SHA.
+            head_sha: Head commit SHA.
+
+        Returns:
+            Unified diff text as a string.
+
+        Raises:
+            NotImplementedError: If the provider does not support this operation.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement get_commit_range_diff"
+        )

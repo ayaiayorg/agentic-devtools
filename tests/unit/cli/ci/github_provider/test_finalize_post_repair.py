@@ -1066,3 +1066,88 @@ class TestFinalizePostRepair:
         mock_resolve_conflicts.assert_called_once_with(base_branch="main", head_branch="feature/test")
         mock_run_git.assert_any_call(["rebase", "--abort"])
         mock_run_git.assert_any_call(["push", "--force-with-lease", "origin", "HEAD:feature/test"])
+
+
+class TestFinalizePostRepairNoComments:
+    """Tests for finalize_post_repair no-comments early return."""
+
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_returns_no_comments_result_when_review_has_no_comments(
+        self, mock_list_reviews, mock_list_comments
+    ) -> None:
+        mock_list_reviews.return_value = [
+            ReviewInfo(
+                id=7,
+                user="copilot-pull-request-reviewer[bot]",
+                state="CHANGES_REQUESTED",
+                body="fix",
+                commit_sha="review_sha",
+            )
+        ]
+        mock_list_comments.return_value = []
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha",
+            review_id=7,
+        )
+
+        assert not result.skipped
+        assert result.reason == "no_comments"
+
+
+class TestFinalizePostRepairThreadResolutionMissing:
+    """Tests for thread_resolution_missing error path."""
+
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_thread_resolution_missing_when_detail_is_none(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_addressed,
+        mock_reply,
+        mock_resolve,
+        mock_verify_batch,
+    ) -> None:
+        mock_list_reviews.return_value = [
+            ReviewInfo(
+                id=7,
+                user="copilot-pull-request-reviewer[bot]",
+                state="CHANGES_REQUESTED",
+                body="fix",
+                commit_sha="review_sha",
+            )
+        ]
+        mock_build_diff.return_value = "diff --git a/foo.py b/foo.py"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix", html_url="url1"),
+        ]
+        mock_addressed.return_value = set()
+        mock_verify_batch.return_value = {101: VerificationVerdict.COMMENT_RESOLVE}
+        mock_resolve.return_value = {
+            "verified": True,
+            "details": [],  # No details - comment_id not in details
+        }
+
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha",
+            review_id=7,
+        )
+
+        # The comment should have thread_resolution_missing error
+        assert any("thread_resolution_missing" in e for e in result.errors)

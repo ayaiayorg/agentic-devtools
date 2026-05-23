@@ -28,6 +28,8 @@ class TestListReviewComments:
                     "path": "src/foo.py",
                     "body": "Fix the null check",
                     "html_url": "https://github.com/owner/repo/pull/42#pullreviewcomment-101",
+                    "line": 15,
+                    "start_line": 14,
                 },
                 {
                     "id": 202,
@@ -47,6 +49,8 @@ class TestListReviewComments:
         assert result[0].body == "Fix the null check"
         assert result[0].html_url == "https://github.com/owner/repo/pull/42#pullreviewcomment-101"
         assert result[0].is_suppressed is False
+        assert result[0].start_line == 14
+        assert result[0].end_line == 15
 
     @patch("agentic_devtools.cli.ci.github_provider.run_safe")
     def test_is_suppressed_defaults_to_false(self, mock_run_safe) -> None:
@@ -75,6 +79,28 @@ class TestListReviewComments:
         assert len(result) == 1
         assert result[0].body == ""
         assert result[0].html_url == ""
+        assert result[0].start_line is None
+        assert result[0].end_line is None
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_uses_line_as_start_line_when_start_line_missing(self, mock_run_safe) -> None:
+        """Single-line comments should map start_line from line."""
+        mock_run_safe.return_value = _mock_run_safe_response(
+            [
+                {
+                    "id": 6,
+                    "path": "foo.py",
+                    "body": "single line",
+                    "html_url": "https://example.test",
+                    "line": 21,
+                },
+            ]
+        )
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.list_review_comments(10, 20)
+        assert len(result) == 1
+        assert result[0].start_line == 21
+        assert result[0].end_line == 21
 
     @patch("agentic_devtools.cli.ci.github_provider.run_safe")
     def test_returns_empty_list_when_no_comments(self, mock_run_safe) -> None:
