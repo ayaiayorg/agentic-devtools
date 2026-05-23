@@ -1,10 +1,10 @@
 # Feature Specification: Parallel-safe state isolation for concurrent subagent execution
 
-- **Feature Branch**: `speckit/1525/phase-1-specify`
-- **Created**: 2026-05-22
-- **Status**: Draft
-- **Input**: User description: "Parallel-safe state: isolated state segments for concurrent subagent execution"
-- **Source Issue**: #1525 (<https://github.com/ayaiayorg/agentic-devtools/issues/1525>)
+**Feature Branch**: `speckit/1525/phase-1-specify`  
+**Created**: 2026-05-22  
+**Status**: Draft  
+**Input**: User description: "Parallel-safe state: isolated state segments for concurrent subagent execution"  
+**Source Issue**: #1525 (<https://github.com/ayaiayorg/agentic-devtools/issues/1525>)
 
 ## Problem Statement
 
