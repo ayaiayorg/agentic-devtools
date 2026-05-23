@@ -27,9 +27,11 @@ The root cause is in two locations:
   blank lines (lines containing only whitespace) between `BEGIN CERTIFICATE` and `END CERTIFICATE` markers AND strip trailing whitespace from each base64 content line. Leading whitespace on content
   lines should also be stripped since valid base64 PEM lines never have leading whitespace. For marker lines, surrounding whitespace should be trimmed, then canonical marker text must be emitted
   exactly as `-----BEGIN CERTIFICATE-----` and `-----END CERTIFICATE-----`.
-- Q2: Should the normalization helper be a shared utility (e.g., in `cert_utils.py`) reusable by both `fetch_certificate_chain_openssl` and `_build_unified_ca_bundle`, or should each location implement
-  its own logic? → A: A single shared `normalize_pem_block(pem: str) -> str` function MUST be placed in `agentic_devtools/cli/cert_utils.py` and called by both `fetch_certificate_chain_openssl` and
-  `_build_unified_ca_bundle` to avoid duplication and ensure consistent behavior.
+- Q2: Should the normalization helper be a shared utility (e.g., in `cert_utils.py`) reusable by both `fetch_certificate_chain_openssl` and `_build_unified_ca_bundle`, or should each location
+  implement its own logic? → A: A single shared `normalize_pem_block(pem: str) -> str` function
+  MUST be placed in `agentic_devtools/cli/cert_utils.py` and called by both
+  `fetch_certificate_chain_openssl` and `_build_unified_ca_bundle` to avoid duplication
+  and ensure consistent behavior.
 - Q3: For FR-003 (self-heal), should the bundle be overwritten unconditionally on every `agdt-setup` run, or only when corruption is detected? → A: The bundle is ALREADY overwritten unconditionally on
   every run (existing behavior in `_build_unified_ca_bundle`). FR-003 simply requires that this overwrite uses normalized PEM blocks, which is satisfied by FR-001 and FR-002. No additional detection
   logic is needed.
@@ -60,8 +62,8 @@ contiguous base64 lines between BEGIN/END markers.
 
 1. **Given** certificate-chain output with blank lines inside a PEM block, **When** `_build_unified_ca_bundle` writes the unified bundle, **Then** blank lines inside certificate data are removed.
 2. **Given** valid certificate-chain output without blank-line corruption, **When** the bundle is generated, **Then** certificates remain valid and parseable by standard TLS tooling.
-3. **Given** PEM blocks with whitespace around marker lines and leading/trailing whitespace on base64 content lines, **When** normalization runs, **Then** output uses canonical marker lines exactly and
-   trims surrounding whitespace from each content line.
+3. **Given** PEM blocks with whitespace around marker lines and leading/trailing whitespace on base64 content lines, **When** normalization runs, **Then** output uses canonical marker lines exactly
+   and trims surrounding whitespace from each content line.
 4. **Given** a certificate bundle is being written on any platform, **When** `_build_unified_ca_bundle` writes the unified bundle, **Then** the output file uses Unix `\n` line endings
    (newline translation is disabled, e.g. opened with `newline='\n'`).
 
@@ -110,22 +112,23 @@ As a developer who already has a corrupted bundle from a previous run, I need a 
 ### Functional Requirements
 
 - **FR-001**: System MUST sanitize PEM blocks written by `_build_unified_ca_bundle` so blank lines (lines containing only whitespace) inside certificate data are removed.
-- **FR-002**: System MUST normalize PEM blocks parsed by `fetch_certificate_chain_openssl` before returning them to callers, including removal of blank lines and trimming leading/trailing whitespace from
-  base64 content lines between certificate markers.
+- **FR-002**: System MUST normalize PEM blocks parsed by `fetch_certificate_chain_openssl` before returning them to callers, including removal of blank lines and trimming leading/trailing whitespace
+  from base64 content lines between certificate markers.
 - **FR-003**: System MUST overwrite the existing `unified-ca-bundle.pem` on rerun so prior corruption is repaired automatically. (Satisfied by existing unconditional-overwrite behavior combined with
   FR-001/FR-002.)
 - **FR-004**: System MUST preserve certificate boundaries and canonical marker lines (`-----BEGIN CERTIFICATE-----` and `-----END CERTIFICATE-----`) during normalization. If input marker lines contain
   surrounding whitespace, that whitespace MUST be trimmed while preserving marker meaning.
 - **FR-005**: System MUST implement normalization as a single shared function (`normalize_pem_block`) in `agentic_devtools/cli/cert_utils.py`, called by both `fetch_certificate_chain_openssl` and
   `_build_unified_ca_bundle`.
-- **FR-006**: System MUST write `unified-ca-bundle.pem` using Unix `\n` line endings on every platform; file writes MUST disable platform newline translation (for example by opening with `newline='\n'`).
+- **FR-006**: System MUST write `unified-ca-bundle.pem` using Unix `\n` line endings on every platform; file writes MUST disable platform newline translation (for example by opening with
+  `newline='\n'`).
 
 ### Non-Functional Requirements
 
 - **NFR-001**: Bundle generation MUST be deterministic — identical certificate-chain input MUST produce byte-for-byte identical `unified-ca-bundle.pem` output across runs.
 - **NFR-002**: Normalization MUST not add external dependencies beyond existing tooling and standard library usage (only `re`, `str` methods, or equivalent stdlib).
-- **NFR-003**: Behavior MUST remain backward compatible for already-normalized certificate-chain inputs — normalized output of a well-formed PEM block that already uses canonical marker lines and trimmed
-  content lines MUST be byte-for-byte identical to the input.
+- **NFR-003**: Behavior MUST remain backward compatible for already-normalized certificate-chain inputs — normalized output of a well-formed PEM block that already uses canonical marker lines and
+  trimmed content lines MUST be byte-for-byte identical to the input.
 
 ## Success Criteria *(mandatory)*
 
