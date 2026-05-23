@@ -159,6 +159,60 @@ class TestBuildSnapshot:
         assert snapshot.lock_age_seconds == 12.0
 
     @patch("agentic_devtools.cli.ci.evaluator.snapshot.check_lock_status")
+    def test_detects_latest_copilot_sentinel_for_current_head(self, mock_lock_status):
+        """Latest Copilot sentinel counts only when it matches the current HEAD SHA."""
+        provider = MagicMock()
+        provider.get_pr_metadata.return_value = PRMetadata(
+            number=42,
+            title="PR",
+            head_branch="feature",
+            head_sha="abc12345def67890",
+            base_branch="main",
+        )
+        provider.list_reviews.return_value = []
+        provider.get_pr_diff.return_value = ""
+        provider.list_issue_comments.return_value = [
+            IssueCommentInfo(
+                id=1,
+                author="copilot[bot]",
+                body="<!-- copilot-agent-result -->\nHEAD: `abc12345`. Done.",
+                created_at="2026-05-21T00:00:00Z",
+            ),
+        ]
+        mock_lock_status.return_value = MagicMock(is_locked=False, is_stale=False, holder="", age_seconds=0.0)
+
+        snapshot = build_snapshot(provider, 42, "owner/repo")
+
+        assert snapshot.has_sentinel is True
+
+    @patch("agentic_devtools.cli.ci.evaluator.snapshot.check_lock_status")
+    def test_ignores_latest_copilot_sentinel_for_stale_head(self, mock_lock_status):
+        """Latest Copilot sentinel from an older HEAD must not complete the current cycle."""
+        provider = MagicMock()
+        provider.get_pr_metadata.return_value = PRMetadata(
+            number=42,
+            title="PR",
+            head_branch="feature",
+            head_sha="newheadsha123456",
+            base_branch="main",
+        )
+        provider.list_reviews.return_value = []
+        provider.get_pr_diff.return_value = ""
+        provider.list_issue_comments.return_value = [
+            IssueCommentInfo(
+                id=1,
+                author="copilot[bot]",
+                body="<!-- copilot-agent-result -->\nHEAD: `oldheads`. Done.",
+                created_at="2026-05-21T00:00:00Z",
+            ),
+        ]
+        mock_lock_status.return_value = MagicMock(is_locked=False, is_stale=False, holder="", age_seconds=0.0)
+
+        snapshot = build_snapshot(provider, 42, "owner/repo")
+
+        assert snapshot.has_sentinel is False
+
+    @patch("agentic_devtools.cli.ci.evaluator.snapshot.check_lock_status")
     def test_ignores_stale_sentinel_when_latest_copilot_comment_has_no_marker(self, mock_lock_status):
         """Older sentinel comments must not mark the current cycle as complete."""
         provider = MagicMock()
