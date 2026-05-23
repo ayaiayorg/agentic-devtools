@@ -46,12 +46,14 @@ As a repository maintainer, I want all speckit phase logic consolidated into one
 it produces the full Phase 1 artifact set (`spec.md` plus empty `checklists/` and `contracts/` directories) and PR,
 identical to the current `speckit-issue-trigger.yml` output.
 
-**Mapped Functional Requirements**: FR-001, FR-003, FR-011, FR-012
+**Mapped Functional Requirements**: FR-001, FR-003, FR-011, FR-012, FR-015
 
 **Acceptance Scenarios**:
 
-1. **Given** the `speckit-phase-progression.yml` workflow, **When** dispatched with `issue_number=N` and `phase=1`, **Then** the full Phase 1 artifact set (`spec.md`, empty `checklists/` directory, and empty `contracts/` directory) is generated, committed, pushed, and
-   a PR is created — `checklists/requirements.md` is NOT included (it is produced in Phase 2).
+1. **Given** the `speckit-phase-progression.yml` workflow, **When** dispatched with `issue_number=N` and `phase=1`,
+   **Then** the full Phase 1 artifact set (`spec.md`, empty `checklists/` directory, and empty `contracts/` directory)
+   is generated, committed, pushed, and a PR is created — `checklists/requirements.md` is NOT included (it is produced
+   in Phase 2).
 2. **Given** a Phase 1 PR is merged into main, **When** the `speckit-phase-progression.yml` detects the merge, **Then** Phase 2 is triggered (existing progression behavior is preserved).
 3. **Given** the consolidated workflow, **When** any of the feature flags (`SPECKIT_CREATE_BRANCH`, `SPECKIT_CREATE_PR`, `SPECKIT_CRITICAL_GATE_MODE`) are set, **Then** they apply equally to Phase 1
    as to Phases 2–5.
@@ -163,6 +165,7 @@ As a contributor, I want workflow documentation to describe the consolidated arc
 - **FR-013**: The `speckit:processing` label MUST be added at the start of Phase 1 execution and removed on completion or failure.
 - **FR-014**: Phase 1 MUST perform an explicit token preflight check that aborts before commit/push/PR creation when both `SPECKIT_PR_TOKEN` and `COPILOT_GITHUB_TOKEN` are missing, and it MUST NOT use
   `GITHUB_TOKEN` as a fallback for PR creation.
+- **FR-015**: Phase 1 execution in the consolidated workflow MUST honor `SPECKIT_CREATE_BRANCH`, `SPECKIT_CREATE_PR`, and `SPECKIT_CRITICAL_GATE_MODE` exactly as Phases 2–5.
 
 ### Non-Functional Requirements
 
