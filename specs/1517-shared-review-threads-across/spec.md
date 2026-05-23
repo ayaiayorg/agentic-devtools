@@ -15,6 +15,24 @@ The desired behavior is deterministic cross-identity reuse of existing
 canonical threads by posting scaffolded replies in matching threads and creating
 new threads only when no reusable match exists.
 
+## Clarifications
+
+### Session 2026-05-23
+
+- Q: How is thread classification performed — purely via HTML comment markers (`<!-- agdt-review:v1 type:... -->`) or also via content heuristics/author-based filtering? → A: Classification MUST be
+  marker-based only, using `parse_marker()` on the first comment of each thread. Author identity (PAT user ID) MUST NOT be used as a classification criterion. Author filtering is removed from
+  thread-matching for reuse purposes but remains in `finalization/classification.py` for edit-permission scoping only.
+- Q: When reusing threads created by a different identity, should the system post a new reply or PATCH the existing first comment? → A: The system posts a new **reply** (scaffolded comment) to the
+  existing thread. The original first comment is not modified. This preserves authorship audit trail and avoids permission errors when the current identity cannot edit another user's comment.
+- Q: What constitutes an "identity" in this context — a different Azure DevOps PAT user, a different `model_id`, or both? → A: An "identity" refers to a different Azure DevOps PAT user (different
+  `author.id` on the thread's first comment). Different `model_id` values from the same PAT user are handled by existing idempotency logic and are out of scope for this feature.
+- Q: Should the `review-state.json` file store the original thread author alongside the thread ID for audit/traceability? → A: Yes. Each thread entry (`overallSummary`, `activityLog`, and per-file
+  entries in `files`) gains an optional `originalAuthorId: str | None` field recording the `author.id` of the first comment when the thread was first discovered/adopted. This field is informational
+  only and does not affect matching logic.
+- Q: How does normalized file path matching work for file-summary threads — exact string equality on the `file` marker value, or case-insensitive/separator-normalized comparison? → A: Matching uses
+  the existing `normalize_file_path()` function (which strips leading/trailing slashes and normalizes separators) applied to both the target file path and the parsed marker `file` value. Comparison is
+  then exact (case-sensitive) string equality on the normalized forms.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Reuse Review Activity Log Thread Across Identities (Priority: P1)
@@ -29,7 +47,7 @@ As a reviewer, I want the review activity log thread to be reused even when comm
 
 **Acceptance Scenarios**:
 
-1. **Given** a PR already has one activity-log thread, **When** a different identity posts the next activity update,
+1. **Given** a PR already has one activity-log thread (created by identity A with marker `<!-- agdt-review:v1 type:activity-log -->`), **When** a different identity B posts the next activity update,
    **Then** the existing activity-log thread is reused by adding a scaffolded reply instead of creating a new thread.
 2. **Given** no activity-log thread exists, **When** the first activity update is posted, **Then** exactly one activity-log thread is created.
 
@@ -47,10 +65,10 @@ As a PR reviewer, I want the overall summary thread to be reused across identiti
 
 **Acceptance Scenarios**:
 
-1. **Given** an overall summary thread already exists, **When** another identity updates summary status,
+1. **Given** an overall summary thread already exists (identified by marker `type:overall-summary`), **When** another identity updates summary status,
    **Then** the existing overall-summary thread is reused by adding a scaffolded reply,
    without creating a new top-level thread.
-2. **Given** multiple unrelated PR threads exist, **When** summary lookup runs, **Then** only the thread classified as overall summary is selected.
+2. **Given** multiple unrelated PR threads exist, **When** summary lookup runs, **Then** only the thread classified as overall summary (via marker parsing) is selected.
 
 ---
 
@@ -66,7 +84,8 @@ As a reviewer, I want file-specific review summary threads to be reused across i
 
 **Acceptance Scenarios**:
 
-1. **Given** a file summary thread already exists for `/src/module.py`, **When** another identity reviews the same file, **Then** it reuses that same file summary thread by adding a scaffolded reply.
+1. **Given** a file summary thread already exists for `/src/module.py` (marker `type:file-summary file:/src/module.py`), **When** another identity reviews the same file, **Then** it reuses that same
+   file summary thread by adding a scaffolded reply.
 2. **Given** a file has no existing summary thread, **When** first reviewed, **Then** one new file summary thread is created and persisted.
 
 ---
@@ -83,8 +102,10 @@ As the review workflow engine, I want deterministic classification and matching 
 
 **Acceptance Scenarios**:
 
-1. **Given** mixed PR threads (discussion, activity-log, overall summary, and file summary), **When** classification runs, **Then** each target type is identified consistently.
-2. **Given** both resolved and active candidate threads, **When** matching runs, **Then** matching respects defined reuse rules and does not pick unrelated threads.
+1. **Given** mixed PR threads (discussion, activity-log, overall summary, and file summary) from multiple authors, **When** classification runs using `classify_agdt_threads()`, **Then** each target
+   type is identified consistently regardless of authorship.
+2. **Given** both resolved and active candidate threads, **When** matching runs, **Then** matching respects defined reuse rules (prefer active, then lowest thread ID) and does not pick unrelated
+   threads.
 
 ---
 
@@ -100,7 +121,8 @@ As a maintainer, I want thread reuse to work with legacy review-state data and m
 
 **Acceptance Scenarios**:
 
-1. **Given** legacy review-state entries with previously created summary threads, **When** reuse logic runs, **Then** the workflow continues using those threads.
+1. **Given** legacy review-state entries with previously created summary threads (which may lack `originalAuthorId`), **When** reuse logic runs, **Then** the workflow continues using those threads
+   with `originalAuthorId` populated on first access.
 2. **Given** partially migrated PRs with some reusable and some missing thread types, **When** update operations run, **Then** existing threads are reused and only missing ones are created.
 
 ---
@@ -112,33 +134,44 @@ As a maintainer, I want thread reuse to work with legacy review-state data and m
   using this order: prefer active threads over resolved threads, then lowest thread ID
   (earliest created) as tie-breaker.
 - How does the system handle deleted or renamed files after an existing file summary thread was created?
-  The system avoids incorrect cross-file reuse and only reuses when normalized file path equality
-  matches the file-summary marker payload.
+  The system avoids incorrect cross-file reuse and only reuses when `normalize_file_path()` applied to both paths yields exact string equality between the target file and the file-summary marker
+  `file` value.
 - What happens when the only matching thread is resolved?
   Reuse follows defined policy and remains idempotent without creating unnecessary new threads;
   if no active match exists, the earliest resolved match (lowest thread ID) is reused.
 - What happens in dry-run mode? Classification and planned reuse are reported without creating or mutating threads.
+- What happens when a thread was created by a deactivated/removed identity?
+  The thread is still reusable because matching is marker-based, not author-based. The `originalAuthorId` field records the historical author for audit purposes only.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: System MUST detect and reuse an existing Review Activity Log thread even when the current actor identity differs from the original author.
-- **FR-002**: System MUST detect and reuse an existing Overall PR Review Summary thread across identities.
-- **FR-003**: System MUST detect and reuse existing File Review Summary threads across identities using deterministic file/thread matching.
-- **FR-004**: System MUST classify candidate threads into activity-log, overall-summary, file-summary, or unrelated categories using stable matching rules.
+- **FR-001**: System MUST detect and reuse an existing Review Activity Log thread even when the current actor identity differs from the original author. Detection uses marker-based classification
+  (`parse_marker()` on first comment content) without author filtering.
+- **FR-002**: System MUST detect and reuse an existing Overall PR Review Summary thread across identities. Detection uses the `type:overall-summary` marker regardless of the comment's `author.id`.
+- **FR-003**: System MUST detect and reuse existing File Review Summary threads across identities using deterministic file/thread matching. File matching uses `normalize_file_path()` applied to both
+  the target file and the marker's `file` value, with exact case-sensitive string equality.
+- **FR-004**: System MUST classify candidate threads into activity-log, overall-summary, file-summary, or unrelated categories using stable marker-based matching rules (via `classify_agdt_threads()`).
   - When multiple candidates exist for a target type, selection MUST be deterministic: prefer active over resolved, then choose the lowest thread ID.
   - For file-summary reuse, matching MUST use normalized file path equality between the target file and the parsed marker `file` value.
-- **FR-005**: System MUST persist reused thread identifiers in review state so subsequent updates continue targeting the same threads.
-- **FR-006**: System MUST avoid creating duplicate activity-log, overall-summary, or file-summary threads when a reusable thread already exists.
+  - Classification MUST NOT use author identity as a filtering criterion.
+- **FR-005**: System MUST persist reused thread identifiers in review state so subsequent updates continue targeting the same threads. Each persisted entry MUST include an `originalAuthorId` field
+  (nullable) recording the `author.id` from the thread's first comment when first adopted.
+- **FR-006**: System MUST avoid creating duplicate activity-log, overall-summary, or file-summary threads when a reusable thread already exists. When reusing, the system posts a scaffolded reply to
+  the existing thread rather than modifying the original comment.
 - **FR-007**: System MUST support mixed scenarios where some thread types are reused and missing thread types are created exactly once.
-- **FR-008**: System MUST preserve backward compatibility with legacy review-state/thread layouts used by existing in-progress reviews.
+- **FR-008**: System MUST preserve backward compatibility with legacy review-state/thread layouts used by existing in-progress reviews. Legacy state entries lacking `originalAuthorId` are treated as
+  valid (field defaults to `null`).
 
 ### Non-Functional Requirements
 
-- **NFR-001**: Thread lookup and classification MUST not introduce a noticeable regression in review update latency for normal PR thread volumes.
-- **NFR-002**: Reuse behavior MUST be transparent in logs/output so operators can understand why a thread was reused or created.
-- **NFR-003**: Repeated executions with unchanged PR thread data MUST be idempotent (no additional thread creation).
+- **NFR-001**: Thread lookup and classification MUST not increase review update latency by more than 200ms (p95) for PRs with ≤500 threads. The implementation reuses existing `classify_agdt_threads()`
+  which performs a single pass over thread data already fetched.
+- **NFR-002**: Reuse behavior MUST be transparent in logs/output so operators can understand why a thread was reused or created. Each reuse decision emits a structured log line containing: thread
+  type, thread ID, action taken (reused/created), and original author ID.
+- **NFR-003**: Repeated executions with unchanged PR thread data MUST be idempotent (no additional thread creation and zero additional reuse replies after the first reuse reply is already present).
+  Idempotency detection uses a deterministic reuse-reply correlation marker in the scaffolded reply body so reruns/retries can detect and skip reposting the same reuse reply.
 
 ## Success Criteria *(mandatory)*
 
@@ -146,5 +179,10 @@ As a maintainer, I want thread reuse to work with legacy review-state data and m
 
 - **SC-001**: In re-review workflows across different identities, 100% of updates to activity-log, overall-summary, and existing file-summary types reuse the correct existing thread.
 - **SC-002**: In mixed legacy/new scenarios, tests assert zero duplicate activity-log, overall-summary, and file-summary threads by validating created-thread counts and reused thread IDs.
-- **SC-003**: Automated tests cover cross-identity reuse, classification, mixed scenarios, and backward-compatibility behavior for all three summary thread types.
-- **SC-004**: Measured API usage for review-thread updates does not increase versus baseline for equivalent review operations.
+- **SC-003**: Automated tests cover cross-identity reuse, classification, mixed scenarios, and backward-compatibility behavior for all three summary thread types, including edge cases (resolved
+  threads, duplicate candidates, deleted files).
+- **SC-004**: Measured API usage for review-thread updates does not increase versus baseline for equivalent review operations (same number of POST calls for replies; zero additional thread-creation
+  POSTs when reusable threads exist).
+
+---
+*Generated by Copilot SDK (claude-opus-4.6)*
