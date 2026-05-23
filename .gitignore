@@ -92,6 +92,9 @@ specs/*/contracts/*
 !specs/1515-agdt-setup-generates-corrupted/research.md
 !specs/1515-agdt-setup-generates-corrupted/data-model.md
 !specs/1515-agdt-setup-generates-corrupted/quickstart.md
+!specs/1517-shared-review-threads-across/research.md
+!specs/1517-shared-review-threads-across/data-model.md
+!specs/1517-shared-review-threads-across/quickstart.md
 !specs/1518-thread-title-formatting-subsequent/research.md
 !specs/1518-thread-title-formatting-subsequent/data-model.md
 !specs/1518-thread-title-formatting-subsequent/quickstart.md
