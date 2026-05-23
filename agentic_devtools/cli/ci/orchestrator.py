@@ -1502,7 +1502,7 @@ def run_ai_pr_loop(
 
     # Step 9: Merge
     try:
-        provider.merge_pr(pr_number, pr_meta.head_sha, "squash")
+        provider.merge_pr(pr_number, pr_meta.head_sha, "rebase")
         logger.info("PR #%d merged successfully", pr_number)
     except Exception as exc:
         logger.error("Failed to merge PR #%d: %s", pr_number, exc)

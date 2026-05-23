@@ -1689,7 +1689,22 @@ class GitHubActionsProvider(CIPlatformProvider):
         if pr_meta.is_draft:
             self.publish_pr(pr_number)
 
-        # 3. Re-request Copilot review — delegates to existing module which
-        #    handles POST + exponential backoff verification + reviews fallback
+        # 3. Re-request Copilot review with built-in verification.
+        #    Force-push is the primary auto-trigger mechanism; this explicit request
+        #    serves as a fallback safety net.  _request_copilot_review already verifies
+        #    via both requested-reviewers polling and the reviews fallback (covering the
+        #    case where Copilot started reviewing before our verification poll runs).
         repo = self._resolve_repo()
-        _request_copilot_review(pr_number, repo)
+        result = _request_copilot_review(pr_number, repo)
+
+        # 3b. Re-request once if the initial request was not verified.
+        #     Unlike a manual requested_reviewers check, this reuses the richer
+        #     verification logic in _request_copilot_review itself.
+        if not result.get("verified"):
+            logger.warning(
+                "Copilot review request not verified for PR #%d after force-push "
+                "(requested=%s). Re-requesting explicitly.",
+                pr_number,
+                result.get("requested"),
+            )
+            _request_copilot_review(pr_number, repo)

@@ -20,7 +20,21 @@ class TestResolveRebaseConflictsViaSdk:
         monkeypatch.chdir(tmp_path)
         conflicted = tmp_path / "src.py"
         conflicted.write_text("<<<<<<< HEAD\nmine\n=======\ntheirs\n>>>>>>> branch\n", encoding="utf-8")
-        mock_run_git.side_effect = ["src.py\n", "", ""]
+
+        def git_side_effect(args):
+            if args == ["diff", "--name-only", "--diff-filter=U"]:
+                return "src.py\n"
+            if args[0] == "show" and args[1].startswith(":"):
+                raise RuntimeError("not available")
+            if args[0] == "log" and "--oneline" in args:
+                raise RuntimeError("not available")
+            if args == ["add", "src.py"]:
+                return ""
+            if args == ["rebase", "--continue"]:
+                return ""
+            return ""
+
+        mock_run_git.side_effect = git_side_effect
         mock_resolve_file.return_value = "merged\n"
         provider = GitHubActionsProvider(repo="owner/repo")
 
@@ -44,7 +58,17 @@ class TestResolveRebaseConflictsViaSdk:
         monkeypatch.chdir(tmp_path)
         conflicted = tmp_path / "src.py"
         conflicted.write_text("<<<<<<< HEAD\nmine\n=======\ntheirs\n>>>>>>> branch\n", encoding="utf-8")
-        mock_run_git.side_effect = ["src.py\n"]
+
+        def git_side_effect(args):
+            if args == ["diff", "--name-only", "--diff-filter=U"]:
+                return "src.py\n"
+            if args[0] == "show" and args[1].startswith(":"):
+                raise RuntimeError("not available")
+            if args[0] == "log" and "--oneline" in args:
+                raise RuntimeError("not available")
+            return ""
+
+        mock_run_git.side_effect = git_side_effect
         mock_resolve_file.return_value = None
         provider = GitHubActionsProvider(repo="owner/repo")
 
@@ -65,7 +89,17 @@ class TestResolveRebaseConflictsViaSdk:
         conflicted = tmp_path / "src.py"
         original = "<<<<<<< HEAD\nmine\n=======\ntheirs\n>>>>>>> branch\n"
         conflicted.write_text(original, encoding="utf-8")
-        mock_run_git.side_effect = ["src.py\n"]
+
+        def git_side_effect(args):
+            if args == ["diff", "--name-only", "--diff-filter=U"]:
+                return "src.py\n"
+            if args[0] == "show" and args[1].startswith(":"):
+                raise RuntimeError("not available")
+            if args[0] == "log" and "--oneline" in args:
+                raise RuntimeError("not available")
+            return ""
+
+        mock_run_git.side_effect = git_side_effect
         mock_resolve_file.return_value = "<<<<<<< HEAD\nstill conflicted\n=======\nnope\n>>>>>>> branch\n"
         provider = GitHubActionsProvider(repo="owner/repo")
 
@@ -129,12 +163,26 @@ class TestResolveRebaseConflictsViaSdk:
         monkeypatch.chdir(tmp_path)
         conflicted = tmp_path / "src.py"
         conflicted.write_text("<<<<<<< HEAD\nmine\n=======\ntheirs\n>>>>>>> branch\n", encoding="utf-8")
-        mock_run_git.side_effect = [
-            "src.py\n",  # diff --name-only (get conflicts)
-            "",  # add src.py
-            RuntimeError("cannot continue"),  # rebase --continue raises
-            "",  # diff --name-only (still_conflicted check → empty)
-        ]
+
+        call_counter = {"rebase_continue": 0, "diff_filter": 0}
+
+        def git_side_effect(args):
+            if args == ["diff", "--name-only", "--diff-filter=U"]:
+                call_counter["diff_filter"] += 1
+                if call_counter["diff_filter"] == 1:
+                    return "src.py\n"  # First call: conflicted files
+                return ""  # Second call: still_conflicted check → empty
+            if args[0] == "show" and args[1].startswith(":"):
+                raise RuntimeError("not available")
+            if args[0] == "log" and "--oneline" in args:
+                raise RuntimeError("not available")
+            if args == ["add", "src.py"]:
+                return ""
+            if args == ["rebase", "--continue"]:
+                raise RuntimeError("cannot continue")
+            return ""
+
+        mock_run_git.side_effect = git_side_effect
         mock_resolve_file.return_value = "merged content\n"
         provider = GitHubActionsProvider(repo="owner/repo")
 
@@ -156,17 +204,20 @@ class TestResolveRebaseConflictsViaSdk:
         conflicted = tmp_path / "src.py"
         conflicted.write_text("<<<<<<< HEAD\nmine\n=======\ntheirs\n>>>>>>> branch\n", encoding="utf-8")
 
-        # Two rounds: each round → diff, add, rebase --continue (raises), still_conflicted (non-empty)
-        mock_run_git.side_effect = [
-            "src.py\n",  # round 1: diff --name-only
-            "",  # round 1: add src.py
-            RuntimeError("conflict remains"),  # round 1: rebase --continue raises
-            "src.py\n",  # round 1: still_conflicted (non-empty → retry)
-            "src.py\n",  # round 2: diff --name-only
-            "",  # round 2: add src.py
-            RuntimeError("conflict remains"),  # round 2: rebase --continue raises
-            "src.py\n",  # round 2: still_conflicted (non-empty → retry)
-        ]
+        def git_side_effect(args):
+            if args == ["diff", "--name-only", "--diff-filter=U"]:
+                return "src.py\n"  # Always still conflicted
+            if args[0] == "show" and args[1].startswith(":"):
+                raise RuntimeError("not available")
+            if args[0] == "log" and "--oneline" in args:
+                raise RuntimeError("not available")
+            if args == ["add", "src.py"]:
+                return ""
+            if args == ["rebase", "--continue"]:
+                raise RuntimeError("conflict remains")
+            return ""
+
+        mock_run_git.side_effect = git_side_effect
         mock_resolve_file.return_value = "merged content\n"
         provider = GitHubActionsProvider(repo="owner/repo")
 
