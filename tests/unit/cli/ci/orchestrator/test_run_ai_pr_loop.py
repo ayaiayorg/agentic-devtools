@@ -9,6 +9,7 @@ from agentic_devtools.cli.ci.models import (
     COPILOT_REVIEWER_LOGIN,
     CheckRunStatus,
     EventPayload,
+    FinalizationResult,
     PRMetadata,
     ReviewInfo,
 )
@@ -58,6 +59,7 @@ def _make_provider(
     provider.post_comment.return_value = 100
     provider.merge_pr.return_value = None
     provider.count_commits_above_merge_base.return_value = 1
+    provider.finalize_post_repair.return_value = FinalizationResult()
     return provider
 
 
@@ -1571,6 +1573,51 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["decision"] == "post_repair_soft_finalized"
         assert summary["exit_code"] == EXIT_SUCCESS
         assert summary["post_repair"]["finalized"] is True
+
+    def test_post_repair_skipped_emits_summary(self) -> None:
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=8, user="copilot-pull-request-reviewer[bot]", state="CHANGES_REQUESTED", body="fix")]
+        )
+        provider.finalize_post_repair.return_value = FinalizationResult(
+            skipped=True,
+            reason="no_new_commit",
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "post_repair_skipped"
+        assert summary["exit_code"] == EXIT_SUCCESS
+        assert summary["post_repair"]["finalized"] is False
+        assert summary["post_repair"]["skipped"] is True
+        assert summary["post_repair"]["reason"] == "no_new_commit"
+        assert summary["post_repair"]["review_id"] == 8
+
+    def test_post_repair_skipped_for_prior_commit_emits_summary(self) -> None:
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=8,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="fix",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        provider.finalize_post_repair.return_value = FinalizationResult(
+            skipped=True,
+            reason="no_new_commit",
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "post_repair_skipped"
+        assert summary["exit_code"] == EXIT_SUCCESS
+        assert summary["post_repair"]["finalized"] is False
+        assert summary["post_repair"]["skipped"] is True
+        assert summary["post_repair"]["reason"] == "no_new_commit"
+        assert summary["post_repair"]["review_id"] == 8
+        assert summary["post_repair"]["prior_commit"] is True
 
     def test_comment_event_post_repair_squash_not_needed_via_workflow_run_emits_summary(self) -> None:
         """All issue_comment events now emit squash_via_workflow_run reason."""

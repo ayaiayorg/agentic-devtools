@@ -11,6 +11,7 @@ from agentic_devtools.cli.ci.exceptions import MalformedEventError
 from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
+    FinalizationResult,
     IssueEvent,
     PRMetadata,
     ReviewCommentInfo,
@@ -173,7 +174,7 @@ class AzureDevOpsProvider(CIPlatformProvider):
         head_branch: str,
         head_sha: str,
         review_id: int,
-    ) -> None:
+    ) -> FinalizationResult:
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.finalize_post_repair() not yet implemented")
 
