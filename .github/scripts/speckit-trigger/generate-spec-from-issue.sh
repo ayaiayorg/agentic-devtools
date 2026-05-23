@@ -140,6 +140,10 @@ source "$SCRIPT_DIR/check-analysis-gate.sh"
 # shellcheck source=lib/retry.sh
 source "$SCRIPT_DIR/lib/retry.sh"
 
+# Source Phase 1 spec validation library (FR-001, #1505)
+# shellcheck source=lib/spec-validation.sh
+source "$SCRIPT_DIR/lib/spec-validation.sh"
+
 # ---------------------------------------------------------------------------
 # Validate ISSUE_NUMBER is a positive integer (FR-011)
 # ---------------------------------------------------------------------------
@@ -1979,6 +1983,12 @@ run_specify_phase() {
         spec_template=$(cat "$template_file")
     fi
 
+    local mandatory_heading_lines=""
+    local section
+    for section in "${MANDATORY_SECTIONS[@]}"; do
+        mandatory_heading_lines="${mandatory_heading_lines}- ${section}"$'\n'
+    done
+
     local prompt
     prompt="You are a specification writer. Create a feature specification based on the following GitHub issue.
 
@@ -1999,6 +2009,8 @@ $ISSUE_BODY
 6. Keep the specification focused on WHAT and WHY, not HOW
 7. Make reasonable assumptions where details are missing
 8. Limit [NEEDS CLARIFICATION] markers to maximum 3 critical items
+9. Include ALL mandatory section headings as level-2 markdown headings (##), exactly as shown below:
+${mandatory_heading_lines}
 
 ## Template Reference
 $spec_template
@@ -2013,6 +2025,165 @@ CORRECT: \"# Spec: Feature Name\"
 Do NOT include any conversational preamble before the heading."
 
     call_llm "$prompt"
+}
+
+# ---------------------------------------------------------------------------
+# run_specify_phase_with_feedback
+#
+# Variant of run_specify_phase that includes structured feedback from a
+# previous failed validation attempt. Uses SPECIFY_RETRY_FEEDBACK and
+# SPECIFY_FAILED_OUTPUT global variables when set.
+# ---------------------------------------------------------------------------
+run_specify_phase_with_feedback() {
+    if [[ -z "${SPECIFY_RETRY_FEEDBACK:-}" ]]; then
+        run_specify_phase
+        return $?
+    fi
+
+    # Load the spec template
+    local template_file="$REPO_ROOT/.specify/presets/agdt-templates/templates/spec-template.md"
+    local spec_template=""
+    if [[ -f "$template_file" ]]; then
+        spec_template=$(cat "$template_file")
+    fi
+
+    local mandatory_heading_lines=""
+    local section
+    for section in "${MANDATORY_SECTIONS[@]}"; do
+        mandatory_heading_lines="${mandatory_heading_lines}- ${section}"$'\n'
+    done
+
+    local prompt
+    prompt="You are a specification writer. Your previous attempt failed structural validation. You MUST fix ALL issues listed below.
+
+## Issue Details
+- **Issue Number**: #$ISSUE_NUMBER
+- **Issue URL**: $ISSUE_URL
+- **Title**: $ISSUE_TITLE
+
+## Issue Description
+$ISSUE_BODY
+
+${SPECIFY_RETRY_FEEDBACK}
+
+## Your Previous (Invalid) Output
+${SPECIFY_FAILED_OUTPUT:-}
+
+## Instructions
+1. Create a COMPLETE feature specification — not a summary or outline
+2. Include user stories with priorities (P1, P2, P3) — each with Given/When/Then scenarios
+3. Define at least ${MIN_FUNCTIONAL_REQUIREMENTS} functional requirements (FR-### format)
+4. Include at least ${MIN_USER_STORIES} user stories (### User Story headings)
+5. Success criteria (SC-### format) must contain measurable targets (numbers, percentages)
+6. Write detailed prose — do NOT use bullet points for everything
+7. Add a \"Source Issue\" field at the top with: #$ISSUE_NUMBER ($ISSUE_URL)
+8. Keep the specification focused on WHAT and WHY, not HOW
+9. Include ALL mandatory section headings as level-2 markdown headings (##), exactly as shown below:
+${mandatory_heading_lines}
+
+## Template Reference
+$spec_template
+
+CRITICAL: Your output MUST begin with a markdown heading on the very first line.
+Do NOT include any conversational preamble before the heading."
+
+    call_llm "$prompt"
+}
+
+# ---------------------------------------------------------------------------
+# run_specify_phase_with_validation_retries
+#
+# Runs Phase 1 specify with structural validation retries and structured
+# feedback. Validation failures consume retry budget; operational failures do
+# not consume retry budget.
+#
+# Stdout: Valid specification content
+# Returns:
+#   0 = success
+#   1 = validation retries exhausted or operational failure cap reached
+# ---------------------------------------------------------------------------
+run_specify_phase_with_validation_retries() {
+    local specify_retry_count=0
+    local specify_operational_failures=0
+    local specify_last_failures=""
+    local last_operational_reason=""
+    local validation_rc=0
+
+    while [[ "$specify_retry_count" -lt "$SPECIFY_MAX_RETRIES" ]]; do
+        SPEC_CONTENT=$(run_specify_phase_with_feedback) || {
+            echo "[Specify] LLM call failed (operational failure, not counting as retry)" >&2
+            specify_operational_failures=$((specify_operational_failures + 1))
+            last_operational_reason="LLM call failed"
+            if [[ "$specify_operational_failures" -ge "$SPECIFY_MAX_OPERATIONAL_FAILURES" ]]; then
+                break
+            fi
+            continue
+        }
+        if [[ -z "$SPEC_CONTENT" ]]; then
+            echo "[Specify] LLM returned empty content (operational failure, not counting as retry)" >&2
+            specify_operational_failures=$((specify_operational_failures + 1))
+            last_operational_reason="LLM returned empty content"
+            if [[ "$specify_operational_failures" -ge "$SPECIFY_MAX_OPERATIONAL_FAILURES" ]]; then
+                break
+            fi
+            continue
+        fi
+        SPEC_CONTENT=$(strip_llm_preamble "$SPEC_CONTENT" "# ")
+        if [[ -z "${SPEC_CONTENT//[[:space:]]/}" ]]; then
+            echo "[Specify] LLM returned only whitespace after preamble stripping (operational failure)" >&2
+            specify_operational_failures=$((specify_operational_failures + 1))
+            last_operational_reason="LLM returned whitespace after preamble stripping"
+            if [[ "$specify_operational_failures" -ge "$SPECIFY_MAX_OPERATIONAL_FAILURES" ]]; then
+                break
+            fi
+            continue
+        fi
+        SPEC_CONTENT=$(ensure_heading_start "$SPEC_CONTENT" "# Spec: $ISSUE_TITLE")
+
+        # Validate structural quality
+        if specify_last_failures=$(_validate_spec_content "$SPEC_CONTENT"); then
+            unset SPECIFY_RETRY_FEEDBACK SPECIFY_FAILED_OUTPUT 2>/dev/null || true
+            printf '%s' "$SPEC_CONTENT"
+            return 0
+        else
+            validation_rc=$?
+            if [[ "$validation_rc" -eq 2 ]]; then
+                echo "[Specify] Structural validation could not run (operational failure, not counting as retry)" >&2
+                specify_operational_failures=$((specify_operational_failures + 1))
+                last_operational_reason="structural validation could not run"
+                if [[ "$specify_operational_failures" -ge "$SPECIFY_MAX_OPERATIONAL_FAILURES" ]]; then
+                    break
+                fi
+                continue
+            fi
+        fi
+
+        # Reset only after a non-operational iteration so consecutive rc=2
+        # validation failures can still reach the operational-failure cap.
+        specify_operational_failures=0
+
+        specify_retry_count=$((specify_retry_count + 1))
+        if [[ "$specify_retry_count" -lt "$SPECIFY_MAX_RETRIES" ]]; then
+            echo "[Specify] Validation failed (attempt ${specify_retry_count}/${SPECIFY_MAX_RETRIES}), retrying with structured feedback..." >&2
+            local feedback
+            feedback=$(_build_structured_specify_feedback "/dev/null" "$specify_last_failures")
+            SPECIFY_RETRY_FEEDBACK="$feedback"
+            SPECIFY_FAILED_OUTPUT="$SPEC_CONTENT"
+        else
+            echo "[Specify] Validation failed — all ${SPECIFY_MAX_RETRIES} retries exhausted" >&2
+        fi
+    done
+
+    unset SPECIFY_RETRY_FEEDBACK SPECIFY_FAILED_OUTPUT 2>/dev/null || true
+    if [[ "$specify_operational_failures" -ge "$SPECIFY_MAX_OPERATIONAL_FAILURES" ]]; then
+        echo "Error: Specify phase encountered ${specify_operational_failures} consecutive operational failures (limit: ${SPECIFY_MAX_OPERATIONAL_FAILURES})." >&2
+        echo "Last operational failure: ${last_operational_reason}" >&2
+    else
+        echo "Error: Specify phase failed structural validation after ${SPECIFY_MAX_RETRIES} attempts." >&2
+        echo "Failures:" >&2
+        printf '%s\n' "$specify_last_failures" >&2
+    fi
+    return 1
 }
 
 # ---------------------------------------------------------------------------
@@ -3379,17 +3550,8 @@ run_single_phase() {
         1)
             echo ""
             echo "=== Phase 1: Specify ==="
-            SPEC_CONTENT=$(run_specify_phase) || { echo "Error: Specify phase failed after retries" >&2; exit 1; }
-            if [[ -z "$SPEC_CONTENT" ]]; then
-                echo "Error: Specify phase returned empty content" >&2
-                exit 1
-            fi
-            SPEC_CONTENT=$(strip_llm_preamble "$SPEC_CONTENT" "# ")
-            if [[ -z "${SPEC_CONTENT//[[:space:]]/}" ]]; then
-                echo "Error: Specify phase returned only whitespace content after preamble stripping" >&2
-                exit 1
-            fi
-            SPEC_CONTENT=$(ensure_heading_start "$SPEC_CONTENT" "# Spec: $ISSUE_TITLE")
+            SPEC_CONTENT=$(run_specify_phase_with_validation_retries) || exit 1
+
             printf '%s\n' "$SPEC_CONTENT" > "$SPEC_DIR/spec.md"
             append_model_footer "$SPEC_DIR/spec.md"
             log_file_header "Phase 1" "$SPEC_DIR/spec.md"
@@ -3525,17 +3687,8 @@ else
     # Run all phases sequentially (backward compatible)
     echo ""
     echo "=== Phase 1/7: Specify ==="
-    SPEC_CONTENT=$(run_specify_phase) || { echo "Error: Specify phase failed after retries" >&2; exit 1; }
-    if [[ -z "$SPEC_CONTENT" ]]; then
-        echo "Error: Specify phase returned empty content" >&2
-        exit 1
-    fi
-    SPEC_CONTENT=$(strip_llm_preamble "$SPEC_CONTENT" "# ")
-    if [[ -z "${SPEC_CONTENT//[[:space:]]/}" ]]; then
-        echo "Error: Specify phase returned only whitespace after stripping preamble" >&2
-        exit 1
-    fi
-    SPEC_CONTENT=$(ensure_heading_start "$SPEC_CONTENT" "# Spec: $ISSUE_TITLE")
+    SPEC_CONTENT=$(run_specify_phase_with_validation_retries) || exit 1
+
     printf '%s\n' "$SPEC_CONTENT" > "$SPEC_DIR/spec.md"
     append_model_footer "$SPEC_DIR/spec.md"
     log_file_header "Phase 1" "$SPEC_DIR/spec.md"
