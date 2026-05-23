@@ -19,7 +19,7 @@
   successfully, it updates `DerivedState.is_draft = False`. Subsequent actions read from `DerivedState` (which falls through to `PRStateSnapshot` for unmodified fields). The original snapshot remains
   immutable for logging/summary purposes.
 - Q: FR-003 references "issue event IDs" for session detection. The GitHub Issues Events API returns events with monotonically increasing integer `id` fields. Should the implementation fetch ALL issue
-  events and filter by label, or use a more targeted approach (e.g., timeline API)? → A: Use the Issues Events API (`GET /repos/{owner}/{repo}/issues/{issue_number}/events`), paginate all available
+  events and filter by event name, or use a more targeted approach (e.g., timeline API)? → A: Use the Issues Events API (`GET /repos/{owner}/{repo}/issues/{issue_number}/events`), paginate all available
   pages client-side, and select the session-related event (`copilot_work_started`, `copilot_work_finished`, or `copilot_work_finished_failure`) with the **highest `id`** as the decision source. Event
   `id` is the authoritative ordering key because the API does not guarantee delivery order within or across pages. If no session-related event is found after scanning all pages, treat the session as
   inactive.
