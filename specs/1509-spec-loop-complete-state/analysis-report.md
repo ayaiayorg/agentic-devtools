@@ -70,9 +70,9 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Requirements | 22 (14 FR + 8 NFR) |
+| Total Requirements | 23 (15 FR + 8 NFR) |
 | Total Tasks | 72 |
-| Coverage % | 100% (all FRs have tasks) |
+| Coverage % | 100% (all 15 FRs have tasks) |
 | Ambiguity Count | 2 (F-04, F-10) |
 | Requirement Duplication Count (Category A) | 0 |
 | Critical Issues Count | 2 |
