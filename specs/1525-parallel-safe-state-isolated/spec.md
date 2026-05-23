@@ -63,23 +63,28 @@ run-variant fields do not affect determinism checks.
 
 ---
 
-### User Story 3 - Serial command compatibility without legacy fallback (Priority: P2)
+### User Story 3 - Existing batch command compatibility without legacy fallback (Priority: P2)
 
-As a maintainer, I want existing non-parallel commands (for example
-`submit_reviews`) to continue working in serial mode so rollout does not break
-current automation.
+As a maintainer, I want existing batch commands (for example
+`submit_reviews`) to continue working with their current execution model while
+remaining compatible with isolated state so rollout does not break current
+automation.
 
 **Why this priority**: Compatibility reduces migration risk.
 
 **Related FRs**: FR-005, FR-008
 
-**Independent Test**: Run current serial workflows and compare outputs before
-and after the change.
+**Independent Test**: Run `submit_reviews` in normal mode (bounded internal
+thread-level parallelism) and dry-run mode (sequential), and compare outputs
+before and after the change.
 
 **Acceptance Scenarios**:
 
-1. **Given** a serial-only workflow, **When** it runs with no parallel workers,
-   **Then** behavior and output match the pre-change baseline.
+1. **Given** `submit_reviews` running in normal mode with its existing internal
+   worker parallelism, **When** isolated state is enabled, **Then** behavior and
+   output match the pre-change baseline.
+2. **Given** `submit_reviews` running in dry-run mode, **When** isolated state
+   is enabled, **Then** behavior and output match the pre-change baseline.
 
 ---
 
