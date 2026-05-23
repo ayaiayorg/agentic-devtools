@@ -5,6 +5,11 @@ from io import StringIO
 from typing import cast
 from unittest.mock import MagicMock, patch
 
+from agentic_devtools.cli.ci.evaluator.models import (
+    EvaluationResult,
+    PostAgentAction,
+    PostAgentClassification,
+)
 from agentic_devtools.cli.ci.models import (
     COPILOT_REVIEWER_LOGIN,
     CheckRunStatus,
@@ -55,10 +60,15 @@ def _make_provider(
         if reviews is not None
         else [ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm")]
     )
+    provider.list_review_comments.return_value = []
+    provider.list_issue_comments.return_value = []
     provider.find_comment.return_value = None
     provider.post_comment.return_value = 100
+    provider.update_comment.return_value = None
     provider.merge_pr.return_value = None
     provider.count_commits_above_merge_base.return_value = 1
+    provider.get_pr_diff.return_value = ""
+    provider.get_commit_range_diff.return_value = ""
     provider.finalize_post_repair.return_value = FinalizationResult()
     return provider
 
@@ -512,8 +522,9 @@ class TestRunAIPRLoop:
         )
         provider.dispatch_repair.assert_not_called()
 
-    def test_comment_event_returns_immediately_with_no_squash(self) -> None:
-        """All issue_comment events now return EXIT_SUCCESS immediately — squash is via workflow_run."""
+    @patch("agentic_devtools.cli.ci.orchestrator.acquire_lock", return_value="lock-token")
+    def test_comment_event_runs_post_agent_evaluator_for_copilot_sender(self, _mock_acquire_lock) -> None:
+        """Copilot issue comments trigger evaluator remediation and skip squash."""
         provider = _make_provider(
             reviews=[
                 ReviewInfo(
@@ -536,14 +547,14 @@ class TestRunAIPRLoop:
         result = run_ai_pr_loop(provider, payload)
 
         assert result == EXIT_SUCCESS
-        # Squash no longer happens from issue_comment events.
+        provider.dispatch_repair.assert_called_once()
         provider.squash_post_repair.assert_not_called()
         provider.finalize_post_repair.assert_not_called()
-        # No reviews listed — we exit before any review logic.
-        provider.list_reviews.assert_not_called()
+        provider.count_commits_above_merge_base.assert_not_called()
 
-    def test_comment_event_skips_when_branch_is_already_squashed(self) -> None:
-        """issue_comment events return EXIT_SUCCESS immediately regardless of commit count."""
+    @patch("agentic_devtools.cli.ci.orchestrator.acquire_lock", return_value="lock-token")
+    def test_comment_event_skips_when_branch_is_already_squashed(self, _mock_acquire_lock) -> None:
+        """Issue comments do not enter squash-wait regardless of commit count."""
         provider = _make_provider(
             reviews=[
                 ReviewInfo(
@@ -566,11 +577,13 @@ class TestRunAIPRLoop:
         result = run_ai_pr_loop(provider, payload)
 
         assert result == EXIT_SUCCESS
+        provider.dispatch_repair.assert_called_once()
         provider.squash_post_repair.assert_not_called()
         provider.finalize_post_repair.assert_not_called()
 
-    def test_comment_event_skips_when_no_prior_actionable_review(self) -> None:
-        """issue_comment events return EXIT_SUCCESS immediately regardless of review state."""
+    @patch("agentic_devtools.cli.ci.orchestrator.acquire_lock", return_value="lock-token")
+    def test_comment_event_evaluator_runs_even_without_prior_actionable_review(self, _mock_acquire_lock) -> None:
+        """Issue comments still run evaluator even when review state is APPROVED."""
         provider = _make_provider(
             reviews=[
                 ReviewInfo(
@@ -593,6 +606,7 @@ class TestRunAIPRLoop:
 
         assert result == EXIT_SUCCESS
         provider.count_commits_above_merge_base.assert_not_called()
+        provider.dispatch_repair.assert_called_once()
         provider.squash_post_repair.assert_not_called()
 
     def test_comment_event_skips_for_non_copilot_sender(self) -> None:
@@ -607,6 +621,113 @@ class TestRunAIPRLoop:
         assert result == EXIT_SUCCESS
         provider.list_reviews.assert_not_called()
 
+    @patch("agentic_devtools.cli.ci.orchestrator.acquire_lock", return_value=None)
+    def test_comment_event_skips_when_evaluator_lock_is_held(self, _mock_acquire_lock) -> None:
+        provider = _make_provider()
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+
+        result = run_ai_pr_loop(provider, payload)
+
+        assert result == EXIT_SUCCESS
+        provider.dispatch_repair.assert_not_called()
+        provider.list_reviews.assert_not_called()
+
+    @patch(
+        "agentic_devtools.cli.ci.orchestrator.dispatch_action",
+        return_value=EvaluationResult(
+            classification=PostAgentClassification.agent_silent,
+            action_taken=PostAgentAction.agentic_fallback,
+            success=False,
+            error_details="boom",
+        ),
+    )
+    @patch("agentic_devtools.cli.ci.orchestrator.acquire_lock", return_value="lock-token")
+    def test_comment_event_returns_metadata_failed_when_evaluator_action_fails(
+        self, _mock_acquire_lock, _mock_dispatch_action
+    ) -> None:
+        provider = _make_provider()
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+
+        result = run_ai_pr_loop(provider, payload)
+
+        assert result == EXIT_METADATA_FAILED
+
+    @patch(
+        "agentic_devtools.cli.ci.orchestrator.build_snapshot",
+        side_effect=RuntimeError("snapshot failed"),
+    )
+    @patch("agentic_devtools.cli.ci.orchestrator.acquire_lock", return_value="lock-token")
+    def test_comment_event_returns_metadata_failed_when_build_snapshot_raises(
+        self, _mock_acquire_lock, _mock_build_snapshot
+    ) -> None:
+        """build_snapshot exceptions are caught and return EXIT_METADATA_FAILED with summary."""
+        provider = _make_provider()
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+
+        result = run_ai_pr_loop(provider, payload)
+
+        assert result == EXIT_METADATA_FAILED
+
+    @patch(
+        "agentic_devtools.cli.ci.orchestrator.build_snapshot",
+        side_effect=RuntimeError("snapshot failed"),
+    )
+    @patch("agentic_devtools.cli.ci.orchestrator.acquire_lock", return_value="lock-token")
+    def test_comment_event_snapshot_exception_emits_error_summary(
+        self, _mock_acquire_lock, _mock_build_snapshot
+    ) -> None:
+        """build_snapshot exceptions produce structured decision summary output."""
+        provider = _make_provider()
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "post_agent_evaluator_failed"
+        assert summary["reason"] == "evaluator_exception"
+        assert summary["exit_code"] == EXIT_METADATA_FAILED
+
+    @patch(
+        "agentic_devtools.cli.ci.orchestrator.build_snapshot",
+        side_effect=RuntimeError("snapshot failed"),
+    )
+    @patch("agentic_devtools.cli.ci.orchestrator.acquire_lock", return_value="lock-token")
+    def test_comment_event_snapshot_exception_still_releases_lock(
+        self, _mock_acquire_lock, _mock_build_snapshot
+    ) -> None:
+        """Lock is always released even when build_snapshot raises."""
+        provider = _make_provider()
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+
+        with patch("agentic_devtools.cli.ci.orchestrator.release_lock") as mock_release:
+            run_ai_pr_loop(provider, payload)
+
+        mock_release.assert_called_once()
+
     def test_comment_event_skips_for_missing_sender(self) -> None:
         provider = _make_provider()
         payload = EventPayload(pr_number=42, head_sha="abc123", action="comment_created", sender_login="")
@@ -614,8 +735,9 @@ class TestRunAIPRLoop:
         assert result == EXIT_SUCCESS
         provider.list_reviews.assert_not_called()
 
-    def test_comment_event_fork_pr_returns_success_immediately(self) -> None:
-        """Fork PR guard no longer applies to issue_comment — all return EXIT_SUCCESS immediately."""
+    @patch("agentic_devtools.cli.ci.orchestrator.acquire_lock")
+    def test_fork_pr_guard_blocks_issue_comment_before_lock_acquisition(self, mock_acquire_lock) -> None:
+        """Fork PR guard blocks the issue_comment evaluator before lock acquisition."""
         provider = _make_provider(
             pr_meta=PRMetadata(
                 number=42,
@@ -625,6 +747,7 @@ class TestRunAIPRLoop:
                 base_branch="main",
                 head_repo_full_name="fork/repo",
                 base_repo_full_name="owner/repo",
+                labels=["ai-auto-merge-allowed"],
             ),
             reviews=[
                 ReviewInfo(
@@ -638,12 +761,14 @@ class TestRunAIPRLoop:
         )
         payload = EventPayload(pr_number=42, head_sha="s", action="comment_created", sender_login="copilot[bot]")
         result = run_ai_pr_loop(provider, payload)
-        assert result == EXIT_SUCCESS
+        assert result == EXIT_GUARD_BLOCKED
+        mock_acquire_lock.assert_not_called()
         provider.list_reviews.assert_not_called()
         provider.squash_post_repair.assert_not_called()
 
-    def test_comment_event_ignore_label_returns_success_immediately(self) -> None:
-        """Exclusion label guard no longer applies to issue_comment — all return EXIT_SUCCESS immediately."""
+    @patch("agentic_devtools.cli.ci.orchestrator.acquire_lock")
+    def test_comment_event_ignore_label_blocks_before_lock(self, mock_acquire_lock) -> None:
+        """Issue-comment evaluator respects ai-pr-loop-ignore before lock acquisition."""
         provider = _make_provider(
             pr_meta=PRMetadata(
                 number=42,
@@ -667,12 +792,25 @@ class TestRunAIPRLoop:
         )
         payload = EventPayload(pr_number=42, head_sha="s", action="comment_created", sender_login="copilot[bot]")
         result = run_ai_pr_loop(provider, payload)
-        assert result == EXIT_SUCCESS
+        assert result == EXIT_GUARD_BLOCKED
+        mock_acquire_lock.assert_not_called()
         provider.list_reviews.assert_not_called()
         provider.squash_post_repair.assert_not_called()
 
-    def test_comment_event_missing_auto_merge_allowed_returns_success_immediately(self) -> None:
-        """Missing ai-auto-merge-allowed no longer has any effect on issue_comment events."""
+    @patch(
+        "agentic_devtools.cli.ci.orchestrator.dispatch_action",
+        return_value=EvaluationResult(
+            classification=PostAgentClassification.agent_silent,
+            action_taken=PostAgentAction.agentic_fallback,
+            success=True,
+            dry_run=True,
+        ),
+    )
+    @patch("agentic_devtools.cli.ci.orchestrator.acquire_lock")
+    def test_comment_event_missing_auto_merge_allowed_runs_dry_run_without_lock(
+        self, mock_acquire_lock, mock_dispatch_action
+    ) -> None:
+        """Issue-comment evaluator avoids remediation side effects without auto-merge permission."""
         provider = _make_provider(
             pr_meta=PRMetadata(
                 number=42,
@@ -697,7 +835,10 @@ class TestRunAIPRLoop:
         payload = EventPayload(pr_number=42, head_sha="s", action="comment_created", sender_login="copilot[bot]")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
-        provider.list_reviews.assert_not_called()
+        mock_acquire_lock.assert_not_called()
+        assert mock_dispatch_action.call_args.kwargs["dry_run"] is True
+        provider.dispatch_repair.assert_not_called()
+        provider.request_reviewer.assert_not_called()
         provider.squash_post_repair.assert_not_called()
 
     def test_comment_event_no_metadata_error_even_if_reviews_would_fail(self) -> None:
@@ -1619,8 +1760,9 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["post_repair"]["review_id"] == 8
         assert summary["post_repair"]["prior_commit"] is True
 
-    def test_comment_event_post_repair_squash_not_needed_via_workflow_run_emits_summary(self) -> None:
-        """All issue_comment events now emit squash_via_workflow_run reason."""
+    @patch("agentic_devtools.cli.ci.orchestrator.acquire_lock", return_value="lock-token")
+    def test_comment_event_post_agent_evaluator_emits_summary(self, _mock_acquire_lock) -> None:
+        """issue_comment events emit post-agent evaluator summary fields."""
         provider = _make_provider(
             reviews=[
                 ReviewInfo(
@@ -1641,12 +1783,39 @@ class TestRunAIPRLoopDecisionSummary:
         )
         summary = _capture_summary(provider, payload)
 
-        assert summary["decision"] == "post_repair_squash_not_needed"
-        assert summary["reason"] == "squash_via_workflow_run"
-        assert summary["post_repair"]["phase"] == "comment_noop"
+        assert summary["decision"] == "post_agent_evaluator_completed"
+        assert summary["reason"] == "agent_silent"
+        assert summary["post_agent_evaluator"]["action_taken"] == "agentic_fallback"
         assert summary["exit_code"] == EXIT_SUCCESS
 
-    def test_comment_event_post_repair_squash_not_needed_emits_summary(self) -> None:
+    @patch("agentic_devtools.cli.ci.orchestrator.release_lock", side_effect=RuntimeError("release failed"))
+    @patch("agentic_devtools.cli.ci.orchestrator.acquire_lock", return_value="lock-token")
+    def test_comment_event_post_agent_evaluator_release_lock_failure_is_non_blocking(
+        self, _mock_acquire_lock, _mock_release_lock
+    ) -> None:
+        """Lock-release failures are logged and do not change the evaluator result."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=8,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="fix",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+
+        assert run_ai_pr_loop(provider, payload) == EXIT_SUCCESS
+
+    @patch("agentic_devtools.cli.ci.orchestrator.acquire_lock", return_value=None)
+    def test_comment_event_post_agent_evaluator_lock_skipped_emits_summary(self, _mock_acquire_lock) -> None:
         provider = _make_provider(
             reviews=[
                 ReviewInfo(
@@ -1667,10 +1836,37 @@ class TestRunAIPRLoopDecisionSummary:
         )
         summary = _capture_summary(provider, payload)
 
-        assert summary["decision"] == "post_repair_squash_not_needed"
-        assert summary["reason"] == "squash_via_workflow_run"
-        assert summary["post_repair"]["phase"] == "comment_noop"
+        assert summary["decision"] == "post_agent_evaluator_skipped"
+        assert summary["reason"] == "lock_held"
+        assert summary["post_agent_evaluator"]["phase"] == "lock_skipped"
         assert summary["exit_code"] == EXIT_SUCCESS
+
+    @patch("agentic_devtools.cli.ci.orchestrator.acquire_lock", side_effect=RuntimeError("lock failed"))
+    def test_comment_event_post_agent_evaluator_lock_failure_emits_summary(self, _mock_acquire_lock) -> None:
+        """Lock-acquisition failures return structured evaluator failure metadata."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=8,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="fix",
+                    commit_sha="oldsha",
+                )
+            ]
+        )
+        payload = EventPayload(
+            pr_number=42,
+            head_sha="abc123",
+            action="comment_created",
+            sender_login="copilot[bot]",
+        )
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "post_agent_evaluator_failed"
+        assert summary["reason"] == "lock_acquisition_failed"
+        assert summary["post_agent_evaluator"]["error"] == "lock failed"
+        assert summary["exit_code"] == EXIT_METADATA_FAILED
 
 
 class TestCountCommitsAboveMergeBase:
@@ -2121,6 +2317,35 @@ class TestCountCommitsAboveMergeBase:
         # The pre-dedup list_reviews call (line 630) throws
         provider.list_reviews.side_effect = RuntimeError("API timeout")
         payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+        summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "error"
+        assert summary["reason"] == "reviews_listing_failed"
+        assert summary["exit_code"] == EXIT_METADATA_FAILED
+
+    def test_ci_completion_pending_gate_second_list_reviews_failure(self) -> None:
+        """Pending-gate list_reviews failure returns metadata error after CI checks."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                labels=["ai-auto-merge-allowed"],
+                requested_reviewers=[COPILOT_REVIEWER_LOGIN],
+            ),
+            check_runs=[CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="failure")],
+            reviews=[],
+        )
+        provider.list_reviews.side_effect = [
+            [],
+            RuntimeError("pending gate reviews failed"),
+        ]
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+
         summary = _capture_summary(provider, payload)
 
         assert summary["decision"] == "error"

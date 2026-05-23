@@ -389,6 +389,11 @@ COMMAND_MAP = {
         "agentic_devtools.cli.copilot.auto_start",
         "retry_autostart_cmd",
     ),
+    # Post-agent evaluator
+    "agdt-evaluate-post-agent-state": (
+        "agentic_devtools.cli.ci.evaluator.command",
+        "evaluate_post_agent_state_command",
+    ),
     # Azure context management
     "agdt-azure-context-use": (
         "agentic_devtools.cli.azure_context.commands",

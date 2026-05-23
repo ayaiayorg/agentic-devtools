@@ -126,6 +126,9 @@ class ReviewCommentInfo:
         body: Full comment text (the reviewer's feedback).
         html_url: Direct link to the inline comment on GitHub.
         is_suppressed: Whether the comment has been minimized/suppressed on GitHub.
+        start_line: Start line number the comment targets (None for file-level).
+        end_line: End line number the comment targets (single-line comments set
+            this to the anchor line; None only when line metadata is unavailable).
         line: Line number the comment targets (None if PR-level).
         position: Diff position the comment targets (None if PR-level).
         diff_hunk: Diff hunk context from the API (empty if not available).
@@ -136,9 +139,28 @@ class ReviewCommentInfo:
     body: str
     html_url: str
     is_suppressed: bool = False
+    start_line: int | None = None
+    end_line: int | None = None
     line: int | None = None
     position: int | None = None
     diff_hunk: str = ""
+
+
+@dataclass(frozen=True)
+class IssueCommentInfo:
+    """Metadata for a pull request issue comment.
+
+    Attributes:
+        id: Database ID of the issue comment.
+        author: Login of the comment author.
+        body: Full comment body text.
+        created_at: ISO 8601 creation timestamp.
+    """
+
+    id: int
+    author: str
+    body: str = ""
+    created_at: str = ""
 
 
 # Copilot session event type strings from the GitHub Issues Events API

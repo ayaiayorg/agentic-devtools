@@ -20,6 +20,10 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
+from agentic_devtools.cli.ci.evaluator.actions import dispatch_action
+from agentic_devtools.cli.ci.evaluator.classifier import classify_post_agent_state
+from agentic_devtools.cli.ci.evaluator.lock import acquire_lock, release_lock
+from agentic_devtools.cli.ci.evaluator.snapshot import build_snapshot
 from agentic_devtools.cli.ci.guards import (
     DEDUP_MARKER_PATTERN,
     DEDUP_MARKER_PREFIX,
@@ -39,6 +43,7 @@ from agentic_devtools.cli.ci.guards import (
     write_squash_wait_marker,
 )
 from agentic_devtools.cli.ci.models import (
+    COPILOT_COMMENT_LOGINS,
     COPILOT_LOGINS,
     COPILOT_REVIEWER_LOGIN,
     COPILOT_SESSION_EVENT_FINISHED,
@@ -618,25 +623,130 @@ def run_ai_pr_loop(
     logger.info("PR #%d metadata resolved: head_sha=%s, base=%s", pr_number, pr_meta.head_sha, pr_meta.base_branch)
     _log_endgroup()
 
-    # Step 2b: issue_comment events no longer trigger post-repair squash.
-    # Squash is now handled exclusively via workflow_run + squash-wait-scheduler.
-    # Return early for ALL issue_comment events so they do not proceed to the
-    # guards / review / merge pipeline (which is reserved for workflow_run and
-    # pull_request_review triggers).
+    # Step 2b: issue_comment events run post-agent evaluator remediation.
+    # Squash remains handled by workflow_run + squash-wait-scheduler.
     if _is_issue_comment_created(event_payload):
-        _log_group("Step 2b: issue_comment — squash now via workflow_run")
-        logger.info(
-            "PR #%d issue_comment event received — post-repair squash is handled via "
-            "workflow_run + squash-wait-scheduler; no action taken here",
-            pr_number,
-        )
-        summary["post_repair"] = {"phase": "comment_noop"}
-        summary["decision"] = "post_repair_squash_not_needed"
-        summary["reason"] = "squash_via_workflow_run"
-        summary["exit_code"] = EXIT_SUCCESS
-        _log_endgroup()
-        _emit_decision_summary(summary)
-        return EXIT_SUCCESS
+        _log_group("Step 2b: issue_comment — post-agent evaluator")
+        if event_payload.sender_login not in COPILOT_COMMENT_LOGINS:
+            logger.info(
+                "PR #%d issue_comment event sender '%s' is not Copilot identity; no action taken",
+                pr_number,
+                event_payload.sender_login,
+            )
+            summary["post_agent_evaluator"] = {"phase": "sender_not_copilot"}
+            summary["decision"] = "post_agent_evaluator_skipped"
+            summary["reason"] = "sender_not_copilot"
+            summary["exit_code"] = EXIT_SUCCESS
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_SUCCESS
+
+        if check_fork_pr(pr_meta.head_repo_full_name, pr_meta.base_repo_full_name):
+            logger.info(
+                "PR #%d is from a fork (head=%s, base=%s) — skipping issue_comment evaluator",
+                pr_number,
+                pr_meta.head_repo_full_name,
+                pr_meta.base_repo_full_name,
+            )
+            summary["guards"] = {"blocked_by": "fork_pr"}
+            summary["decision"] = "blocked"
+            summary["reason"] = "fork_pr"
+            summary["exit_code"] = EXIT_GUARD_BLOCKED
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_GUARD_BLOCKED
+
+        should_skip, flag = check_exclusion_labels(pr_meta.labels)
+        if should_skip:
+            logger.info(
+                "PR #%d has exclusion label '%s' — skipping issue_comment evaluator",
+                pr_number,
+                LABEL_SKIP_ENTIRELY,
+            )
+            summary["guards"] = {"blocked_by": "exclusion_label", "label": LABEL_SKIP_ENTIRELY}
+            summary["decision"] = "blocked"
+            summary["reason"] = "exclusion_label"
+            summary["exit_code"] = EXIT_GUARD_BLOCKED
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_GUARD_BLOCKED
+
+        evaluator_dry_run = flag == "do_not_merge"
+        if evaluator_dry_run:
+            logger.info(
+                "PR #%d missing 'ai-auto-merge-allowed' label — evaluating issue_comment in dry-run mode",
+                pr_number,
+            )
+
+        lock_token: str | None = None
+        if not evaluator_dry_run:
+            try:
+                lock_token = acquire_lock(provider, pr_number)
+            except Exception as exc:
+                logger.warning("PR #%d failed to acquire evaluator lock: %s", pr_number, exc)
+                summary["post_agent_evaluator"] = {"error": str(exc)}
+                summary["decision"] = "post_agent_evaluator_failed"
+                summary["reason"] = "lock_acquisition_failed"
+                summary["exit_code"] = EXIT_METADATA_FAILED
+                _log_endgroup()
+                _emit_decision_summary(summary)
+                return EXIT_METADATA_FAILED
+
+            if lock_token is None:
+                logger.info("PR #%d evaluator lock already held by another run; skipping", pr_number)
+                summary["post_agent_evaluator"] = {"phase": "lock_skipped"}
+                summary["decision"] = "post_agent_evaluator_skipped"
+                summary["reason"] = "lock_held"
+                summary["exit_code"] = EXIT_SUCCESS
+                _log_endgroup()
+                _emit_decision_summary(summary)
+                return EXIT_SUCCESS
+
+        repo_name = event_payload.repository_full_name or pr_meta.base_repo_full_name
+        try:
+            snapshot = build_snapshot(
+                provider,
+                pr_number,
+                repo_name,
+                current_lock_token=lock_token,
+            )
+            classification = classify_post_agent_state(snapshot)
+            result = dispatch_action(
+                classification,
+                provider,
+                snapshot,
+                dry_run=evaluator_dry_run,
+            )
+            summary["post_agent_evaluator"] = result.to_dict()
+            if result.success:
+                summary["decision"] = "post_agent_evaluator_completed"
+                summary["reason"] = result.classification.value
+                summary["exit_code"] = EXIT_SUCCESS
+                _log_endgroup()
+                _emit_decision_summary(summary)
+                return EXIT_SUCCESS
+
+            summary["decision"] = "post_agent_evaluator_failed"
+            summary["reason"] = result.classification.value
+            summary["exit_code"] = EXIT_METADATA_FAILED
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_METADATA_FAILED
+        except Exception as exc:
+            logger.warning("PR #%d post-agent evaluator raised an unexpected error: %s", pr_number, exc)
+            summary["post_agent_evaluator"] = {"error": str(exc)}
+            summary["decision"] = "post_agent_evaluator_failed"
+            summary["reason"] = "evaluator_exception"
+            summary["exit_code"] = EXIT_METADATA_FAILED
+            _log_endgroup()
+            _emit_decision_summary(summary)
+            return EXIT_METADATA_FAILED
+        finally:
+            if lock_token is not None:
+                try:
+                    release_lock(provider, pr_number, lock_token)
+                except Exception as exc:
+                    logger.warning("PR #%d failed to release evaluator lock: %s", pr_number, exc)
 
     # Step 3: Evaluate guards
     _log_group("Step 3: Evaluate guards")
