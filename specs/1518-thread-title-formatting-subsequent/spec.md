@@ -1,6 +1,6 @@
 # Feature Specification: Thread title formatting for subsequent review comments
 
-**Feature Branch**: `speckit/1518/phase-1-specify`  
+**Feature Branch**: `speckit/1518/phase-2-clarify`  
 **Created**: 2026-05-22  
 **Status**: Draft  
 **Source Issue**: #1518 (<https://github.com/ayaiayorg/agentic-devtools/issues/1518>)
