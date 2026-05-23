@@ -57,7 +57,7 @@ def normalize_pem_block(pem: str) -> str:
 2. Emit `-----BEGIN CERTIFICATE-----` (canonical, trimmed)
 3. For lines between markers: strip whitespace, skip empty lines
 4. Emit `-----END CERTIFICATE-----` (canonical, trimmed)
-5. Join with `\n`, append trailing `\n`
+5. Join with `\n` and return a canonical PEM block (no forced trailing newline)
 
 **Idempotency**: A well-formed PEM block must produce byte-for-byte identical output.
 
@@ -65,10 +65,18 @@ def normalize_pem_block(pem: str) -> str:
 
 **File**: `agentic_devtools/cli/cert_utils.py`
 
-**Change**: After `re.findall(cert_pattern, output, re.DOTALL)`, apply `normalize_pem_block` to each match before joining:
+**Change**: Use a whitespace-tolerant, multiline-aware pattern so BEGIN/END marker
+lines are matched even if they include surrounding whitespace, then apply
+`normalize_pem_block` to each match before joining:
 
 ```python
-certs = [normalize_pem_block(c) for c in re.findall(cert_pattern, output, re.DOTALL)]
+cert_pattern = (
+    r"^\s*-----BEGIN CERTIFICATE-----\s*$.*?^\s*-----END CERTIFICATE-----\s*$"
+)
+certs = [
+    normalize_pem_block(c)
+    for c in re.findall(cert_pattern, output, re.DOTALL | re.MULTILINE)
+]
 ```
 
 ### Phase 3: Integrate into `_build_unified_ca_bundle`
@@ -80,6 +88,7 @@ certs = [normalize_pem_block(c) for c in re.findall(cert_pattern, output, re.DOT
 1. Import `normalize_pem_block` from `cert_utils`
 2. Normalize each cert extracted from per-host PEMs before de-duplication
 3. Open the output file with `newline='\n'` to ensure Unix line endings on all platforms
+4. Add block separators/final newline at assembly time (not in `normalize_pem_block`)
 
 ```python
 # Change write_text to open with explicit newline control
