@@ -50,7 +50,9 @@
       "test_task_ids": [
         "T010"
       ],
-      "test_types": []
+      "test_types": [
+        "integration"
+      ]
     },
     "FR-004": {
       "fr_id": "FR-004",
@@ -92,10 +94,12 @@
       "test_task_ids": [
         "T010"
       ],
-      "test_types": []
+      "test_types": [
+        "integration"
+      ]
     }
   },
-  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-003 | US3 | T011 | integration | \u2705 Covered |\n| FR-001 | US1 | T007 | happy-path, integration | \u2705 Covered |\n| FR-002 | US2 | T010 | None | \u2705 Covered |\n| FR-004 | US1 | T002, T007, T010 | unit, happy-path, integration | \u2705 Covered |\n| FR-006 | US1 | T007 | happy-path, integration | \u2705 Covered |\n| FR-005 | US2 | T010 | None | \u2705 Covered |\n",
+  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-003 | US3 | T011 | integration | \u2705 Covered |\n| FR-001 | US1 | T007 | happy-path, integration | \u2705 Covered |\n| FR-002 | US2 | T010 | integration | \u2705 Covered |\n| FR-004 | US1 | T002, T007, T010 | unit, happy-path, integration | \u2705 Covered |\n| FR-006 | US1 | T007 | happy-path, integration | \u2705 Covered |\n| FR-005 | US2 | T010 | integration | \u2705 Covered |\n",
   "summary": {
     "total_frs": 6,
     "covered_frs": 6,

@@ -35,8 +35,10 @@
 - [ ] T008 [US2] Update regex pattern in `fetch_certificate_chain_openssl` in `agentic_devtools/cli/cert_utils.py` to use multiline-aware whitespace-tolerant pattern matching markers with surrounding
   whitespace (FR-005)
 - [ ] T009 [US2] Apply `normalize_pem_block` to each extracted cert in `fetch_certificate_chain_openssl` before joining/returning (FR-002)
-- [ ] T010 [US2] Update tests in `tests/unit/cli/cert_utils/test_fetch_certificate_chain_openssl.py` to verify normalized output when raw openssl output contains blank lines and whitespace around
-  markers (FR-004, FR-005)
+- [ ] T010 [US2] Update integration tests in
+  `tests/unit/cli/cert_utils/test_fetch_certificate_chain_openssl.py` to verify
+  normalized output when raw openssl output contains blank lines and whitespace
+  around markers (FR-004, FR-005)
 
 ## Phase 5: User Story 3 — Self-heal existing corrupted bundles (P3)
 
@@ -46,8 +48,8 @@
 ## Phase 6: Polish & Cross-Cutting
 
 - [ ] T012 Run full test suite with `agdt-test` and `agdt-task-wait` — verify no regressions
-- [ ] T013 Run `bash scripts/run-pr-checks.sh` — all checks pass (ruff, mypy, markdownlint, test structure validation)
 - [ ] T014 Run `ruff check --fix . && ruff format .` to ensure lint/format compliance
+- [ ] T013 Run `bash scripts/run-pr-checks.sh` — all checks pass (ruff, mypy, markdownlint, test structure validation)
 
 ## Dependencies
 
@@ -56,7 +58,7 @@ T001 → T002 → T003 → T004 → T005, T008
 T005 → T006 → T007
 T008 → T009 → T010
 T005, T009 → T011
-T007, T010, T011 → T012 → T013, T014
+T007, T010, T011 → T012 → T014 → T013
 ```
 
 ## FR Coverage Matrix
@@ -65,7 +67,7 @@ T007, T010, T011 → T012 → T013, T014
 |----|-------|
 | FR-001 | T005, T007 |
 | FR-002 | T009 |
-| FR-003 | T007, T011 |
+| FR-003 | T011 |
 | FR-004 | T002, T003, T010 |
 | FR-005 | T003, T008, T010 |
 | FR-006 | T006, T007 |
