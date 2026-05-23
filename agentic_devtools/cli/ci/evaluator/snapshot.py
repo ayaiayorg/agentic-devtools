@@ -152,13 +152,21 @@ def build_snapshot(
     except Exception:
         logger.warning("Failed to fetch agent comments for PR #%d", pr_number)
 
+    head_sha_short = current_head_sha[:8] if current_head_sha else ""
+
     # Sentinel is present if:
-    # (a) the latest Copilot comment contains the marker (Copilot posted it), or
+    # (a) the latest Copilot comment contains the marker and is scoped to the current
+    #     HEAD (avoids treating stale prior-cycle sentinels as current completion), or
     # (b) any issue comment contains an evaluator-synthesized sentinel scoped to the
     #     current HEAD (posted via provider.post_comment() by the workflow token, not
     #     a Copilot login, so not captured by _get_latest_agent_comment()).
     has_sentinel = bool(
-        (latest_agent_comment is not None and _SENTINEL_MARKER in latest_agent_comment.body)
+        (
+            latest_agent_comment is not None
+            and _SENTINEL_MARKER in latest_agent_comment.body
+            and bool(head_sha_short)
+            and head_sha_short in latest_agent_comment.body
+        )
         or _has_evaluator_sentinel_comment(provider, pr_number, current_head_sha)
     )
 
