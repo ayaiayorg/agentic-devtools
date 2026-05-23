@@ -89,6 +89,9 @@ specs/*/contracts/*
 !specs/1430-langchain-based-work-issue/research.md
 !specs/1430-langchain-based-work-issue/data-model.md
 !specs/1430-langchain-based-work-issue/quickstart.md
+!specs/1515-agdt-setup-generates-corrupted/research.md
+!specs/1515-agdt-setup-generates-corrupted/data-model.md
+!specs/1515-agdt-setup-generates-corrupted/quickstart.md
 specs/*/checklists/.generation-prompt-*.md
 .specify/memory/agent-file.md
 .markdownlint-debug.log
