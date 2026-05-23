@@ -1,8 +1,19 @@
 # Tasks: Fix Corrupted unified-ca-bundle.pem (#1515)
 
+## Phase Mapping: Plan → Tasks
+
+| Tasks Phase | Plan Phase(s) | Description |
+|---|---|---|
+| Phase 1: Setup | — | Test scaffolding and folder initialization not explicitly called out in plan phases |
+| Phase 2: Foundational | Phase 1 | Shared `normalize_pem_block` implementation and its base unit coverage |
+| Phase 3: User Story 1 | Phase 3, Phase 4 | `_build_unified_ca_bundle` integration plus explicit US1 happy-path test coverage |
+| Phase 4: User Story 2 | Phase 2, Phase 4 | `fetch_certificate_chain_openssl` integration plus source-side normalization tests |
+| Phase 5: User Story 3 | Phase 3, Phase 4 | Self-heal overwrite verification for previously corrupted bundle output |
+| Phase 6: Polish & Cross-Cutting | Phase 5 | Final repo checks and regression validation |
+
 ## Phase 1: Setup
 
-- [ ] T001 Create test directory `tests/unit/cli/cert_utils/test_normalize_pem_block.py` with `__init__.py` files as needed
+- [ ] T001 Create test directory `tests/unit/cli/cert_utils/` and add `__init__.py` files as needed for 1:1:1 test structure
 
 ## Phase 2: Foundational
 
@@ -16,8 +27,8 @@
 
 - [ ] T005 [US1] Update `_build_unified_ca_bundle` in `agentic_devtools/cli/setup/commands.py` to import and apply `normalize_pem_block` to each extracted cert before de-duplication (FR-001)
 - [ ] T006 [US1] Update `_build_unified_ca_bundle` to write output with `newline='\n'` for Unix line endings on all platforms (FR-006) in `agentic_devtools/cli/setup/commands.py`
-- [ ] T007 [US1] Update existing tests in `tests/unit/cli/setup/commands/test__build_unified_ca_bundle.py` to verify blank-line input produces clean output (FR-001), verify Unix `\n` line endings
-  (FR-006), and verify unconditional overwrite repairs corruption (FR-003)
+- [ ] T007 [US1] Add explicit happy-path integration test coverage in `tests/unit/cli/setup/commands/test__build_unified_ca_bundle.py` for US1/AS1-US1/AS4 verifying blank-line input
+  produces clean output (FR-001), canonical marker preservation (FR-004), and Unix `\n` line endings on write (FR-006)
 
 ## Phase 4: User Story 2 — Normalize at source extraction (P2)
 
