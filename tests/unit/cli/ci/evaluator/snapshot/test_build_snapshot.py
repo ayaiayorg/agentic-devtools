@@ -202,7 +202,7 @@ class TestBuildSnapshot:
             IssueCommentInfo(
                 id=1,
                 author="copilot[bot]",
-                body="<!-- copilot-agent-result -->\nHEAD: `oldheads`. Done.",
+                body="<!-- copilot-agent-result -->\nHEAD: `deadbeef`. Done.",
                 created_at="2026-05-21T00:00:00Z",
             ),
         ]
@@ -293,7 +293,7 @@ class TestBuildSnapshot:
         # Sentinel was posted for an older HEAD SHA
         stale_sentinel_body = (
             "<!-- copilot-agent-result -->\n"
-            "**Post-Agent Evaluator**: Synthesized result summary. HEAD: `oldheads`. Threads remaining: 0."
+            "**Post-Agent Evaluator**: Synthesized result summary. HEAD: `deadbeef`. Threads remaining: 0."
         )
         provider.list_issue_comments.return_value = [
             IssueCommentInfo(
