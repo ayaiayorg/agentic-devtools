@@ -1,0 +1,6 @@
+{
+  "trusted_bot_accounts": [
+    "copilot-swe-agent[bot]",
+    "github-actions[bot]"
+  ]
+}

@@ -49,4 +49,4 @@ class TestRunAIPRLoopReady:
         provider.list_pr_files.assert_called_once_with(42)
         provider.list_check_runs.assert_called_once_with("sha123")
         provider.list_reviews.assert_called_once_with(42)
-        provider.merge_pr.assert_called_once_with(42, "sha123", "squash")
+        provider.merge_pr.assert_called_once_with(42, "sha123", "rebase")

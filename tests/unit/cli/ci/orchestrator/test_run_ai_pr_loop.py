@@ -92,7 +92,7 @@ class TestRunAIPRLoop:
         result = run_ai_pr_loop(provider, payload)
 
         assert result == EXIT_SUCCESS
-        provider.merge_pr.assert_called_once_with(42, "abc123", "squash")
+        provider.merge_pr.assert_called_once_with(42, "abc123", "rebase")
 
     def test_fork_pr_blocked(self) -> None:
         provider = _make_provider(

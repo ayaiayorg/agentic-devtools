@@ -66,7 +66,18 @@ class TestMinimizedCiWorkflows:
 
     def test_redundant_ai_pr_loop_workflows_are_removed(self) -> None:
         assert not AI_PR_LOOP_LINT.exists()
-        assert not WORKFLOW_APPROVAL_MONITOR.exists()
+
+    def test_workflow_approval_monitor_exists(self) -> None:
+        assert WORKFLOW_APPROVAL_MONITOR.exists()
+        content = WORKFLOW_APPROVAL_MONITOR.read_text(encoding="utf-8")
+        assert "schedule:" in content
+        assert 'cron: "*/5 * * * *"' in content
+        assert "actions: write" in content
+        assert "status: 'action_required'" in content
+        assert "per_page: 100" in content
+        assert "stuckThresholdMinutes" in content
+        assert "github.rest.pulls.get" in content
+        assert "workflow-approval-monitor:pr-" in content
 
     def test_speckit_trigger_has_concurrency_group(self) -> None:
         content = SPECKIT_TRIGGER.read_text(encoding="utf-8")
