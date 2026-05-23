@@ -43,6 +43,13 @@ jobs:
               if (!Array.isArray(config.trusted_bot_accounts)) {
                 throw new Error('trusted_bot_accounts must be an array');
               }
+              if (
+                !config.trusted_bot_accounts.every(
+                  (account) => typeof account === 'string' && account.trim().length > 0,
+                )
+              ) {
+                throw new Error('trusted_bot_accounts must contain only non-empty strings');
+              }
               trustedAccounts = config.trusted_bot_accounts;
               if (
                 typeof config.stuck_threshold_minutes === 'number' &&
