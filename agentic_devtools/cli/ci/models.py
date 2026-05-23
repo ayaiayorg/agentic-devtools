@@ -8,6 +8,7 @@ normalizes platform-specific payloads into these structures.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 
 
 @dataclass(frozen=True)
@@ -125,6 +126,9 @@ class ReviewCommentInfo:
         body: Full comment text (the reviewer's feedback).
         html_url: Direct link to the inline comment on GitHub.
         is_suppressed: Whether the comment has been minimized/suppressed on GitHub.
+        line: Line number the comment targets (None if PR-level).
+        position: Diff position the comment targets (None if PR-level).
+        diff_hunk: Diff hunk context from the API (empty if not available).
     """
 
     id: int
@@ -132,6 +136,9 @@ class ReviewCommentInfo:
     body: str
     html_url: str
     is_suppressed: bool = False
+    line: int | None = None
+    position: int | None = None
+    diff_hunk: str = ""
 
 
 # Copilot session event type strings from the GitHub Issues Events API
@@ -187,3 +194,53 @@ class RepairDecision:
     review_id: int = 0
     review_comments: tuple[ReviewCommentInfo, ...] = ()
     failed_checks: tuple[CheckRunStatus, ...] = ()
+
+
+class VerificationVerdict(Enum):
+    """Verdict from the SDK verification of a review comment against the diff.
+
+    Attributes:
+        COMMENT_RESOLVE: The comment has been addressed by the diff.
+        COMMENT_UNRESOLVE: The comment has NOT been addressed by the diff.
+    """
+
+    COMMENT_RESOLVE = "COMMENT_RESOLVE"
+    COMMENT_UNRESOLVE = "COMMENT_UNRESOLVE"
+
+
+@dataclass(frozen=True)
+class CommentResolution:
+    """Resolution result for a single review comment.
+
+    Attributes:
+        comment_id: Database ID of the review comment.
+        thread_id: Thread/node ID for GraphQL resolution (empty if unknown).
+        verdict: SDK verdict for this comment.
+        error: Error message if SDK call failed (empty on success).
+    """
+
+    comment_id: int
+    thread_id: str = ""
+    verdict: VerificationVerdict = VerificationVerdict.COMMENT_UNRESOLVE
+    error: str = ""
+
+
+@dataclass(frozen=True)
+class FinalizationResult:
+    """Result of the post-repair finalization process.
+
+    Attributes:
+        skipped: Whether finalization was skipped entirely (e.g., no new commit).
+        reason: Human-readable reason when skipped or for summary purposes.
+        resolved_count: Number of comments resolved.
+        unresolved_count: Number of comments left unresolved.
+        resolutions: Individual resolution results per comment.
+        errors: List of error messages encountered during finalization.
+    """
+
+    skipped: bool = False
+    reason: str = ""
+    resolved_count: int = 0
+    unresolved_count: int = 0
+    resolutions: tuple[CommentResolution, ...] = ()
+    errors: tuple[str, ...] = ()

@@ -13,6 +13,7 @@ from abc import ABC, abstractmethod
 from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
+    FinalizationResult,
     IssueEvent,
     PRMetadata,
     ReviewCommentInfo,
@@ -238,12 +239,15 @@ class CIPlatformProvider(ABC):
         head_branch: str,
         head_sha: str,
         review_id: int,
-    ) -> None:
+    ) -> FinalizationResult:
         """Finalize a Copilot-repaired PR cycle after a synchronize commit.
 
         Performs provider-specific post-repair actions such as replying to
         review comments and resolving review threads. Squash + re-request
         are handled separately via ``squash_post_repair()``.
+
+        Returns:
+            FinalizationResult with details about what was resolved/skipped.
         """
 
     @abstractmethod

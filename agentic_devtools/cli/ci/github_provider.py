@@ -18,11 +18,14 @@ from typing import Any
 from agentic_devtools.cli.ci.exceptions import MalformedEventError
 from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
+    CommentResolution,
     EventPayload,
+    FinalizationResult,
     IssueEvent,
     PRMetadata,
     ReviewCommentInfo,
     ReviewInfo,
+    VerificationVerdict,
 )
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
 from agentic_devtools.cli.ci.retry import RetryableError, retry_with_backoff
@@ -658,6 +661,9 @@ class GitHubActionsProvider(CIPlatformProvider):
                 body=c.get("body", ""),
                 html_url=c.get("html_url", ""),
                 is_suppressed=_comment_is_suppressed(c),
+                line=c.get("line"),
+                position=c.get("position"),
+                diff_hunk=c.get("diff_hunk", ""),
             )
             for c in comments
         ]
@@ -1210,31 +1216,447 @@ class GitHubActionsProvider(CIPlatformProvider):
         head_branch: str,
         head_sha: str,
         review_id: int,
-    ) -> None:
+    ) -> FinalizationResult:
         """Perform soft post-repair finalization after Copilot pushes a fix commit.
 
-        Each sub-operation is individually retried so that a transient failure
-        partway through does not re-execute already-completed steps (addresses
-        the non-idempotent retry concern).
+        Implements commit-change guard and per-comment SDK verification:
+        1. Fetches the review to get its commit_sha.
+        2. Guards: skips if no new commit since the review (FR-001/002).
+        3. For each unresolved comment, calls the Copilot SDK to verify
+           whether the diff addresses the feedback (FR-004/005/006/007).
+        4. Only replies and resolves threads where SDK responds COMMENT_RESOLVE.
 
-        Delegates thread resolution to the existing ``cli/github`` module to
-        avoid duplicating GraphQL pagination and retry logic.
+        Returns:
+            FinalizationResult with details about what was resolved/skipped.
         """
         repo = self._resolve_repo()
 
-        # 1. Reply to each review comment (individually retried via decorator)
-        comment_ids = self._list_review_comment_ids(pr_number, review_id)
-        addressed_reply_parent_comment_ids = set()
-        if comment_ids:
-            addressed_reply_parent_comment_ids = self._list_addressed_reply_parent_comment_ids(pr_number)
-        for comment_id in comment_ids:
-            if self._has_existing_addressed_reply(pr_number, comment_id, addressed_reply_parent_comment_ids):
-                continue
-            self._reply_to_review_comment(pr_number, comment_id)
+        # --- Commit Guard (FR-001/002/014) ---
+        reviews = self.list_reviews(pr_number)
+        review = next((r for r in reviews if r.id == review_id), None)
 
-        # 2. Resolve threads — delegates to existing resolve_review_threads()
-        #    which already handles GraphQL pagination, retry, and verification
-        _resolve_review_threads(pr_number, repo, review_id=review_id)
+        # FR-014: null/missing review or commit_sha → fail-safe skip
+        if not review or not review.commit_sha:
+            logger.error(
+                "Cannot determine review commit SHA for review %d on PR #%d — skipping finalization (fail-safe)",
+                review_id,
+                pr_number,
+            )
+            return FinalizationResult(skipped=True, reason="unresolvable_review_commit_sha")
+
+        # FR-001/002: no new commit since review → skip
+        if review.commit_sha == head_sha:
+            logger.warning(
+                "No new commit since Copilot review %d on PR #%d (both at %s) — skipping finalization",
+                review_id,
+                pr_number,
+                head_sha,
+            )
+            return FinalizationResult(skipped=True, reason="no_new_commit")
+
+        # --- Per-Comment SDK Verification Loop (FR-004/005/006/007/008) ---
+        comments = self.list_review_comments(pr_number, review_id)
+        if not comments:
+            logger.info("No review comments for review %d on PR #%d — nothing to finalize", review_id, pr_number)
+            return FinalizationResult(skipped=False, reason="no_comments")
+
+        # Build diff context once for this review
+        diff_context = self._build_verification_context_diff(review.commit_sha, head_sha)
+
+        resolved_ids: list[int] = []
+        resolutions: list[CommentResolution] = []
+        errors: list[str] = []
+
+        # Check which comments already have addressed replies so we can avoid
+        # duplicate replies while still requiring SDK verification before
+        # resolving their threads.
+        addressed_reply_parent_comment_ids = self._list_addressed_reply_parent_comment_ids(pr_number)
+
+        comments_for_sdk: list[tuple[ReviewCommentInfo, str]] = []
+        for comment in comments:
+            # Suppressed comments are intentionally left unresolved, but must still
+            # be recorded so result counts/summaries reflect remaining open threads.
+            if comment.is_suppressed:
+                resolutions.append(
+                    CommentResolution(
+                        comment_id=comment.id,
+                        verdict=VerificationVerdict.COMMENT_UNRESOLVE,
+                    )
+                )
+                continue
+
+            comment_context = self._build_comment_verification_context(comment, diff_context)
+            comments_for_sdk.append((comment, comment_context))
+
+        if comments_for_sdk:
+            sdk_verdicts = self._verify_comments_via_sdk(
+                [(comment.id, comment.body, context) for comment, context in comments_for_sdk]
+            )
+            for comment, _context in comments_for_sdk:
+                verdict = sdk_verdicts.get(comment.id, VerificationVerdict.COMMENT_UNRESOLVE)
+                if verdict == VerificationVerdict.COMMENT_RESOLVE:
+                    resolved_ids.append(comment.id)
+                    if not self._has_existing_addressed_reply(
+                        pr_number, comment.id, addressed_reply_parent_comment_ids
+                    ):
+                        self._reply_to_review_comment(pr_number, comment.id)
+                    resolutions.append(CommentResolution(comment_id=comment.id, verdict=verdict))
+                else:
+                    resolutions.append(CommentResolution(comment_id=comment.id, verdict=verdict))
+
+        # Resolve threads only for comments that were verified as addressed
+        if resolved_ids:
+            resolve_result = _resolve_review_threads(pr_number, repo, comment_ids=sorted(resolved_ids))
+            details_by_comment_id: dict[int, dict[str, Any]] = {
+                int(detail["commentId"]): detail
+                for detail in resolve_result.get("details", [])
+                if detail.get("commentId") is not None
+            }
+            updated_resolutions: list[CommentResolution] = []
+            for resolution in resolutions:
+                detail = details_by_comment_id.get(resolution.comment_id)
+                thread_id = (
+                    str(detail.get("threadId"))
+                    if detail is not None and detail.get("threadId") is not None
+                    else resolution.thread_id
+                )
+                error = resolution.error
+                if resolution.verdict == VerificationVerdict.COMMENT_RESOLVE:
+                    if detail is None:
+                        error = "thread_resolution_missing"
+                    else:
+                        status = str(detail.get("status", ""))
+                        if status not in {"resolved", "already_resolved"}:
+                            error = str(detail.get("error") or f"thread_{status or 'unknown'}")
+                updated_resolutions.append(
+                    CommentResolution(
+                        comment_id=resolution.comment_id,
+                        thread_id=thread_id,
+                        verdict=resolution.verdict,
+                        error=error,
+                    )
+                )
+            resolutions = updated_resolutions
+            if not bool(resolve_result.get("verified", False)):
+                errors.append("thread_resolution_unverified")
+            threads_failed = int(resolve_result.get("threadsFailed", 0) or 0)
+            if threads_failed > 0:
+                errors.append(f"thread_resolution_failed:{threads_failed}")
+
+        errors.extend(
+            f"comment_{resolution.comment_id}:{resolution.error}" for resolution in resolutions if resolution.error
+        )
+        resolved_count = sum(
+            1
+            for resolution in resolutions
+            if resolution.verdict == VerificationVerdict.COMMENT_RESOLVE and not resolution.error
+        )
+        unresolved_count = sum(
+            1
+            for resolution in resolutions
+            if resolution.verdict != VerificationVerdict.COMMENT_RESOLVE or bool(resolution.error)
+        )
+        reason = "verified" if not errors else "verified_with_resolution_errors"
+
+        result = FinalizationResult(
+            skipped=False,
+            reason=reason,
+            resolved_count=resolved_count,
+            unresolved_count=unresolved_count,
+            resolutions=tuple(resolutions),
+            errors=tuple(errors),
+        )
+        logger.info(
+            "Finalization complete for PR #%d review %d: %d resolved, %d unresolved",
+            pr_number,
+            review_id,
+            result.resolved_count,
+            result.unresolved_count,
+        )
+        return result
+
+    def _build_verification_context_diff(self, review_commit_sha: str, head_sha: str) -> str:
+        """Fetch the diff between the review commit and HEAD for verification context.
+
+        Returns the diff as a string, truncated to a 4000-token budget
+        (approx 16000 chars using 4 chars/token heuristic).
+        """
+        max_chars = 16000
+        try:
+            result = run_safe(
+                ["git", "diff", f"{review_commit_sha}..{head_sha}"],
+                capture_output=True,
+                text=True,
+                shell=False,
+            )
+            diff = result.stdout if result.returncode == 0 else ""
+        except Exception as exc:
+            logger.warning("Failed to get diff for verification context: %s", exc)
+            diff = ""
+
+        if len(diff) > max_chars:
+            diff = diff[:max_chars]
+        return diff
+
+    def _build_comment_verification_context(self, comment: ReviewCommentInfo, full_diff: str) -> str:
+        """Build verification context for a specific comment.
+
+        For line-anchored comments, extracts relevant portion of the diff.
+        Falls back to diff_hunk when the file section cannot be found in the diff
+        (e.g. no changes for that file, rename/copy, or path mismatch).
+        For PR-level comments (no path), uses the full diff (already truncated).
+        """
+        if comment.path:
+            target_header = f"diff --git a/{comment.path} b/{comment.path}"
+            # Extract the section of the diff for this file
+            lines = full_diff.split("\n")
+            file_diff_lines: list[str] = []
+            in_file = False
+            for line in lines:
+                if line == target_header:
+                    in_file = True
+                    file_diff_lines = [line]
+                elif line.startswith("diff --git") and in_file:
+                    break
+                elif in_file:
+                    file_diff_lines.append(line)
+            if file_diff_lines:
+                file_diff = "\n".join(file_diff_lines)
+                if len(file_diff) > 4000:
+                    return file_diff[:4000]
+                return file_diff
+            # File section not found — fall back to the original diff_hunk so the SDK
+            # sees scoped context instead of unrelated changes from other files.
+            # If no hunk is available, return empty context so verification defaults
+            # to COMMENT_UNRESOLVE via the existing fail-safe path.
+            return comment.diff_hunk
+
+        if full_diff:
+            return full_diff
+
+        return comment.diff_hunk
+
+    def _build_comment_verification_prompt(self, comment_body: str, diff_context: str) -> str:
+        return (
+            "You are a code review verification assistant. Your task is to determine whether "
+            "a review comment has been addressed by the code changes in the diff.\n\n"
+            "## Review Comment\n"
+            f"{comment_body}\n\n"
+            "## Diff (changes made since the review)\n"
+            f"```diff\n{diff_context}\n```\n\n"
+            "## Instructions\n"
+            "Respond with EXACTLY one of these two values (nothing else):\n"
+            "- COMMENT_RESOLVE — if the diff addresses the review comment\n"
+            "- COMMENT_UNRESOLVE — if the diff does NOT address the review comment\n"
+        )
+
+    def _verify_comments_via_sdk(  # pragma: no cover - optional runtime SDK integration
+        self,
+        comments: list[tuple[int, str, str]],
+        timeout_seconds: int = 60,
+    ) -> dict[int, VerificationVerdict]:
+        """Verify multiple comments in one SDK session to reduce startup overhead."""
+        if not comments:
+            return {}
+
+        token = os.environ.get("COPILOT_GITHUB_TOKEN", "").strip()
+        if not token:
+            logger.warning("COPILOT_GITHUB_TOKEN not set — defaulting to COMMENT_UNRESOLVE (fail-safe)")
+            return {comment_id: VerificationVerdict.COMMENT_UNRESOLVE for comment_id, _body, _ctx in comments}
+
+        try:
+            from copilot import CopilotClient, SubprocessConfig
+            from copilot.session import PermissionHandler
+        except Exception as exc:
+            logger.warning("Copilot SDK unavailable for comment verification: %s", exc)
+            return {comment_id: VerificationVerdict.COMMENT_UNRESOLVE for comment_id, _body, _ctx in comments}
+
+        model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
+
+        async def _run() -> dict[int, VerificationVerdict]:
+            client = None
+            session = None
+            try:
+                client = CopilotClient(SubprocessConfig(github_token=token))
+                await client.start()
+                try:
+                    session = await client.create_session(
+                        model=model,
+                        on_permission_request=PermissionHandler.approve_all,
+                        infinite_sessions={"enabled": False},
+                        github_token=token,
+                    )
+                except TypeError as exc:
+                    if "unexpected keyword argument" not in str(exc) or "github_token" not in str(exc):
+                        raise
+                    session = await client.create_session(
+                        model=model,
+                        on_permission_request=PermissionHandler.approve_all,
+                        infinite_sessions={"enabled": False},
+                    )
+
+                current_content_parts: list[str] | None = None
+                current_done: asyncio.Event | None = None
+
+                def on_event(event: Any) -> None:
+                    if current_content_parts is None or current_done is None:
+                        return
+                    event_type = getattr(getattr(event, "type", None), "value", "")
+                    if event_type == "assistant.message":
+                        current_content_parts.append(getattr(getattr(event, "data", None), "content", ""))
+                    elif event_type in {"session.idle", "error", "session.error", "assistant.error"}:
+                        current_done.set()
+
+                session.on(on_event)
+
+                verdicts: dict[int, VerificationVerdict] = {}
+                for comment_id, comment_body, diff_context in comments:
+                    if not diff_context:
+                        logger.warning("Empty diff context — defaulting to COMMENT_UNRESOLVE")
+                        verdicts[comment_id] = VerificationVerdict.COMMENT_UNRESOLVE
+                        continue
+
+                    current_content_parts = []
+                    current_done = asyncio.Event()
+                    prompt = self._build_comment_verification_prompt(comment_body, diff_context)
+                    await session.send(prompt)
+                    try:
+                        await asyncio.wait_for(current_done.wait(), timeout=timeout_seconds)
+                    except asyncio.TimeoutError:
+                        logger.warning(
+                            "Copilot SDK comment verification timed out after %ds for comment %d",
+                            timeout_seconds,
+                            comment_id,
+                        )
+                        verdicts[comment_id] = VerificationVerdict.COMMENT_UNRESOLVE
+                        continue
+
+                    raw = (current_content_parts[-1] if current_content_parts else "").strip()
+                    if "COMMENT_RESOLVE" in raw and "COMMENT_UNRESOLVE" not in raw:
+                        verdicts[comment_id] = VerificationVerdict.COMMENT_RESOLVE
+                    else:
+                        verdicts[comment_id] = VerificationVerdict.COMMENT_UNRESOLVE
+                return verdicts
+            finally:
+                if session is not None:
+                    try:
+                        await session.disconnect()
+                    except Exception:
+                        pass
+                if client is not None:
+                    try:
+                        await client.stop()
+                    except Exception:
+                        pass
+
+        total_timeout = timeout_seconds * len(comments)
+        try:
+            return asyncio.run(asyncio.wait_for(_run(), timeout=total_timeout))
+        except asyncio.TimeoutError:
+            logger.warning("Copilot SDK comment batch verification timed out after %ds", total_timeout)
+            return {comment_id: VerificationVerdict.COMMENT_UNRESOLVE for comment_id, _body, _ctx in comments}
+        except Exception as exc:
+            logger.warning("Copilot SDK comment batch verification failed: %s", exc)
+            return {comment_id: VerificationVerdict.COMMENT_UNRESOLVE for comment_id, _body, _ctx in comments}
+
+    def _verify_comment_via_sdk(
+        self,
+        comment_body: str,
+        diff_context: str,
+        timeout_seconds: int = 60,
+    ) -> VerificationVerdict:
+        """Verify whether a review comment has been addressed by the diff via Copilot SDK.
+
+        Returns COMMENT_RESOLVE if addressed, COMMENT_UNRESOLVE otherwise.
+        Defaults to COMMENT_UNRESOLVE on any error (fail-safe).
+        """
+        token = os.environ.get("COPILOT_GITHUB_TOKEN", "").strip()
+        if not token:
+            logger.warning("COPILOT_GITHUB_TOKEN not set — defaulting to COMMENT_UNRESOLVE (fail-safe)")
+            return VerificationVerdict.COMMENT_UNRESOLVE
+
+        if not diff_context:
+            logger.warning("Empty diff context — defaulting to COMMENT_UNRESOLVE")
+            return VerificationVerdict.COMMENT_UNRESOLVE
+
+        try:
+            from copilot import CopilotClient, SubprocessConfig
+            from copilot.session import PermissionHandler
+        except Exception as exc:
+            logger.warning("Copilot SDK unavailable for comment verification: %s", exc)
+            return VerificationVerdict.COMMENT_UNRESOLVE
+
+        model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
+        prompt = self._build_comment_verification_prompt(comment_body, diff_context)
+
+        async def _run() -> VerificationVerdict:
+            client = None
+            session = None
+            content_parts: list[str] = []
+            done = asyncio.Event()
+
+            try:
+                client = CopilotClient(SubprocessConfig(github_token=token))
+                await client.start()
+                try:
+                    session = await client.create_session(
+                        model=model,
+                        on_permission_request=PermissionHandler.approve_all,
+                        infinite_sessions={"enabled": False},
+                        github_token=token,
+                    )
+                except TypeError as exc:
+                    if "unexpected keyword argument" not in str(exc) or "github_token" not in str(exc):
+                        raise
+                    session = await client.create_session(
+                        model=model,
+                        on_permission_request=PermissionHandler.approve_all,
+                        infinite_sessions={"enabled": False},
+                    )
+
+                from typing import Any as _Any
+
+                def on_event(event: _Any) -> None:
+                    event_type = getattr(getattr(event, "type", None), "value", "")
+                    if event_type == "assistant.message":
+                        content_parts.append(getattr(getattr(event, "data", None), "content", ""))
+                    elif event_type == "session.idle":
+                        done.set()
+                    elif event_type in {"error", "session.error", "assistant.error"}:
+                        done.set()
+
+                session.on(on_event)
+                await session.send(prompt)
+                await done.wait()
+
+                raw = (content_parts[-1] if content_parts else "").strip()
+                if "COMMENT_RESOLVE" in raw and "COMMENT_UNRESOLVE" not in raw:
+                    return VerificationVerdict.COMMENT_RESOLVE
+                return VerificationVerdict.COMMENT_UNRESOLVE
+
+            except Exception as exc:
+                logger.warning("Copilot SDK comment verification failed: %s", exc)
+                return VerificationVerdict.COMMENT_UNRESOLVE
+            finally:
+                if session is not None:
+                    try:
+                        await session.disconnect()
+                    except Exception:
+                        pass
+                if client is not None:
+                    try:
+                        await client.stop()
+                    except Exception:
+                        pass
+
+        try:
+            return asyncio.run(asyncio.wait_for(_run(), timeout=timeout_seconds))
+        except asyncio.TimeoutError:
+            logger.warning("Copilot SDK comment verification timed out after %ds", timeout_seconds)
+            return VerificationVerdict.COMMENT_UNRESOLVE
+        except Exception as exc:
+            logger.warning("Copilot SDK comment verification unexpected error: %s", exc)
+            return VerificationVerdict.COMMENT_UNRESOLVE
 
     def squash_post_repair(
         self,

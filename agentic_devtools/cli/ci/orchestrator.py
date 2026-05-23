@@ -1103,7 +1103,7 @@ def run_ai_pr_loop(
             _log_endgroup()
             _log_group("Step 6b: Post-repair finalization")
             try:
-                provider.finalize_post_repair(
+                finalization_result = provider.finalize_post_repair(
                     pr_number=pr_number,
                     base_branch=pr_meta.base_branch,
                     head_branch=pr_meta.head_branch,
@@ -1119,9 +1119,24 @@ def run_ai_pr_loop(
                 _log_endgroup()
                 _emit_decision_summary(summary)
                 return EXIT_MERGE_BLOCKED
-            summary["post_repair"] = {"finalized": True, "review_id": copilot_review_id}
-            summary["decision"] = "post_repair_soft_finalized"
-            summary["exit_code"] = EXIT_SUCCESS
+            if finalization_result.skipped:
+                summary["post_repair"] = {
+                    "finalized": False,
+                    "skipped": True,
+                    "reason": finalization_result.reason,
+                    "review_id": copilot_review_id,
+                }
+                summary["decision"] = "post_repair_skipped"
+                summary["exit_code"] = EXIT_SUCCESS
+            else:
+                summary["post_repair"] = {
+                    "finalized": True,
+                    "review_id": copilot_review_id,
+                    "resolved_count": finalization_result.resolved_count,
+                    "unresolved_count": finalization_result.unresolved_count,
+                }
+                summary["decision"] = "post_repair_soft_finalized"
+                summary["exit_code"] = EXIT_SUCCESS
             _log_endgroup()
             _emit_decision_summary(summary)
             return EXIT_SUCCESS
@@ -1166,7 +1181,7 @@ def run_ai_pr_loop(
                 _log_endgroup()
                 _log_group("Step 6b: Post-repair finalization (prior-commit review)")
                 try:
-                    provider.finalize_post_repair(
+                    finalization_result = provider.finalize_post_repair(
                         pr_number=pr_number,
                         base_branch=pr_meta.base_branch,
                         head_branch=pr_meta.head_branch,
@@ -1182,13 +1197,26 @@ def run_ai_pr_loop(
                     _log_endgroup()
                     _emit_decision_summary(summary)
                     return EXIT_MERGE_BLOCKED
-                summary["post_repair"] = {
-                    "finalized": True,
-                    "review_id": prior_review_id,
-                    "prior_commit": True,
-                }
-                summary["decision"] = "post_repair_soft_finalized"
-                summary["exit_code"] = EXIT_SUCCESS
+                if finalization_result.skipped:
+                    summary["post_repair"] = {
+                        "finalized": False,
+                        "skipped": True,
+                        "reason": finalization_result.reason,
+                        "review_id": prior_review_id,
+                        "prior_commit": True,
+                    }
+                    summary["decision"] = "post_repair_skipped"
+                    summary["exit_code"] = EXIT_SUCCESS
+                else:
+                    summary["post_repair"] = {
+                        "finalized": True,
+                        "review_id": prior_review_id,
+                        "prior_commit": True,
+                        "resolved_count": finalization_result.resolved_count,
+                        "unresolved_count": finalization_result.unresolved_count,
+                    }
+                    summary["decision"] = "post_repair_soft_finalized"
+                    summary["exit_code"] = EXIT_SUCCESS
                 _log_endgroup()
                 _emit_decision_summary(summary)
                 return EXIT_SUCCESS

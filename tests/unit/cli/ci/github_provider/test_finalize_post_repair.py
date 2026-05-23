@@ -2,101 +2,654 @@
 
 import json
 import os
-from unittest.mock import call, patch
+import sys
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 
 from agentic_devtools.cli.ci.github_provider import GitHubActionsProvider
-from agentic_devtools.cli.ci.models import PRMetadata
+from agentic_devtools.cli.ci.models import (
+    PRMetadata,
+    ReviewCommentInfo,
+    ReviewInfo,
+    VerificationVerdict,
+)
+
+
+def _make_sdk_event(event_type: str, content: str | None = None) -> MagicMock:
+    event = MagicMock()
+    type_mock = MagicMock()
+    type_mock.value = event_type
+    event.type = type_mock
+    data_mock = MagicMock()
+    data_mock.content = content or ""
+    event.data = data_mock
+    return event
+
+
+def _build_sdk_modules() -> tuple[MagicMock, MagicMock, MagicMock]:
+    mock_session = MagicMock()
+    mock_session.disconnect = AsyncMock()
+    mock_session.on = MagicMock()
+
+    mock_client = MagicMock()
+    mock_client.start = AsyncMock()
+    mock_client.stop = AsyncMock()
+    mock_client.create_session = AsyncMock(return_value=mock_session)
+
+    mock_copilot = MagicMock()
+    mock_copilot.CopilotClient.return_value = mock_client
+    mock_copilot.SubprocessConfig = MagicMock()
+
+    mock_session_module = MagicMock()
+    mock_session_module.PermissionHandler = MagicMock()
+    mock_session_module.PermissionHandler.approve_all = object()
+
+    return mock_copilot, mock_session_module, mock_session
 
 
 class TestFinalizePostRepair:
     """Tests for post-repair finalization orchestration."""
 
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
     @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
     @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
-    @patch.object(GitHubActionsProvider, "_list_review_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
     def test_finalize_replies_and_resolves_only(
         self,
-        mock_list_ids,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
         mock_addressed_parent_ids,
         mock_reply,
         mock_resolve,
+        mock_verify_batch,
     ) -> None:
-        mock_list_ids.return_value = [101, 202]
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha_123"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+            ReviewCommentInfo(id=202, path="bar.py", body="fix that", html_url="http://url2"),
+        ]
         mock_addressed_parent_ids.return_value = set()
-        mock_resolve.return_value = {"threadsResolved": 2, "verified": True}
+        mock_verify_batch.return_value = {
+            101: VerificationVerdict.COMMENT_RESOLVE,
+            202: VerificationVerdict.COMMENT_RESOLVE,
+        }
+        mock_resolve.return_value = {
+            "threadsResolved": 2,
+            "verified": True,
+            "details": [
+                {"threadId": "T1", "commentId": 101, "status": "resolved"},
+                {"threadId": "T2", "commentId": 202, "status": "resolved"},
+            ],
+        }
         provider = GitHubActionsProvider(repo="owner/repo")
 
-        provider.finalize_post_repair(
+        result = provider.finalize_post_repair(
             pr_number=42,
             base_branch="main",
             head_branch="feature/test",
-            head_sha="abc123def456",
+            head_sha="new_sha_456",
             review_id=7,
         )
 
-        mock_list_ids.assert_called_once_with(42, 7)
-        mock_addressed_parent_ids.assert_called_once_with(42)
+        assert not result.skipped
+        assert result.resolved_count == 2
+        assert result.unresolved_count == 0
         assert mock_reply.call_count == 2
-        mock_reply.assert_any_call(42, 101)
-        mock_reply.assert_any_call(42, 202)
-        mock_resolve.assert_called_once_with(42, "owner/repo", review_id=7)
+        mock_verify_batch.assert_called_once()
+        verify_payloads = mock_verify_batch.call_args.args[0]
+        assert [comment_id for comment_id, _body, _context in verify_payloads] == [101, 202]
+        mock_resolve.assert_called_once_with(42, "owner/repo", comment_ids=[101, 202])
+        assert result.resolutions[0].thread_id == "T1"
+        assert result.resolutions[1].thread_id == "T2"
 
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
     @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
     @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
-    @patch.object(GitHubActionsProvider, "_list_review_comment_ids")
-    def test_finalize_skips_reply_when_addressed_reply_already_exists(
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_finalize_verifies_comments_even_when_addressed_reply_already_exists(
         self,
-        mock_list_ids,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
         mock_addressed_parent_ids,
         mock_reply,
         mock_resolve,
+        mock_verify_batch,
     ) -> None:
-        mock_list_ids.return_value = [101]
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha_123"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+        ]
         mock_addressed_parent_ids.return_value = {101}
+        mock_verify_batch.return_value = {101: VerificationVerdict.COMMENT_RESOLVE}
+        mock_resolve.return_value = {
+            "threadsResolved": 1,
+            "verified": True,
+            "details": [{"threadId": "T1", "commentId": 101, "status": "resolved"}],
+        }
         provider = GitHubActionsProvider(repo="owner/repo")
 
-        provider.finalize_post_repair(
+        result = provider.finalize_post_repair(
             pr_number=42,
             base_branch="main",
             head_branch="feature/test",
-            head_sha="abc123def456",
+            head_sha="new_sha_456",
             review_id=7,
         )
 
         mock_reply.assert_not_called()
-        mock_resolve.assert_called_once_with(42, "owner/repo", review_id=7)
+        mock_verify_batch.assert_called_once()
+        assert result.resolved_count == 1
+        mock_resolve.assert_called_once_with(42, "owner/repo", comment_ids=[101])
 
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
     @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
     @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
-    @patch.object(GitHubActionsProvider, "_list_review_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
     def test_finalize_handles_mixed_addressed_and_unaddressed_comments(
         self,
-        mock_list_ids,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
         mock_addressed_parent_ids,
         mock_reply,
         mock_resolve,
+        mock_verify_batch,
     ) -> None:
-        mock_list_ids.return_value = [101, 202, 303]
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha_123"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+            ReviewCommentInfo(id=202, path="bar.py", body="fix that", html_url="http://url2"),
+            ReviewCommentInfo(id=303, path="baz.py", body="fix other", html_url="http://url3"),
+        ]
         mock_addressed_parent_ids.return_value = {202}
+        mock_verify_batch.return_value = {
+            101: VerificationVerdict.COMMENT_RESOLVE,
+            202: VerificationVerdict.COMMENT_RESOLVE,
+            303: VerificationVerdict.COMMENT_RESOLVE,
+        }
+        mock_resolve.return_value = {
+            "threadsResolved": 3,
+            "verified": True,
+            "details": [
+                {"threadId": "T1", "commentId": 101, "status": "resolved"},
+                {"threadId": "T2", "commentId": 202, "status": "resolved"},
+                {"threadId": "T3", "commentId": 303, "status": "resolved"},
+            ],
+        }
         provider = GitHubActionsProvider(repo="owner/repo")
 
-        provider.finalize_post_repair(
+        result = provider.finalize_post_repair(
             pr_number=42,
             base_branch="main",
             head_branch="feature/test",
-            head_sha="abc123def456",
+            head_sha="new_sha_456",
             review_id=7,
         )
 
         assert mock_reply.call_count == 2
         mock_reply.assert_any_call(42, 101)
         mock_reply.assert_any_call(42, 303)
-        mock_resolve.assert_called_once_with(42, "owner/repo", review_id=7)
+        verify_payloads = mock_verify_batch.call_args.args[0]
+        assert [comment_id for comment_id, _body, _context in verify_payloads] == [101, 202, 303]
+        assert result.resolved_count == 3
+        mock_resolve.assert_called_once_with(42, "owner/repo", comment_ids=[101, 202, 303])
+
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_finalize_reports_thread_resolution_failures(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_addressed_parent_ids,
+        mock_reply,
+        mock_resolve,
+        mock_verify_batch,
+    ) -> None:
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha_123"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+        ]
+        mock_addressed_parent_ids.return_value = set()
+        mock_verify_batch.return_value = {101: VerificationVerdict.COMMENT_RESOLVE}
+        mock_resolve.return_value = {
+            "threadsResolved": 0,
+            "threadsFailed": 1,
+            "verified": False,
+            "details": [{"threadId": "T1", "commentId": 101, "status": "failed", "error": "boom"}],
+        }
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha_456",
+            review_id=7,
+        )
+
+        assert result.reason == "verified_with_resolution_errors"
+        assert result.resolved_count == 0
+        assert result.unresolved_count == 1
+        assert result.resolutions[0].error == "boom"
+        assert "thread_resolution_unverified" in result.errors
+        assert "thread_resolution_failed:1" in result.errors
+        assert "comment_101:boom" in result.errors
+
+    def test_finalize_skips_when_no_new_commit(self) -> None:
+        """FR-001/002: HEAD SHA == review commit SHA → skip finalization."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        with patch.object(provider, "list_reviews") as mock_list_reviews:
+            mock_list_reviews.return_value = [
+                ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="same_sha"),
+            ]
+            result = provider.finalize_post_repair(
+                pr_number=42,
+                base_branch="main",
+                head_branch="feature/test",
+                head_sha="same_sha",
+                review_id=7,
+            )
+
+        assert result.skipped is True
+        assert result.reason == "no_new_commit"
+
+    def test_finalize_skips_when_review_commit_sha_missing(self) -> None:
+        """FR-014: null/empty review commit SHA → fail-safe skip."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        with patch.object(provider, "list_reviews") as mock_list_reviews:
+            mock_list_reviews.return_value = [
+                ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha=""),
+            ]
+            result = provider.finalize_post_repair(
+                pr_number=42,
+                base_branch="main",
+                head_branch="feature/test",
+                head_sha="new_sha_456",
+                review_id=7,
+            )
+
+        assert result.skipped is True
+        assert result.reason == "unresolvable_review_commit_sha"
+
+    def test_finalize_skips_when_review_not_found(self) -> None:
+        """FR-014: review not found → fail-safe skip."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        with patch.object(provider, "list_reviews") as mock_list_reviews:
+            mock_list_reviews.return_value = []
+            result = provider.finalize_post_repair(
+                pr_number=42,
+                base_branch="main",
+                head_branch="feature/test",
+                head_sha="new_sha_456",
+                review_id=7,
+            )
+
+        assert result.skipped is True
+        assert result.reason == "unresolvable_review_commit_sha"
+
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_finalize_does_not_resolve_when_sdk_says_unresolve(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_addressed_parent_ids,
+        mock_reply,
+        mock_resolve,
+        mock_verify_batch,
+    ) -> None:
+        """FR-006/007: Only resolve threads if SDK responds COMMENT_RESOLVE."""
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha_123"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+        ]
+        mock_addressed_parent_ids.return_value = set()
+        mock_verify_batch.return_value = {101: VerificationVerdict.COMMENT_UNRESOLVE}
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha_456",
+            review_id=7,
+        )
+
+        mock_reply.assert_not_called()
+        mock_resolve.assert_not_called()
+        assert result.resolved_count == 0
+        assert result.unresolved_count == 1
+
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_finalize_counts_suppressed_comments_as_unresolved(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_addressed_parent_ids,
+        mock_reply,
+        mock_resolve,
+        mock_verify_batch,
+    ) -> None:
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha_123"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(
+                id=101,
+                path="foo.py",
+                body="suppressed feedback",
+                html_url="http://url1",
+                is_suppressed=True,
+            ),
+        ]
+        mock_addressed_parent_ids.return_value = set()
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha_456",
+            review_id=7,
+        )
+
+        mock_verify_batch.assert_not_called()
+        mock_reply.assert_not_called()
+        mock_resolve.assert_not_called()
+        assert result.resolved_count == 0
+        assert result.unresolved_count == 1
+        assert result.reason == "verified"
+        assert len(result.resolutions) == 1
+        assert result.resolutions[0].comment_id == 101
+        assert result.resolutions[0].verdict == VerificationVerdict.COMMENT_UNRESOLVE
+
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_finalize_does_not_auto_resolve_existing_addressed_reply_without_sdk_approval(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_addressed_parent_ids,
+        mock_reply,
+        mock_resolve,
+        mock_verify_batch,
+    ) -> None:
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha_123"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+        ]
+        mock_addressed_parent_ids.return_value = {101}
+        mock_verify_batch.return_value = {101: VerificationVerdict.COMMENT_UNRESOLVE}
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha_456",
+            review_id=7,
+        )
+
+        mock_verify_batch.assert_called_once()
+        mock_reply.assert_not_called()
+        mock_resolve.assert_not_called()
+        assert result.resolved_count == 0
+        assert result.unresolved_count == 1
+        assert result.resolutions[0].comment_id == 101
+        assert result.resolutions[0].verdict == VerificationVerdict.COMMENT_UNRESOLVE
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_build_verification_context_diff_returns_git_diff(self, mock_run_safe) -> None:
+        class _Result:
+            returncode = 0
+            stdout = "diff --git a/foo.py b/foo.py\n+print('ok')"
+            stderr = ""
+
+        mock_run_safe.return_value = _Result()
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        result = provider._build_verification_context_diff("review_sha", "head_sha")
+
+        assert result == _Result.stdout
+        mock_run_safe.assert_called_once_with(
+            ["git", "diff", "review_sha..head_sha"],
+            capture_output=True,
+            text=True,
+            shell=False,
+        )
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_build_verification_context_diff_returns_empty_when_git_fails(self, mock_run_safe) -> None:
+        class _Result:
+            returncode = 1
+            stdout = ""
+            stderr = "fatal: bad revision"
+
+        mock_run_safe.return_value = _Result()
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        result = provider._build_verification_context_diff("review_sha", "head_sha")
+
+        assert result == ""
+
+    def test_build_comment_verification_context_prefers_computed_diff(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+        comment = ReviewCommentInfo(
+            id=101,
+            path="src/foo.py",
+            body="please fix",
+            html_url="http://url1",
+            diff_hunk="@@ -1,1 +1,1 @@\n-old\n+new",
+        )
+        full_diff = (
+            "diff --git a/src/foo.py b/src/foo.py\n"
+            "index 111..222 100644\n"
+            "--- a/src/foo.py\n"
+            "+++ b/src/foo.py\n"
+            "@@ -10,1 +10,1 @@\n"
+            "-bad\n"
+            "+good\n"
+            "diff --git a/src/bar.py b/src/bar.py\n"
+            "@@ -1,1 +1,1 @@\n"
+            "-x\n"
+            "+y\n"
+        )
+
+        result = provider._build_comment_verification_context(comment, full_diff)
+
+        assert result.startswith("diff --git a/src/foo.py b/src/foo.py")
+        assert "diff --git a/src/bar.py b/src/bar.py" not in result
+        assert comment.diff_hunk not in result
+
+    def test_build_comment_verification_context_falls_back_to_comment_hunk(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+        comment = ReviewCommentInfo(
+            id=101,
+            path="src/foo.py",
+            body="please fix",
+            html_url="http://url1",
+            diff_hunk="@@ -1,1 +1,1 @@\n-old\n+new",
+        )
+
+        result = provider._build_comment_verification_context(comment, "")
+
+        assert result == "@@ -1,1 +1,1 @@\n-old\n+new"
+
+    def test_build_comment_verification_context_falls_back_to_diff_hunk_when_file_not_found(self) -> None:
+        """When file section not found, fall back to diff_hunk rather than full_diff."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        comment = ReviewCommentInfo(
+            id=101,
+            path="src/foo.py",
+            body="please fix",
+            html_url="http://url1",
+            diff_hunk="@@ -1,1 +1,1 @@\n-old\n+new",
+        )
+        full_diff = "diff --git a/src/test_foo.py b/src/test_foo.py\n@@ -1,1 +1,1 @@\n-bad\n+good\n"
+
+        result = provider._build_comment_verification_context(comment, full_diff)
+
+        # Must NOT return full_diff (unrelated file changes); must use the comment's diff_hunk
+        assert result == "@@ -1,1 +1,1 @@\n-old\n+new"
+        assert "src/test_foo.py" not in result
+
+    def test_build_comment_verification_context_returns_empty_when_no_hunk(self) -> None:
+        """When file section is not found and diff_hunk is empty, return empty context."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        comment = ReviewCommentInfo(
+            id=101,
+            path="src/foo.py",
+            body="please fix",
+            html_url="http://url1",
+            diff_hunk="",
+        )
+        full_diff = "diff --git a/src/other.py b/src/other.py\n@@ -1,1 +1,1 @@\n-x\n+y\n"
+
+        result = provider._build_comment_verification_context(comment, full_diff)
+
+        assert result == ""
+
+    def test_build_comment_verification_prompt_contains_comment_and_diff(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        prompt = provider._build_comment_verification_prompt("fix this", "diff --git a/x b/x")
+
+        assert prompt.index("## Review Comment") < prompt.index("## Diff (changes made since the review)")
+        assert prompt.index("## Diff (changes made since the review)") < prompt.index("## Instructions")
+        assert "```diff\n" in prompt
+        assert "fix this" in prompt
+        assert "diff --git a/x b/x" in prompt
+        assert "COMMENT_RESOLVE" in prompt
+        assert "COMMENT_UNRESOLVE" in prompt
+
+    def test_verify_comment_via_sdk_without_token_defaults_unresolve(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        with patch.dict(os.environ, {"COPILOT_GITHUB_TOKEN": ""}, clear=False):
+            result = provider._verify_comment_via_sdk("fix this", "diff --git ...")
+
+        assert result == VerificationVerdict.COMMENT_UNRESOLVE
+
+    def test_verify_comment_via_sdk_with_empty_diff_defaults_unresolve(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        with patch.dict(os.environ, {"COPILOT_GITHUB_TOKEN": "token"}, clear=False):
+            result = provider._verify_comment_via_sdk("fix this", "")
+
+        assert result == VerificationVerdict.COMMENT_UNRESOLVE
+
+    def test_verify_comments_via_sdk_happy_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
+        mock_copilot, mock_session_module, mock_session = _build_sdk_modules()
+        captured_callbacks: list = []
+
+        def capture_on(callback: object) -> None:
+            captured_callbacks.append(callback)
+
+        mock_session.on = MagicMock(side_effect=capture_on)
+
+        async def send_and_emit(prompt: str) -> None:
+            callback = captured_callbacks[0]
+            if "Comment one" in prompt:
+                callback(_make_sdk_event("assistant.message", "COMMENT_RESOLVE"))
+            else:
+                callback(_make_sdk_event("assistant.message", "COMMENT_UNRESOLVE"))
+            callback(_make_sdk_event("session.idle"))
+
+        mock_session.send = send_and_emit
+
+        with patch.dict(sys.modules, {"copilot": mock_copilot, "copilot.session": mock_session_module}):
+            provider = GitHubActionsProvider(repo="owner/repo")
+            result = provider._verify_comments_via_sdk(
+                [
+                    (101, "Comment one", "diff --git a/a.py b/a.py\n+fix"),
+                    (202, "Comment two", "diff --git a/b.py b/b.py\n+other"),
+                ]
+            )
+
+        assert result[101] == VerificationVerdict.COMMENT_RESOLVE
+        assert result[202] == VerificationVerdict.COMMENT_UNRESOLVE
+        assert mock_copilot.SubprocessConfig.call_args.kwargs["github_token"] == "test-token"
+
+    def test_verify_comment_via_sdk_happy_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
+        mock_copilot, mock_session_module, mock_session = _build_sdk_modules()
+        captured_callbacks: list = []
+
+        def capture_on(callback: object) -> None:
+            captured_callbacks.append(callback)
+
+        mock_session.on = MagicMock(side_effect=capture_on)
+
+        async def send_and_emit(_prompt: str) -> None:
+            callback = captured_callbacks[0]
+            callback(_make_sdk_event("assistant.message", "COMMENT_RESOLVE"))
+            callback(_make_sdk_event("session.idle"))
+
+        mock_session.send = send_and_emit
+
+        with patch.dict(sys.modules, {"copilot": mock_copilot, "copilot.session": mock_session_module}):
+            provider = GitHubActionsProvider(repo="owner/repo")
+            result = provider._verify_comment_via_sdk("Comment one", "diff --git a/a.py b/a.py\n+fix")
+
+        assert result == VerificationVerdict.COMMENT_RESOLVE
+        assert mock_copilot.SubprocessConfig.call_args.kwargs["github_token"] == "test-token"
 
     @patch("agentic_devtools.cli.ci.github_provider._gh_api")
     def test_dispatch_repair_uses_token_and_returns_comment_id(self, mock_gh_api) -> None:
@@ -116,8 +669,6 @@ class TestFinalizePostRepair:
     @patch("agentic_devtools.cli.ci.github_provider._gh_api")
     @patch("agentic_devtools.cli.ci.github_provider._parse_paginated_json")
     def test_list_review_comments_returns_review_comment_info(self, mock_parse, mock_gh_api) -> None:
-        from agentic_devtools.cli.ci.models import ReviewCommentInfo
-
         mock_gh_api.return_value = "[]"
         mock_parse.return_value = [
             {"id": 1, "body": "one", "path": "foo.py", "html_url": "https://github.com/r/p#1"},
