@@ -1,9 +1,9 @@
 # Feature Specification: Idempotent Action Evaluator for AI PR Loop
 
-**Feature Branch**: `speckit/1559/phase-1-specify`
-**Created**: 2026-05-23
-**Status**: Draft
-**Input**: GitHub Issue #1559
+**Feature Branch**: `speckit/1559/phase-1-specify`  
+**Created**: 2026-05-23  
+**Status**: Draft  
+**Input**: GitHub Issue #1559  
 **Source Issue**: #1559 (<https://github.com/ayaiayorg/agentic-devtools/issues/1559>)
 
 ## Problem Statement
