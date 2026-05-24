@@ -4,13 +4,18 @@
 
 Plan phases and task phases do not align 1:1 in this spec. The task plan expands the implementation into more granular execution phases. Use the mapping below when tracing tasks back to `plan.md`.
 
-| Plan phase | Task phases |
-| --- | --- |
-| Phase 1 | Phase 1 |
-| Phase 2 | Phase 2 |
-| Phase 3 | Phases 3–4 |
-| Phase 4 | Phases 5–7 |
-| Phase 5 | Phases 8–10 |
+| Tasks Phase | Plan Phase(s) | Description |
+| --- | --- | --- |
+| Phase 1 | Phase 1 | Initial project scaffolding and test package setup. |
+| Phase 2 | Phase 2 | Core types, snapshot model, and pipeline infrastructure foundations. |
+| Phase 3 | Phase 3 | First part of Phase 3 implementation, expanding the plan into actionable task groups. |
+| Phase 4 | Phase 3 | Completion of Phase 3 implementation tasks and related validation. |
+| Phase 5 | Phase 4 | First execution phase derived from Plan Phase 4 work. |
+| Phase 6 | Phase 4 | Continued implementation and integration work for Plan Phase 4. |
+| Phase 7 | Phase 4 | Finalization and validation of Plan Phase 4 deliverables. |
+| Phase 8 | Phase 5 | First execution phase derived from Plan Phase 5 work. |
+| Phase 9 | Phase 5 | Continued implementation and verification for Plan Phase 5. |
+| Phase 10 | Phase 5 | Finalization, wrap-up, and completion tasks for Plan Phase 5. |
 
 ## Phase 1: Setup — Project Scaffolding
 
