@@ -21,7 +21,7 @@
 | G-03 | Task Deduplication | CRITICAL | T033, T069 | T033: "run pipeline twice on unchanged state → 0 duplicate API calls"; T069: "50 consecutive runs on unchanged state → 0 duplicate API calls". Same intent (idempotency verification), same test scope. | Keep T069 as the stronger version (50 runs); remove or subsume T033 into T069. |
 | G-04 | Task Deduplication | CRITICAL | T034, T070 | T034: "all 8 actions evaluated regardless of trigger type"; T070: "3 trigger types produce identical evaluations". Same test intent, same runner scope. | Keep T070 as the stricter version (identical evaluations); remove or subsume T034. |
 | G-05 | Task Deduplication | CRITICAL | T040, T067 | T040: "test verifying zero references to squash-wait markers in production code"; T067: "Verify zero references to squash-wait markers in all production files". Identical verification. | Remove one; T067 (Phase 10) can serve as the final validation if T040 is removed. |
-| G-06 | Task Deduplication | CRITICAL | T023-T024, T041-T042 | T023 implements ResolveThreadsAction with preconditions (no active session, no pending review, threads exist); T041-T042 add "SDK verification logic" and "ensure both conditions checked" to the same file. T024 and T043-T044 test the same action. | Clarify T041-T042 as extending T023's execute() method (not reimplementing preconditions). Consolidate test tasks or clearly scope T043-T044 to new SDK logic only. |
+| G-06 | Task Deduplication | CRITICAL | T023-T024, T041-T044 | T023 implements ResolveThreadsAction with preconditions (no active session, no pending review, threads exist); T041-T042 add "SDK verification logic" and "ensure both conditions checked" to the same file. T024 and T043-T044 test the same action. | Clarify T041-T042 as extending T023's execute() method (not reimplementing preconditions). Consolidate test tasks or clearly scope T043-T044 to new SDK logic only. |
 
 ## Coverage Summary Table
 
@@ -159,7 +159,7 @@
 
 ## Next Actions
 
-- Prioritize the MEDIUM/HIGH-severity ambiguities and overlaps for spec cleanup before implementation begins.
+- Prioritize the MEDIUM/CRITICAL-severity ambiguities and overlaps for spec cleanup before implementation begins.
 - Clarify acceptance details for FR-004, FR-008, FR-011, NFR-001, and NFR-002 so tasks and tests can be derived unambiguously.
 - Consolidate or retire overlapping tasks called out in the overlap analysis, especially where one task is a strict superset of another.
 - Add explicit coverage for backward-compatibility verification and define out-of-scope boundaries to reduce future planning churn.
