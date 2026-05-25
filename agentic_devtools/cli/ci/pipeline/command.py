@@ -135,6 +135,14 @@ def _determine_exit_code(results: list[ActionResult], *, snapshot: PRStateSnapsh
             elif result.limit_reached:
                 # Dedup or cycle limit reached — treat as guard-blocked (same as legacy orchestrator)
                 return EXIT_GUARD_BLOCKED
+        if (
+            result.name == "approve"
+            and result.decision == ActionDecision.SKIP
+            and not result.preconditions.get("approver_token_available", True)
+        ):
+            # Provider could not submit approval (missing approver token).  Block merge so
+            # the workflow retries rather than silently exiting 0 with the PR unmerged.
+            return EXIT_MERGE_BLOCKED
         if result.decision == ActionDecision.FAILED and result.name in side_effect_actions:
             failed_side_effect_action = True
 

@@ -33,6 +33,8 @@ class Action(Protocol):
         """Execute the action.
 
         Only called when evaluate() returns EXECUTE.
-        Returns an ActionResult with decision EXECUTE or FAILED.
+        Returns an ActionResult with decision EXECUTE, SKIP, or FAILED.
+        SKIP may be returned when the provider intentionally cannot perform
+        the action at runtime (e.g., missing approver token for ApproveAction).
         """
         ...
