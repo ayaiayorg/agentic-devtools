@@ -1,6 +1,6 @@
 # Feature Specification: Gate Review Requests on Unresolved PR Comment Threads
 
-**Feature Branch**: `1566-gate-review-request-unresolved-threads`  
+**Feature Branch**: `speckit/1566/phase-1-specify`  
 **Created**: 2026-05-25  
 **Status**: Draft  
 **Input**: User description: "ai-pr-loop requests PR review before all prior review comments are resolved"  
@@ -95,8 +95,7 @@ threads before proceeding. Each path can be tested in isolation.
 **Acceptance Scenarios**:
 
 1. **Given** a draft PR being published where unresolved threads exist from a prior review (the line-1535 path after `provider.publish_pr()`), **When** the orchestrator publishes the PR and would
-   request a review, **Then** it must check unresolved threads, block the review request, and return `"published_awaiting_thread_resolution"`.
-
+   request a review, **Then** it must check unresolved threads, block the review request, and return `"awaiting_thread_resolution"`.
 2. **Given** a CI-completion event where CI passes, no actionable review exists on HEAD, and unresolved threads remain (the line-1390 path), **When** the orchestrator reaches the "request review after
    CI" logic, **Then** it must block the review request and return `"awaiting_thread_resolution"`.
 
@@ -157,9 +156,7 @@ the review request in each case.
 - **FR-003**: The orchestrator MUST return a distinct decision value (`"awaiting_thread_resolution"`) when the unresolved-comments gate blocks a review request, distinguishing this state from other
   skip reasons like `"already_pending"` or `"retries_exhausted"`.
 
-- **FR-004**: The orchestrator MUST include the count of unresolved threads (`"unresolved_threads": N`) in the decision summary JSON when the gate blocks, enabling automated monitoring, alerting, and
-  human debugging.
-
+- **FR-004**: The orchestrator MUST include the count of unresolved threads (`"unresolved_threads": N`) in the decision summary JSON (use `0` when none). If the thread-listing API fails, it MUST include `"unresolved_threads_error": true`, enabling automated monitoring, alerting, and human debugging.
 - **FR-005**: The orchestrator MUST apply the unresolved-comments gate consistently across all three review-request paths: Step 7a draft-publish path (line 1535), CI-completion path with no actionable
   review (line 1390), and Step 7b no-effective-review path (line 1560).
 
