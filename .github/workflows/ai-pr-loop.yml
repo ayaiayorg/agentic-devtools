@@ -28,6 +28,7 @@ permissions:
   checks: read
 env:
   AGDT_USE_PYTHON_ORCHESTRATOR: "1"
+  AGDT_USE_PIPELINE_V2: "1"
 concurrency:
   group: ai-pr-loop-${{ github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.event.inputs.pr_number || github.run_id }}
   cancel-in-progress: false

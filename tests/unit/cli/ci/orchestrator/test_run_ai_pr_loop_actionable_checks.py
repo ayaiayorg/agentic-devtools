@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+from agentic_devtools.cli.ci.actionable_checks import DEFAULT_ACTIONABLE_CHECK_NAMES
 from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
@@ -123,3 +124,4 @@ class TestActionableCheckNames:
         from agentic_devtools.cli.ci.orchestrator import _DEFAULT_ACTIONABLE_CHECK_NAMES
 
         assert "Code scanning results / CodeQL" in _DEFAULT_ACTIONABLE_CHECK_NAMES
+        assert _DEFAULT_ACTIONABLE_CHECK_NAMES is DEFAULT_ACTIONABLE_CHECK_NAMES
