@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.ci.models import IssueCommentInfo
-from agentic_devtools.cli.ci.pipeline.summary import collapse_prior_summaries
+from agentic_devtools.cli.ci.pipeline.summary import SUMMARY_FALLBACK_MARKER, collapse_prior_summaries
 
 
 class TestCollapsePriorSummaries:
@@ -30,6 +30,7 @@ class TestCollapsePriorSummaries:
             in updated_body
         )
         assert "<summary>🤖 AI PR Loop Run — [View Logs](" not in updated_body
+        provider.find_comment.assert_any_call(1565, SUMMARY_FALLBACK_MARKER)
 
     def test_uses_single_comment_listing_call_when_supported(self) -> None:
         provider = MagicMock()
@@ -185,6 +186,7 @@ class TestCollapsePriorSummaries:
 
         assert collapsed == 0
         provider.update_comment.assert_not_called()
+        provider.find_comment.assert_called_once_with(1565, SUMMARY_FALLBACK_MARKER)
 
     def test_fallback_skips_comment_body_missing_pipeline_header(self) -> None:
         """Fallback path: comment starting with sentinel but lacking the pipeline header is skipped."""
@@ -198,3 +200,4 @@ class TestCollapsePriorSummaries:
 
         assert collapsed == 0
         provider.update_comment.assert_not_called()
+        provider.find_comment.assert_called_once_with(1565, SUMMARY_FALLBACK_MARKER)

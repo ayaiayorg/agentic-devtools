@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 SUMMARY_SENTINEL = "<!-- agdt:ai-pr-loop-summary -->"
 SUMMARY_COLLAPSED_SENTINEL = "<!-- agdt:ai-pr-loop-summary-collapsed -->"
+SUMMARY_FALLBACK_MARKER = f"{SUMMARY_SENTINEL}\n\n**🤖 AI PR Loop Run"
 
 
 def _sanitize_cell(value: str) -> str:
@@ -227,10 +228,12 @@ def collapse_prior_summaries(provider: CIPlatformProvider, pr_number: int) -> in
                 logger.warning("PR #%d: Failed to collapse comment %d: %s", pr_number, comment.id, exc)
         return collapsed_count
 
-    # Fallback: use provider's find_comment to locate summaries
+    # Fallback: use provider's find_comment to locate summaries.
+    # Use a stricter marker than SUMMARY_SENTINEL to avoid false-positives on
+    # unrelated comments that merely quote/include the sentinel text.
     # We may need to iterate; find_comment returns first match
     while True:
-        found = provider.find_comment(pr_number, SUMMARY_SENTINEL)
+        found = provider.find_comment(pr_number, SUMMARY_FALLBACK_MARKER)
         if found is None:
             break
 
