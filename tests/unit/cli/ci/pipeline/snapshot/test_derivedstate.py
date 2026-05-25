@@ -1,0 +1,37 @@
+"""Tests for DerivedState."""
+
+from agentic_devtools.cli.ci.pipeline.snapshot import DerivedState, PRStateSnapshot
+
+
+class TestDerivedState:
+    """Tests for DerivedState proxy behavior."""
+
+    def test_getattr_fallthrough(self) -> None:
+        """Attributes fall through to the snapshot."""
+        snapshot = PRStateSnapshot(pr_number=42, head_sha="abc123", is_draft=True)
+        derived = DerivedState(snapshot)
+        assert derived.pr_number == 42
+        assert derived.head_sha == "abc123"
+        assert derived.is_draft is True
+
+    def test_set_override(self) -> None:
+        """set() overrides the snapshot value."""
+        snapshot = PRStateSnapshot(is_draft=True)
+        derived = DerivedState(snapshot)
+        assert derived.is_draft is True
+
+        derived.set("is_draft", False)
+        assert derived.is_draft is False
+
+    def test_snapshot_unchanged(self) -> None:
+        """Setting a derived override does not mutate the snapshot."""
+        snapshot = PRStateSnapshot(is_draft=True)
+        derived = DerivedState(snapshot)
+        derived.set("is_draft", False)
+        assert snapshot.is_draft is True
+
+    def test_snapshot_property(self) -> None:
+        """snapshot property returns the underlying snapshot."""
+        snapshot = PRStateSnapshot(pr_number=7)
+        derived = DerivedState(snapshot)
+        assert derived.snapshot is snapshot

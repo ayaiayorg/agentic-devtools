@@ -17,6 +17,7 @@ from agentic_devtools.cli.ci.exceptions import MalformedEventError
 from agentic_devtools.cli.ci.github_provider import GitHubActionsProvider
 from agentic_devtools.cli.ci.models import EventPayload
 from agentic_devtools.cli.ci.orchestrator import run_ai_pr_loop
+from agentic_devtools.cli.ci.pipeline.command import run_ai_pr_loop_v2
 from agentic_devtools.cli.ci.speckit_trigger import process_speckit_label_event
 from agentic_devtools.cli.subprocess_utils import run_safe
 
@@ -26,16 +27,28 @@ def _python_orchestrator_enabled() -> bool:
     return os.environ.get("AGDT_USE_PYTHON_ORCHESTRATOR", "").lower() in ("1", "true")
 
 
+def _pipeline_v2_enabled() -> bool:
+    """Return True when the idempotent pipeline v2 is enabled."""
+    return os.environ.get("AGDT_USE_PIPELINE_V2", "").lower() in ("1", "true")
+
+
 def ai_pr_loop_command() -> None:
     """CLI entry point for the AI PR loop orchestrator.
 
     Reads event data from ``GITHUB_EVENT_PATH`` and ``GITHUB_EVENT_NAME``
     environment variables, constructs a GitHub Actions provider, and
-    invokes the orchestrator.
+    invokes the appropriate orchestrator or pipeline.
 
-    Controlled by ``AGDT_USE_PYTHON_ORCHESTRATOR`` feature flag:
-    - "1" or "true": Use the Python orchestrator
-    - Otherwise: Exit with code 0 (legacy path handles it)
+    Routing is controlled by two feature flags, evaluated in order:
+
+    1. ``AGDT_USE_PYTHON_ORCHESTRATOR`` must be ``"1"`` or ``"true"`` to
+       activate any Python-side processing.  When absent/false the function
+       exits with code 0 so the legacy YAML path handles the run.
+
+    2. ``AGDT_USE_PIPELINE_V2`` (requires flag 1 to be set): when ``"1"``
+       or ``"true"``, routes to the idempotent action-evaluator pipeline
+       (``run_ai_pr_loop_v2``).  Otherwise routes to the event-branching
+       orchestrator (``run_ai_pr_loop``).
 
     Exit codes:
         0: Success or deferred to legacy path
@@ -43,6 +56,7 @@ def ai_pr_loop_command() -> None:
         2: Malformed event
         3: Merge blocked
         4: Metadata resolution failed
+        5: Repair dispatched
         10: Missing dependency or configuration
     """
     # Feature flag check
@@ -83,7 +97,10 @@ def ai_pr_loop_command() -> None:
         sys.stderr.write("\n")
         sys.exit(2)
 
-    exit_code = run_ai_pr_loop(provider, event_payload)
+    if _pipeline_v2_enabled():
+        exit_code = run_ai_pr_loop_v2(provider, event_payload)
+    else:
+        exit_code = run_ai_pr_loop(provider, event_payload)
     sys.exit(exit_code)
 
 

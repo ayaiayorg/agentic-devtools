@@ -20,6 +20,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
+from agentic_devtools.cli.ci.actionable_checks import DEFAULT_ACTIONABLE_CHECK_NAMES
 from agentic_devtools.cli.ci.evaluator.actions import dispatch_action
 from agentic_devtools.cli.ci.evaluator.classifier import classify_post_agent_state
 from agentic_devtools.cli.ci.evaluator.lock import acquire_lock, release_lock
@@ -130,17 +131,8 @@ _SQUASH_WAIT_COMMENT_TIMEOUT_FALLBACK = (
     "The commit passed CI and the squash has been performed; the PR process should continue normally."
 )
 
-# Check run names the orchestrator waits for and evaluates for pass/fail.
-# Only checks representing actionable code failures (fixable by the AI agent)
-# are included. All other checks are ignored entirely.
-_DEFAULT_ACTIONABLE_CHECK_NAMES = frozenset(
-    {
-        "Tests ✅",
-        "Markdown Lint ✅",
-        "Workflow Tests ✅",
-        "Code scanning results / CodeQL",
-    }
-)
+# Backward-compatible alias used by existing tests/imports.
+_DEFAULT_ACTIONABLE_CHECK_NAMES = DEFAULT_ACTIONABLE_CHECK_NAMES
 
 
 def _is_ci_completion_event(event_payload: EventPayload) -> bool:
