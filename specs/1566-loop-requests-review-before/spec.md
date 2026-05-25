@@ -18,7 +18,7 @@ feedback must be addressed before the next review cycle begins, creating a path 
 
 The root cause is that the orchestrator's `_request_copilot_review_if_needed` function is invoked at three separate control-flow paths — after draft-publish (line 1535), after CI-completion with no
 actionable review (line 1390), and in the main Step 7b "no effective review" path (line 1560) — and none of these paths include a precondition check for unresolved review comment threads. The
-function's existing skip-reason logic (`_get_copilot_review_request_skip_reason`) checks only for pending review requests and exhausted retry limits, not for outstanding feedback threads.
+function's existing skip-reason logic (`_get_copilot_review_request_skip_reason`) checks only for pending Copilot review requests and the "no reviewable files" sentinel, not for outstanding feedback threads.
 
 The desired behavior is that the orchestrator must query the PR's review comment threads and confirm that zero unresolved threads exist before requesting a new review. If unresolved threads remain,
 the orchestrator should skip the review request, log the reason with the unresolved count, include the count in the decision summary, and return a non-error exit code so the loop can retry on the next
@@ -139,7 +139,7 @@ the review request in each case.
   explicit resolution (via the resolve API or UI toggle) clears a thread from the gate.
 - How does this interact with the existing `finalize_post_repair` evaluator flow that resolves threads? The evaluator's thread resolution runs *after* a repair agent addresses feedback. The gate runs
   *before* requesting a new review. These are complementary: the evaluator resolves threads, then on the next loop trigger the gate sees zero unresolved threads and allows the review request.
-- What if a PR has hundreds of threads? The API call should paginate properly (using GitHub's thread listing API which returns all threads). The gate counts all unresolved threads regardless of
+- What if a PR has hundreds of threads? The thread-listing API call should paginate properly (e.g., via GitHub's GraphQL `reviewThreads` connection). The gate counts all unresolved threads regardless of
   quantity — there is no threshold; even 1 unresolved thread blocks.
 
 ---
@@ -154,9 +154,10 @@ the review request in each case.
 - **FR-002**: The orchestrator MUST NOT request a Copilot review (must not call `provider.request_reviewer()`) when one or more review comment threads on the PR remain in an unresolved state.
 
 - **FR-003**: The orchestrator MUST return a distinct decision value (`"awaiting_thread_resolution"`) when the unresolved-comments gate blocks a review request, distinguishing this state from other
-  skip reasons like `"already_pending"` or `"retries_exhausted"`.
+  skip reasons like `"copilot_already_requested"` or `"copilot_no_reviewable_files"`.
 
-- **FR-004**: The orchestrator MUST include the count of unresolved threads (`"unresolved_threads": N`) in the decision summary JSON (use `0` when none). If the thread-listing API fails, it MUST include `"unresolved_threads_error": true`, enabling automated monitoring, alerting, and human debugging.
+- **FR-004**: The orchestrator MUST include the count of unresolved threads (`"unresolved_threads": N`) in the decision summary JSON (use `0` when none).
+  If the thread-listing API fails, it MUST include `"unresolved_threads_error": true`, enabling automated monitoring, alerting, and human debugging.
 - **FR-005**: The orchestrator MUST apply the unresolved-comments gate consistently across all three review-request paths: Step 7a draft-publish path (line 1535), CI-completion path with no actionable
   review (line 1390), and Step 7b no-effective-review path (line 1560).
 
@@ -171,8 +172,8 @@ the review request in each case.
 
 ### Non-Functional Requirements
 
-- **NFR-001**: The unresolved-thread check MUST add no more than one additional GitHub API call per orchestrator run. Where possible, the thread data should be fetched once and reused across all three
-  gate check points within the same run.
+- **NFR-001**: The unresolved-thread check MUST add no more than one additional GitHub thread-listing operation per orchestrator run (the underlying API may paginate). Where possible, the thread data
+  should be fetched once and reused across all three gate check points within the same run.
 
 - **NFR-002**: Decision summary output MUST remain backward-compatible. The new `"unresolved_threads"` and `"unresolved_threads_error"` fields are additive; no existing fields in the summary schema
   are removed, renamed, or have their semantics changed.
