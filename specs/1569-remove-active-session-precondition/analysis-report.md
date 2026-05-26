@@ -41,9 +41,10 @@
 | Task Deduplication by Type | duplicate: 0 / overlapping: 2 / conflicting: 0 |
 | Multi-Task Group Count | 1 (T010, T011, T012) |
 
+<!-- markdownlint-disable MD013 -->
+
 ### Category G Structured Findings
 
-<!-- markdownlint-disable MD013 -->
 [
   {
     "id": "G-01",

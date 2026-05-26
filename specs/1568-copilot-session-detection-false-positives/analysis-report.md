@@ -23,9 +23,10 @@
 
 ---
 
+<!-- markdownlint-disable MD013 -->
+
 ### Category G Structured Findings
 
-<!-- markdownlint-disable MD013 -->
 [
   {
     "id": "G-01",
