@@ -167,20 +167,22 @@ For PR update/edit events, the provider MUST normalize `EventPayload.action` to
 When the payload does not include change metadata, `edit_changes_known` MUST
 remain `False` (fail-open).
 
-**FR-004**: A new precondition (the "edit-relevance guard") MUST be evaluated
-before any PR metadata / snapshot fetching and before all existing guards (before
-the WIP-title check, which is currently first). When the event action is `edited`
-AND `edit_changes_known` is `True` AND `title_changed` is `False`, the orchestrator
-MUST skip the run (exit successfully with code 0) and MUST NOT evaluate any
-downstream guards or actions. For all other events (including `edited` events
-where `edit_changes_known` is `False`), the orchestrator MUST continue with normal
+**FR-004**: A new precondition (the "edit-relevance preflight") MUST be evaluated
+in the ai-pr-loop entry point immediately after `EventPayload` is parsed and
+before any provider/network calls (including lock acquisition and
+`build_pr_state_snapshot()`) and before all existing guards (the WIP-title check
+is currently first). When the event action is `edited` AND `edit_changes_known`
+is `True` AND `title_changed` is `False`, the command MUST log an INFO message
+and exit successfully with code 0 without evaluating any downstream guards or
+actions. For all other events (including `edited` events where
+`edit_changes_known` is `False`), the orchestrator MUST continue with normal
 processing unconditionally.
 
-**FR-005**: When the edit-relevance guard skips execution, the decision output
-and/or `ActionResult` details MUST include a human-readable reason string that
-identifies the event as a body-only (or no-title-change) edit. This reason must be
-suitable for inclusion in log output and operator dashboards. The format should be
-consistent with existing guard reason strings in the codebase.
+**FR-005**: When the edit-relevance preflight skips execution, it MUST provide a
+human-readable reason string (suitable for logs and operator dashboards) that
+identifies the event as a no-title-change edit (body-only or other non-title
+edit). The reason format should be consistent with existing guard detail
+strings in the codebase.
 
 **FR-006**: The edit-relevance guard MUST emit an INFO-level log message when it
 skips execution, including the PR number and the specific reason (e.g.,
@@ -237,11 +239,11 @@ event. It gains three new fields to describe `edited` events: `title_changed`
 metadata. This entity is the single point of truth consumed by all guards and
 downstream pipeline actions.
 
-**Edit-Relevance Guard**: A new guard function (or guard entry in `GuardsAction`)
-that inspects the `action`, `edit_changes_known`, and `title_changed` fields of
-an `EventPayload` to determine whether the event warrants full pipeline
-evaluation. It is purely evaluative (no side effects) and produces an
-`ActionResult` with either EXECUTE or BLOCKED decision.
+**Edit-Relevance Guard**: An entry-point preflight check that inspects the
+`action`, `edit_changes_known`, and `title_changed` fields of an `EventPayload`
+to determine whether the event warrants full pipeline evaluation. It is purely
+in-memory (no I/O); when it decides to skip, it logs the reason and exits 0
+without running any downstream guards or actions.
 
 ## Success Criteria
 
