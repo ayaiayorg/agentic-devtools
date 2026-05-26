@@ -2,7 +2,7 @@
 
 ## Technical Context
 
-- **Language/Runtime**: Python 3.x (single-process, single-thread CLI tool)
+- **Language/Runtime**: Python 3.10+ (single-process, single-thread CLI tool)
 - **Package**: `agentic_devtools` — pip-installable CLI with entry points in `pyproject.toml`
 - **CI Platform**: GitHub Actions (logs to stderr, stdout reserved for JSON decision summaries)
 - **Logging**: All 18+ CI modules already use `logging.getLogger(__name__)` but no handler is configured at the entry point
@@ -52,8 +52,13 @@ See [research.md](research.md) for detailed decisions on:
 **Tasks**:
 
 1. Create `agentic_devtools/cli/ci/logging_config.py` with:
-   - `setup_logging()` — idempotent function that checks `logging.root.handlers`; if empty, adds a `StreamHandler(sys.stderr)` with format `%(asctime)s %(levelname)-8s %(name)s: %(message)s` and
-     `datefmt="%H:%M:%S"`; reads `AGDT_LOG_LEVEL` env var, validates against known levels, warns on invalid values, defaults to INFO
+   - `setup_logging()` — idempotent function that checks
+     `logging.root.handlers`; if empty, adds a
+     `StreamHandler(sys.stderr)` with format
+     `%(asctime)s %(levelname)-8s %(name)s: %(message)s` and
+     `datefmt="%H:%M:%S"`; reads `AGDT_LOG_LEVEL` env var,
+     validates against known levels, warns on invalid values,
+     defaults to INFO
    - `is_github_actions() -> bool` — returns `os.environ.get("GITHUB_ACTIONS") == "true"`
    - `log_group(title: str)` — context manager that emits `::group::{title}` on enter and `::endgroup::` on exit, only when `is_github_actions()` is True; otherwise no-op
 2. Create `__init__.py` in the new `tests/unit/cli/ci/logging_config/` folder and add any missing parent `__init__.py` files required by the 1:1:1 test structure validator
@@ -61,13 +66,24 @@ See [research.md](research.md) for detailed decisions on:
 
 ### Phase 2: Wire Entry Points (FR-001, FR-007)
 
-**Deliverable**: Both CLI entry points call `setup_logging()` before the rest of their command logic, but not before any intentional feature-flag/legacy-deferral early exit
+**Deliverable**: Both CLI entry points call `setup_logging()` before the
+rest of their command logic, but not before any intentional
+feature-flag/legacy-deferral early exit
 
 **Tasks**:
 
-1. In `commands.py` → `ai_pr_loop_command()`: add `from agentic_devtools.cli.ci.logging_config import setup_logging` and call `setup_logging()` immediately after the `AGDT_USE_PYTHON_ORCHESTRATOR` feature-flag guard, but before any other command logic
-2. In `commands.py` → `speckit_trigger_command()`: add the same import and call `setup_logging()` immediately after any equivalent early-exit guard if present; otherwise call it before the rest of the command logic
-3. Update existing tests in `tests/unit/cli/ci/commands/` to verify logging is configured at the correct point in control flow (after any intentional deferral guard, before subsequent command logic)
+1. In `commands.py` → `ai_pr_loop_command()`: add
+   `from agentic_devtools.cli.ci.logging_config import setup_logging` and
+   call `setup_logging()` immediately after the
+   `AGDT_USE_PYTHON_ORCHESTRATOR` feature-flag guard, but before any other
+   command logic
+2. In `commands.py` → `speckit_trigger_command()`: add the same import and
+   call `setup_logging()` immediately after any equivalent early-exit
+   guard if present; otherwise call it before the rest of the command
+   logic
+3. Update existing tests in `tests/unit/cli/ci/commands/` to verify
+   logging is configured at the correct point in control flow (after any
+   intentional deferral guard, before subsequent command logic)
 
 ### Phase 3: Consolidate Group Helpers (FR-005, FR-008)
 
