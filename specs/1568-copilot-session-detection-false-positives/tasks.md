@@ -74,7 +74,7 @@ Phases are 1:1 aligned with `plan.md` (Setup, Foundational, User Story 1, User S
 - [ ] T019 [US1] Run focused tests via `agdt-test-pattern tests/unit/cli/ci/pipeline/session_detector/ -v` and fix any FR-001/FR-002/FR-003-related failures
 - [ ] T020 [US2] Run full test suite via `agdt-test` + `agdt-task-wait` ensuring FR-005 and `session_detector.py` coverage expectations are met
 - [ ] T021 [US2] Run `bash scripts/run-pr-checks.sh` to validate ruff, mypy, markdownlint, and full CI parity for FR-005 structured logging changes
-- [ ] T022 [US3] Verify NFR-001 compliance — confirm all existing tests pass with unchanged return-value assertions (no behavior changes)
+- [ ] T022 [US3] Verify FR-001/FR-002/FR-003/FR-004/FR-005 NFR-001 compliance — confirm all existing tests pass with unchanged return-value assertions (no behavior changes)
 
 ---
 
@@ -90,11 +90,11 @@ T009..T018 → T019 → T020 → T021 → T022
 
 | FR | Tasks |
 | --- | --- |
-| FR-001 | T002, T009, T010, T011, T013 |
-| FR-002 | T003, T010, T011, T012, T013, T014 |
-| FR-003 | T004, T005, T006, T009, T010, T011, T015, T016 |
-| FR-004 | T007, T017, T018 |
-| FR-005 | T008, T015 |
+| FR-001 | T002, T009, T010, T011, T013, T022 |
+| FR-002 | T003, T010, T011, T012, T013, T014, T022 |
+| FR-003 | T004, T005, T006, T009, T010, T011, T015, T016, T022 |
+| FR-004 | T007, T017, T018, T022 |
+| FR-005 | T008, T015, T022 |
 | NFR-001 | T022 |
 | NFR-002 | T009–T018 |
 
