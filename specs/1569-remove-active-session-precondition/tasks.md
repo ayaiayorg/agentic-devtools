@@ -1,16 +1,16 @@
 # Tasks: Remove Active Session Precondition from ResolveThreadsAction
 
-## Phase Mapping: Plan → Tasks
+## Phase Mapping: Tasks → Plan Phase(s)
 
-| Plan Phase | Tasks Phase | Notes |
+| Tasks Phase | Plan Phase(s) | Notes |
 | --- | --- | --- |
-| Phase 1 (Setup) | Phase 1: Setup | Direct mapping |
-| Phase 2 (Foundational) | Phase 2: Foundational | Direct mapping |
-| Phase 3 (User Story 1) | Phase 3: User Story 1 — Thread Resolution Proceeds When Session Is Active (P1) | Direct mapping |
-| Phase 4 (User Story 2) | Phase 4: User Story 2 — Remaining Preconditions Are Still Enforced (P1) | Direct mapping |
-| Phase 5 (User Story 3) | Phase 5: User Story 3 — FR-005 in Spec 1559 Updated (P2) | Direct mapping |
-| N/A | Phase 6: User Story 4 — Tests Updated for Coverage (P2) | Additional execution coverage phase added in tasks |
-| N/A | Phase 7: Polish & Cross-Cutting | Cross-cutting final checks phase added in tasks |
+| Phase 1: Setup | Phase 1 — Update Tests; Phase 2 — Modify Source Code; Phase 4 — Update Companion Spec 1559 | Read-through tasks prepare the relevant test, code, and companion spec updates. |
+| Phase 2: Foundational | Phase 5 — Full Suite Validation | Baseline test execution is a validation step used to confirm the starting state before changes. |
+| Phase 3: User Story 1 — Thread Resolution Proceeds When Session Is Active (P1) | Phase 1 — Update Tests; Phase 2 — Modify Source Code | Includes RED/GREEN test updates and source changes for removing the active-session precondition. |
+| Phase 4: User Story 2 — Remaining Preconditions Are Still Enforced (P1) | Phase 1 — Update Tests; Phase 2 — Modify Source Code; Phase 3 — Verify Coverage | Covers preserving remaining preconditions and verifying the changed behavior remains fully exercised. |
+| Phase 5: User Story 3 — FR-005 in Spec 1559 Updated (P2) | Phase 4 — Update Companion Spec 1559 | Directly maps to the companion spec update phase. |
+| Phase 6: User Story 4 — Tests Updated for Coverage (P2) | Phase 1 — Update Tests; Phase 3 — Verify Coverage | Adds or adjusts tests specifically to ensure coverage of the updated behavior. |
+| Phase 7: Polish & Cross-Cutting | Phase 5 — Full Suite Validation | Final cross-cutting checks align to the full validation phase. |
 
 ## Phase 1: Setup
 
