@@ -1,14 +1,27 @@
 # Tasks: Gate Review Requests on Unresolved PR Comment Threads
 
-**Feature Branch**: `speckit/1566/phase-2-clarify`
+**Feature Branch**: `speckit/1566/phase-4-tasks`
 **Source Issue**: [#1566](https://github.com/ayaiayorg/agentic-devtools/issues/1566)
+
+---
+
+## Phase Mapping: Plan → Tasks
+
+| Tasks Phase | Plan Phase(s) | Description |
+|---|---|---|
+| Phase 1: Setup | — | Test scaffolding (new test folders/files) |
+| Phase 2: Foundational — Provider Method | Phase 1 | Provider method + unit tests |
+| Phase 3: US1 & US3 — Gate Logic (P1) | Phase 2 | Gate logic + unit tests |
+| Phase 4: US2 — Decision Summary (P2) | Phase 3 | Decision summary schema + tests |
+| Phase 5: US4 — Graceful Degradation (P2) | Phase 3 | API failure handling + tests |
+| Phase 6: Polish & Cross-Cutting | Phase 4 | Regression + full-suite validation |
 
 ---
 
 ## Phase 1: Setup
 
-- [ ] T001 Create test directory `tests/unit/cli/ci/github_provider/test_count_unresolved_review_threads.py` with `__init__.py` files
-- [ ] T002 Create test file `tests/unit/cli/ci/orchestrator/test__request_copilot_review_if_needed_unresolved_gate.py` with `__init__.py` files
+- [ ] T001 [US1] Create test directory `tests/unit/cli/ci/github_provider/test_count_unresolved_review_threads.py` with `__init__.py` files
+- [ ] T002 [US1] Create test file `tests/unit/cli/ci/orchestrator/test__request_copilot_review_if_needed_unresolved_gate.py` with `__init__.py` files
 
 ---
 
@@ -27,8 +40,8 @@
 
 ### Tests
 
-- [ ] T007 [US1] Write failing tests: `unresolved_threads=3` → returns `"awaiting_thread_resolution"` and does NOT call `provider.request_reviewer()` (FR-002), `unresolved_threads=0` → proceeds to
-  existing logic, in `tests/unit/cli/ci/orchestrator/test__request_copilot_review_if_needed_unresolved_gate.py`
+- [ ] T007 [US1] Write failing tests: `unresolved_threads=3` → returns "awaiting_thread_resolution" and does NOT call `provider.request_reviewer()` (FR-001, FR-002, FR-003),
+  `unresolved_threads=0` → proceeds to existing logic, in `tests/unit/cli/ci/orchestrator/test__request_copilot_review_if_needed_unresolved_gate.py`
 - [ ] T008 [US3] Write failing tests verifying gate applies identically on all 3 paths: draft-publish (Step 7a), CI-completion, no-effective-review (Step 7b) — each blocks when unresolved threads > 0
   (FR-005)
 
