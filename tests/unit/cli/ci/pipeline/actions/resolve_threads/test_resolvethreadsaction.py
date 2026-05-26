@@ -11,13 +11,13 @@ from agentic_devtools.cli.ci.pipeline.snapshot import DerivedState, PRStateSnaps
 class TestResolveThreadsAction:
     """Tests for resolve threads action."""
 
-    def test_skip_when_active_session(self) -> None:
-        snapshot = PRStateSnapshot(pr_number=1, active_session=True, unresolved_threads=5)
+    def test_proceeds_when_active_session(self) -> None:
+        """Active session no longer blocks thread resolution."""
+        snapshot = PRStateSnapshot(pr_number=1, active_session=True, ci_status="passing", unresolved_threads=5)
         derived = DerivedState(snapshot)
         action = ResolveThreadsAction()
         result = action.evaluate(snapshot, derived)
-        assert result.decision == ActionDecision.SKIP
-        assert "active" in result.details.lower()
+        assert result.decision == ActionDecision.EXECUTE
 
     def test_skip_when_copilot_review_pending(self) -> None:
         snapshot = PRStateSnapshot(pr_number=1, ci_status="passing", copilot_review_pending=True, unresolved_threads=3)
