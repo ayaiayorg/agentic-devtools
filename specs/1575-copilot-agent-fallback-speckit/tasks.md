@@ -124,10 +124,11 @@
 - [ ] T044 [US1] [P] Add integration test: verify non-structural failure (mock auth error) does NOT trigger fallback (FR-002)
 - [ ] T045 [US3] [P] Add integration test: verify idempotency — re-run after successful fallback creates no duplicate task (FR-008, FR-013)
 - [ ] T046 [US4] [P] Add integration test: verify graceful degradation on mocked API failure (FR-011)
-- [ ] T047 Verify fewer than 50 lines of workflow-specific code per workflow file (NFR-005) — refactor if exceeded
-- [ ] T048 [P] Add workflow step timeout to keep fallback completion within 30 seconds (NFR-001)
-- [ ] T049 Update PR description with test evidence and SC-001 through SC-006 validation results
-- [ ] T050 Run full linting and validation: `bash scripts/run-pr-checks.sh`
+- [ ] T047 [US1] Measure workflow-specific code lines per workflow file and confirm fewer than 50 lines (NFR-005)
+- [ ] T048 [US1] Refactor workflow code if any workflow file exceeds 50 lines of workflow-specific code (NFR-005)
+- [ ] T049 [P] Add workflow step timeout to keep fallback completion within 30 seconds (NFR-001)
+- [ ] T050 [US1] Update PR description documenting SC-001 through SC-006 compliance outcomes
+- [ ] T051 Run full linting and validation: `bash scripts/run-pr-checks.sh`
 
 ---
 
@@ -140,7 +141,7 @@ T013, T014, T015, T016, T017 → T018, T019, T020 (module complete before wiring
 T026, T027 → T028, T029 (label logic before cleanup workflow)
 T034, T035 → T036 (idempotency checks before skip comment)
 T018, T019, T020, T022, T026, T034, T035, T036, T040 → T042–T046 (all impl before integration tests)
-T042–T048 → T049, T050 (validation before final PR)
+T042–T049 → T050, T051 (validation before final PR)
 ```
 
 ## FR Coverage Matrix
