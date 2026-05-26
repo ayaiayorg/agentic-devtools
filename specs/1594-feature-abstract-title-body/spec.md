@@ -19,9 +19,15 @@ convey what specifically changed during an `edited` event, so the orchestrator c
 The core problem is twofold. First, the orchestrator lacks the metadata needed to determine whether an `edited` event warrants a full pipeline run. Second, because this metadata is absent from the
 provider-agnostic `EventPayload` model, there is no clean way to implement the filtering without coupling the orchestrator to a specific CI platform's raw event schema.
 
-This feature introduces three fields on the `EventPayload` model: `title_changed` and `body_changed` (both default `False`), plus `edit_changes_known` (default `False`) to indicate whether the provider had reliable per-field change metadata.
-A new edit-relevance guard runs before all existing guards and short-circuits `pull_request` `edited` events when `edit_changes_known=True` and `title_changed=False` (body-only or other non-title edits).
-This approach keeps the YAML triggers minimal (simply adding `edited` to the event list), moves filtering into testable Python, and works identically across all supported CI providers.
+This feature introduces three fields on the `EventPayload` model: `title_changed`
+and `body_changed` (both default `False`), plus `edit_changes_known` (default
+`False`) to indicate whether the provider had reliable per-field change metadata.
+A new edit-relevance guard runs before all existing guards and short-circuits
+`pull_request` `edited` events when `edit_changes_known=True` and
+`title_changed=False` (body-only or other non-title edits).
+This approach keeps the YAML triggers minimal (simply adding `edited` to the
+event list), moves filtering into testable Python, and works identically across
+all supported CI providers.
 
 ## User Scenarios & Testing
 
@@ -152,68 +158,118 @@ contains a `changes` key for an `edited` action (including when `changes` is pre
 when the payload contains a `changes.title` key and `body_changed=True` when the payload contains a `changes.body` key. When the event
 action is not `edited`, or when the `changes` key is absent from the payload, `edit_changes_known` MUST remain `False` and
 `title_changed`/`body_changed` MUST remain at their default value of `False`.
-**FR-003**: The `AzureDevOpsProvider.parse_event()` method MUST populate the `title_changed` and `body_changed` fields based on the Azure DevOps service hook payload structure. When the payload includes reliable field-level change metadata (such as `resource.fields` containing `System.Title` / description fields), the provider MUST set `edit_changes_known=True` and set the corresponding booleans. When the payload does not include change metadata, `edit_changes_known` MUST remain `False` (fail-open).
+**FR-003**: The `AzureDevOpsProvider.parse_event()` method MUST populate the
+`title_changed` and `body_changed` fields based on the Azure DevOps service hook
+payload structure. When the payload includes reliable field-level change metadata
+(such as `resource.fields` containing `System.Title` / description fields), the
+provider MUST set `edit_changes_known=True` and set the corresponding booleans.
+When the payload does not include change metadata, `edit_changes_known` MUST
+remain `False` (fail-open).
 
-**FR-004**: A new guard (the "edit-relevance guard") MUST be added to the `GuardsAction` evaluation sequence. This guard MUST execute before all existing guards (before the WIP-title check, which is currently first). The guard MUST return BLOCKED when the event action is `edited` AND `edit_changes_known` is `True` AND `title_changed` is `False`. For all other event actions (and for `edited` events where `edit_changes_known` is `False`), the guard MUST return EXECUTE unconditionally, regardless of the `title_changed` and `body_changed` field values.
+**FR-004**: A new guard (the "edit-relevance guard") MUST be added to the
+`GuardsAction` evaluation sequence. This guard MUST execute before all existing
+guards (before the WIP-title check, which is currently first). The guard MUST
+return BLOCKED when the event action is `edited` AND `edit_changes_known` is
+`True` AND `title_changed` is `False`. For all other event actions (and for
+`edited` events where `edit_changes_known` is `False`), the guard MUST return
+EXECUTE unconditionally, regardless of the `title_changed` and `body_changed`
+field values.
 
-**FR-005**: When the edit-relevance guard returns BLOCKED, the `ActionResult` MUST include a human-readable reason string that identifies the event as a body-only (or no-change) edit. This reason must
-be suitable for inclusion in log output and operator dashboards. The format should be consistent with existing guard reason strings in the codebase.
+**FR-005**: When the edit-relevance guard returns BLOCKED, the `ActionResult` MUST
+include a human-readable reason string that identifies the event as a body-only
+(or no-change) edit. This reason must be suitable for inclusion in log output
+and operator dashboards. The format should be consistent with existing guard
+reason strings in the codebase.
 
-**FR-006**: The edit-relevance guard MUST emit an INFO-level log message when it blocks execution, including the PR number and the specific reason (e.g., "PR #123: skipping edited event — no title
-change detected"). This log message enables operators to distinguish intentional skips from unexpected guard failures during incident investigation.
+**FR-006**: The edit-relevance guard MUST emit an INFO-level log message when it
+blocks execution, including the PR number and the specific reason (e.g.,
+"PR #123: skipping edited event — no title change detected"). This log message
+enables operators to distinguish intentional skips from unexpected guard failures
+during incident investigation.
 
-**FR-007**: The workflow YAML file(s) that define the ai-pr-loop trigger MUST include `edited` in the `pull_request` event types list. No additional `if:` conditions related to title/body changes
-shall be added to the YAML — all filtering logic resides in the Python orchestrator. This keeps the YAML minimal and the logic testable.
+**FR-007**: The workflow YAML file(s) that define the ai-pr-loop trigger MUST
+include `edited` in the `pull_request` event types list. No additional `if:`
+conditions related to title/body changes shall be added to the YAML — all
+filtering logic resides in the Python orchestrator. This keeps the YAML minimal
+and the logic testable.
 
-**FR-008**: When both `title_changed` and `body_changed` are `True` (simultaneous edit of both fields), the edit-relevance guard MUST return EXECUTE because the title change is guard-relevant. The
-presence of a body change alongside a title change does not alter the decision.
+**FR-008**: When both `title_changed` and `body_changed` are `True` (simultaneous
+edit of both fields), the edit-relevance guard MUST return EXECUTE because the
+title change is guard-relevant. The presence of a body change alongside a title
+change does not alter the decision.
 
 ### Non-Functional Requirements
 
-**NFR-001**: The edit-relevance guard evaluation MUST complete in under 1 millisecond for any input, as it performs only in-memory field inspection with no I/O. This ensures no measurable impact on
-the overall pipeline startup latency, which is currently dominated by network calls to fetch PR metadata.
+**NFR-001**: The edit-relevance guard evaluation MUST complete in under 1
+millisecond for any input, as it performs only in-memory field inspection with
+no I/O. This ensures no measurable impact on the overall pipeline startup
+latency, which is currently dominated by network calls to fetch PR metadata.
 
-**NFR-002**: The implementation MUST maintain full backward compatibility with existing `EventPayload` construction patterns. Any code that creates `EventPayload(pr_number=1, head_branch="main", ...)`
-without specifying `title_changed` or `body_changed` MUST continue to work without modification, with both new fields defaulting to `False`.
+**NFR-002**: The implementation MUST maintain full backward compatibility with
+existing `EventPayload` construction patterns. Any code that creates
+`EventPayload(pr_number=1, head_branch="main", ...)` without specifying
+`title_changed` or `body_changed` MUST continue to work without modification,
+with both new fields defaulting to `False`.
 
-**NFR-003**: All new guard logic MUST be covered by unit tests following the repository's 1:1:1 test structure policy. Test files must be placed under `tests/unit/` with paths mirroring the source
-structure, and each test file must target a single symbol (function or class).
+**NFR-003**: All new guard logic MUST be covered by unit tests following the
+repository's 1:1:1 test structure policy. Test files must be placed under
+`tests/unit/` with paths mirroring the source structure, and each test file must
+target a single symbol (function or class).
 
-**NFR-004**: Log messages emitted by the edit-relevance guard MUST use the standard Python `logging` module at INFO level and follow the existing log message formatting conventions used by other
-guards in `guards.py`. The messages must not contain sensitive information (no raw payload dumps).
+**NFR-004**: Log messages emitted by the edit-relevance guard MUST use the
+standard Python `logging` module at INFO level and follow the existing log
+message formatting conventions used by other guards in `guards.py`. The messages
+must not contain sensitive information (no raw payload dumps).
 
 ### Key Entities
 
-**EventPayload** (extended): The immutable dataclass representing a normalized CI event. It gains three new fields to describe `edited` events: `title_changed` (default `False`), `body_changed`
-(default `False`), and `edit_changes_known` (default `False`) to indicate whether the provider had reliable per-field change metadata. This entity is the single point of truth consumed by all guards
-and downstream pipeline actions.
+**EventPayload** (extended): The immutable dataclass representing a normalized CI
+event. It gains three new fields to describe `edited` events: `title_changed`
+(default `False`), `body_changed` (default `False`), and `edit_changes_known`
+(default `False`) to indicate whether the provider had reliable per-field change
+metadata. This entity is the single point of truth consumed by all guards and
+downstream pipeline actions.
 
-**Edit-Relevance Guard**: A new guard function (or guard entry in `GuardsAction`) that inspects the `action`, `edit_changes_known`, and `title_changed` fields of an `EventPayload` to determine
-whether the event warrants full pipeline evaluation. It is purely evaluative (no side effects) and produces an `ActionResult` with either EXECUTE or BLOCKED decision.
+**Edit-Relevance Guard**: A new guard function (or guard entry in `GuardsAction`)
+that inspects the `action`, `edit_changes_known`, and `title_changed` fields of
+an `EventPayload` to determine whether the event warrants full pipeline
+evaluation. It is purely evaluative (no side effects) and produces an
+`ActionResult` with either EXECUTE or BLOCKED decision.
 
 ## Success Criteria
 
 ### Measurable Outcomes
 
-- **SC-001**: The ai-pr-loop MUST trigger and complete a full guard evaluation on 100% of PR title change events across both GitHub Actions and Azure DevOps providers, verified by integration tests
-  that simulate title-change payloads and assert the pipeline proceeds past the edit-relevance guard.
+- **SC-001**: The ai-pr-loop MUST trigger and complete a full guard evaluation on
+  100% of PR title change events across both GitHub Actions and Azure DevOps
+  providers, verified by integration tests that simulate title-change payloads
+  and assert the pipeline proceeds past the edit-relevance guard.
 
-- **SC-002**: The ai-pr-loop MUST skip execution (exit at the edit-relevance guard) on 100% of body-only edit events, verified by integration tests that simulate body-change payloads and assert no
-  downstream guards or actions execute. In production, this is expected to eliminate at least 80% of unnecessary `edited`-event pipeline runs (based on the observation that body edits outnumber title
-  edits approximately 4:1).
+- **SC-002**: The ai-pr-loop MUST skip execution (exit at the edit-relevance
+  guard) on 100% of body-only edit events, verified by integration tests that
+  simulate body-change payloads and assert no downstream guards or actions
+  execute. In production, this is expected to eliminate at least 80% of
+  unnecessary `edited`-event pipeline runs (based on the observation that body
+  edits outnumber title edits approximately 4:1).
 
 - **SC-003**: All new code (the `EventPayload` fields `title_changed`, `body_changed`, `edit_changes_known`, provider `parse_event()`
   changes, and the edit-relevance guard) MUST achieve 100% line and branch coverage in unit tests, consistent with the repository's
   existing coverage requirements enforced by CI.
 
-- **SC-004**: The edit-relevance guard MUST be the first guard evaluated in the `GuardsAction` sequence, verified by a unit test that asserts guard ordering and by an integration test confirming that
-  a body-only edit does not trigger evaluation of any subsequent guard (WIP check, fork check, etc.).
+- **SC-004**: The edit-relevance guard MUST be the first guard evaluated in the
+  `GuardsAction` sequence, verified by a unit test that asserts guard ordering
+  and by an integration test confirming that a body-only edit does not trigger
+  evaluation of any subsequent guard (WIP check, fork check, etc.).
 
-- **SC-005**: Zero regressions in existing guard behavior, verified by the full existing test suite (`tests/unit/cli/ci/`) passing without modification. The new guard is purely additive and must not
-  alter the semantics of any existing guard for non-edited events.
+- **SC-005**: Zero regressions in existing guard behavior, verified by the full
+  existing test suite (`tests/unit/cli/ci/`) passing without modification. The
+  new guard is purely additive and MUST NOT alter the semantics of any existing
+  guard for non-edited events.
 
-- **SC-006**: The `EventPayload` extension MUST maintain backward compatibility, verified by confirming that all existing tests that construct `EventPayload` instances continue to pass without adding
-  the new fields to their constructor calls.
+- **SC-006**: The `EventPayload` extension MUST maintain backward compatibility,
+  verified by confirming that all existing tests that construct `EventPayload`
+  instances continue to pass without adding the new fields to their constructor
+  calls.
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
