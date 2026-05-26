@@ -198,6 +198,11 @@ edit of both fields), the edit-relevance guard MUST return EXECUTE because the
 title change is guard-relevant. The presence of a body change alongside a title
 change does not alter the decision.
 
+**FR-009**: Documentation and/or examples MUST be updated to clarify that PR
+`edited` event filtering (title/body change relevance) is implemented in the
+Python orchestrator (edit-relevance guard), not in workflow-level YAML `if:`
+conditions.
+
 ### Non-Functional Requirements
 
 **NFR-001**: The edit-relevance guard evaluation MUST complete in under 1
