@@ -42,8 +42,8 @@ all supported CI providers.
   to do" from "intentionally skipped due to irrelevant edit"? → A: Use `EXIT_SUCCESS` (0). The edit-relevance skip is a normal, expected outcome — not an error or special condition. The INFO log
   message provides sufficient observability for distinguishing skips from other exit-0 cases. Adding a new exit code would complicate workflow YAML for no practical benefit.
 
-- Q: For the `label` field changes in a PR `edited` event (e.g., milestones or assignees changed via the API triggering an `edited` action), should `edit_changes_known` be `True` even when neither
-  title nor body keys are in the `changes` dict? → A: Yes. When the `changes` key is present in the payload (even if it contains neither `title` nor `body` — e.g., only `base` or other fields),
+- Q: For non-title/body edits present in the `changes` dict of a PR `edited` event (e.g., a `base` ref change), should `edit_changes_known` be `True` even when neither
+  title nor body keys are in the `changes` dict? → A: Yes. When the `changes` key is present in the payload (even if it contains neither `title` nor `body` — e.g., only `base`),
   `edit_changes_known` should be set to `True`. This correctly signals that the provider had metadata and confidently determined that no title change occurred, allowing the guard to skip. This is
   already specified in the edge cases section and FR-002.
 
@@ -53,8 +53,9 @@ all supported CI providers.
   fast-path can be added later. This keeps the initial implementation focused and avoids touching the newer pipeline architecture unnecessarily.
 
 - Q: Should the `trigger_label` field extraction in `_parse_pull_request_event` be extended to detect label-related `edited` events, or is label handling entirely separate (via the existing `labeled`
-  action)? → A: Label handling remains entirely separate via the `labeled` action. The `edited` action on GitHub only fires for title/body/base changes. The `trigger_label` field is populated only
-  from `labeled`/`unlabeled` events. No changes to label handling are needed for this feature.
+  action)? → A: Label handling remains entirely separate via the `labeled` action. The `edited` action on GitHub fires only for title, body, and base-ref changes (per GitHub's webhook documentation);
+  milestones and assignees are delivered via their own dedicated event actions. The `trigger_label` field is populated only from `labeled`/`unlabeled` events. No changes to label handling are needed
+  for this feature.
 
 ## User Scenarios & Testing
 
@@ -201,11 +202,13 @@ remain `False` (fail-open).
 in the ai-pr-loop entry point (`run_ai_pr_loop()` in `orchestrator.py`) immediately after `EventPayload` is parsed and
 before any provider/network calls — specifically before
 `provider.get_pr_metadata(pr_number)`, lock acquisition, and
-`build_pr_state_snapshot()` — and before all existing guards (the WIP-title check
+`build_snapshot()` — and before all existing guards (the WIP-title check
 is currently first). In the legacy orchestrator, the call order after this change
 MUST be: (1) parse event → (2) **edit-relevance preflight** → (3)
-`get_pr_metadata()` → (4) lock acquisition → (5) `build_pr_state_snapshot()` →
-(6) remaining guards/actions. The preflight MUST be implemented as a standalone
+`get_pr_metadata()` → (4) lock acquisition → (5) `build_snapshot()` →
+(6) remaining guards/actions. (Note: `build_snapshot()` is the legacy orchestrator
+helper in `evaluator/snapshot.py`; `build_pr_state_snapshot()` is the pipeline v2
+equivalent and is out of scope here.) The preflight MUST be implemented as a standalone
 function `check_edit_relevance(event: EventPayload) -> tuple[bool, str]` in
 `agentic_devtools/cli/ci/guards.py`. When the event action is `edited` AND `edit_changes_known`
 is `True` AND `title_changed` is `False`, the command MUST log an INFO message
