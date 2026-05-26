@@ -11,7 +11,7 @@
 
 ## Research Summary
 
-See `research.md` for detailed decisions on:
+See the clarifications section in `spec.md` for detailed decisions on:
 
 - Principle I rewrite strategy (scoped tool availability vs auto-approval)
 - Principle II dual-layer state architecture phrasing
@@ -113,8 +113,8 @@ Insert after Principle VIII (after line 115):
 Run success criteria checks:
 
 ```bash
-# SC-001: Version 1.2.0 present
-grep "Version.*1.2.0" .specify/memory/constitution.md
+# SC-001: Version footer updated to 1.2.0
+grep '^\*\*Version\*\*: 1\.2\.0\b' .specify/memory/constitution.md
 
 # SC-002: No "95%" references
 grep -c "95%" .specify/memory/constitution.md  # expect 0
