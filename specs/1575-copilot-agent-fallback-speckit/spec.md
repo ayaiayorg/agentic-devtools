@@ -82,7 +82,9 @@ distinguish between "pipeline succeeded normally" and "pipeline failed but agent
 **Acceptance Scenarios**:
 
 1. **Given** a structural validation failure has triggered the agent fallback successfully, **When** the agent task is created, **Then** the issue receives a `speckit:agent-fallback` label AND retains
-   (or also receives) the `speckit:processing` label to indicate work is still in progress.
+   (or also receives) the `speckit:processing` label to indicate work is still in progress. The `speckit:processing` label MUST remain present for the full duration of the agent's asynchronous run
+   and MUST NOT be removed merely because fallback determination is complete or the agent task was created. It may be removed only after the fallback reaches a terminal outcome (for example, the
+   agent creates its PR, the agent task fails, or the fallback is otherwise concluded by the workflow).
 
 2. **Given** a structural validation failure has triggered the agent fallback successfully, **When** the agent task is created, **Then** a comment is posted on the issue containing: the agent task
    URL, a brief explanation that the LLM pipeline failed and the agent was invoked as fallback, and the validation errors that triggered the fallback.
@@ -169,7 +171,9 @@ note about the fallback failure.
 
 - **FR-007**: System MUST remove the `speckit:failed` label (if present from a previous failed run) AND MUST NOT add it when the agent fallback is triggered successfully (recovery is in progress).
 
-- **FR-008**: System MUST check for existing open PRs on the expected SpecKit branch before creating a new agent task (idempotency guard).
+- **FR-008**: System MUST check for existing open PRs on the expected SpecKit branch before creating a new agent task (idempotency guard). If an existing open PR is found, the system MUST NOT create
+  a new agent task and MUST post a comment on the issue indicating that fallback was skipped due to the existing open PR, including a link to the found PR and, when available, the associated existing
+  agent task URL.
 
 - **FR-009**: System MUST be disableable via the `SPECKIT_AGENT_FALLBACK` repository variable — when set to `"false"`, the fallback is skipped entirely and the standard failure handling applies.
 
