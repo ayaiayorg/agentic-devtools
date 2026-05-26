@@ -182,7 +182,7 @@ note about the fallback failure.
   permission issue).
 - What if the structural validation error signature changes in future SpecKit versions? → The detection logic should use a well-defined set of error markers that is maintained alongside the validation
   code. Error signatures are defined as constants in the shared fallback action/script, co-located with or importing from `.github/scripts/speckit-trigger/lib/spec-validation.sh`'s error categories.
-- What happens if the issue body is extremely large (>64KB)? → The problem statement sent to the agent should be truncated or summarized to stay within API limits while preserving essential context.
+- What happens if the issue body exceeds 48KB? → The problem statement sent to the agent should be truncated or summarized to stay within API limits while preserving essential context.
   Truncation preserves the first 48KB of the issue body and appends a `[truncated]` marker.
 - What if the Coding Agent API response is missing `id` or `url` fields? → Treated identically to a non-2xx response — graceful degradation to standard failure handling with a comment noting the
   malformed API response.
