@@ -3,6 +3,7 @@
 **Feature Branch**: `speckit/1569/phase-1-specify`  
 **Created**: 2026-05-26  
 **Status**: Draft  
+**Input**: GitHub Issue #1569  
 **Source Issue**: #1569 (<https://github.com/ayaiayorg/agentic-devtools/issues/1569>)  
 
 ---
