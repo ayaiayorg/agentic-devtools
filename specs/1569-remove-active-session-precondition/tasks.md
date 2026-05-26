@@ -2,13 +2,15 @@
 
 ## Phase Mapping: Plan → Tasks
 
-Plan phases map 1:1 to the task phases in this document:
+Plan phases 1-5 map directly; this task breakdown also adds explicit verification and polish phases:
 
 - Phase 1 (Setup) → Phase 1: Setup
 - Phase 2 (Foundational) → Phase 2: Foundational
 - Phase 3 (User Story 1) → Phase 3: User Story 1 — Thread Resolution Proceeds When Session Is Active (P1)
 - Phase 4 (User Story 2) → Phase 4: User Story 2 — Remaining Preconditions Are Still Enforced (P1)
 - Phase 5 (User Story 3) → Phase 5: User Story 3 — FR-005 in Spec 1559 Updated (P2)
+- Additional execution coverage → Phase 6: User Story 4 — Tests Updated for Coverage (P2)
+- Cross-cutting final checks → Phase 7: Polish & Cross-Cutting
 
 ## Phase 1: Setup
 
@@ -55,7 +57,7 @@ Plan phases map 1:1 to the task phases in this document:
   reviews) to cover the race-condition branch (FR-005) in `tests/unit/cli/ci/pipeline/actions/resolve_threads/test_resolvethreadsaction.py`
 - [ ] T018 [US4] Add `test_execute_handles_exception_in_finalize` asserting `ActionDecision.FAILED` when `provider.finalize_post_repair` raises an exception to cover the exception handler branch in
   `tests/unit/cli/ci/pipeline/actions/resolve_threads/test_resolvethreadsaction.py` (FR-005)
-- [ ] T019 [US4] Run coverage check:
+- [ ] T019 [US4] Run coverage check (FR-005):
 
   ```bash
   agdt-test-pattern tests/unit/cli/ci/pipeline/actions/resolve_threads/ -o addopts= --cov=agentic_devtools.cli.ci.pipeline.actions.resolve_threads --cov-report=term-missing --cov-fail-under=100
