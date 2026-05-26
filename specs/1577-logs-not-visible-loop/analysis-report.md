@@ -17,7 +17,32 @@
 
 ### Category G Structured Findings
 
-[{"id":"G-01","overlap_type":"overlapping","severity":"HIGH","task_ids":["T016","T018"],"dimensions":["file_path","code_section"],"rationale":"T016 audits guards.py for FR-003 compliance (guard outcomes at INFO outside groups). T018 adds/adjusts log statements in guards modules where FR-003 is not satisfied. Both target the same file (guards.py) and the same code sections (guard outcome log statements). T016 is audit, T018 is fix — naturally sequential but overlapping in scope."},{"id":"G-02","overlap_type":"overlapping","severity":"HIGH","task_ids":["T017","T019"],"dimensions":["file_path","code_section"],"rationale":"T017 audits pipeline/actions/*.py for FR-004 compliance. T019 adds/adjusts log statements in action modules where FR-004 is not satisfied. Both target the same files and code sections (action outcome logging). Same audit-then-fix pattern as G-01."},{"id":"G-03","overlap_type":"overlapping","severity":"HIGH","task_ids":["T016","T017"],"dimensions":["description"],"rationale":"Both tasks are 'audit module X — verify Y outcomes logged at INFO outside log_group() scope'. Identical structure and intent applied to different modules. Not duplicate (different files) but strongly overlapping in description pattern. Single dimension = HIGH."}]
+[
+  {
+    "id": "F-01",
+    "overlap_type": "overlapping",
+    "severity": "HIGH",
+    "task_ids": ["T016", "T018"],
+    "dimensions": ["file_path", "code_section"],
+    "rationale": "T016 audits guards.py for FR-003 compliance (guard outcomes at INFO outside groups). T018 adds/adjusts log statements in guards modules where FR-003 is not satisfied. Both target the same file (guards.py) and the same code sections (guard outcome log statements). T016 is audit, T018 is fix — naturally sequential but overlapping in scope."
+  },
+  {
+    "id": "F-02",
+    "overlap_type": "overlapping",
+    "severity": "HIGH",
+    "task_ids": ["T017", "T019"],
+    "dimensions": ["file_path", "code_section"],
+    "rationale": "T017 audits pipeline/actions/*.py for FR-004 compliance. T019 adds/adjusts log statements in action modules where FR-004 is not satisfied. Both target the same files and code sections (action outcome logging). Same audit-then-fix pattern as F-01."
+  },
+  {
+    "id": "F-03",
+    "overlap_type": "overlapping",
+    "severity": "HIGH",
+    "task_ids": ["T016", "T017"],
+    "dimensions": ["description"],
+    "rationale": "Both tasks are 'audit module X — verify Y outcomes logged at INFO outside log_group() scope'. Identical structure and intent applied to different modules. Not duplicate (different files) but strongly overlapping in description pattern. Single dimension = HIGH."
+  }
+]
 
 ## Coverage Summary Table
 
