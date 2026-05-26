@@ -19,9 +19,9 @@ convey what specifically changed during an `edited` event, so the orchestrator c
 The core problem is twofold. First, the orchestrator lacks the metadata needed to determine whether an `edited` event warrants a full pipeline run. Second, because this metadata is absent from the
 provider-agnostic `EventPayload` model, there is no clean way to implement the filtering without coupling the orchestrator to a specific CI platform's raw event schema.
 
-This feature introduces two boolean fields (`title_changed` and `body_changed`) on the `EventPayload` model and a new guard that runs before all existing guards. The guard inspects these fields and
-short-circuits the pipeline when an `edited` event carries only body changes. This approach keeps the YAML triggers minimal (simply adding `edited` to the event list), moves all decision logic into
-testable Python, and works identically across all supported CI providers.
+This feature introduces three fields on the `EventPayload` model: `title_changed` and `body_changed` (both default `False`), plus `edit_changes_known` (default `False`) to indicate whether the provider had reliable per-field change metadata.
+A new edit-relevance guard runs before all existing guards and short-circuits `pull_request` `edited` events when `edit_changes_known=True` and `title_changed=False` (body-only or other non-title edits).
+This approach keeps the YAML triggers minimal (simply adding `edited` to the event list), moves filtering into testable Python, and works identically across all supported CI providers.
 
 ## User Scenarios & Testing
 
@@ -125,8 +125,8 @@ provider should populate the fields correctly when its webhook payload contains 
 
 The specification must account for several boundary conditions that could arise in production. When both the title and body are changed simultaneously in a single edit event, the system must treat
 this as a title change (since the title change is the guard-relevant signal) and proceed with full evaluation. When the `changes` dictionary is present in the raw payload but empty (an unusual but
-possible state), the system must treat this as having no guard-relevant changes and default both fields to `False`, which for a non-edited action means pass-through and for an `edited` action means
-skip.
+possible state), the provider should set `edit_changes_known=True` while leaving `title_changed=False` and `body_changed=False`. For a non-edited action this has no effect (pass-through), and for an
+`edited` action it results in skipping the pipeline run since no title change was detected.
 
 When a CI platform's webhook does not provide change metadata at all (for example, if Azure DevOps sends a generic "updated" event without specifying what fields changed), the system must fail open —
 both `title_changed` and `body_changed` remain `False`, and the edit-relevance guard passes through rather than blocking. This ensures that incomplete metadata never causes a legitimate PR to be
@@ -175,11 +175,12 @@ guards in `guards.py`. The messages must not contain sensitive information (no r
 
 ### Key Entities
 
-**EventPayload** (extended): The immutable dataclass representing a normalized CI event. It gains two new boolean fields (`title_changed`, `body_changed`) that encode what aspects of the PR were
-modified in an `edited` event. This entity is the single point of truth consumed by all guards and downstream pipeline actions.
+**EventPayload** (extended): The immutable dataclass representing a normalized CI event. It gains three new fields to describe `edited` events: `title_changed` (default `False`), `body_changed`
+(default `False`), and `edit_changes_known` (default `False`) to indicate whether the provider had reliable per-field change metadata. This entity is the single point of truth consumed by all guards
+and downstream pipeline actions.
 
-**Edit-Relevance Guard**: A new guard function (or guard entry in `GuardsAction`) that inspects the `action`, `title_changed`, and `body_changed` fields of an `EventPayload` to determine whether the
-event warrants full pipeline evaluation. It is purely evaluative (no side effects) and produces an `ActionResult` with either EXECUTE or BLOCKED decision.
+**Edit-Relevance Guard**: A new guard function (or guard entry in `GuardsAction`) that inspects the `action`, `edit_changes_known`, and `title_changed` fields of an `EventPayload` to determine
+whether the event warrants full pipeline evaluation. It is purely evaluative (no side effects) and produces an `ActionResult` with either EXECUTE or BLOCKED decision.
 
 ## Success Criteria
 
@@ -192,7 +193,7 @@ event warrants full pipeline evaluation. It is purely evaluative (no side effect
   downstream guards or actions execute. In production, this is expected to eliminate at least 80% of unnecessary `edited`-event pipeline runs (based on the observation that body edits outnumber title
   edits approximately 4:1).
 
-- **SC-003**: All new code (the two `EventPayload` fields, provider `parse_event()` changes, and the edit-relevance guard) MUST achieve 100% line and branch coverage in unit tests, consistent with the
+- **SC-003**: All new code (the `EventPayload` fields `title_changed`, `body_changed`, `edit_changes_known`, provider `parse_event()` changes, and the edit-relevance guard) MUST achieve 100% line and branch coverage in unit tests, consistent with the
   repository's existing coverage requirements enforced by CI.
 
 - **SC-004**: The edit-relevance guard MUST be the first guard evaluated in the `GuardsAction` sequence, verified by a unit test that asserts guard ordering and by an integration test confirming that
