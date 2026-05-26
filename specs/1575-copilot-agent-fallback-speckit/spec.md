@@ -102,7 +102,7 @@ distinguish between "pipeline succeeded normally" and "pipeline failed but agent
 
 As the automation system, I must not create duplicate agent tasks if the workflow is re-run or if a fallback is already in progress, so that there are no conflicting PRs or wasted compute resources.
 
-**Covers**: FR-008
+**Covers**: FR-008, FR-013
 
 **Why this priority**: Without idempotency, manual workflow re-runs or race conditions could spawn multiple competing agent tasks generating conflicting PRs for the same spec. This must be addressed
 alongside the core trigger to avoid production chaos.
