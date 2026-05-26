@@ -195,7 +195,8 @@ note about the fallback failure.
 
 ### Functional Requirements
 
-- **FR-001**: System MUST detect structural validation failures from machine-readable validation signatures explicitly surfaced by the failing workflow step (for both workflows) before it exits non-zero.
+- **FR-001**: System MUST detect structural validation failures from machine-readable validation signatures explicitly surfaced by the failing workflow step (for both workflows) before it exits
+  non-zero.
   The upstream step MUST emit signatures via `$GITHUB_OUTPUT` (for example `validation_errors`) or a workspace file (for example `validation-errors.json`) containing known markers
   (`MISSING_SECTIONS`, `INSUFFICIENT_REQUIREMENTS`, `INSUFFICIENT_USER_STORIES`, `MISSING_SUCCESS_CRITERIA`, and any other structural validators defined in the SpecKit pipeline). Detection runs in a
   dedicated workflow step that executes after the main orchestrator step fails (`if: failure()`).
