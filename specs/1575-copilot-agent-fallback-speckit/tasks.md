@@ -2,7 +2,15 @@
 
 ## Phase Mapping: Plan → Tasks
 
-Phases in this `tasks.md` align 1:1 with `plan.md`; each phase below maps directly to the corresponding phase in the implementation plan.
+| Tasks Phase | Plan Phase |
+|-------------|------------|
+| Phase 1: Setup & Scaffolding | (pre-requisite scaffolding, not a plan phase) |
+| Phase 2: Foundational — Upstream Signal Emission | Phase 1: Upstream Signal Emission |
+| Phase 3: User Story 1 — Automatic Agent Fallback | Phase 2: Shared Fallback Module + Phase 3: Workflow Integration |
+| Phase 4: User Story 2 — Observability via Labels and Comments | Phase 5: Follow-up Workflows (partial) |
+| Phase 5: User Story 3 — Idempotent Fallback | Phase 4: Idempotency Guards |
+| Phase 6: User Story 4 — Graceful Degradation | Phase 2: Shared Fallback Module (degradation subset) |
+| Phase 7: Polish & Cross-Cutting | Phase 6: Testing & Validation |
 
 ## Phase 1: Setup & Scaffolding
 
