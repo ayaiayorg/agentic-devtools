@@ -39,6 +39,57 @@ resolve-threads portion of FR-005 must be removed.
 
 ---
 
+## Clarifications
+
+### Session 2026-05-26
+
+- Q: After removing the `no_active_session` block (lines 33–41), should the
+  precondition evaluation order remain CI → pending review → unresolved threads,
+  or should it change?
+  → A: The order MUST remain CI → pending review → unresolved threads. This is
+  the existing order of the remaining checks (lines 43–73) and preserves
+  deterministic skip-reason reporting. No reordering is required.
+
+- Q: When updating spec 1559 FR-005, should the requirement be split into two
+  separate FR entries (one for thread-resolution, one for squash/dispatch-repair),
+  or should FR-005 be reworded in place to exclude resolve-threads?
+  → A: FR-005 should be reworded in place to exclude resolve-threads from the
+  session gate, rather than split into two entries. Splitting would renumber
+  downstream requirements and break cross-references. The updated text should
+  state that only squash and dispatch-repair MUST NOT execute when a session is
+  active, and that thread resolution is not session-gated.
+
+- Q: Should spec 1559 User Story 2 acceptance scenario 1 (line 93–94, which
+  lists resolve-threads among actions skipped when session is active) also be
+  updated, or only acceptance scenario 2 of User Story 3?
+  → A: Both must be updated. User Story 2 acceptance scenario 1 (line 93–94)
+  must remove "resolve-threads" from the list of actions skipped when a session
+  is active, leaving only dispatch-repair and squash. User Story 3 acceptance
+  scenario 2 (line 121) must be removed or rewritten to reflect that thread
+  resolution proceeds regardless of session state. FR-007 in this spec is
+  updated to cover both locations.
+
+- Q: The `execute()` method returns `ActionDecision.SKIP` with reason
+  "No prior Copilot reviews found (race condition)" when `prior_reviews` is
+  empty. Should the `preconditions` dict be populated in this `execute()`-level
+  SKIP result?
+  → A: No change required. The existing `execute()` SKIP path does not populate
+  `preconditions` (it only sets `name`, `decision`, and `details`). This is
+  correct behaviour because `preconditions` is an `evaluate()`-level concept —
+  `execute()` has already passed evaluation. This implicit gate is preserved
+  unchanged per FR-005 of this spec.
+
+- Q: Does 100% line coverage (NFR-003) include the `execute()` method's
+  "No prior Copilot reviews found (race condition)" branch, or only the
+  `evaluate()` method?
+  → A: 100% line coverage applies to the entire `resolve_threads.py` file,
+  including all branches in both `evaluate()` and `execute()`. The
+  "race condition" branch in `execute()` must be covered by a test that
+  constructs a snapshot with `unresolved_threads > 0` (to pass `evaluate()`)
+  but with no matching prior reviews in `snapshot.reviews`.
+
+---
+
 ## User Scenarios & Testing
 
 ### User Story 1 — Thread Resolution Proceeds When Session Is Active (Priority: P1)
@@ -142,12 +193,13 @@ is required.
    execute when a Copilot coding session is active, preserving the requirement for those
    actions unchanged.
 
-3. **Given** FR-005 references in User Story 2 of spec 1559 (acceptance scenario 2:
-   "the same state but a Copilot coding session is active — thread resolution is
-   skipped"),
+3. **Given** FR-005 references in User Story 2 acceptance scenario 1 (line 93–94, which
+   lists resolve-threads among skipped actions) and User Story 3 acceptance scenario 2
+   (line 121, which states thread resolution is skipped when a session is active),
    **When** the spec is updated,
-   **Then** that acceptance scenario MUST be updated or removed so it no longer
-   contradicts the new behaviour.
+   **Then** both acceptance scenarios MUST be updated so they no longer contradict the
+   new behaviour: User Story 2 scenario 1 must remove resolve-threads from the skipped
+   list, and User Story 3 scenario 2 must be removed or rewritten.
 
 ---
 
@@ -177,8 +229,10 @@ alone (without another failing precondition).
 2. **Given** the test suite for `ResolveThreadsAction`,
    **When** the full suite runs with coverage enabled,
    **Then** it MUST achieve 100% line coverage on
-   `agentic_devtools/cli/ci/pipeline/actions/resolve_threads.py` with no `SKIP` branches
-   related to the removed session check remaining untested.
+   `agentic_devtools/cli/ci/pipeline/actions/resolve_threads.py` — covering all branches
+   in both `evaluate()` and `execute()`, including the "No prior Copilot reviews found
+   (race condition)" branch — with no `SKIP` branches related to the removed session
+   check remaining untested.
 
 3. **Given** that squash and dispatch-repair tests still contain "skip when session active"
    scenarios,
@@ -192,8 +246,8 @@ alone (without another failing precondition).
 
 - **Session active AND CI failing**: The action must still skip, with the reason being
   CI failure (not the session). Removing the session guard does not affect this outcome
-  because CI is the primary skip reason and, after this change, the first gate in
-  `evaluate()` regardless of session state.
+  because CI is the first gate in `evaluate()` after this change (the precondition
+  evaluation order remains CI → pending review → unresolved threads).
 
 - **Session active AND pending Copilot review**: The action must still skip with reason
   "Copilot review is pending on HEAD". The session state is irrelevant.
@@ -235,7 +289,8 @@ alone (without another failing precondition).
 
 - **FR-002**: `ResolveThreadsAction.evaluate()` MUST still require `snapshot.ci_status`
   to equal `"passing"` before returning `ActionDecision.EXECUTE`. Failing CI MUST result
-  in `ActionDecision.SKIP`.
+  in `ActionDecision.SKIP`. After FR-001 is applied, the CI check becomes the first
+  precondition evaluated.
 
 - **FR-003**: `ResolveThreadsAction.evaluate()` MUST still require
   `derived.copilot_review_pending` to be `False` before returning `ActionDecision.EXECUTE`.
@@ -259,10 +314,10 @@ alone (without another failing precondition).
 - **FR-007**: FR-005 in `specs/1559-refactor-loop-into-idempotent/spec.md` MUST be
   updated to remove the statement that thread resolution is skipped when a Copilot coding
   session is active. The updated FR-005 MUST continue to specify that squash and
-  dispatch-repair MUST NOT execute when a Copilot coding session is active. Acceptance
-  scenario 2 of User Story 2 in spec 1559 (which states thread resolution is skipped
-  when a session is active) MUST also be updated or removed to avoid contradicting the
-  new behaviour.
+  dispatch-repair MUST NOT execute when a Copilot coding session is active. Additionally,
+  User Story 2 acceptance scenario 1 (line 93–94) MUST remove "resolve-threads" from the
+  list of actions skipped when a session is active, and User Story 3 acceptance scenario 2
+  (line 121) MUST be removed or rewritten so it no longer contradicts the new behaviour.
 
 ### Non-Functional Requirements
 
@@ -276,12 +331,14 @@ alone (without another failing precondition).
   conditions (CI failing, pending review, no threads) MUST remain and still pass.
 
 - **NFR-003**: After the change, the test suite MUST achieve 100% line coverage on
-  `agentic_devtools/cli/ci/pipeline/actions/resolve_threads.py`. No uncovered lines
-  introduced or left behind.
+  `agentic_devtools/cli/ci/pipeline/actions/resolve_threads.py`, including all branches
+  in both `evaluate()` and `execute()` (specifically including the "No prior Copilot
+  reviews found (race condition)" branch in `execute()`). No uncovered lines introduced
+  or left behind.
 
 - **NFR-004**: The change to spec 1559 MUST be minimal — only the resolve-threads
-  reference in FR-005 (and the specific acceptance scenario referencing it) is updated.
-  No other sections or requirements in spec 1559 are modified.
+  reference in FR-005, User Story 2 acceptance scenario 1, and User Story 3 acceptance
+  scenario 2 are updated. No other sections or requirements in spec 1559 are modified.
 
 ### Key Entities
 
@@ -299,8 +356,8 @@ alone (without another failing precondition).
 
 - **`specs/1559-refactor-loop-into-idempotent/spec.md` FR-005**: The functional
   requirement in the companion spec that currently governs the session-gating of
-  thread-resolution, squash, and dispatch-repair. Must be split so that only squash and
-  dispatch-repair retain the session guard.
+  thread-resolution, squash, and dispatch-repair. Must be reworded in place so that only
+  squash and dispatch-repair retain the session guard (no renumbering).
 
 ---
 
@@ -331,3 +388,6 @@ alone (without another failing precondition).
 
 *Spec created manually for issue #1569 — the SpecKit Issue Trigger workflow failed
 structural validation after 3 LLM attempts due to missing mandatory sections.*
+
+---
+*Generated by Copilot SDK (claude-opus-4.6)*
