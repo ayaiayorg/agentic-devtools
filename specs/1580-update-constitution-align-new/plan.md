@@ -2,11 +2,11 @@
 
 ## Technical Context
 
-- **File**: `.specify/memory/constitution.md` (204 lines, single markdown file)
+- **File**: `.specify/memory/constitution.md` (single markdown file)
 - **Current version**: 1.1.0 (ratified 2026-02-02)
 - **Target version**: 1.2.0
 - **Nature**: Pure documentation change — no code, no tests, no build artifacts
-- **Branch**: `speckit/1580/phase-1-specify`
+- **Branch**: `speckit/1580/phase-3-plan`
 - **Issue**: [#1580](https://github.com/ayaiayorg/agentic-devtools/issues/1580)
 
 ## Research Summary
@@ -27,7 +27,7 @@ Key decisions:
 
 ## Design Overview
 
-The update touches 6 areas of the constitution:
+The update touches the following areas of the constitution:
 
 | Area | Change Type | FRs |
 |------|-------------|-----|
