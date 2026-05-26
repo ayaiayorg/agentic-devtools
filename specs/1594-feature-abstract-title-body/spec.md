@@ -160,29 +160,30 @@ action is not `edited`, or when the `changes` key is absent from the payload, `e
 `title_changed`/`body_changed` MUST remain at their default value of `False`.
 **FR-003**: The `AzureDevOpsProvider.parse_event()` method MUST populate the
 `title_changed` and `body_changed` fields based on the Azure DevOps service hook
-payload structure. When the payload includes reliable field-level change metadata
-(such as `resource.fields` containing `System.Title` / description fields), the
-provider MUST set `edit_changes_known=True` and set the corresponding booleans.
+payload structure. When the payload includes reliable field-level change metadata,
+the provider MUST set `edit_changes_known=True` and set the corresponding booleans.
+For PR update/edit events, the provider MUST normalize `EventPayload.action` to
+`edited` (provider-agnostic) so the edit-relevance guard can apply consistently.
 When the payload does not include change metadata, `edit_changes_known` MUST
 remain `False` (fail-open).
 
-**FR-004**: A new guard (the "edit-relevance guard") MUST be added to the
-`GuardsAction` evaluation sequence. This guard MUST execute before all existing
-guards (before the WIP-title check, which is currently first). The guard MUST
-return BLOCKED when the event action is `edited` AND `edit_changes_known` is
-`True` AND `title_changed` is `False`. For all other event actions (and for
-`edited` events where `edit_changes_known` is `False`), the guard MUST return
-EXECUTE unconditionally, regardless of the `title_changed` and `body_changed`
-field values.
+**FR-004**: A new precondition (the "edit-relevance guard") MUST be evaluated
+before any PR metadata / snapshot fetching and before all existing guards (before
+the WIP-title check, which is currently first). When the event action is `edited`
+AND `edit_changes_known` is `True` AND `title_changed` is `False`, the orchestrator
+MUST skip the run (exit successfully with code 0) and MUST NOT evaluate any
+downstream guards or actions. For all other events (including `edited` events
+where `edit_changes_known` is `False`), the orchestrator MUST continue with normal
+processing unconditionally.
 
-**FR-005**: When the edit-relevance guard returns BLOCKED, the `ActionResult` MUST
-include a human-readable reason string that identifies the event as a body-only
-(or no-change) edit. This reason must be suitable for inclusion in log output
-and operator dashboards. The format should be consistent with existing guard
-reason strings in the codebase.
+**FR-005**: When the edit-relevance guard skips execution, the decision output
+and/or `ActionResult` details MUST include a human-readable reason string that
+identifies the event as a body-only (or no-title-change) edit. This reason must be
+suitable for inclusion in log output and operator dashboards. The format should be
+consistent with existing guard reason strings in the codebase.
 
 **FR-006**: The edit-relevance guard MUST emit an INFO-level log message when it
-blocks execution, including the PR number and the specific reason (e.g.,
+skips execution, including the PR number and the specific reason (e.g.,
 "PR #123: skipping edited event — no title change detected"). This log message
 enables operators to distinguish intentional skips from unexpected guard failures
 during incident investigation.
@@ -205,10 +206,11 @@ conditions.
 
 ### Non-Functional Requirements
 
-**NFR-001**: The edit-relevance guard evaluation MUST complete in under 1
-millisecond for any input, as it performs only in-memory field inspection with
-no I/O. This ensures no measurable impact on the overall pipeline startup
-latency, which is currently dominated by network calls to fetch PR metadata.
+**NFR-001**: The edit-relevance decision MUST complete in under 1 millisecond for
+any input, as it performs only in-memory inspection of `EventPayload` fields with
+no I/O. When it decides to skip (body-only/no-title-change edit), the ai-pr-loop
+command MUST exit before performing any network calls (e.g., fetching PR metadata
+or building a PR state snapshot).
 
 **NFR-002**: The implementation MUST maintain full backward compatibility with
 existing `EventPayload` construction patterns. Any code that creates
