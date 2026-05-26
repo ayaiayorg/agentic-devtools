@@ -83,9 +83,12 @@ distinguish between "pipeline succeeded normally" and "pipeline failed but agent
 
 1. **Given** a structural validation failure has triggered the agent fallback successfully, **When** the agent task is created, **Then** the issue receives a `speckit:agent-fallback` label AND retains
    (or also receives) the `speckit:processing` label to indicate work is still in progress. The `speckit:processing` label MUST remain present for the full duration of the agent's asynchronous run
-   and MUST NOT be removed merely because fallback determination is complete or because the agent task was created successfully; agent task creation is a non-terminal state. It may be removed only
-   after the fallback reaches a terminal outcome, defined here as: the agent creates its PR, the agent task fails, or the workflow explicitly concludes the fallback without any further asynchronous
-   agent work remaining.
+   and MUST NOT be removed merely because fallback determination is complete or because the agent task was created successfully; agent task creation is a non-terminal state. To make removal
+   implementable, the fallback workflow MUST persist the agent task ID/URL and source issue number, and the system MUST use both of the following follow-up mechanisms: (a) an event-driven workflow
+   triggered on `pull_request` creation for the corresponding `speckit/...` branch that treats PR creation as a terminal success outcome and removes `speckit:processing`; and (b) a follow-up polling
+   job/workflow that queries the agent task API using the persisted task ID until it reaches a terminal non-PR state (for example `failed`, `cancelled`, or equivalent), at which point it removes
+   `speckit:processing`. If the workflow explicitly concludes the fallback with no further asynchronous agent work remaining, that workflow run MUST also remove `speckit:processing`. Until one of
+   those explicitly observed terminal outcomes occurs, the label MUST remain present.
 
 2. **Given** a structural validation failure has triggered the agent fallback successfully, **When** the agent task is created, **Then** a comment is posted on the issue containing: the agent task
    URL, a brief explanation that the LLM pipeline failed and the agent was invoked as fallback, and the validation errors that triggered the fallback.
@@ -187,7 +190,13 @@ note about the fallback failure.
 
 - **FR-011**: System MUST fall through to standard failure handling (comment + `speckit:failed` label) when the Copilot Coding Agent API is unavailable or returns an error.
 
-- **FR-012**: System MUST keep the `speckit:processing` label for the full duration of the fallback flow, including while any Copilot Coding Agent task is running asynchronously, and MUST remove it only when a terminal outcome is reached — such as a PR being created, the agent task failing, the fallback being explicitly concluded without continuing agent execution, or standard failure handling being executed because fallback did not start.
+- **FR-012**: System MUST keep the `speckit:processing` label for the full
+  duration of the fallback flow, including while any Copilot Coding Agent
+  task is running asynchronously, and MUST remove it only when a terminal
+  outcome is reached — such as a PR being created, the agent task failing,
+  the fallback being explicitly concluded without continuing agent
+  execution, or standard failure handling being executed because fallback
+  did not start.
 
 ### Non-Functional Requirements
 
@@ -218,8 +227,8 @@ note about the fallback failure.
 
 ### Measurable Outcomes
 
-- **SC-001**: 100% of structural validation failures that previously required manual intervention are automatically recovered by the agent fallback within 1 pipeline run — zero human actions needed to
-  get a spec PR created for recoverable failures.
+- **SC-001**: 100% of recoverable structural validation failures that previously required manual intervention are automatically handed off by the fallback within 1 pipeline run — zero human actions
+  needed to create the agent task and apply the expected label/comment state for recoverable failures.
 
 - **SC-002**: 0 duplicate agent tasks are created for the same issue/phase combination across any number of workflow re-runs, verified by the idempotency guard returning a skip result on repeated
   invocations.
