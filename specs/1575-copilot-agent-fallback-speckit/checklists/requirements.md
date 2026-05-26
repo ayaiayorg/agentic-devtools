@@ -28,7 +28,7 @@
 - [ ] CHK009 Scope boundaries clearly distinguish what IS covered (structural validation failures across all 5 phases, both workflow files) from what is NOT covered (infrastructure errors, auth
   failures, rate limits per FR-002)
 - [ ] CHK010 Dependencies on external systems are documented: Copilot Coding Agent API availability, `COPILOT_GITHUB_TOKEN` secret existence (NFR-003), `SPECKIT_REFERENCE_SPEC_PATH` variable
-  optionality, and `lib/spec-validation.sh` error signature definitions
+  optionality, and `.github/scripts/speckit-trigger/lib/spec-validation.sh` error signature definitions
 
 ## Feature Readiness
 
