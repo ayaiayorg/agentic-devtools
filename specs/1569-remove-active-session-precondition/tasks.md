@@ -1,8 +1,8 @@
 # Tasks: Remove Active Session Precondition from ResolveThreadsAction
 
-## Phase Mapping: Tasks → Plan Phase(s)
+## Phase Mapping: Plan → Tasks
 
-| Tasks Phase | Plan Phase(s) | Notes |
+| Tasks Phase | Plan Phase(s) | Description |
 | --- | --- | --- |
 | Phase 1: Setup | Phase 1 — Update Tests; Phase 2 — Modify Source Code; Phase 4 — Update Companion Spec 1559 | Read-through tasks prepare the relevant test, code, and companion spec updates. |
 | Phase 2: Foundational | Phase 5 — Full Suite Validation | Baseline test execution is a validation step used to confirm the starting state before changes. |
