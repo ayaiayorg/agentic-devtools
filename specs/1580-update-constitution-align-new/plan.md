@@ -134,7 +134,7 @@ grep "### X\." .specify/memory/constitution.md
 grep "### XI\." .specify/memory/constitution.md
 
 # SC-007: Sync Impact Report updated
-grep "1.1.0 -> 1.2.0" .specify/memory/constitution.md
+grep -E "1\.1\.0 (→|->) 1\.2\.0" .specify/memory/constitution.md
 
 # SC-008: Existing principles III, V, VII, VIII unchanged
 # Visual diff review
