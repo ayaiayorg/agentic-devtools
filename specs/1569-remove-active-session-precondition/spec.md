@@ -1,9 +1,9 @@
 # Spec: Remove active session precondition from resolve_threads action
 
-**Feature Branch**: `speckit/1569/phase-1-specify`
-**Created**: 2026-05-26
-**Status**: Draft
-**Source Issue**: #1569 (<https://github.com/ayaiayorg/agentic-devtools/issues/1569>)
+**Feature Branch**: `speckit/1569/phase-1-specify`  
+**Created**: 2026-05-26  
+**Status**: Draft  
+**Source Issue**: #1569 (<https://github.com/ayaiayorg/agentic-devtools/issues/1569>)  
 
 ---
 
@@ -191,7 +191,8 @@ alone (without another failing precondition).
 
 - **Session active AND CI failing**: The action must still skip, with the reason being
   CI failure (not the session). Removing the session guard does not affect this outcome
-  because the CI check comes next and fails first.
+  because CI is the primary skip reason and, after this change, the first gate in
+  `evaluate()` regardless of session state.
 
 - **Session active AND pending Copilot review**: The action must still skip with reason
   "Copilot review is pending on HEAD". The session state is irrelevant.
