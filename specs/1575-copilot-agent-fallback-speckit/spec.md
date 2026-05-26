@@ -172,9 +172,14 @@ note about the fallback failure.
 
 - **FR-007**: System MUST remove the `speckit:failed` label (if present from a previous failed run) AND MUST NOT add it when the agent fallback is triggered successfully (recovery is in progress).
 
-- **FR-008**: System MUST check for existing open PRs on the expected SpecKit branch before creating a new agent task (idempotency guard). If an existing open PR is found, the system MUST NOT create
-  a new agent task and MUST post a comment on the issue indicating that fallback was skipped due to the existing open PR, including a link to the found PR and, when available, the associated existing
-  agent task URL.
+- **FR-008**: System MUST check for existing open PRs on the expected SpecKit branch before creating a new agent task as one idempotency guard. If an existing open PR is found, the system MUST NOT
+  create a new agent task and MUST post a comment on the issue indicating that fallback was skipped due to the existing open PR, including a link to the found PR and, when available, the associated
+  existing agent task URL.
+
+- **FR-008A**: System MUST also detect whether a fallback agent task is already active or was previously created for the same issue/phase before opening a new task, even when no PR exists yet. This
+  detection MUST use at least one durable correlation mechanism (for example: a task lookup, a dedicated issue label, or a machine-readable issue comment marker containing the agent task URL/ID). If an
+  existing in-progress or previously created fallback task is found, the system MUST NOT create a duplicate task and MUST post or update an issue comment indicating that fallback was skipped because an
+  agent task is already in progress, including the existing agent task URL when available.
 
 - **FR-009**: System MUST be disableable via the `SPECKIT_AGENT_FALLBACK` repository variable — when set to `"false"`, the fallback is skipped entirely and the standard failure handling applies.
 
@@ -182,7 +187,7 @@ note about the fallback failure.
 
 - **FR-011**: System MUST fall through to standard failure handling (comment + `speckit:failed` label) when the Copilot Coding Agent API is unavailable or returns an error.
 
-- **FR-012**: System MUST remove the `speckit:processing` label only after the fallback determination is complete (either agent task created successfully, or standard failure handling executed).
+- **FR-012**: System MUST keep the `speckit:processing` label for the full duration of the fallback flow, including while any Copilot Coding Agent task is running asynchronously, and MUST remove it only when a terminal outcome is reached — such as a PR being created, the agent task failing, the fallback being explicitly concluded without continuing agent execution, or standard failure handling being executed because fallback did not start.
 
 ### Non-Functional Requirements
 
