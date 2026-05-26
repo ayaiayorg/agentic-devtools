@@ -85,8 +85,9 @@ existing.
 1. **Given** a PR with 3 unresolved Copilot review comment threads from a prior review, **When** the orchestrator reaches the review-request decision point (Step 7b — no effective review on HEAD),
    **Then** it must NOT call `provider.request_reviewer()` and must return a decision of `"awaiting_thread_resolution"` with `"unresolved_threads": 3` in the summary.
 
-2. **Given** a PR with 2 unresolved review comment threads and CI passing (CI-completion path with no actionable review on HEAD), **When** the orchestrator would normally request a Copilot review after
-   CI passes, **Then** it must NOT request the review and must return `"awaiting_thread_resolution"` with `"unresolved_threads": 2` in the decision summary.
+2. **Given** a PR with 2 unresolved review comment threads and CI passing (CI-completion path with no actionable review on HEAD),
+   **When** the orchestrator would normally request a Copilot review after CI passes,
+   **Then** it must NOT request the review and must return `"awaiting_thread_resolution"` with `"unresolved_threads": 2` in the decision summary.
 
 3. **Given** a PR where all prior review comment threads have been resolved (all threads marked resolved via GitHub UI or API), **When** the orchestrator reaches any review-request decision point,
    **Then** it must proceed normally and request a Copilot review as it does today.
@@ -134,8 +135,10 @@ threads before proceeding. Each path can be tested in isolation.
 
 **Acceptance Scenarios**:
 
-1. **Given** a draft PR being published where 4 unresolved threads exist from a prior review (the draft-publish path, Step 7a, after `provider.publish_pr()`), **When** the orchestrator publishes the PR
-   and would request a review, **Then** it must check unresolved threads, block the review request, and return `"awaiting_thread_resolution"` with `"unresolved_threads": 4` in the decision summary.
+1. **Given** a draft PR being published where 4 unresolved threads exist from a prior review (the draft-publish path, Step 7a, after `provider.publish_pr()`),
+   **When** the orchestrator publishes the PR and would request a review,
+   **Then** it must check unresolved threads, block the review request, and return `"awaiting_thread_resolution"`
+   with `"unresolved_threads": 4` in the decision summary.
 2. **Given** a CI-completion event where CI passes, no actionable review exists on HEAD, and 2 unresolved threads remain (the CI-completion path), **When** the orchestrator reaches the "request review
    after CI" logic, **Then** it must block the review request and return `"awaiting_thread_resolution"` with `"unresolved_threads": 2` in the decision summary.
 
@@ -158,9 +161,10 @@ orchestrator blocks the review request in each case.
 
 **Acceptance Scenarios**:
 
-1. **Given** a PR where the call to `provider.count_unresolved_review_threads(pr_number)` raises a network timeout exception, **When** the orchestrator attempts to check unresolved threads, **Then** it
-   must treat the PR as having unresolved threads (fail closed), log a warning with the exception details, block the review request, and include `"unresolved_threads": -1` and
-   `"unresolved_threads_error": true` in the decision summary.
+1. **Given** a PR where the call to `provider.count_unresolved_review_threads(pr_number)` raises a network timeout exception,
+   **When** the orchestrator attempts to check unresolved threads,
+   **Then** it must treat the PR as having unresolved threads (fail closed), log a warning with the exception details,
+   block the review request, and include `"unresolved_threads": -1` and `"unresolved_threads_error": true` in the decision summary.
 
 2. **Given** a PR where the call to `provider.count_unresolved_review_threads(pr_number)` raises an exception due to a 500 Internal Server Error, **When** the orchestrator attempts to check unresolved
    threads, **Then** it must fail closed, include `"unresolved_threads": -1` and `"unresolved_threads_error": true` in the decision summary, and return `EXIT_SUCCESS` (so the loop retries on the
