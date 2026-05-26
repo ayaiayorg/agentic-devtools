@@ -179,7 +179,7 @@ note about the fallback failure.
   create a new agent task and MUST post a comment on the issue indicating that fallback was skipped due to the existing open PR, including a link to the found PR and, when available, the associated
   existing agent task URL.
 
-- **FR-008A**: System MUST also detect whether a fallback agent task is already active or was previously created for the same issue/phase before opening a new task, even when no PR exists yet. This
+- **FR-013**: System MUST also detect whether a fallback agent task is already active or was previously created for the same issue/phase before opening a new task, even when no PR exists yet. This
   detection MUST use at least one durable correlation mechanism (for example: a task lookup, a dedicated issue label, or a machine-readable issue comment marker containing the agent task URL/ID). If an
   existing in-progress or previously created fallback task is found, the system MUST NOT create a duplicate task and MUST post or update an issue comment indicating that fallback was skipped because an
   agent task is already in progress, including the existing agent task URL when available.
