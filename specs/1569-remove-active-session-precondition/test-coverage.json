@@ -1,20 +1,6 @@
 {
   "findings": [
     {
-      "key": "FR-007:no-test-task",
-      "severity": "HIGH",
-      "description": "FR-007 has no associated test task.",
-      "recommendation": "Add a test task referencing FR-007 covering its acceptance scenarios (N/A \u2014 FR lacks testable acceptance criteria; consider adding acceptance scenarios to the spec), or re-run `/speckit.tasks`.",
-      "fr_id": "FR-007"
-    },
-    {
-      "key": "FR-006:no-test-task",
-      "severity": "HIGH",
-      "description": "FR-006 has no associated test task.",
-      "recommendation": "Add a test task referencing FR-006 covering its acceptance scenarios (N/A \u2014 FR lacks testable acceptance criteria; consider adding acceptance scenarios to the spec), or re-run `/speckit.tasks`.",
-      "fr_id": "FR-006"
-    },
-    {
       "key": "FR-007:priority-ambiguous",
       "severity": "LOW",
       "description": "FR-007 priority could not be determined \u2014 defaulting to non-P1, so missing test coverage would be HIGH (not CRITICAL).",
