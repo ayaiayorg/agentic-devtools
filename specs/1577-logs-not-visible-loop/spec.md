@@ -13,12 +13,13 @@
 - Q: Where should the `setup_logging()` function live — in `commands.py` itself or in a dedicated `logging_config.py` module? → A: A dedicated module (`agentic_devtools/cli/ci/logging_config.py`)
   following the existing package structure pattern where concerns are separated into distinct modules (e.g., `config.py`, `auth.py`, `helpers.py`). This allows reuse from both `ai_pr_loop_command()`
   and `speckit_trigger_command()` without duplication.
-- Q: Should the `::group::`/`::endgroup::` annotations be emitted via the logging framework (custom formatter/handler) or remain as direct `print()` statements? → A: Via the logging framework using a
-  GitHub Actions-aware formatter that conditionally emits group annotations based on `GITHUB_ACTIONS` environment variable detection. This centralizes output formatting and ensures FR-008 compliance
-  automatically.
+- Q: Should the `::group::`/`::endgroup::` annotations be emitted via the logging framework (custom formatter/handler) or remain as direct `print()` statements? → A: Via the logging subsystem, but not
+  through the normal per-record log format string. Implement an explicit helper/context manager in `agentic_devtools/cli/ci/logging_config.py` that conditionally emits `::group::` and `::endgroup::`
+  when `GITHUB_ACTIONS=="true"`, while ordinary log records continue to use the standard formatter. This keeps FR-003/FR-004 logs outside grouped verbose sections unless a caller deliberately wraps them.
 - Q: How should subprocess output from `gh` CLI calls be handled — inherited via `subprocess.PIPE` and re-emitted through logging, or left as direct stderr/stdout inheritance? → A: Subprocess stderr
-  should be captured and re-emitted through `logger.debug()` for diagnostic visibility, while stdout (which may contain structured data) should be captured and processed programmatically. This avoids
-  interleaving raw subprocess output with formatted log lines.
+  should be captured and re-emitted through logging rather than inherited directly: use `logger.debug()` when the subprocess exits successfully to preserve diagnostic visibility without adding noise,
+  but surface stderr at `logger.warning()` or `logger.error()` when the subprocess exits non-zero so failure details are visible in the step log at the default INFO level. Stdout (which may contain
+  structured data) should be captured and processed programmatically. This avoids interleaving raw subprocess output with formatted log lines.
 - Q: Should the logging setup be idempotent across multiple calls (e.g., if both a parent script and the entry point try to configure logging)? → A: Yes — the setup function must check
   `logging.root.handlers` before adding handlers. If handlers already exist, skip configuration entirely (as specified in the Edge Cases section). This matches the Python logging best practice of
   "configure once at the application boundary."
