@@ -252,9 +252,11 @@ evaluation. It is purely evaluative (no side effects) and produces an
   unnecessary `edited`-event pipeline runs (based on the observation that body
   edits outnumber title edits approximately 4:1).
 
-- **SC-003**: All new code (the `EventPayload` fields `title_changed`, `body_changed`, `edit_changes_known`, provider `parse_event()`
-  changes, and the edit-relevance guard) MUST achieve 100% line and branch coverage in unit tests, consistent with the repository's
-  existing coverage requirements enforced by CI.
+- **SC-003**: All new code (the `EventPayload` fields
+  `title_changed`, `body_changed`, `edit_changes_known`, provider
+  `parse_event()` changes, and the edit-relevance guard) MUST achieve
+  100% line and branch coverage in unit tests, consistent with the
+  repository's existing coverage requirements enforced by CI.
 
 - **SC-004**: The edit-relevance guard MUST be the first guard evaluated in the
   `GuardsAction` sequence, verified by a unit test that asserts guard ordering
