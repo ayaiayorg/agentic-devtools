@@ -4,6 +4,12 @@
 
 ---
 
+## Phase Mapping: Plan → Tasks
+
+Phases are 1:1 aligned with `plan.md` (Setup, Foundational, User Story 1, User Story 2, User Story 3, Polish & Cross-Cutting).
+
+---
+
 ## Phase 1: Setup
 
 - [ ] T001 Review existing `IssueEvent` model fields to confirm `id`, `event`, `created_at`, `actor_login` availability in `agentic_devtools/cli/ci/models.py`
@@ -65,10 +71,10 @@
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T019 Run focused tests via `agdt-test-pattern tests/unit/cli/ci/pipeline/session_detector/ -v` and fix any failures
-- [ ] T020 Run full test suite via `agdt-test` + `agdt-task-wait` ensuring 100% coverage on `session_detector.py`
-- [ ] T021 Run `bash scripts/run-pr-checks.sh` to validate ruff, mypy, markdownlint, and full CI parity
-- [ ] T022 Verify NFR-001 compliance — confirm all existing tests pass with unchanged return-value assertions (no behavior changes)
+- [ ] T019 [US1] Run focused tests via `agdt-test-pattern tests/unit/cli/ci/pipeline/session_detector/ -v` and fix any FR-001/FR-002/FR-003-related failures
+- [ ] T020 [US2] Run full test suite via `agdt-test` + `agdt-task-wait` ensuring FR-005 and `session_detector.py` coverage expectations are met
+- [ ] T021 [US2] Run `bash scripts/run-pr-checks.sh` to validate ruff, mypy, markdownlint, and full CI parity for FR-005 structured logging changes
+- [ ] T022 [US3] Verify NFR-001 compliance — confirm all existing tests pass with unchanged return-value assertions (no behavior changes)
 
 ---
 
@@ -83,7 +89,7 @@ T009..T018 → T019 → T020 → T021 → T022
 ## Task-to-FR Traceability
 
 | FR | Tasks |
-|-----|-------|
+| --- | --- |
 | FR-001 | T002, T009, T010, T011, T013 |
 | FR-002 | T003, T010, T011, T012, T013, T014 |
 | FR-003 | T004, T005, T006, T009, T010, T011, T015, T016 |
