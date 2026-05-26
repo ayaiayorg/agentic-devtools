@@ -34,9 +34,9 @@ all supported CI providers.
 ### Session 2026-05-26
 
 - Q: Where exactly should the edit-relevance preflight live — as a standalone function in `guards.py`, or inline in `run_ai_pr_loop()` in `orchestrator.py`? → A: It should be implemented as a
-  standalone function in `agentic_devtools/cli/ci/guards.py` (e.g., `check_edit_relevance(event: EventPayload) -> tuple[bool, str]`) for testability, but invoked inline in `run_ai_pr_loop()`
-  immediately after event parsing and before lock acquisition, `provider.get_pr_metadata(pr_number)` (the first network call in the legacy flow), or `build_snapshot()`. This keeps it consistent
-  with the existing guard pattern while respecting the spec's requirement that it runs before any network calls.
+  standalone function in `agentic_devtools/cli/ci/guards.py` (e.g., `check_edit_relevance(event: EventPayload) -> tuple[bool, str]`) for testability, but invoked in `ai_pr_loop_command()`
+  (in `commands.py`) immediately after event parsing and before the v1/v2 routing decision. This ensures the preflight runs before any network calls — including `provider.get_pr_metadata(pr_number)`
+  (the first network call in the legacy flow) and `build_snapshot()` — regardless of whether the pipeline routes to `run_ai_pr_loop()` or `run_ai_pr_loop_v2()`.
 
 - Q: The spec says the guard exits with code 0 when skipping — should this use `EXIT_SUCCESS` (0) or a new dedicated exit code (e.g., `EXIT_EDIT_SKIPPED = 6`) so CI workflows can distinguish "nothing
   to do" from "intentionally skipped due to irrelevant edit"? → A: Use `EXIT_SUCCESS` (0). The edit-relevance skip is a normal, expected outcome — not an error or special condition. The INFO log
@@ -48,9 +48,9 @@ all supported CI providers.
   already specified in the edge cases section and FR-002.
 
 - Q: The spec mentions the pipeline `command.py` (`run_ai_pr_loop_v2`) as a newer entry point alongside the legacy `orchestrator.py` (`run_ai_pr_loop`). Should the edit-relevance preflight be
-  implemented in both entry points or only one? → A: The edit-relevance preflight should be implemented in the legacy `run_ai_pr_loop()` in `orchestrator.py` since that is currently the primary entry
-  point invoked by the ai-pr-loop workflow. The pipeline v2 `command.py` already uses `GuardsAction` which evaluates guards after snapshot construction — if v2 needs the optimization, a separate
-  fast-path can be added later. This keeps the initial implementation focused and avoids touching the newer pipeline architecture unnecessarily.
+  implemented in both entry points or only one? → A: The edit-relevance preflight should be implemented in `ai_pr_loop_command()` (in `commands.py`) after event parsing but before the v1/v2
+  routing decision. Since the ai-pr-loop workflow sets `AGDT_USE_PIPELINE_V2=1`, routing to `run_ai_pr_loop_v2()`, placing the guard in the shared command function ensures it is enforced
+  regardless of which pipeline path is active. This avoids duplicating the guard in both `run_ai_pr_loop()` and `run_ai_pr_loop_v2()` and guarantees the optimization applies in the actual CI path.
 
 - Q: Should the `trigger_label` field extraction in `_parse_pull_request_event` be extended to detect label-related `edited` events, or is label handling entirely separate (via the existing `labeled`
   action)? → A: Label handling remains entirely separate via the `labeled` action. For this feature, the relevant GitHub `pull_request` `edited` metadata is the `changes` object for `title`, `body`,
@@ -199,22 +199,23 @@ When the payload does not include change metadata, `edit_changes_known` MUST
 remain `False` (fail-open).
 
 **FR-004**: A new precondition (the "edit-relevance preflight") MUST be evaluated
-in the ai-pr-loop entry point (`run_ai_pr_loop()` in `orchestrator.py`) immediately after `EventPayload` is parsed and
-before any provider/network calls — specifically before
-`provider.get_pr_metadata(pr_number)`, lock acquisition, and
-`build_snapshot()` — and before all existing guards (the WIP-title check
-is currently first). In the legacy orchestrator, the call order after this change
-MUST be: (1) parse event → (2) **edit-relevance preflight** → (3)
-`get_pr_metadata()` → (4) lock acquisition → (5) `build_snapshot()` →
-(6) remaining guards/actions. (Note: `build_snapshot()` is the legacy orchestrator
-helper in `evaluator/snapshot.py`; `build_pr_state_snapshot()` is the pipeline v2
-equivalent and is out of scope here.) The preflight MUST be implemented as a standalone
+in the `ai_pr_loop_command()` function (in `commands.py`) immediately after `EventPayload` is parsed and
+before the v1/v2 routing decision — ensuring it runs before any provider/network calls
+(`provider.get_pr_metadata(pr_number)`, lock acquisition, and
+`build_snapshot()`) regardless of whether the pipeline routes to `run_ai_pr_loop()` or
+`run_ai_pr_loop_v2()`. Since the ai-pr-loop workflow sets `AGDT_USE_PIPELINE_V2=1`,
+placing the guard here guarantees enforcement in the active CI path. The call order
+in `ai_pr_loop_command()` after this change MUST be: (1) parse event → (2)
+**edit-relevance preflight** → (3) route to v1 or v2 pipeline. (Note: `build_snapshot()`
+is the legacy orchestrator helper in `evaluator/snapshot.py`; `build_pr_state_snapshot()`
+is the pipeline v2 equivalent — both occur downstream of routing and are thus gated
+by the preflight.) The preflight MUST be implemented as a standalone
 function `check_edit_relevance(event: EventPayload) -> tuple[bool, str]` in
 `agentic_devtools/cli/ci/guards.py`. When the event action is `edited` AND `edit_changes_known`
 is `True` AND `title_changed` is `False`, the command MUST log an INFO message
 and exit successfully with code 0 (`EXIT_SUCCESS`) without evaluating any downstream guards or
 actions. For all other events (including `edited` events where
-`edit_changes_known` is `False`), the orchestrator MUST continue with normal
+`edit_changes_known` is `False`), the command MUST continue with normal
 processing unconditionally.
 
 **FR-005**: When the edit-relevance preflight skips execution, it MUST provide a
