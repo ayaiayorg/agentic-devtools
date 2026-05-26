@@ -10,7 +10,7 @@
 - **Target file**: `agentic_devtools/cli/ci/pipeline/session_detector.py` (79 lines)
 - **Test file**: `tests/unit/cli/ci/pipeline/session_detector/test_is_copilot_session_active.py` (68 lines)
 - **Data model**: `IssueEvent` dataclass with fields `id`, `event`, `created_at`, `actor_login`
-- **Constraint**: Zero behavior changes — same return values, same control flow, same error handling
+- **Constraint**: Zero behavior changes — same return values, same decision logic, same error handling; avoid introducing additional passes over `events` for logging-only work
 
 ## Research Summary
 
@@ -32,7 +32,7 @@ is_copilot_session_active(provider, pr_number)
 │
 ├─ [2] DEBUG log: total event count + extra{event_count, pr_number}
 │
-├─ [3] DEBUG log (loop): per-event metadata + extra{event_id, event_type, created_at, actor_login, pr_number}
+├─ [3] DEBUG log (in existing latest_start scan): per-event metadata + extra{event_id, event_type, created_at, actor_login, pr_number}
 │
 ├─ [4a] if latest_start is None: INFO log + extra{decision_path="no-events", pr_number} → return False
 │
@@ -62,22 +62,29 @@ FR-005 (structured parseable format) is implicitly satisfied — every logging c
    )
    ```
 
-2. Add FR-002 (per-event metadata) — `DEBUG` level inside a loop over `events`:
+2. Add FR-002 (per-event metadata) — `DEBUG` level emitted within the existing `latest_start` scan loop (no additional pass over `events`):
 
    ```python
+   debug_enabled = logger.isEnabledFor(logging.DEBUG)
    for idx, event in enumerate(events):
-       logger.debug(
-           "PR #%d: Event[%d] type=%s id=%d created_at=%s actor=%s",
-           pr_number, idx, event.event, event.id, event.created_at, event.actor_login,
-           extra={
-               "pr_number": pr_number,
-               "event_id": event.id,
-               "event_type": event.event,
-               "created_at": event.created_at,
-               "actor_login": event.actor_login,
-           },
-       )
+       if debug_enabled:
+           logger.debug(
+               "PR #%d: Event[%d] type=%s id=%d created_at=%s actor=%s",
+               pr_number, idx, event.event, event.id, event.created_at, event.actor_login,
+               extra={
+                   "pr_number": pr_number,
+                   "event_id": event.id,
+                   "event_type": event.event,
+                   "created_at": event.created_at,
+                   "actor_login": event.actor_login,
+               },
+           )
+       if event.event == COPILOT_SESSION_EVENT_STARTED:
+           if latest_start is None or event.id > latest_start.id:
+               latest_start = event
    ```
+
+   This keeps total list traversals unchanged versus current logic (latest-start scan + terminal `any(...)` check) while adding diagnostics.
 
 3. Add FR-003 (decision-path markers) — Replace existing `logger.info` calls with structured equivalents containing `extra={"decision_path": "...", "pr_number": ...}` for each of the three
    non-exception branches.
