@@ -15,7 +15,7 @@ class ResolveThreadsAction:
     """Resolve unresolved Copilot review threads from prior commits.
 
     Preconditions:
-    - No active Copilot coding session
+    - CI passing
     - No pending Copilot review on HEAD
     - Unresolved threads exist from prior commits
 
@@ -29,16 +29,6 @@ class ResolveThreadsAction:
     def evaluate(self, snapshot: PRStateSnapshot, derived: DerivedState) -> ActionResult:
         """Evaluate whether thread resolution should be attempted."""
         preconditions: dict[str, bool] = {}
-
-        # No active session
-        preconditions["no_active_session"] = not snapshot.active_session
-        if snapshot.active_session:
-            return ActionResult(
-                name=self.name,
-                decision=ActionDecision.SKIP,
-                preconditions=preconditions,
-                details="Copilot coding session is active",
-            )
 
         # CI must be passing before finalization
         preconditions["ci_passing"] = snapshot.ci_status == "passing"

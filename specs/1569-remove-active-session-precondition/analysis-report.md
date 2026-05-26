@@ -41,6 +41,8 @@
 | Task Deduplication by Type | duplicate: 0 / overlapping: 2 / conflicting: 0 |
 | Multi-Task Group Count | 1 (T010, T011, T012) |
 
+<!-- markdownlint-disable MD013 -->
+
 ### Category G Structured Findings
 
 [
@@ -48,19 +50,31 @@
     "id": "G-01",
     "overlap_type": "overlapping",
     "severity": "HIGH",
-    "task_ids": ["T010", "T011", "T012"],
-    "dimensions": ["description"],
-    "rationale": "All three tasks test ActionDecision.SKIP with active_session=True plus a failing precondition in the same file. They overlap in description but still map to different FRs and keys."
+    "task_ids": [
+      "T010",
+      "T011",
+      "T012"
+    ],
+    "dimensions": [
+      "description"
+    ],
+    "rationale": "All three tasks add a test asserting ActionDecision.SKIP when active_session=True combined with one failing precondition, in the same test file. Description intent is similar (edge-case skip with session active) but each covers a distinct FR (002/003/004) and distinct precondition key. Single-dimension overlap only."
   },
   {
     "id": "G-02",
     "overlap_type": "overlapping",
     "severity": "HIGH",
-    "task_ids": ["T020", "T021"],
-    "dimensions": ["description"],
-    "rationale": "Both tasks are broad regression checks (full tests vs full PR checks). Description overlap exists, but scope/tooling differ enough to keep both tasks."
+    "task_ids": [
+      "T020",
+      "T021"
+    ],
+    "dimensions": [
+      "description"
+    ],
+    "rationale": "Both tasks run full validation (T020: agdt-test full suite; T021: run-pr-checks.sh including tests+lint+format). Description overlap: both verify no regressions across full codebase. Different tools and scopes (test-only vs lint+format+markdownlint+mypy) justify keeping separate. Single-dimension overlap."
   }
 ]
+<!-- markdownlint-enable MD013 -->
 
 ## Next Actions
 
