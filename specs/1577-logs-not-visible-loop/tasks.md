@@ -11,6 +11,7 @@
 | Phase 5: User Story 3 — Configurable Log Verbosity (P3) | Phase 1 | Extend `AGDT_LOG_LEVEL` test coverage |
 | Phase 6: Subprocess Output Handling | Phase 5 | Capture and re-emit subprocess stderr via logging |
 | Final Phase: Polish & Cross-Cutting | Phase 6 | Validation runs (validate_test_structure, agdt-test, PR checks) |
+
 ## Phase 1: Setup
 
 - [ ] T001 Create module file `agentic_devtools/cli/ci/logging_config.py` with module docstring and imports (`logging`, `os`, `sys`, `contextlib`)
@@ -38,7 +39,8 @@
 - [ ] T011 [US1] Wire `setup_logging()` call into `speckit_trigger_command()` in `agentic_devtools/cli/ci/commands.py` — place before command logic (FR-007: speckit entry point uses shared logging
   mechanism)
 - [ ] T012 [US1] Update/add tests in `tests/unit/cli/ci/commands/` to verify `setup_logging()` is called at the correct point in `ai_pr_loop_command()` control flow (FR-001)
-- [ ] T013 [US1] Update/add tests in `tests/unit/cli/ci/commands/` to verify `setup_logging()` is called at the correct point in `speckit_trigger_command()` control flow — covering success path and expected call order (FR-007)
+- [ ] T013 [US1] Update/add tests in `tests/unit/cli/ci/commands/` to verify `setup_logging()` is called at the correct point in
+  `speckit_trigger_command()` control flow — covering success path and expected call order (FR-007)
 
 ## Phase 4: User Story 2 — Expanded Log Groups (P2)
 
