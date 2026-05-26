@@ -23,6 +23,8 @@
 
 ---
 
+<!-- markdownlint-disable MD013 -->
+
 ### Category G Structured Findings
 
 [
@@ -37,7 +39,7 @@
     "dimensions": [
       "description"
     ],
-    "rationale": "Both tasks add caplog assertions for FR-001 event count + FR-002 per-event metadata + FR-003 decision path to test methods in the same file. They d..."
+    "rationale": "Both tasks add caplog assertions for FR-001 event count + FR-002 per-event metadata + FR-003 decision path to test methods in the same file. They differ only in the decision path value tested (has-terminal vs active-session), making them structurally similar but testing different branches. Single-dimension overlap (description similarity)."
   },
   {
     "id": "G-02",
@@ -50,7 +52,7 @@
     "dimensions": [
       "description"
     ],
-    "rationale": "T010 asserts FR-002 metadata and FR-003 decision_path=has-terminal on started+finished scenario; T012 asserts FR-002 metadata and FR-003 decision_p..."
+    "rationale": "T010 asserts FR-002 metadata and FR-003 decision_path=has-terminal on started+finished scenario; T012 asserts FR-002 metadata and FR-003 decision_path=has-terminal on started+failure scenario. Nearly identical assertion pattern with different fixtures but same outcome. Single-dimension overlap."
   },
   {
     "id": "G-03",
@@ -64,9 +66,10 @@
     "dimensions": [
       "description"
     ],
-    "rationale": "T019 runs focused tests on session_detector directory; T020 runs the full test suite, which includes the same tests; and T021 runs PR checks that i..."
+    "rationale": "T019 runs focused tests on session_detector directory; T020 runs the full test suite, which includes the same tests; and T021 runs PR checks that include overlapping validation at a broader CI scope. These tasks target the same validation intent with increasing breadth, so the description overlap is real even though the execution scope expands at each step."
   }
 ]
+<!-- markdownlint-enable MD013 -->
 
 ---
 
