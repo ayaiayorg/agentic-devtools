@@ -29,6 +29,33 @@ This approach keeps the YAML triggers minimal (simply adding `edited` to the
 event list), moves filtering into testable Python, and works identically across
 all supported CI providers.
 
+## Clarifications
+
+### Session 2026-05-26
+
+- Q: Where exactly should the edit-relevance preflight live — as a standalone function in `guards.py`, or inline in `run_ai_pr_loop()` in `orchestrator.py`? → A: It should be implemented as a
+  standalone function in `agentic_devtools/cli/ci/guards.py` (e.g., `check_edit_relevance(event: EventPayload) -> tuple[bool, str]`) for testability, but invoked inline in `run_ai_pr_loop()`
+  immediately after event parsing and before lock acquisition or `build_pr_state_snapshot()`. This keeps it consistent with the existing guard pattern while respecting the spec's requirement that it
+  runs before any network calls.
+
+- Q: The spec says the guard exits with code 0 when skipping — should this use `EXIT_SUCCESS` (0) or a new dedicated exit code (e.g., `EXIT_EDIT_SKIPPED = 6`) so CI workflows can distinguish "nothing
+  to do" from "intentionally skipped due to irrelevant edit"? → A: Use `EXIT_SUCCESS` (0). The edit-relevance skip is a normal, expected outcome — not an error or special condition. The INFO log
+  message provides sufficient observability for distinguishing skips from other exit-0 cases. Adding a new exit code would complicate workflow YAML for no practical benefit.
+
+- Q: For the `label` field changes in a PR `edited` event (e.g., milestones or assignees changed via the API triggering an `edited` action), should `edit_changes_known` be `True` even when neither
+  title nor body keys are in the `changes` dict? → A: Yes. When the `changes` key is present in the payload (even if it contains neither `title` nor `body` — e.g., only `base` or other fields),
+  `edit_changes_known` should be set to `True`. This correctly signals that the provider had metadata and confidently determined that no title change occurred, allowing the guard to skip. This is
+  already specified in the edge cases section and FR-002.
+
+- Q: The spec mentions the pipeline `command.py` (`run_ai_pr_loop_v2`) as a newer entry point alongside the legacy `orchestrator.py` (`run_ai_pr_loop`). Should the edit-relevance preflight be
+  implemented in both entry points or only one? → A: The edit-relevance preflight should be implemented in the legacy `run_ai_pr_loop()` in `orchestrator.py` since that is currently the primary entry
+  point invoked by the ai-pr-loop workflow. The pipeline v2 `command.py` already uses `GuardsAction` which evaluates guards after snapshot construction — if v2 needs the optimization, a separate
+  fast-path can be added later. This keeps the initial implementation focused and avoids touching the newer pipeline architecture unnecessarily.
+
+- Q: Should the `trigger_label` field extraction in `_parse_pull_request_event` be extended to detect label-related `edited` events, or is label handling entirely separate (via the existing `labeled`
+  action)? → A: Label handling remains entirely separate via the `labeled` action. The `edited` action on GitHub only fires for title/body/base changes. The `trigger_label` field is populated only
+  from `labeled`/`unlabeled` events. No changes to label handling are needed for this feature.
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Title Change Triggers Full Guard Re-evaluation (Priority: P1)
@@ -158,6 +185,7 @@ contains a `changes` key for an `edited` action (including when `changes` is pre
 when the payload contains a `changes.title` key and `body_changed=True` when the payload contains a `changes.body` key. When the event
 action is not `edited`, or when the `changes` key is absent from the payload, `edit_changes_known` MUST remain `False` and
 `title_changed`/`body_changed` MUST remain at their default value of `False`.
+
 **FR-003**: The `AzureDevOpsProvider.parse_event()` method MUST populate the
 `title_changed` and `body_changed` fields based on the Azure DevOps service hook
 payload structure. When the payload includes reliable field-level change metadata,
@@ -168,12 +196,14 @@ When the payload does not include change metadata, `edit_changes_known` MUST
 remain `False` (fail-open).
 
 **FR-004**: A new precondition (the "edit-relevance preflight") MUST be evaluated
-in the ai-pr-loop entry point immediately after `EventPayload` is parsed and
+in the ai-pr-loop entry point (`run_ai_pr_loop()` in `orchestrator.py`) immediately after `EventPayload` is parsed and
 before any provider/network calls (including lock acquisition and
 `build_pr_state_snapshot()`) and before all existing guards (the WIP-title check
-is currently first). When the event action is `edited` AND `edit_changes_known`
+is currently first). The preflight MUST be implemented as a standalone function
+`check_edit_relevance(event: EventPayload) -> tuple[bool, str]` in
+`agentic_devtools/cli/ci/guards.py`. When the event action is `edited` AND `edit_changes_known`
 is `True` AND `title_changed` is `False`, the command MUST log an INFO message
-and exit successfully with code 0 without evaluating any downstream guards or
+and exit successfully with code 0 (`EXIT_SUCCESS`) without evaluating any downstream guards or
 actions. For all other events (including `edited` events where
 `edit_changes_known` is `False`), the orchestrator MUST continue with normal
 processing unconditionally.
@@ -223,7 +253,11 @@ with both new fields defaulting to `False`.
 **NFR-003**: All new guard logic MUST be covered by unit tests following the
 repository's 1:1:1 test structure policy. Test files must be placed under
 `tests/unit/` with paths mirroring the source structure, and each test file must
-target a single symbol (function or class).
+target a single symbol (function or class). Specifically:
+
+- `tests/unit/cli/ci/guards/test_check_edit_relevance.py` for the guard function
+- `tests/unit/cli/ci/models/test_eventpayload.py` (extend existing) for the new fields
+- `tests/unit/cli/ci/github_provider/test_parse_event.py` (extend existing) for GitHub provider changes
 
 **NFR-004**: Log messages emitted by the edit-relevance guard MUST use the
 standard Python `logging` module at INFO level and follow the existing log
@@ -239,11 +273,13 @@ event. It gains three new fields to describe `edited` events: `title_changed`
 metadata. This entity is the single point of truth consumed by all guards and
 downstream pipeline actions.
 
-**Edit-Relevance Guard**: An entry-point preflight check that inspects the
-`action`, `edit_changes_known`, and `title_changed` fields of an `EventPayload`
-to determine whether the event warrants full pipeline evaluation. It is purely
-in-memory (no I/O); when it decides to skip, it logs the reason and exits 0
-without running any downstream guards or actions.
+**Edit-Relevance Guard** (`check_edit_relevance`): A standalone function in
+`agentic_devtools/cli/ci/guards.py` that inspects the `action`,
+`edit_changes_known`, and `title_changed` fields of an `EventPayload` to
+determine whether the event warrants full pipeline evaluation. Returns
+`(should_skip: bool, reason: str)`. It is purely in-memory (no I/O); when it
+decides to skip, the orchestrator logs the reason and exits 0 without running
+any downstream guards or actions.
 
 ## Success Criteria
 
