@@ -23,8 +23,8 @@
   rather than vague success descriptions
 - [ ] CHK008 Success criteria SC-001 through SC-006 each include a quantitative target (100% coverage, 80% reduction, zero regressions) with a defined verification method (unit tests, integration
   tests, CI suite)
-- [ ] CHK009 Scope boundaries are clear: legacy `run_ai_pr_loop()` in `orchestrator.py` is in scope; pipeline v2 `command.py` is explicitly out of scope; label handling via `labeled` action is
-  explicitly excluded
+- [ ] CHK009 Scope boundaries are clear: the edit-relevance preflight runs in the shared `ai_pr_loop_command()` entry point (before v1/v2 routing) so it is enforced for both paths; pipeline v2
+  internal snapshot logic (`run_ai_pr_loop_v2` internals) is explicitly out of scope; label handling via `labeled` action is explicitly excluded
 - [ ] CHK010 Dependencies on existing entities (`EventPayload` frozen dataclass, `GitHubActionsProvider.parse_event()`, `AzureDevOpsProvider.parse_event()`, `orchestrator.py` entry point, `guards.py`
   module) are identified with their current behavior documented
 

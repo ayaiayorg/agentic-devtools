@@ -169,9 +169,10 @@ without specifying what fields changed), the system must fail open — both `tit
 edit-relevance guard passes through rather than blocking. This ensures that incomplete metadata never causes a legitimate PR to be
 ignored.
 
-When the event action is `edited` but the raw payload contains neither title nor body changes (theoretically possible if other PR fields like
-milestones or assignees were edited), the system must skip the pipeline run since no guard-relevant fields changed. The guard should log this
-case at INFO level for observability.
+When the event action is `edited` but the `changes` dict contains only a `base` ref change (no `title` or `body` keys), the system must skip
+the pipeline run since no guard-relevant fields changed. Note: GitHub's `pull_request` `edited` event fires only for title, body, and
+base-ref changes; milestones and assignees are delivered via their own dedicated actions. The guard should log this case at INFO level for
+observability.
 
 ## Requirements
 
