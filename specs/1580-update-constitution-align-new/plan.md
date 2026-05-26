@@ -106,27 +106,27 @@ Insert after Principle VIII (after line 115):
 ### Phase 10: Update Version Footer
 
 - Change: `**Version**: 1.1.0 | **Ratified**: 2026-02-02 | **Last Amended**: 2026-02-03`
-- To: `**Version**: 1.2.0 | **Ratified**: 2026-02-02 | **Last Amended**: 2026-05-26`
+- To: `**Version**: 1.2.0 | **Ratified**: 2026-05-26 | **Last Amended**: 2026-05-26`
 
 ### Phase 11: Verification
 
 Run success criteria checks:
 
 ```bash
-# SC-001: Version footer updated to 1.2.0
-grep '^\*\*Version\*\*: 1\.2\.0\b' .specify/memory/constitution.md
+# SC-001: Version footer updated to 1.2.0 with the new ratification date
+grep -F '**Version**: 1.2.0 | **Ratified**: 2026-05-26' .specify/memory/constitution.md
 
 # SC-002: No "95%" references
-grep -c "95%" .specify/memory/constitution.md  # expect 0
+! grep -q "95%" .specify/memory/constitution.md
 
 # SC-003: No "No distributed configuration"
-grep -c "No distributed configuration" .specify/memory/constitution.md  # expect 0
+! grep -q "No distributed configuration" .specify/memory/constitution.md
 
 # SC-004: No version bump requirement
-grep -c "Breaking changes to CLI UX require a major version bump" .specify/memory/constitution.md  # expect 0
+! grep -q "Breaking changes to CLI UX require a major version bump" .specify/memory/constitution.md
 
 # SC-005: No migration plan mandate
-grep -c "Migration plan for affected code" .specify/memory/constitution.md  # expect 0
+! grep -q "Migration plan for affected code" .specify/memory/constitution.md
 
 # SC-006: Principles IX, X, XI exist
 grep "### IX\." .specify/memory/constitution.md
