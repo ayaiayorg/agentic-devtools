@@ -32,6 +32,8 @@ that I design new features using the correct patterns.
 **Independent Test**: Can be fully tested by reading the updated constitution and verifying it describes the dual-layer state model, references specs #1428/#1430/#1525, and removes "No distributed
 configuration."
 
+**Mapped Functional Requirements**: FR-003
+
 **Acceptance Scenarios**:
 
 1. **Given** the constitution at v1.2.0, **When** a contributor reads Principle II, **Then** they find guidance on both CLI state (parallel-safe JSON segments) and LangGraph checkpointing for
@@ -50,6 +52,8 @@ As a contributor or reviewer, I need all coverage references in the constitution
 
 **Independent Test**: Can be fully tested by searching the constitution for any occurrence of "95%" and verifying none exist, while "100%" appears in all coverage contexts.
 
+**Mapped Functional Requirements**: FR-004, FR-011
+
 **Acceptance Scenarios**:
 
 1. **Given** the updated constitution, **When** I search for "95%", **Then** zero matches are found.
@@ -65,6 +69,8 @@ backward-compatibility shims for iterative improvements.
 **Why this priority**: The current constitution blocks rapid iteration by requiring major version bumps and migration plans for any breaking change. This contradicts the project's pre-1.0 reality.
 
 **Independent Test**: Can be fully tested by reading the new Principle XI and verifying it explicitly permits breaking changes pre-1.0 without migration plans.
+
+**Mapped Functional Requirements**: FR-008, FR-009, FR-010
 
 **Acceptance Scenarios**:
 
@@ -84,6 +90,8 @@ auto-approval workaround.
 **Independent Test**: Can be fully tested by reading Principle I and verifying it describes scoped tool availability, explicitly states auto-approval is a temporary workaround, and defines that each
 workflow step has a precisely defined set of available tools/commands.
 
+**Mapped Functional Requirements**: FR-002
+
 **Acceptance Scenarios**:
 
 1. **Given** the updated constitution, **When** I read Principle I, **Then** the title is "Scoped Tool Availability" (or equivalent) and describes explicit capability declarations per step.
@@ -101,6 +109,8 @@ established orchestration pattern.
 
 **Independent Test**: Can be fully tested by reading the new Principle IX and verifying it codifies LangGraph checkpointing, state recovery, and human-in-the-loop interrupts.
 
+**Mapped Functional Requirements**: FR-006
+
 **Acceptance Scenarios**:
 
 1. **Given** the updated constitution, **When** I read Principle IX, **Then** it describes LangGraph as the orchestration framework for multi-step workflows.
@@ -116,6 +126,8 @@ affect the other.
 **Why this priority**: Prevents regressions during the transition period where both CLI-driven and LangGraph workflows exist.
 
 **Independent Test**: Can be fully tested by reading Principle X and verifying it describes opt-in routing (`--engine` flag) and fault isolation between engines.
+
+**Mapped Functional Requirements**: FR-007
 
 **Acceptance Scenarios**:
 
@@ -133,6 +145,8 @@ templates can be reviewed for alignment.
 
 **Independent Test**: Can be fully tested by reading the HTML comment block at the top of the constitution and verifying it lists the v1.2.0 changes.
 
+**Mapped Functional Requirements**: FR-001, FR-012
+
 **Acceptance Scenarios**:
 
 1. **Given** the updated constitution, **When** I read the Sync Impact Report comment, **Then** it shows version change 1.1.0 → 1.2.0.
@@ -148,6 +162,8 @@ As a CLI designer, I need Principle VI to remove the "major version bump" requir
 **Why this priority**: Lower priority because it's a small textual change within a principle that is otherwise correct. The pre-1.0 principle (Story 3) already establishes the policy.
 
 **Independent Test**: Can be fully tested by reading Principle VI and verifying it does not mention major version bumps for breaking changes.
+
+**Mapped Functional Requirements**: FR-005
 
 **Acceptance Scenarios**:
 
