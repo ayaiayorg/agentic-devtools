@@ -117,16 +117,16 @@ Run success criteria checks:
 grep -Fx '**Version**: 1.2.0 | **Ratified**: 2026-05-26 | **Last Amended**: 2026-05-26' .specify/memory/constitution.md
 
 # SC-002: No "95%" references
-! grep -q "95%" .specify/memory/constitution.md
+if grep -q "95%" .specify/memory/constitution.md; then echo "FAIL: 95% still present"; fi
 
 # SC-003: No "No distributed configuration"
-! grep -q "No distributed configuration" .specify/memory/constitution.md
+if grep -q "No distributed configuration" .specify/memory/constitution.md; then echo "FAIL: removed text still present"; fi
 
 # SC-004: No version bump requirement
-! grep -q "Breaking changes to CLI UX require a major version bump" .specify/memory/constitution.md
+if grep -q "Breaking changes to CLI UX require a major version bump" .specify/memory/constitution.md; then echo "FAIL: version bump requirement still present"; fi
 
 # SC-005: No migration plan mandate
-! grep -q "Migration plan for affected code" .specify/memory/constitution.md
+if grep -q "Migration plan for affected code" .specify/memory/constitution.md; then echo "FAIL: migration plan mandate still present"; fi
 
 # SC-006: Principles IX, X, XI exist
 grep "### IX\." .specify/memory/constitution.md
@@ -136,7 +136,12 @@ grep "### XI\." .specify/memory/constitution.md
 # SC-007: Sync Impact Report updated
 grep -E "1\.1\.0 (→|->) 1\.2\.0" .specify/memory/constitution.md
 
-# SC-008: Existing principles III, V, VII, VIII unchanged
+# SC-008: New principles IX, X, XI each include a **Rationale**: block
+grep "### IX\." .specify/memory/constitution.md -A 20 | grep -q "\*\*Rationale\*\*:" && echo "OK: IX has Rationale" || echo "FAIL: IX missing Rationale"
+grep "### X\." .specify/memory/constitution.md -A 20 | grep -q "\*\*Rationale\*\*:" && echo "OK: X has Rationale" || echo "FAIL: X missing Rationale"
+grep "### XI\." .specify/memory/constitution.md -A 20 | grep -q "\*\*Rationale\*\*:" && echo "OK: XI has Rationale" || echo "FAIL: XI missing Rationale"
+
+# SC-009: Existing principles III, V, VII, VIII unchanged
 # Visual diff review
 ```
 
@@ -145,7 +150,7 @@ grep -E "1\.1\.0 (→|->) 1\.2\.0" .specify/memory/constitution.md
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
 | Downstream templates reference removed text | Medium | Low | Sync Impact Report explicitly lists templates needing review |
-| Formatting inconsistency in new principles | Low | Medium | NFR-004 mandates exact `### N. Title` + `**Rationale**:` format — verified in Phase 11 |
+| Formatting inconsistency in new principles | Low | Medium | NFR-004 mandates exact `### N. Title` + `**Rationale**:` format — SC-008 in Phase 11 verifies `**Rationale**:` blocks automatically |
 | Stale docs reference 95% coverage | Medium | Low | Out of scope for this PR but noted in Sync Impact Report |
 
 ## Dependencies
