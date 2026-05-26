@@ -1,6 +1,6 @@
 # Feature Specification: AI PR Loop Orchestrator Log Visibility
 
-**Feature Branch**: `speckit/1577/phase-1-specify`  
+**Feature Branch**: `speckit/1577/phase-2-clarify`  
 **Created**: 2026-05-26  
 **Status**: Draft  
 **Input**: User description: "Logs not visible in AI PR loop orchestrator workflow"  
@@ -17,9 +17,10 @@
   through the normal per-record log format string. Implement an explicit helper/context manager in `agentic_devtools/cli/ci/logging_config.py` that conditionally emits `::group::` and `::endgroup::`
   when `GITHUB_ACTIONS=="true"`, while ordinary log records continue to use the standard formatter. This keeps FR-003/FR-004 logs outside grouped verbose sections unless a caller deliberately wraps them.
 - Q: How should subprocess output from `gh` CLI calls be handled — inherited via `subprocess.PIPE` and re-emitted through logging, or left as direct stderr/stdout inheritance? → A: Subprocess stderr
-  should be captured and re-emitted through logging rather than inherited directly: use `logger.debug()` when the subprocess exits successfully to preserve diagnostic visibility without adding noise,
-  but surface stderr at `logger.warning()` or `logger.error()` when the subprocess exits non-zero so failure details are visible in the step log at the default INFO level. Stdout (which may contain
-  structured data) should be captured and processed programmatically. This avoids interleaving raw subprocess output with formatted log lines.
+  should be captured and re-emitted through logging rather than inherited directly: use `logger.debug()` when the subprocess exits successfully to preserve diagnostic visibility without adding noise.
+  If the subprocess exits non-zero, re-emit the captured stderr at `logger.warning()` or `logger.error()` (as appropriate) and include enough stderr content in that warning/error message for the
+  failure details to remain visible in the step log at the default INFO level. Stdout (which may contain structured data) should be captured and processed programmatically. This avoids interleaving
+  raw subprocess output with formatted log lines.
 - Q: Should the logging setup be idempotent across multiple calls (e.g., if both a parent script and the entry point try to configure logging)? → A: Yes — the setup function must check
   `logging.root.handlers` before adding handlers. If handlers already exist, skip configuration entirely (as specified in the Edge Cases section). This matches the Python logging best practice of
   "configure once at the application boundary."
@@ -94,6 +95,8 @@ operation.
 1. **Given** `AGDT_LOG_LEVEL` is set to `DEBUG` in the workflow environment, **When** the orchestrator runs, **Then** debug-level log messages (including internal state transitions) are emitted.
 2. **Given** `AGDT_LOG_LEVEL` is not set, **When** the orchestrator runs, **Then** the default level is INFO and only info/warning/error messages appear.
 3. **Given** `AGDT_LOG_LEVEL` is set to `WARNING`, **When** the orchestrator runs normally without issues, **Then** only warning and error messages appear, keeping the log minimal.
+4. **Given** `AGDT_LOG_LEVEL` is set to an invalid value (e.g., `VERBOSE`), **When** the orchestrator runs, **Then** a warning is emitted indicating the invalid value was ignored, and the
+   effective log level falls back to INFO.
 
 ---
 
@@ -103,10 +106,12 @@ operation.
   before adding a new one. If handlers are already present, it MUST skip configuration to avoid duplicate output. This explicit check serves two purposes: (1) it prevents duplicate handlers from
   being attached (which would cause repeated log lines), and (2) it clearly scopes the FR-002 format guarantee to the case where *this* entry point is the first to configure logging. When
   pre-existing handlers are detected, the setup function defers to them — it does not attempt to override or supplement their format.
-- How does the system handle subprocess output (e.g., `gh` CLI calls)? Subprocess stderr is captured and re-emitted through `logger.debug()` for diagnostic visibility, while stdout is captured and
-  processed programmatically. This avoids interleaving raw subprocess output with formatted log lines.
-- What happens when the orchestrator runs outside GitHub Actions (local development)? Logs must still be emitted to the terminal with a sensible format (no `::group::` annotations). The GitHub
-  Actions-aware formatter conditionally omits group annotations when `GITHUB_ACTIONS` is not `"true"`.
+- How does the system handle subprocess output (e.g., `gh` CLI calls)? Subprocess stderr is captured and re-emitted through `logger.debug()` for diagnostic visibility when the subprocess exits
+  successfully. When the subprocess exits non-zero, captured stderr is re-emitted at `logger.warning()` or `logger.error()` (as appropriate) with enough content included in the message for
+  failure details to remain visible at the default INFO level. Stdout is captured and processed programmatically. This avoids interleaving raw subprocess output with formatted log lines.
+- What happens when the orchestrator runs outside GitHub Actions (local development)? Logs must still be emitted to the terminal with a sensible format (no `::group::` annotations). The explicit
+  grouping helper/context manager in `agentic_devtools/cli/ci/logging_config.py` emits `::group::` / `::endgroup::` only when `GITHUB_ACTIONS` is `"true"`; otherwise it emits no group annotations
+  and ordinary log records continue to use the standard formatter.
 
 ## Requirements
 
@@ -116,16 +121,17 @@ operation.
   go to stderr (not stdout) to avoid mixing human-readable log lines with the structured JSON decision summary that the orchestrator emits to stdout via `_emit_decision_summary()`. The configuration
   logic MUST reside in a dedicated `agentic_devtools/cli/ci/logging_config.py` module for reuse across entry points.
 - **FR-002**: When this entry point configures logging (i.e., no pre-existing root handlers are detected), all log messages MUST include a timestamp, log level, and module/logger name so that
-  developers can correlate log lines with source modules. The format string MUST be `%(asctime)s %(levelname)-8s %(name)s: %(message)s` with `datefmt="%H:%M:%S"`. If a pre-existing handler is present,
-  the existing configuration is respected and this format guarantee does not apply.
+  developers can correlate log lines with source modules. The format string MUST be `%(asctime)s %(levelname)-8s %(name)s: %(message)s` with `datefmt="%H:%M:%S"`.
+  If a pre-existing handler is present, the existing configuration is respected and this format guarantee does not apply.
 - **FR-003**: Guard evaluation outcomes (blocked/allowed) MUST be logged at INFO level outside any collapsed group.
 - **FR-004**: Action outcomes (repair dispatched, merge attempted, approval posted) MUST be logged at INFO level outside any collapsed group.
 - **FR-005**: Verbose details (full JSON payloads, API response bodies, internal state dumps) MUST remain inside `::group::` collapsed sections to avoid excessive noise.
 - **FR-006**: The system MUST support an `AGDT_LOG_LEVEL` environment variable to override the default INFO level (accepting standard Python level names: DEBUG, INFO, WARNING, ERROR). Invalid values
   MUST be ignored with a warning, falling back to INFO.
 - **FR-007**: The `speckit_trigger_command()` entry point MUST also configure logging using the same mechanism (calling the shared `setup_logging()` from `logging_config.py`) for consistency.
-- **FR-008**: When running outside GitHub Actions (`GITHUB_ACTIONS` is not `"true"`), the system MUST omit `::group::` / `::endgroup::` annotations from log output. This is achieved via the GitHub
-  Actions-aware formatter that conditionally includes or omits group annotations based on environment detection.
+- **FR-008**: When running outside GitHub Actions (`GITHUB_ACTIONS` is not `"true"`), the system MUST omit `::group::` / `::endgroup::` annotations from log output. This is achieved via
+  the explicit grouping helper/context manager in `agentic_devtools/cli/ci/logging_config.py` that checks `GITHUB_ACTIONS` at call time and only emits group annotations when the value is `"true"`;
+  otherwise it is a no-op. Ordinary log records always use the standard formatter and never contain group markers.
 
 ### Non-Functional Requirements
 
