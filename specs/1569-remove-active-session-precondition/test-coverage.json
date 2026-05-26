@@ -137,7 +137,7 @@
     "total_frs": 7,
     "covered_frs": 5,
     "uncovered_frs": 2,
-    "total_test_tasks": 15,
+    "total_test_tasks": 5,
     "unmapped_test_tasks": 0,
     "total_findings": 8
   }
