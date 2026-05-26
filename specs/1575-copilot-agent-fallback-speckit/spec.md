@@ -181,7 +181,7 @@ note about the fallback failure.
 - What if `COPILOT_GITHUB_TOKEN` lacks the required scopes for the Coding Agent API? → Treated as an API failure (graceful degradation — standard failure handling with enhanced comment noting the
   permission issue).
 - What if the structural validation error signature changes in future SpecKit versions? → The detection logic should use a well-defined set of error markers that is maintained alongside the validation
-  code. Error signatures are defined as constants in the shared fallback action/script, co-located with or importing from `lib/spec-validation.sh`'s error categories.
+  code. Error signatures are defined as constants in the shared fallback action/script, co-located with or importing from `.github/scripts/speckit-trigger/lib/spec-validation.sh`'s error categories.
 - What happens if the issue body is extremely large (>64KB)? → The problem statement sent to the agent should be truncated or summarized to stay within API limits while preserving essential context.
   Truncation preserves the first 48KB of the issue body and appends a `[truncated]` marker.
 - What if the Coding Agent API response is missing `id` or `url` fields? → Treated identically to a non-2xx response — graceful degradation to standard failure handling with a comment noting the
@@ -250,7 +250,7 @@ note about the fallback failure.
 - **NFR-001**: The agent fallback step MUST complete within 30 seconds (API call + label/comment operations), not including the agent task execution itself which runs asynchronously.
 
 - **NFR-002**: The failure detection logic MUST be maintainable — validation error signatures should be defined as constants or a well-documented pattern in the shared fallback action/script,
-  co-located with or referencing the same categories defined in `lib/spec-validation.sh`. No scattered magic strings.
+  co-located with or referencing the same categories defined in `.github/scripts/speckit-trigger/lib/spec-validation.sh`. No scattered magic strings.
 
 - **NFR-003**: The fallback MUST NOT introduce new secrets or tokens — it MUST reuse the existing `COPILOT_GITHUB_TOKEN` already available in both workflows.
 
@@ -264,7 +264,7 @@ note about the fallback failure.
 
 - **Structural Validation Failure**: A pipeline failure caused by the LLM producing output that does not meet the structural requirements (missing sections, insufficient items). Distinguished from
   infrastructure failures by the presence of specific error signatures (`MISSING_SECTIONS`, `INSUFFICIENT_REQUIREMENTS`, `INSUFFICIENT_USER_STORIES`, `MISSING_SUCCESS_CRITERIA`) in step output. These
-  signatures are defined in `lib/spec-validation.sh` and referenced by the fallback detection logic.
+  signatures are defined in `.github/scripts/speckit-trigger/lib/spec-validation.sh` and referenced by the fallback detection logic.
 
 - **Agent Task**: An asynchronous Copilot coding agent execution triggered via the REST API (`POST /repos/{owner}/{repo}/copilot/coding-agent/tasks`). Returns a JSON response with `id`, `url`, and
   `status` fields. Creates a PR on the expected SpecKit branch when successful. Identified by a task URL returned from the
