@@ -14,8 +14,9 @@
 
 - Q: Where exactly does the fallback logic execute — within the Python orchestrator (`agdt-speckit-trigger` / `process_speckit_label_event`) or as a separate workflow step after the orchestrator step
   fails? → A: The fallback logic executes as a new composite action (or `actions/github-script` block) in a **dedicated workflow step** that runs after the main orchestrator step fails
-  (`if: failure()`). It parses the orchestrator's step output/logs to distinguish structural validation failures from infrastructure errors. This keeps the fallback decoupled from the orchestrator
-  internals and allows it to be shared between both workflow files.
+  (`if: failure()`). It reads a machine-readable failure signature emitted by the orchestrator step via `$GITHUB_OUTPUT` or a workspace file to distinguish structural validation failures from
+  infrastructure errors; free-form logs are used only for observability/debugging, not classification. This keeps the fallback decoupled from the orchestrator internals and allows it to be shared
+  between both workflow files.
 
 - Q: How is "at least one existing successful spec as a format example" (FR-003) selected and provided to the agent? → A: The fallback logic uses a hardcoded reference to the `specs/` directory in the
   repository (e.g., `specs/1505-structural-validation-and-retry/spec.md`) as a known-good example. The reference is included as a file path instruction in the problem statement (e.g., "Use
