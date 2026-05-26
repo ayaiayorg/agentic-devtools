@@ -23,8 +23,9 @@
 
 - Q: How is the agent task ID/URL persisted for the follow-up mechanisms described in FR-012 (polling job and PR-creation trigger)? → A: The agent task ID and URL are persisted in a **machine-readable
   marker comment** posted on the issue (e.g., `<!-- speckit:agent-fallback task_id=<id> task_url=<url> issue=<number> phase=<N> -->`). The follow-up PR-creation workflow detects terminal success by
-  matching the `speckit/` branch pattern on `pull_request.opened` events. The follow-up polling job is a scheduled workflow (`workflow_dispatch` or `schedule`) that scans issues with the
-  `speckit:agent-fallback` label, extracts task IDs from the marker comments, queries the Coding Agent API for terminal status, and removes `speckit:processing` on terminal failure states.
+  matching the `speckit/` branch pattern on `pull_request` events with `types: [opened]` (or webhook payloads where `action` is `opened`). The follow-up polling job is a scheduled workflow
+  (`workflow_dispatch` or `schedule`) that scans issues with the `speckit:agent-fallback` label, extracts task IDs from the marker comments, queries the Coding Agent API for terminal status, and
+  removes `speckit:processing` on terminal failure states.
 
 - Q: What is the expected response schema from the Copilot Coding Agent API (`POST /repos/{owner}/{repo}/copilot/coding-agent/tasks`) that the implementation must handle? → A: Based on the GitHub
   Copilot Coding Agent API, the response is a JSON object containing at minimum `{ "id": "<task-id>", "url": "<task-url>", "status": "queued" }`. The implementation must extract `id` and `url` for
@@ -113,8 +114,7 @@ distinguish between "pipeline succeeded normally" and "pipeline failed but agent
 1. **Given** a structural validation failure has triggered the agent fallback successfully, **When** the agent task is created, **Then** the issue receives a `speckit:agent-fallback` label AND retains
    (or also receives) the `speckit:processing` label to indicate work is still in progress. The `speckit:processing` label MUST remain present for the full duration of the agent's asynchronous run
    and MUST NOT be removed merely because fallback determination is complete or because the agent task was created successfully; agent task creation is a non-terminal state. To make removal
-   implementable, the fallback workflow MUST persist the agent task ID/URL and source issue number via a machine-readable marker comment on the issue (format: `<!-- speckit:agent-fallback task_id=<id>
-   task_url=<url> issue=<number> phase=<N> -->`), and the system MUST use both of the following follow-up mechanisms: (a) an event-driven workflow
+   implementable, the fallback workflow MUST persist the agent task ID/URL and source issue number via a machine-readable marker comment on the issue (format: `<!-- speckit:agent-fallback task_id=<id> task_url=<url> issue=<number> phase=<N> -->`), and the system MUST use both of the following follow-up mechanisms: (a) an event-driven workflow
    triggered on `pull_request` creation for the corresponding `speckit/...` branch that treats PR creation as a terminal success outcome and removes `speckit:processing`; and (b) a follow-up polling
    job/workflow that queries the agent task API using the persisted task ID until it reaches a terminal non-PR state (for example `failed`, `cancelled`, or equivalent), at which point it removes
    `speckit:processing`. If the workflow explicitly concludes the fallback with no further asynchronous agent work remaining, that workflow run MUST also remove `speckit:processing`. Until one of
@@ -209,8 +209,7 @@ note about the fallback failure.
 
 - **FR-005**: System MUST add the `speckit:agent-fallback` label to the issue when the agent fallback is triggered successfully.
 
-- **FR-006**: System MUST post a comment on the issue containing the agent task URL when the fallback is triggered successfully. The comment MUST include a machine-readable marker in the format `<!-- 
-  speckit:agent-fallback task_id=<id> task_url=<url> issue=<number> phase=<N> -->` for use by the idempotency guard (FR-013) and follow-up polling job (FR-012).
+- **FR-006**: System MUST post a comment on the issue containing the agent task URL when the fallback is triggered successfully. The comment MUST include a machine-readable marker in the format `<!-- speckit:agent-fallback task_id=<id> task_url=<url> issue=<number> phase=<N> -->` for use by the idempotency guard (FR-013) and follow-up polling job (FR-012).
 
 - **FR-007**: System MUST remove the `speckit:failed` label (if present from a previous failed run) AND MUST NOT add it when the agent fallback is triggered successfully (recovery is in progress).
 
@@ -235,11 +234,11 @@ note about the fallback failure.
 - **FR-012**: System MUST keep the `speckit:processing` label for the full
   duration of the fallback flow, including while any Copilot Coding Agent
   task is running asynchronously, and MUST remove it only when a terminal
-  outcome is reached — such as a PR being created (detected via `pull_request.opened` event on `speckit/` branch pattern), the agent task failing (detected via scheduled polling job querying the
-  Coding Agent API using the task ID from the marker comment),
-  the fallback being explicitly concluded without continuing agent
-  execution, or standard failure handling being executed because fallback
-  did not start.
+  outcome is reached — such as a PR being created (detected in GitHub Actions via `on: pull_request` with `types: [opened]`, filtered to the `speckit/` branch pattern), the agent task failing
+  (detected via scheduled polling job querying the Coding Agent API using
+  the task ID from the marker comment), the fallback being explicitly
+  concluded without continuing agent execution, or standard failure
+  handling being executed because fallback did not start.
 
 ### Non-Functional Requirements
 
