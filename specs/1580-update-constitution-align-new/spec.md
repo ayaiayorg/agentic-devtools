@@ -1,9 +1,9 @@
 # Feature Specification: Update Constitution to v1.2.0
 
-**Feature Branch**: `1580-update-constitution-v1.2.0`
-**Created**: 2026-05-26
-**Status**: Draft
-**Input**: User description: "Update constitution to v1.2.0 — align with new architecture, coverage, and pre-1.0 policy"
+**Feature Branch**: `speckit/1580/phase-1-specify`  
+**Created**: 2026-05-26  
+**Status**: Draft  
+**Input**: User description: "Update constitution to v1.2.0 — align with new architecture, coverage, and pre-1.0 policy"  
 **Source Issue**: #1580 (<https://github.com/ayaiayorg/agentic-devtools/issues/1580>)
 
 ## Problem Statement
