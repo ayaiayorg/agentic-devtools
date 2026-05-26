@@ -2,15 +2,15 @@
 
 ## Phase Mapping: Plan → Tasks
 
-Plan phases 1-5 map directly; this task breakdown also adds explicit verification and polish phases:
-
-- Phase 1 (Setup) → Phase 1: Setup
-- Phase 2 (Foundational) → Phase 2: Foundational
-- Phase 3 (User Story 1) → Phase 3: User Story 1 — Thread Resolution Proceeds When Session Is Active (P1)
-- Phase 4 (User Story 2) → Phase 4: User Story 2 — Remaining Preconditions Are Still Enforced (P1)
-- Phase 5 (User Story 3) → Phase 5: User Story 3 — FR-005 in Spec 1559 Updated (P2)
-- Additional execution coverage → Phase 6: User Story 4 — Tests Updated for Coverage (P2)
-- Cross-cutting final checks → Phase 7: Polish & Cross-Cutting
+| Plan Phase | Tasks Phase | Notes |
+| --- | --- | --- |
+| Phase 1 (Setup) | Phase 1: Setup | Direct mapping |
+| Phase 2 (Foundational) | Phase 2: Foundational | Direct mapping |
+| Phase 3 (User Story 1) | Phase 3: User Story 1 — Thread Resolution Proceeds When Session Is Active (P1) | Direct mapping |
+| Phase 4 (User Story 2) | Phase 4: User Story 2 — Remaining Preconditions Are Still Enforced (P1) | Direct mapping |
+| Phase 5 (User Story 3) | Phase 5: User Story 3 — FR-005 in Spec 1559 Updated (P2) | Direct mapping |
+| N/A | Phase 6: User Story 4 — Tests Updated for Coverage (P2) | Additional execution coverage phase added in tasks |
+| N/A | Phase 7: Polish & Cross-Cutting | Cross-cutting final checks phase added in tasks |
 
 ## Phase 1: Setup
 
