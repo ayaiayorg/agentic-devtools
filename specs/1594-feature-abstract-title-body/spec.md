@@ -128,21 +128,30 @@ this as a title change (since the title change is the guard-relevant signal) and
 possible state), the provider should set `edit_changes_known=True` while leaving `title_changed=False` and `body_changed=False`. For a non-edited action this has no effect (pass-through), and for an
 `edited` action it results in skipping the pipeline run since no title change was detected.
 
-When a CI platform's webhook does not provide change metadata at all (for example, if Azure DevOps sends a generic "updated" event without specifying what fields changed), the system must fail open —
-both `title_changed` and `body_changed` remain `False`, and the edit-relevance guard passes through rather than blocking. This ensures that incomplete metadata never causes a legitimate PR to be
+When a CI platform's webhook does not provide change metadata at all (for example, if Azure DevOps sends a generic "updated" event
+without specifying what fields changed), the system must fail open — both `title_changed` and `body_changed` remain `False`, and the
+edit-relevance guard passes through rather than blocking. This ensures that incomplete metadata never causes a legitimate PR to be
 ignored.
 
-When the event action is `edited` but the raw payload contains neither title nor body changes (theoretically possible if other PR fields like milestones or assignees were edited), the system must skip
-the pipeline run since no guard-relevant fields changed. The guard should log this case at DEBUG level for observability.
+When the event action is `edited` but the raw payload contains neither title nor body changes (theoretically possible if other PR fields like
+milestones or assignees were edited), the system must skip the pipeline run since no guard-relevant fields changed. The guard should log this
+case at INFO level for observability.
 
 ## Requirements
 
 ### Functional Requirements
 
-**FR-001**: The `EventPayload` dataclass MUST be extended with three new fields: `title_changed` (default `False`), `body_changed` (default `False`), and `edit_changes_known` (default `False`). `edit_changes_known` indicates whether the provider had reliable per-field change metadata for an `edited` event. The fields must be immutable (consistent with the frozen dataclass pattern) and must not break any existing code that constructs `EventPayload` instances without these fields (backward compatibility via defaults).
+**FR-001**: The `EventPayload` dataclass MUST be extended with three new fields: `title_changed` (default `False`),
+`body_changed` (default `False`), and `edit_changes_known` (default `False`).
+`edit_changes_known` indicates whether the provider had reliable per-field change metadata for an `edited` event. The fields must be
+immutable (consistent with the frozen dataclass pattern) and must not break any existing code that constructs `EventPayload` instances
+without these fields (backward compatibility via defaults).
 
-**FR-002**: The `GitHubActionsProvider.parse_event()` method MUST set `edit_changes_known=True` when the raw GitHub webhook payload contains a `changes` key for an `edited` action (including when `changes` is present but empty). It MUST populate `title_changed=True` when the payload contains a `changes.title` key and `body_changed=True` when the payload contains a `changes.body` key. When the event action is not `edited`, or when the `changes` key is absent from the payload, `edit_changes_known` MUST remain `False` and `title_changed`/`body_changed` MUST remain at their default value of `False`.
-
+**FR-002**: The `GitHubActionsProvider.parse_event()` method MUST set `edit_changes_known=True` when the raw GitHub webhook payload
+contains a `changes` key for an `edited` action (including when `changes` is present but empty). It MUST populate `title_changed=True`
+when the payload contains a `changes.title` key and `body_changed=True` when the payload contains a `changes.body` key. When the event
+action is not `edited`, or when the `changes` key is absent from the payload, `edit_changes_known` MUST remain `False` and
+`title_changed`/`body_changed` MUST remain at their default value of `False`.
 **FR-003**: The `AzureDevOpsProvider.parse_event()` method MUST populate the `title_changed` and `body_changed` fields based on the Azure DevOps service hook payload structure. When the payload includes reliable field-level change metadata (such as `resource.fields` containing `System.Title` / description fields), the provider MUST set `edit_changes_known=True` and set the corresponding booleans. When the payload does not include change metadata, `edit_changes_known` MUST remain `False` (fail-open).
 
 **FR-004**: A new guard (the "edit-relevance guard") MUST be added to the `GuardsAction` evaluation sequence. This guard MUST execute before all existing guards (before the WIP-title check, which is currently first). The guard MUST return BLOCKED when the event action is `edited` AND `edit_changes_known` is `True` AND `title_changed` is `False`. For all other event actions (and for `edited` events where `edit_changes_known` is `False`), the guard MUST return EXECUTE unconditionally, regardless of the `title_changed` and `body_changed` field values.
@@ -193,8 +202,9 @@ whether the event warrants full pipeline evaluation. It is purely evaluative (no
   downstream guards or actions execute. In production, this is expected to eliminate at least 80% of unnecessary `edited`-event pipeline runs (based on the observation that body edits outnumber title
   edits approximately 4:1).
 
-- **SC-003**: All new code (the `EventPayload` fields `title_changed`, `body_changed`, `edit_changes_known`, provider `parse_event()` changes, and the edit-relevance guard) MUST achieve 100% line and branch coverage in unit tests, consistent with the
-  repository's existing coverage requirements enforced by CI.
+- **SC-003**: All new code (the `EventPayload` fields `title_changed`, `body_changed`, `edit_changes_known`, provider `parse_event()`
+  changes, and the edit-relevance guard) MUST achieve 100% line and branch coverage in unit tests, consistent with the repository's
+  existing coverage requirements enforced by CI.
 
 - **SC-004**: The edit-relevance guard MUST be the first guard evaluated in the `GuardsAction` sequence, verified by a unit test that asserts guard ordering and by an integration test confirming that
   a body-only edit does not trigger evaluation of any subsequent guard (WIP check, fork check, etc.).
