@@ -41,20 +41,6 @@
       "description": "FR-006 priority could not be determined \u2014 defaulting to non-P1, so missing test coverage would be HIGH (not CRITICAL).",
       "recommendation": "Associate FR-006 with a user story that has an explicit priority (P1/P2/P3) in the spec.",
       "fr_id": "FR-006"
-    },
-    {
-      "key": "FR-007:no-test-task",
-      "severity": "HIGH",
-      "description": "FR-007 has no mapped test tasks (`is_covered: false`).",
-      "recommendation": "Add at least one test task mapped to FR-007 (direct FR reference or valid [USn] mapping), then regenerate coverage artifacts.",
-      "fr_id": "FR-007"
-    },
-    {
-      "key": "FR-006:no-test-task",
-      "severity": "HIGH",
-      "description": "FR-006 has no mapped test tasks (`is_covered: false`).",
-      "recommendation": "Add at least one test task mapped to FR-006 (direct FR reference or valid [USn] mapping), then regenerate coverage artifacts.",
-      "fr_id": "FR-006"
     }
   ],
   "coverage": {
@@ -65,7 +51,11 @@
       "is_covered": true,
       "has_happy_path": false,
       "test_task_ids": [
-        "T017"
+        "T017",
+        "T018",
+        "T019",
+        "T020",
+        "T021"
       ],
       "test_types": []
     },
@@ -73,9 +63,13 @@
       "fr_id": "FR-007",
       "priority": 2,
       "user_story": null,
-      "is_covered": false,
+      "is_covered": true,
       "has_happy_path": false,
-      "test_task_ids": [],
+      "test_task_ids": [
+        "T020",
+        "T021",
+        "T022"
+      ],
       "test_types": []
     },
     "FR-001": {
@@ -85,7 +79,13 @@
       "is_covered": true,
       "has_happy_path": false,
       "test_task_ids": [
-        "T005"
+        "T002",
+        "T004",
+        "T005",
+        "T006",
+        "T009",
+        "T020",
+        "T021"
       ],
       "test_types": []
     },
@@ -96,7 +96,10 @@
       "is_covered": true,
       "has_happy_path": false,
       "test_task_ids": [
-        "T010"
+        "T010",
+        "T013",
+        "T020",
+        "T021"
       ],
       "test_types": []
     },
@@ -107,7 +110,10 @@
       "is_covered": true,
       "has_happy_path": false,
       "test_task_ids": [
-        "T011"
+        "T011",
+        "T013",
+        "T020",
+        "T021"
       ],
       "test_types": []
     },
@@ -118,7 +124,10 @@
       "is_covered": true,
       "has_happy_path": false,
       "test_task_ids": [
-        "T012"
+        "T012",
+        "T013",
+        "T020",
+        "T021"
       ],
       "test_types": []
     },
@@ -126,19 +135,22 @@
       "fr_id": "FR-006",
       "priority": 2,
       "user_story": null,
-      "is_covered": false,
+      "is_covered": true,
       "has_happy_path": false,
-      "test_task_ids": [],
+      "test_task_ids": [
+        "T020",
+        "T021"
+      ],
       "test_types": []
     }
   },
-  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-005 | US3 | T017 | None | \u2705 Covered |\n| FR-007 | N/A | None | None | \u274c Missing |\n| FR-001 | N/A | T005 | None | \u2705 Covered |\n| FR-002 | N/A | T010 | None | \u2705 Covered |\n| FR-003 | N/A | T011 | None | \u2705 Covered |\n| FR-004 | N/A | T012 | None | \u2705 Covered |\n| FR-006 | N/A | None | None | \u274c Missing |\n",
+  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-005 | US3 | T017, T018, T019, T020, T021 | None | \u2705 Covered |\n| FR-007 | N/A | T020, T021, T022 | None | \u2705 Covered |\n| FR-001 | N/A | T002, T004, T005, T006, T009, T020, T021 | None | \u2705 Covered |\n| FR-002 | N/A | T010, T013, T020, T021 | None | \u2705 Covered |\n| FR-003 | N/A | T011, T013, T020, T021 | None | \u2705 Covered |\n| FR-004 | N/A | T012, T013, T020, T021 | None | \u2705 Covered |\n| FR-006 | N/A | T020, T021 | None | \u2705 Covered |\n",
   "summary": {
     "total_frs": 7,
-    "covered_frs": 5,
-    "uncovered_frs": 2,
-    "total_test_tasks": 5,
+    "covered_frs": 7,
+    "uncovered_frs": 0,
+    "total_test_tasks": 15,
     "unmapped_test_tasks": 0,
-    "total_findings": 8
+    "total_findings": 6
   }
 }
