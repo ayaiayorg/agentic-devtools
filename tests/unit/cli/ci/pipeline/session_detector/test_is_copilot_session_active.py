@@ -1,5 +1,6 @@
 """Tests for is_copilot_session_active."""
 
+import os
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
@@ -130,3 +131,61 @@ class TestIsSessionStale:
 
     def test_empty_string_is_not_stale(self) -> None:
         assert _is_session_stale("", 3600) is False
+
+    def test_naive_datetime_is_handled(self) -> None:
+        """Naive datetime (no timezone) is normalized to UTC without raising TypeError."""
+        # A naive ISO timestamp (no offset, no Z) — e.g. from a misconfigured source
+        naive_old = (
+            datetime.now(tz=timezone.utc) - timedelta(seconds=7200)
+        ).strftime("%Y-%m-%dT%H:%M:%S")
+        assert _is_session_stale(naive_old, 3600) is True
+
+        naive_recent = (
+            datetime.now(tz=timezone.utc) - timedelta(seconds=30)
+        ).strftime("%Y-%m-%dT%H:%M:%S")
+        assert _is_session_stale(naive_recent, 3600) is False
+
+
+class TestGetMaxSessionAgeSeconds:
+    """Tests for the _get_max_session_age_seconds helper."""
+
+    def test_default_when_env_not_set(self) -> None:
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("AGDT_MAX_SESSION_AGE_SECONDS", None)
+            from agentic_devtools.cli.ci.pipeline.session_detector import (
+                _get_max_session_age_seconds,
+            )
+
+            assert _get_max_session_age_seconds() == _DEFAULT_MAX_SESSION_AGE_SECONDS
+
+    def test_valid_positive_value(self) -> None:
+        from agentic_devtools.cli.ci.pipeline.session_detector import (
+            _get_max_session_age_seconds,
+        )
+
+        with patch.dict("os.environ", {"AGDT_MAX_SESSION_AGE_SECONDS": "1800"}):
+            assert _get_max_session_age_seconds() == 1800
+
+    def test_invalid_non_integer_falls_back_to_default(self) -> None:
+        from agentic_devtools.cli.ci.pipeline.session_detector import (
+            _get_max_session_age_seconds,
+        )
+
+        with patch.dict("os.environ", {"AGDT_MAX_SESSION_AGE_SECONDS": "not-a-number"}):
+            assert _get_max_session_age_seconds() == _DEFAULT_MAX_SESSION_AGE_SECONDS
+
+    def test_zero_falls_back_to_default(self) -> None:
+        from agentic_devtools.cli.ci.pipeline.session_detector import (
+            _get_max_session_age_seconds,
+        )
+
+        with patch.dict("os.environ", {"AGDT_MAX_SESSION_AGE_SECONDS": "0"}):
+            assert _get_max_session_age_seconds() == _DEFAULT_MAX_SESSION_AGE_SECONDS
+
+    def test_negative_falls_back_to_default(self) -> None:
+        from agentic_devtools.cli.ci.pipeline.session_detector import (
+            _get_max_session_age_seconds,
+        )
+
+        with patch.dict("os.environ", {"AGDT_MAX_SESSION_AGE_SECONDS": "-100"}):
+            assert _get_max_session_age_seconds() == _DEFAULT_MAX_SESSION_AGE_SECONDS

@@ -27,13 +27,22 @@ def _get_max_session_age_seconds() -> int:
     raw = os.environ.get("AGDT_MAX_SESSION_AGE_SECONDS", "").strip()
     if raw:
         try:
-            return int(raw)
+            value = int(raw)
         except ValueError:
             logger.warning(
                 "AGDT_MAX_SESSION_AGE_SECONDS=%r is not a valid integer; using default %d",
                 raw,
                 _DEFAULT_MAX_SESSION_AGE_SECONDS,
             )
+            return _DEFAULT_MAX_SESSION_AGE_SECONDS
+        if value <= 0:
+            logger.warning(
+                "AGDT_MAX_SESSION_AGE_SECONDS=%d is not positive; using default %d",
+                value,
+                _DEFAULT_MAX_SESSION_AGE_SECONDS,
+            )
+            return _DEFAULT_MAX_SESSION_AGE_SECONDS
+        return value
     return _DEFAULT_MAX_SESSION_AGE_SECONDS
 
 
@@ -45,6 +54,9 @@ def _is_session_stale(created_at: str, max_age_seconds: int) -> bool:
         # If we cannot parse the timestamp, we cannot determine staleness —
         # fall back to treating as potentially active (conservative).
         return False
+    # Normalize naive datetimes (no tzinfo) to UTC to avoid TypeError on subtraction.
+    if started_time.tzinfo is None:
+        started_time = started_time.replace(tzinfo=timezone.utc)
     age = (datetime.now(tz=timezone.utc) - started_time).total_seconds()
     return age > max_age_seconds
 
