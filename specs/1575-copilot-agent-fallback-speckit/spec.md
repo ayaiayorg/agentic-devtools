@@ -1,6 +1,6 @@
 # Feature Specification: Copilot Agent Fallback on SpecKit Generation Failures
 
-**Feature Branch**: `speckit/1575/phase-1-specify`  
+**Feature Branch**: `speckit/1575/phase-2-clarify`  
 **Created**: 2026-05-26  
 **Status**: Draft  
 **Input**: User description: "Add automatic Copilot coding agent fallback when SpecKit LLM pipeline fails structural validation"  
@@ -13,9 +13,9 @@
 ### Session 2026-05-26
 
 - Q: Where exactly does the fallback logic execute — within the Python orchestrator (`agdt-speckit-trigger` / `process_speckit_label_event`) or as a separate workflow step after the orchestrator step
-  fails? → A: The fallback logic executes as a new composite action (or `actions/github-script` block) in a **dedicated workflow step** that runs after the main orchestrator step fails (`if:
-  failure()`). It parses the orchestrator's step output/logs to distinguish structural validation failures from infrastructure errors. This keeps the fallback decoupled from the orchestrator internals
-  and allows it to be shared between both workflow files.
+  fails? → A: The fallback logic executes as a new composite action (or `actions/github-script` block) in a **dedicated workflow step** that runs after the main orchestrator step fails
+  (`if: failure()`). It parses the orchestrator's step output/logs to distinguish structural validation failures from infrastructure errors. This keeps the fallback decoupled from the orchestrator
+  internals and allows it to be shared between both workflow files.
 
 - Q: How is "at least one existing successful spec as a format example" (FR-003) selected and provided to the agent? → A: The fallback logic uses a hardcoded reference to the `specs/` directory in the
   repository (e.g., `specs/1505-structural-validation-and-retry/spec.md`) as a known-good example. The reference is included as a file path instruction in the problem statement (e.g., "Use
@@ -114,7 +114,8 @@ distinguish between "pipeline succeeded normally" and "pipeline failed but agent
 1. **Given** a structural validation failure has triggered the agent fallback successfully, **When** the agent task is created, **Then** the issue receives a `speckit:agent-fallback` label AND retains
    (or also receives) the `speckit:processing` label to indicate work is still in progress. The `speckit:processing` label MUST remain present for the full duration of the agent's asynchronous run
    and MUST NOT be removed merely because fallback determination is complete or because the agent task was created successfully; agent task creation is a non-terminal state. To make removal
-   implementable, the fallback workflow MUST persist the agent task ID/URL and source issue number via a machine-readable marker comment on the issue (format: `<!-- speckit:agent-fallback task_id=<id> task_url=<url> issue=<number> phase=<N> -->`), and the system MUST use both of the following follow-up mechanisms: (a) an event-driven workflow
+   implementable, the fallback workflow MUST persist the agent task ID/URL and source issue number via a machine-readable marker comment on the issue
+   (format: `<!-- speckit:agent-fallback task_id=<id> task_url=<url> issue=<number> phase=<N> -->`), and the system MUST use both of the following follow-up mechanisms: (a) an event-driven workflow
    triggered on `pull_request` creation for the corresponding `speckit/...` branch that treats PR creation as a terminal success outcome and removes `speckit:processing`; and (b) a follow-up polling
    job/workflow that queries the agent task API using the persisted task ID until it reaches a terminal non-PR state (for example `failed`, `cancelled`, or equivalent), at which point it removes
    `speckit:processing`. If the workflow explicitly concludes the fallback with no further asynchronous agent work remaining, that workflow run MUST also remove `speckit:processing`. Until one of
@@ -209,7 +210,8 @@ note about the fallback failure.
 
 - **FR-005**: System MUST add the `speckit:agent-fallback` label to the issue when the agent fallback is triggered successfully.
 
-- **FR-006**: System MUST post a comment on the issue containing the agent task URL when the fallback is triggered successfully. The comment MUST include a machine-readable marker in the format `<!-- speckit:agent-fallback task_id=<id> task_url=<url> issue=<number> phase=<N> -->` for use by the idempotency guard (FR-013) and follow-up polling job (FR-012).
+- **FR-006**: System MUST post a comment on the issue containing the agent task URL when the fallback is triggered successfully. The comment MUST include a machine-readable marker in the format
+  `<!-- speckit:agent-fallback task_id=<id> task_url=<url> issue=<number> phase=<N> -->` for use by the idempotency guard (FR-013) and follow-up polling job (FR-012).
 
 - **FR-007**: System MUST remove the `speckit:failed` label (if present from a previous failed run) AND MUST NOT add it when the agent fallback is triggered successfully (recovery is in progress).
 
@@ -219,9 +221,8 @@ note about the fallback failure.
 
 - **FR-013**: System MUST also detect whether a fallback agent task is already active or was previously created for the same issue/phase before opening a new task, even when no PR exists yet. This
   detection MUST use the machine-readable marker comment (`<!-- speckit:agent-fallback task_id=... -->`) as the durable correlation mechanism. If an
-  existing in-progress or previously created fallback task is found, the system MUST NOT create a duplicate task and MUST post or update an issue comment indicating that fallback was skipped because
-  an
-  agent task is already in progress, including the existing agent task URL when available.
+  existing in-progress or previously created fallback task is found, the system MUST NOT create a duplicate task and MUST post or update an issue comment indicating that fallback was skipped
+  because an agent task is already in progress, including the existing agent task URL when available.
 
 - **FR-009**: System MUST be disableable via the `SPECKIT_AGENT_FALLBACK` repository variable — when set to `"false"`, the fallback is skipped entirely and the standard failure handling applies.
 
@@ -234,7 +235,8 @@ note about the fallback failure.
 - **FR-012**: System MUST keep the `speckit:processing` label for the full
   duration of the fallback flow, including while any Copilot Coding Agent
   task is running asynchronously, and MUST remove it only when a terminal
-  outcome is reached — such as a PR being created (detected in GitHub Actions via `on: pull_request` with `types: [opened]`, filtered to the `speckit/` branch pattern), the agent task failing
+  outcome is reached — such as a PR being created (detected in GitHub Actions via `on: pull_request` with `types: [opened]`, filtered
+  to the `speckit/` branch pattern), the agent task failing
   (detected via scheduled polling job querying the Coding Agent API using
   the task ID from the marker comment), the fallback being explicitly
   concluded without continuing agent execution, or standard failure
