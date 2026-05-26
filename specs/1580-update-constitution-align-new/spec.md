@@ -6,16 +6,36 @@
 **Input**: User description: "Update constitution to v1.2.0 — align with new architecture, coverage, and pre-1.0 policy"  
 **Source Issue**: #1580 (<https://github.com/ayaiayorg/agentic-devtools/issues/1580>)
 
+## Clarifications
+
+### Session 2026-05-26
+
+- Q: Should the existing Principles III, V, VII, and VIII retain their current numbering, or be renumbered to accommodate the new Principles IX, X, XI being appended at the end? → A: New principles
+  (IX, X, XI) are appended after existing Principle VIII. Existing principles III, V, VII, VIII retain their current numbers. This minimizes downstream churn and is consistent with how v1.1.0 handled
+  additions.
+- Q: FR-006 references LangGraph by name — should Principle IX be phrased in a technology-agnostic way (e.g., "Graph-Based Orchestration") with LangGraph as the current implementation, allowing future
+  replacement without a constitutional amendment? → A: Yes — Principle IX should be titled "Graph-Based Workflow Orchestration" with LangGraph named as the current implementation. This addresses the
+  edge case about future framework replacement while still being concrete and actionable today.
+- Q: The spec states Principle I should acknowledge auto-approval as a "temporary workaround" — what is the definition of "temporary" here, and when is auto-approval expected to be fully deprecated? →
+  A: "Temporary" means auto-approval remains supported until scoped tool declarations are fully implemented across all workflow steps. No fixed timeline. The constitution should state it is a
+  "transitional mechanism" rather than "temporary workaround" to avoid implying imminent removal.
+- Q: FR-009 requires replacing the backward-compatibility requirement in "Development Workflow → Code Changes" — should the replacement text explicitly reference Principle XI, or restate the pre-1.0
+  policy inline? → A: Reference Principle XI by number with a one-line summary inline (e.g., "Breaking changes are permitted per Principle XI (Pre-1.0 Flexibility)"). This keeps the section DRY while
+  remaining readable without cross-referencing.
+- Q: NFR-004 requires "consistent formatting matching the existing structure" — the current constitution uses `###` for principle headings and `**Rationale**:` as bold inline labels. Should new
+  principles IX, X, XI follow this exact pattern, and should modified principles retain their existing structural format? → A: Yes — all principles (existing and new) must use `### N. Title` heading
+  format and include a `**Rationale**:` block as the final element. No structural deviations are permitted.
+
 ## Problem Statement
 
 The project constitution (`.specify/memory/constitution.md`) at v1.1.0 is out of alignment with the current codebase reality and project direction. Specifically:
 
-1. **Principle I** promotes auto-approval as a central design principle, when it is actually a temporary workaround — the real principle is scoped tool availability per workflow step.
+1. **Principle I** promotes auto-approval as a central design principle, when it is actually a transitional mechanism — the real principle is scoped tool availability per workflow step.
 2. **Principle II** claims a single JSON file with "no distributed configuration," but the project now uses dual-layer state (CLI JSON segments + LangGraph checkpointing) and requires parallel-safe
    isolated state segments.
 3. **Principle IV** states "Minimum 95% code coverage" while ADR-011 and `pyproject.toml` already enforce 100%.
 4. **Principle VI** requires major version bumps for breaking CLI changes, but the project is pre-1.0 and expects breaking changes.
-5. The constitution lacks principles for LangGraph orchestration, dual-engine compatibility, and pre-1.0 flexibility that are now established patterns.
+5. The constitution lacks principles for graph-based workflow orchestration (currently LangGraph), dual-engine compatibility, and pre-1.0 flexibility that are now established patterns.
 6. The Development Workflow and Governance sections contain backward-compatibility requirements that conflict with pre-1.0 iteration speed.
 
 The constitution is the authoritative design document — downstream templates, specs, and code reviews all reference it. Misalignment causes confusion and inconsistent decisions.
@@ -75,7 +95,8 @@ backward-compatibility shims for iterative improvements.
 **Acceptance Scenarios**:
 
 1. **Given** the updated constitution, **When** I read Principle XI (Pre-1.0 Flexibility), **Then** it states that breaking changes are allowed and expected until v1.0.0.
-2. **Given** the updated constitution, **When** I read the Development Workflow section, **Then** the backward-compatibility requirement is replaced with the pre-1.0 policy.
+2. **Given** the updated constitution, **When** I read the Development Workflow section, **Then** the backward-compatibility requirement is replaced with "Breaking changes are permitted per Principle
+   XI (Pre-1.0 Flexibility)."
 3. **Given** the updated constitution, **When** I read the Governance → Amendments section, **Then** "Migration plan for affected code" is not listed as mandatory.
 
 ---
@@ -83,11 +104,11 @@ backward-compatibility shims for iterative improvements.
 ### User Story 4 - Scoped Tool Availability Principle Replaces Auto-Approval (Priority: P1)
 
 As a workflow designer, I need Principle I to describe scoped tool/command availability per workflow step so that I define explicit capability declarations for each step rather than relying on the
-auto-approval workaround.
+auto-approval transitional mechanism.
 
 **Why this priority**: This principle shapes how every workflow step is designed. The shift from "auto-approval friendly" to "explicitly scoped tools" is a fundamental design philosophy change.
 
-**Independent Test**: Can be fully tested by reading Principle I and verifying it describes scoped tool availability, explicitly states auto-approval is a temporary workaround, and defines that each
+**Independent Test**: Can be fully tested by reading Principle I and verifying it describes scoped tool availability, explicitly states auto-approval is a transitional mechanism, and defines that each
 workflow step has a precisely defined set of available tools/commands.
 
 **Mapped Functional Requirements**: FR-002
@@ -96,24 +117,27 @@ workflow step has a precisely defined set of available tools/commands.
 
 1. **Given** the updated constitution, **When** I read Principle I, **Then** the title is "Scoped Tool Availability" (or equivalent) and describes explicit capability declarations per step.
 2. **Given** the updated constitution, **When** I search for "Auto-Approval Friendly Design" as a principle title, **Then** it does not appear.
-3. **Given** the updated constitution, **When** I read Principle I, **Then** it acknowledges auto-approval as a recognized temporary workaround, not a design principle.
+3. **Given** the updated constitution, **When** I read Principle I, **Then** it acknowledges auto-approval as a recognized transitional mechanism (not a design principle), supported until scoped tool
+   declarations are fully implemented across all workflow steps.
 
 ---
 
-### User Story 5 - LangGraph Orchestration Principle Added (Priority: P2)
+### User Story 5 - Graph-Based Workflow Orchestration Principle Added (Priority: P2)
 
-As a workflow implementer, I need a new Principle IX documenting that multi-step workflows use LangGraph with checkpoint state recovery and human-in-the-loop interrupts, so that I follow the
-established orchestration pattern.
+As a workflow implementer, I need a new Principle IX documenting that multi-step workflows use graph-based orchestration (currently LangGraph) with checkpoint state recovery and human-in-the-loop
+interrupts, so that I follow the established orchestration pattern.
 
 **Why this priority**: LangGraph is the chosen orchestration framework (specs #1428, #1430) but has no constitutional backing yet. Adding it prevents ad-hoc alternatives.
 
-**Independent Test**: Can be fully tested by reading the new Principle IX and verifying it codifies LangGraph checkpointing, state recovery, and human-in-the-loop interrupts.
+**Independent Test**: Can be fully tested by reading the new Principle IX and verifying it codifies graph-based orchestration with LangGraph as the current implementation, checkpoint state recovery,
+and human-in-the-loop interrupts.
 
 **Mapped Functional Requirements**: FR-006
 
 **Acceptance Scenarios**:
 
-1. **Given** the updated constitution, **When** I read Principle IX, **Then** it describes LangGraph as the orchestration framework for multi-step workflows.
+1. **Given** the updated constitution, **When** I read Principle IX, **Then** its title is "Graph-Based Workflow Orchestration" and it describes graph-based orchestration as the pattern for multi-step
+   workflows, naming LangGraph as the current implementation.
 2. **Given** the updated constitution, **When** I read Principle IX, **Then** it mentions checkpoint state recovery and human-in-the-loop interrupts as required capabilities.
 
 ---
@@ -173,9 +197,10 @@ As a CLI designer, I need Principle VI to remove the "major version bump" requir
 
 ### Edge Cases
 
-- What happens if downstream templates reference specific principle numbers that are renumbered? The Sync Impact Report must flag renumbered principles explicitly.
-- How does the constitution handle the case where LangGraph is later replaced by another orchestration framework? Principle IX should be framework-agnostic enough to allow amendment without
-  restructuring.
+- What happens if downstream templates reference specific principle numbers that are renumbered? The Sync Impact Report must flag renumbered principles explicitly. **Resolution**: No principles are
+  renumbered in this update — new principles IX, X, XI are appended after existing VIII, so no downstream numbering conflicts arise.
+- How does the constitution handle the case where LangGraph is later replaced by another orchestration framework? Principle IX is titled "Graph-Based Workflow Orchestration" with LangGraph named as
+  the current implementation, allowing amendment to swap the named implementation without restructuring the principle itself.
 - What if a contributor reads both the constitution and stale docs (e.g., `docs/10-quality-requirements.md`) that still say 95%? The constitution's Sync Impact Report should note these as requiring
   follow-up updates.
 
@@ -184,14 +209,16 @@ As a CLI designer, I need Principle VI to remove the "major version bump" requir
 ### Functional Requirements
 
 - **FR-001**: The constitution MUST be updated to version 1.2.0 with the version footer reflecting the new version and ratification date.
-- **FR-002**: Principle I MUST be renamed and rewritten to describe scoped tool/command availability per workflow step, acknowledging auto-approval as a temporary workaround.
+- **FR-002**: Principle I MUST be renamed and rewritten to describe scoped tool/command availability per workflow step, acknowledging auto-approval as a transitional mechanism (supported until scoped
+  tool declarations are fully implemented across all workflow steps).
 - **FR-003**: Principle II MUST be rewritten to describe dual-layer state architecture (CLI parallel-safe JSON segments + LangGraph checkpointing), removing "No distributed configuration."
 - **FR-004**: Principle IV MUST state 100% code coverage (not 95%), aligned with ADR-011 and `pyproject.toml`.
-- **FR-005**: Principle VI MUST remove the requirement for major version bumps on breaking CLI changes.
-- **FR-006**: A new Principle IX MUST be added describing LangGraph orchestration with checkpoint state recovery and human-in-the-loop interrupts.
+- **FR-005**: Principle VI MUST remove the requirement for major version bumps on breaking CLI changes, replacing it with a reference to Principle XI (Pre-1.0 Flexibility).
+- **FR-006**: A new Principle IX MUST be added titled "Graph-Based Workflow Orchestration" describing graph-based orchestration (with LangGraph as the named current implementation), checkpoint state
+  recovery, and human-in-the-loop interrupts.
 - **FR-007**: A new Principle X MUST be added describing dual-engine compatibility with opt-in routing and fault isolation.
 - **FR-008**: A new Principle XI MUST be added codifying the pre-1.0 flexibility policy (breaking changes allowed, no migration plans required, active removal of dead code).
-- **FR-009**: The Development Workflow → Code Changes section MUST replace the backward-compatibility requirement with the pre-1.0 policy.
+- **FR-009**: The Development Workflow → Code Changes section MUST replace the backward-compatibility requirement with "Breaking changes are permitted per Principle XI (Pre-1.0 Flexibility)."
 - **FR-010**: The Governance → Amendments section MUST remove "Migration plan for affected code" as a mandatory requirement.
 - **FR-011**: The Quality Gates → Pre-Commit section MUST update coverage from "≥ 95%" to "100%."
 - **FR-012**: The Sync Impact Report HTML comment MUST be updated to reflect the v1.1.0 → v1.2.0 changes, listing all modifications, additions, removals, and templates requiring review.
@@ -200,14 +227,15 @@ As a CLI designer, I need Principle VI to remove the "major version bump" requir
 
 - **NFR-001**: The constitution MUST remain a single markdown file at `.specify/memory/constitution.md`.
 - **NFR-002**: The constitution MUST be self-contained — no external file dependencies for understanding the principles.
-- **NFR-003**: All principle descriptions MUST include a **Rationale** block explaining the "why."
-- **NFR-004**: The document MUST maintain consistent formatting (heading levels, bullet styles, bold labels) matching the existing structure.
+- **NFR-003**: All principle descriptions MUST include a `**Rationale**:` block as the final element explaining the "why."
+- **NFR-004**: The document MUST maintain consistent formatting: `### N. Title` heading format for all principles, `**Rationale**:` bold inline labels, and bullet list style matching the existing
+  structure. All new and modified principles must follow this exact pattern with no structural deviations.
 
 ### Key Entities
 
 - **Constitution**: The authoritative design document at `.specify/memory/constitution.md` that governs all project decisions.
 - **Sync Impact Report**: HTML comment block at the top of the constitution that tracks version changes and downstream template impacts.
-- **Principle**: A numbered, titled section within the constitution that establishes a non-negotiable design rule with rationale.
+- **Principle**: A numbered, titled section within the constitution (using `### N. Title` format) that establishes a non-negotiable design rule with a mandatory `**Rationale**:` block.
 
 ## Success Criteria
 
@@ -218,9 +246,10 @@ As a CLI designer, I need Principle VI to remove the "major version bump" requir
 - **SC-003**: The string "No distributed configuration" does not appear in the constitution.
 - **SC-004**: The string "Breaking changes to CLI UX require a major version bump" does not appear in the constitution.
 - **SC-005**: The string "Migration plan for affected code" does not appear as a mandatory amendment requirement.
-- **SC-006**: Principles IX, X, and XI exist with titles related to LangGraph Orchestration, Dual-Engine Compatibility, and Pre-1.0 Flexibility respectively.
+- **SC-006**: Principles IX, X, and XI exist with titles related to Graph-Based Workflow Orchestration, Dual-Engine Compatibility, and Pre-1.0 Flexibility respectively.
 - **SC-007**: The Sync Impact Report comment block lists version change `1.1.0 -> 1.2.0` and enumerates all modified/added/removed content.
-- **SC-008**: All existing principles (III, V, VII, VIII) remain unchanged in substance (only Principle number shifts if any are acceptable provided the Sync Impact Report documents them).
+- **SC-008**: All existing principles (III, V, VII, VIII) remain unchanged in substance (only Principle number shifts if any are acceptable provided the Sync Impact Report documents them). No
+  principles are renumbered in this update — new principles are appended after VIII.
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
