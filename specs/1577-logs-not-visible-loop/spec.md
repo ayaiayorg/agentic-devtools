@@ -53,6 +53,8 @@ merge) in the GitHub Actions job log, so that I can diagnose failures and unders
 
 **Independent Test**: Can be fully tested by triggering the AI PR loop workflow and verifying that Python logging output appears in the Actions step log at INFO level and above.
 
+**Associated Functional Requirements**: FR-001, FR-002, FR-007
+
 **Acceptance Scenarios**:
 
 1. **Given** the AI PR loop orchestrator is invoked in a GitHub Actions run, **When** the orchestrator processes an event through its state machine, **Then** all `logger.info()`, `logger.warning()`,
@@ -73,6 +75,8 @@ can quickly identify the failure point.
 
 **Independent Test**: Can be tested by triggering the workflow and verifying that critical action summaries (guard results, final decision) are visible outside of collapsed groups in the Actions UI.
 
+**Associated Functional Requirements**: FR-003, FR-004, FR-005, FR-008
+
 **Acceptance Scenarios**:
 
 1. **Given** the orchestrator evaluates guards (deduplication, exclusion labels, fork detection), **When** a guard blocks execution, **Then** the block reason is logged outside any collapsed group so
@@ -90,6 +94,8 @@ operation.
 **Why this priority**: Different situations require different verbosity. A configuration knob provides flexibility without code changes, but the default INFO level satisfies most needs.
 
 **Independent Test**: Can be tested by setting an environment variable (e.g., `AGDT_LOG_LEVEL=DEBUG`) in the workflow and verifying that debug-level messages appear in the output.
+
+**Associated Functional Requirements**: FR-006
 
 **Acceptance Scenarios**:
 
