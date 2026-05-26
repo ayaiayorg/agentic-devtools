@@ -42,6 +42,8 @@ failure handling for non-recoverable errors.
 As a developer who has created a GitHub issue and triggered the SpecKit pipeline, I want the system to automatically invoke the Copilot coding agent when the LLM pipeline fails structural validation,
 so that I receive a spec PR without manual intervention and without waiting for someone to notice the failure.
 
+**Covers**: FR-001, FR-002, FR-003, FR-004, FR-009, FR-010
+
 **Why this priority**: This is the core value proposition. Without this, the entire feature has no effect and failures continue to require manual intervention. Every other story builds on this
 automatic trigger working correctly.
 
@@ -70,6 +72,8 @@ agent task is created via the API with appropriate problem statement content.
 As a repository maintainer monitoring the SpecKit pipeline, I want the issue to be labeled with `speckit:agent-fallback` and a comment posted with the agent task URL, so that I can track which issues
 required the fallback path and monitor the agent's progress.
 
+**Covers**: FR-005, FR-006, FR-007, FR-012
+
 **Why this priority**: Observability is essential for understanding pipeline health and debugging issues, but is secondary to the fallback actually working. Without visibility, operators cannot
 distinguish between "pipeline succeeded normally" and "pipeline failed but agent recovered."
 
@@ -83,14 +87,16 @@ distinguish between "pipeline succeeded normally" and "pipeline failed but agent
 2. **Given** a structural validation failure has triggered the agent fallback successfully, **When** the agent task is created, **Then** a comment is posted on the issue containing: the agent task
    URL, a brief explanation that the LLM pipeline failed and the agent was invoked as fallback, and the validation errors that triggered the fallback.
 
-3. **Given** the agent fallback was triggered, **When** the issue labels are inspected, **Then** `speckit:failed` is NOT present (since recovery is in progress), but `speckit:agent-fallback` IS
-   present.
+3. **Given** the agent fallback was triggered (and `speckit:failed` may have been applied by a previous failed run), **When** the issue labels are inspected, **Then** `speckit:failed` is removed (if
+   it was present) and is NOT present in the final label set, but `speckit:agent-fallback` IS present.
 
 ---
 
 ### User Story 3 - Idempotent Fallback (No Duplicate Agent Tasks) (Priority: P2)
 
 As the automation system, I must not create duplicate agent tasks if the workflow is re-run or if a fallback is already in progress, so that there are no conflicting PRs or wasted compute resources.
+
+**Covers**: FR-008
 
 **Why this priority**: Without idempotency, manual workflow re-runs or race conditions could spawn multiple competing agent tasks generating conflicting PRs for the same spec. This must be addressed
 alongside the core trigger to avoid production chaos.
@@ -112,6 +118,8 @@ agent task is created.
 
 As the automation system, I must handle the case where the Copilot Coding Agent API is unavailable or returns an error, so that the issue still receives proper failure labeling and a useful comment
 rather than an unhandled exception.
+
+**Covers**: FR-011
 
 **Why this priority**: API availability cannot be guaranteed. While rare, a failure in the fallback path should not mask the original failure or leave the issue in an inconsistent state.
 
@@ -159,7 +167,7 @@ note about the fallback failure.
 
 - **FR-006**: System MUST post a comment on the issue containing the agent task URL when the fallback is triggered successfully.
 
-- **FR-007**: System MUST NOT add the `speckit:failed` label when the agent fallback is triggered successfully (recovery is in progress).
+- **FR-007**: System MUST remove the `speckit:failed` label (if present from a previous failed run) AND MUST NOT add it when the agent fallback is triggered successfully (recovery is in progress).
 
 - **FR-008**: System MUST check for existing open PRs on the expected SpecKit branch before creating a new agent task (idempotency guard).
 
