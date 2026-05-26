@@ -24,7 +24,7 @@
     "severity": "HIGH",
     "task_ids": ["T016", "T018"],
     "dimensions": ["file_path", "code_section"],
-    "rationale": "T016 audits guards.py for FR-003 compliance (guard outcomes at INFO outside groups). T018 adds/adjusts log statements in guards modules where FR-003 is not satisfied. Both target the same file (guards.py) and the same code sections (guard outcome log statements). T016 is audit, T018 is fix — naturally sequential but overlapping in scope."
+    "rationale": "T016 audits guards.py for FR-003; T018 fixes non-compliant log statements in the same file/sections. Audit then fix — sequential but overlapping in scope."
   },
   {
     "id": "F-02",
@@ -32,7 +32,7 @@
     "severity": "HIGH",
     "task_ids": ["T017", "T019"],
     "dimensions": ["file_path", "code_section"],
-    "rationale": "T017 audits pipeline/actions/*.py for FR-004 compliance. T019 adds/adjusts log statements in action modules where FR-004 is not satisfied. Both target the same files and code sections (action outcome logging). Same audit-then-fix pattern as F-01."
+    "rationale": "T017 audits actions for FR-004; T019 fixes non-compliant log statements in the same files/sections. Same audit-then-fix pattern as F-01."
   },
   {
     "id": "F-03",
@@ -40,7 +40,7 @@
     "severity": "HIGH",
     "task_ids": ["T016", "T017"],
     "dimensions": ["description"],
-    "rationale": "Both tasks are 'audit module X — verify Y outcomes logged at INFO outside log_group() scope'. Identical structure and intent applied to different modules. Not duplicate (different files) but strongly overlapping in description pattern. Single dimension = HIGH."
+    "rationale": "Both are 'audit module X — verify Y logged at INFO outside log_group()'. Identical intent on different modules. Not duplicate but overlapping in description."
   }
 ]
 
@@ -86,4 +86,5 @@
 4. Tighten ambiguous spec language in FR-005 and SC-002 by defining what counts as "verbose details" and how the "first 50 lines" measurement is taken.
 5. Add an explicit "Out of Scope" section to `spec.md` and consolidate the duplicated subprocess-output edge case into one authoritative location.
 
-Follow-up question: Would you like me to draft the concrete remediation edits for `tasks.md` and `spec.md` to add the missing NFR coverage tasks, clarify T016/T017, and tighten the ambiguous requirement language identified above?
+Follow-up question: Would you like me to draft the concrete remediation edits for `tasks.md` and `spec.md`
+to add the missing NFR coverage tasks, clarify T016/T017, and tighten the ambiguous requirement language?
