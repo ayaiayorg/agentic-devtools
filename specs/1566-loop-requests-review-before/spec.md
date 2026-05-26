@@ -17,9 +17,9 @@ On PR #1545, the automation requested a fresh Copilot review while multiple revi
 feedback must be addressed before the next review cycle begins, creating a path where PRs can be approved and auto-merged with unaddressed review feedback still outstanding.
 
 The root cause is that the orchestrator's `_request_copilot_review_if_needed` function is invoked at three separate control-flow paths — after draft-publish (line 1535), after CI-completion with no
-actionable review (line 1390), and in the main Step 7b "no effective review" path (line 1560) — and none of these paths include a precondition check for unresolved review comment threads. The
-function's existing skip-reason logic (`_get_copilot_review_request_skip_reason`) checks only for pending Copilot review requests and the "no reviewable files" sentinel, not for outstanding feedback threads.
-
+actionable review (line 1390), and in the main Step 7b "no effective review" path (line 1560) — and none of these paths include a precondition check for unresolved review comment threads.
+The function's existing skip-reason logic (`_get_copilot_review_request_skip_reason`) checks only for pending Copilot review requests and the "no reviewable files" sentinel, not for outstanding
+feedback threads.
 The desired behavior is that the orchestrator must query the PR's review comment threads and confirm that zero unresolved threads exist before requesting a new review. If unresolved threads remain,
 the orchestrator should skip the review request, log the reason with the unresolved count, include the count in the decision summary, and return a non-error exit code so the loop can retry on the next
 trigger. This ensures that review requests are only issued when all prior feedback has been addressed, maintaining the integrity of the review-gate safeguard.
@@ -139,8 +139,8 @@ the review request in each case.
   explicit resolution (via the resolve API or UI toggle) clears a thread from the gate.
 - How does this interact with the existing `finalize_post_repair` evaluator flow that resolves threads? The evaluator's thread resolution runs *after* a repair agent addresses feedback. The gate runs
   *before* requesting a new review. These are complementary: the evaluator resolves threads, then on the next loop trigger the gate sees zero unresolved threads and allows the review request.
-- What if a PR has hundreds of threads? The thread-listing API call should paginate properly (e.g., via GitHub's GraphQL `reviewThreads` connection). The gate counts all unresolved threads regardless of
-  quantity — there is no threshold; even 1 unresolved thread blocks.
+- What if a PR has hundreds of threads? The thread-listing API call should paginate properly (e.g., via GitHub's GraphQL `reviewThreads` connection). The gate counts all unresolved threads
+  regardless of quantity — there is no threshold; even 1 unresolved thread blocks.
 
 ---
 
@@ -185,8 +185,9 @@ the review request in each case.
 
 ### Key Entities
 
-- **Review Comment Thread**: A GitHub PR review thread (GraphQL `PullRequestReviewThread`) with an `isResolved` boolean state. (REST “review comments” are individual comments and do not expose thread resolution status.) Threads are identified
-  by node ID and associated with a specific review and PR.
+- **Review Comment Thread**: A GitHub PR review thread (GraphQL `PullRequestReviewThread`) with an `isResolved` boolean state.
+  (REST “review comments” are individual comments and do not expose thread resolution status.)
+  Threads are identified by node ID and associated with a specific review and PR.
 - **Unresolved-Comments Gate**: A precondition check applied inside (or immediately before) `_request_copilot_review_if_needed` that evaluates whether all review comment threads on the PR are
   resolved. Returns a skip reason string when the gate blocks.
 
@@ -208,9 +209,11 @@ the review request in each case.
 - **SC-003**: The regression scenario from PR #1545 (review requested despite 2+ unresolved comment threads) does not reproduce when replayed against the fixed orchestrator logic — verified by a
   dedicated regression test that simulates the exact PR #1545 timeline state.
 
-- **SC-004**: No increase in orchestrator run time beyond 2 seconds additional latency attributable to the thread-listing API call (measured as p95 latency delta in CI workflow telemetry over 50+ runs).
+- **SC-004**: No increase in orchestrator run time beyond 2 seconds additional latency attributable to the thread-listing API call
+  (measured as p95 latency delta in CI workflow telemetry over 50+ runs).
 
-- **SC-005**: All new code achieves 100% line coverage under the project's testing policy (e.g., `python3 scripts/check-pr-test-coverage.py` must pass, and the orchestrator tests in `tests/unit/cli/ci/orchestrator/` must cover all new logic).
+- **SC-005**: All new code achieves 100% line coverage under the project's testing policy (e.g., `python3 scripts/check-pr-test-coverage.py`
+  must pass, and the orchestrator tests in `tests/unit/cli/ci/orchestrator/` must cover all new logic).
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
