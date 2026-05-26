@@ -22,10 +22,10 @@
   emission)
 - [ ] T004 Write tests for `is_github_actions()` in `tests/unit/cli/ci/logging_config/test_is_github_actions.py` — covers True/False/absent env var cases (FR-008)
 - [ ] T005 Implement `setup_logging()` in `agentic_devtools/cli/ci/logging_config.py` — idempotent function that checks `logging.root.handlers`, adds `StreamHandler(sys.stderr)` with format
-  `%(asctime)s %(levelname)-8s %(name)s: %(message)s` and `datefmt="%H:%M:%S"`, reads `AGDT_LOG_LEVEL` env var, validates level names, warns on invalid values, defaults to INFO (FR-001: configures
+  `%(asctime)s %(levelname)-8s %(name)s: %(message)s` and `datefmt="%H:%M:%S"`, reads `AGDT_LOG_LEVEL` env var, checks level names, warns on invalid values, defaults to INFO (FR-001: configures
   logging to stderr; FR-002: format string with timestamp/level/module; FR-006: `AGDT_LOG_LEVEL` support)
 - [ ] T006 Write tests for `setup_logging()` in `tests/unit/cli/ci/logging_config/test_setup_logging.py` — covers
-  idempotency, format verification, level override, invalid level warning, stderr output (FR-001, FR-002, FR-006)
+  success path (handler added, format applied), idempotency, format verification, level override, invalid level warning, stderr output (FR-001, FR-002, FR-006)
 - [ ] T007 Implement `log_group(title: str)` context manager in `agentic_devtools/cli/ci/logging_config.py` — emits `::group::{title}` / `::endgroup::` only when `is_github_actions()` is True,
   otherwise no-op; uses `try/finally` for cleanup (FR-005: verbose details inside collapsed groups; FR-008: no annotations outside GitHub Actions)
 - [ ] T008 Write tests for `log_group()` in `tests/unit/cli/ci/logging_config/test_log_group.py` — covers emission when GITHUB_ACTIONS=true, no-op otherwise, cleanup on exception (FR-005, FR-008)
@@ -38,7 +38,7 @@
 - [ ] T011 [US1] Wire `setup_logging()` call into `speckit_trigger_command()` in `agentic_devtools/cli/ci/commands.py` — place before command logic (FR-007: speckit entry point uses shared logging
   mechanism)
 - [ ] T012 [US1] Update/add tests in `tests/unit/cli/ci/commands/` to verify `setup_logging()` is called at the correct point in `ai_pr_loop_command()` control flow (FR-001)
-- [ ] T013 [US1] Update/add tests in `tests/unit/cli/ci/commands/` to verify `setup_logging()` is called at the correct point in `speckit_trigger_command()` control flow (FR-007)
+- [ ] T013 [US1] Update/add tests in `tests/unit/cli/ci/commands/` to verify `setup_logging()` is called at the correct point in `speckit_trigger_command()` control flow — covering success path and expected call order (FR-007)
 
 ## Phase 4: User Story 2 — Expanded Log Groups (P2)
 
