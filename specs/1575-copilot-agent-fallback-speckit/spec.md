@@ -193,9 +193,10 @@ note about the fallback failure.
 
 ### Functional Requirements
 
-- **FR-001**: System MUST detect structural validation failures by parsing step outputs or logs for known validation error signatures (`MISSING_SECTIONS`, `INSUFFICIENT_REQUIREMENTS`,
-  `INSUFFICIENT_USER_STORIES`, `MISSING_SUCCESS_CRITERIA`, and any other structural validators defined in the SpecKit pipeline). Detection runs in a dedicated workflow step that executes after the
-  main orchestrator step fails (`if: failure()`).
+- **FR-001**: System MUST detect structural validation failures from machine-readable validation signatures explicitly surfaced by the failing workflow step (for both workflows) before it exits non-zero.
+  The upstream step MUST emit signatures via `$GITHUB_OUTPUT` (for example `validation_errors`) or a workspace file (for example `validation-errors.json`) containing known markers
+  (`MISSING_SECTIONS`, `INSUFFICIENT_REQUIREMENTS`, `INSUFFICIENT_USER_STORIES`, `MISSING_SUCCESS_CRITERIA`, and any other structural validators defined in the SpecKit pipeline). Detection runs in a
+  dedicated workflow step that executes after the main orchestrator step fails (`if: failure()`).
 
 - **FR-002**: System MUST NOT trigger the agent fallback for non-structural failures including but not limited to: authentication errors, rate limiting, network timeouts, missing secrets, and Python
   import/dependency errors. The distinction is made by checking for the presence of known structural error signatures in step output; absence of these signatures means the failure is non-structural.
@@ -219,11 +220,6 @@ note about the fallback failure.
   create a new agent task and MUST post a comment on the issue indicating that fallback was skipped due to the existing open PR, including a link to the found PR and, when available, the associated
   existing agent task URL.
 
-- **FR-013**: System MUST also detect whether a fallback agent task is already active or was previously created for the same issue/phase before opening a new task, even when no PR exists yet. This
-  detection MUST use the machine-readable marker comment (`<!-- speckit:agent-fallback task_id=... -->`) as the durable correlation mechanism. If an
-  existing in-progress or previously created fallback task is found, the system MUST NOT create a duplicate task and MUST post or update an issue comment indicating that fallback was skipped
-  because an agent task is already in progress, including the existing agent task URL when available.
-
 - **FR-009**: System MUST be disableable via the `SPECKIT_AGENT_FALLBACK` repository variable — when set to `"false"`, the fallback is skipped entirely and the standard failure handling applies.
 
 - **FR-010**: System MUST work in both `speckit-issue-trigger.yml` (Phase 1) and `speckit-phase-progression.yml` (Phases 2–5) workflows with appropriate phase context in each. The shared fallback
@@ -244,6 +240,11 @@ note about the fallback failure.
   the task ID from the marker comment), the fallback being explicitly
   concluded without continuing agent execution, or standard failure
   handling being executed because fallback did not start.
+
+- **FR-013**: System MUST also detect whether a fallback agent task is already active or was previously created for the same issue/phase before opening a new task, even when no PR exists yet. This
+  detection MUST use the machine-readable marker comment (`<!-- speckit:agent-fallback task_id=... -->`) as the durable correlation mechanism. If an
+  existing in-progress or previously created fallback task is found, the system MUST NOT create a duplicate task and MUST post or update an issue comment indicating that fallback was skipped
+  because an agent task is already in progress, including the existing agent task URL when available.
 
 ### Non-Functional Requirements
 
