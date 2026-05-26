@@ -54,9 +54,11 @@ After:                    CI → pending_review → unresolved_threads → EXECU
 **Deliverable**: 100% line coverage on `resolve_threads.py`.
 
 1. Run:
+
    ```bash
    agdt-test-pattern tests/unit/cli/ci/pipeline/actions/resolve_threads/ -o addopts= --cov=agentic_devtools.cli.ci.pipeline.actions.resolve_threads --cov-report=term-missing --cov-fail-under=100
    ```
+
 2. Confirm 100% coverage. If any lines are uncovered (particularly the exception handler in `execute()`), add targeted tests.
 
 ### Phase 4 — Update Companion Spec 1559
