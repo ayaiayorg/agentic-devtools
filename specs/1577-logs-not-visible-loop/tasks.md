@@ -2,8 +2,15 @@
 
 ## Phase Mapping: Plan → Tasks
 
-Phases are 1:1 aligned with plan.md — no mapping needed.
-
+| Tasks Phase | Plan Phase(s) | Description |
+|---|---|---|
+| Phase 1: Setup | Phase 1 | Scaffolding for `logging_config.py` and the 1:1:1 test package folder |
+| Phase 2: Foundational | Phase 1 | Implement `is_github_actions()`, `setup_logging()`, `log_group()` and their unit tests |
+| Phase 3: User Story 1 — Visible Orchestrator Logs (P1) | Phase 2 | Wire `setup_logging()` into entry points and update command tests |
+| Phase 4: User Story 2 — Expanded Log Groups (P2) | Phase 3–4 | Consolidate group helpers and ensure key INFO logs are outside groups |
+| Phase 5: User Story 3 — Configurable Log Verbosity (P3) | Phase 1 | Extend `AGDT_LOG_LEVEL` test coverage |
+| Phase 6: Subprocess Output Handling | Phase 5 | Capture and re-emit subprocess stderr via logging |
+| Final Phase: Polish & Cross-Cutting | Phase 6 | Validation runs (validate_test_structure, agdt-test, PR checks) |
 ## Phase 1: Setup
 
 - [ ] T001 Create module file `agentic_devtools/cli/ci/logging_config.py` with module docstring and imports (`logging`, `os`, `sys`, `contextlib`)
