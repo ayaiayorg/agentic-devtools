@@ -56,17 +56,18 @@ See [research.md](research.md) for detailed decisions on:
      `datefmt="%H:%M:%S"`; reads `AGDT_LOG_LEVEL` env var, validates against known levels, warns on invalid values, defaults to INFO
    - `is_github_actions() -> bool` — returns `os.environ.get("GITHUB_ACTIONS") == "true"`
    - `log_group(title: str)` — context manager that emits `::group::{title}` on enter and `::endgroup::` on exit, only when `is_github_actions()` is True; otherwise no-op
-2. Write tests: `tests/unit/cli/ci/logging_config/test_setup_logging.py`, `test_is_github_actions.py`, `test_log_group.py`
+2. Create `__init__.py` in the new `tests/unit/cli/ci/logging_config/` folder and add any missing parent `__init__.py` files required by the 1:1:1 test structure validator
+3. Write tests: `tests/unit/cli/ci/logging_config/test_setup_logging.py`, `test_is_github_actions.py`, `test_log_group.py`
 
 ### Phase 2: Wire Entry Points (FR-001, FR-007)
 
-**Deliverable**: Both CLI entry points call `setup_logging()` before any logic
+**Deliverable**: Both CLI entry points call `setup_logging()` before the rest of their command logic, but not before any intentional feature-flag/legacy-deferral early exit
 
 **Tasks**:
 
-1. In `commands.py` → `ai_pr_loop_command()`: add `from agentic_devtools.cli.ci.logging_config import setup_logging` and call `setup_logging()` as the first statement (before feature flag check)
-2. In `commands.py` → `speckit_trigger_command()`: same pattern
-3. Update existing tests in `tests/unit/cli/ci/commands/` to verify logging is configured (mock `setup_logging` or assert handler presence)
+1. In `commands.py` → `ai_pr_loop_command()`: add `from agentic_devtools.cli.ci.logging_config import setup_logging` and call `setup_logging()` immediately after the `AGDT_USE_PYTHON_ORCHESTRATOR` feature-flag guard, but before any other command logic
+2. In `commands.py` → `speckit_trigger_command()`: add the same import and call `setup_logging()` immediately after any equivalent early-exit guard if present; otherwise call it before the rest of the command logic
+3. Update existing tests in `tests/unit/cli/ci/commands/` to verify logging is configured at the correct point in control flow (after any intentional deferral guard, before subsequent command logic)
 
 ### Phase 3: Consolidate Group Helpers (FR-005, FR-008)
 
