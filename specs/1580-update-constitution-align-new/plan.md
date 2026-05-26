@@ -74,7 +74,7 @@ Replace lines 37–46 with new content:
 
 ### Phase 4: Update Principle IV (Coverage 95% → 100%)
 
-- Change "Minimum 95% code coverage" to "100% code coverage" (line 65)
+- Change "Minimum 95% code coverage" to "100% code coverage" (coverage bullet under Principle IV)
 - Reference ADR-011 alignment
 
 ### Phase 5: Update Principle VI (Remove Version Bump Requirement)
