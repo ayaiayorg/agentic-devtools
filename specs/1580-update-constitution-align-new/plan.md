@@ -113,8 +113,8 @@ Insert after Principle VIII (after line 115):
 Run success criteria checks:
 
 ```bash
-# SC-001: Version footer updated to 1.2.0 with the new ratification date
-grep -F '**Version**: 1.2.0 | **Ratified**: 2026-05-26' .specify/memory/constitution.md
+# SC-001: Full version footer updated to 1.2.0 with new ratification and last amended dates
+grep -Fx '**Version**: 1.2.0 | **Ratified**: 2026-05-26 | **Last Amended**: 2026-05-26' .specify/memory/constitution.md
 
 # SC-002: No "95%" references
 ! grep -q "95%" .specify/memory/constitution.md
