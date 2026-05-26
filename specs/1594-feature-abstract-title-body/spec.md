@@ -35,8 +35,8 @@ all supported CI providers.
 
 - Q: Where exactly should the edit-relevance preflight live — as a standalone function in `guards.py`, or inline in `run_ai_pr_loop()` in `orchestrator.py`? → A: It should be implemented as a
   standalone function in `agentic_devtools/cli/ci/guards.py` (e.g., `check_edit_relevance(event: EventPayload) -> tuple[bool, str]`) for testability, but invoked inline in `run_ai_pr_loop()`
-  immediately after event parsing and before lock acquisition or `build_pr_state_snapshot()`. This keeps it consistent with the existing guard pattern while respecting the spec's requirement that it
-  runs before any network calls.
+  immediately after event parsing and before lock acquisition, `provider.get_pr_metadata(pr_number)` (the first network call in the legacy flow), or `build_snapshot()`. This keeps it consistent
+  with the existing guard pattern while respecting the spec's requirement that it runs before any network calls.
 
 - Q: The spec says the guard exits with code 0 when skipping — should this use `EXIT_SUCCESS` (0) or a new dedicated exit code (e.g., `EXIT_EDIT_SKIPPED = 6`) so CI workflows can distinguish "nothing
   to do" from "intentionally skipped due to irrelevant edit"? → A: Use `EXIT_SUCCESS` (0). The edit-relevance skip is a normal, expected outcome — not an error or special condition. The INFO log
@@ -53,9 +53,9 @@ all supported CI providers.
   fast-path can be added later. This keeps the initial implementation focused and avoids touching the newer pipeline architecture unnecessarily.
 
 - Q: Should the `trigger_label` field extraction in `_parse_pull_request_event` be extended to detect label-related `edited` events, or is label handling entirely separate (via the existing `labeled`
-  action)? → A: Label handling remains entirely separate via the `labeled` action. The `edited` action on GitHub fires only for title, body, and base-ref changes (per GitHub's webhook documentation);
-  milestones and assignees are delivered via their own dedicated event actions. The `trigger_label` field is populated only from `labeled`/`unlabeled` events. No changes to label handling are needed
-  for this feature.
+  action)? → A: Label handling remains entirely separate via the `labeled` action. For this feature, the relevant GitHub `pull_request` `edited` metadata is the `changes` object for `title`, `body`,
+  or `base` when those keys are present; label changes are still handled via the dedicated `labeled`/`unlabeled` actions. The `trigger_label` field is populated only from `labeled`/`unlabeled`
+  events. No changes to label handling are needed for this feature.
 
 ## User Scenarios & Testing
 
