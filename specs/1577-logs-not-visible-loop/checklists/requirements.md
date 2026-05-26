@@ -24,7 +24,9 @@
 
 ## Feature Readiness
 
-- [ ] CHK011 FR-001 has acceptance coverage via User Story 1 scenario 1 (INFO+ messages visible) and scenario 2 (stderr with format); FR-006 has coverage via User Story 3 scenarios 1–3
+- [ ] CHK011 FR-001 has acceptance coverage via User Story 1 scenario 1 (INFO+ messages visible) and scenario 2
+  (stderr with format); User Story 3 scenarios 1–4 cover FR-006 for both valid `AGDT_LOG_LEVEL` values
+  (scenarios 1–3) and invalid values being ignored with a warning (scenario 4)
 - [ ] CHK012 All three user personas are covered: developer monitoring live runs (US1), developer debugging post-failure (US2), repository maintainer tuning verbosity (US3)
 - [ ] CHK013 Success criteria SC-004 (≥10 timestamped log lines) and SC-005 (DEBUG message presence/absence toggle) provide measurable verification methods reproducible in CI
 - [ ] CHK014 FR-001 specifies module location (`logging_config.py`) as an organizational constraint but does not dictate internal function signatures, class design, or handler subclass implementation
