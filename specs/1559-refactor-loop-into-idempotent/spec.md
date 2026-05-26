@@ -243,7 +243,7 @@ the exit code should remain successful.
 - **FR-004**: Thread resolution (action 4) MUST evaluate all unresolved Copilot review comments from any review targeting a commit before HEAD, using SDK verification to determine resolve/keep-open
   verdicts per thread.
 
-- **FR-005**: Thread resolution MUST NOT execute when a Copilot coding session is active OR a Copilot review is pending on HEAD. Both conditions indicate that new changes or review feedback may be
+- **FR-005**: Thread resolution MUST NOT execute when a Copilot review is pending on HEAD. This condition indicates that new review feedback may be
   incoming, making resolution premature.
 
 - **FR-006**: Squash (action 6) MUST only execute when commits above merge-base > 1 AND no active Copilot session (coding or review) AND CI is passing. All three conditions must be true
