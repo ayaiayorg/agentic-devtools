@@ -72,8 +72,8 @@ edit-relevance guard returns `(should_skip=False, reason="")` (proceed) and allo
 **Acceptance Scenarios**:
 
 1. **Given** a PR with title `[WIP] Add feature X` exists and the ai-pr-loop is configured to trigger on `edited` events, **When** a user changes the title to `Add feature X` (removing the WIP
-   prefix), **Then** the orchestrator receives the event, the `EventPayload` has `title_changed=True`, the edit-relevance guard returns `(should_skip=False, reason="")` (proceed), and the WIP-title guard subsequently evaluates the new
-   title and also allows the pipeline to proceed.
+   prefix), **Then** the orchestrator receives the event, the `EventPayload` has `title_changed=True`, the edit-relevance guard returns
+   `(should_skip=False, reason="")` (proceed), and the WIP-title guard subsequently evaluates the new title and also allows the pipeline to proceed.
 
 2. **Given** a PR with title `Add feature X` (no WIP prefix) exists, **When** a user changes the title to `[WIP] Add feature X`, **Then** the orchestrator receives the event with `title_changed=True`,
    the edit-relevance guard returns `(should_skip=False, reason="")` (proceed), and the WIP-title guard evaluates the new title and blocks with a reason indicating WIP status.
@@ -92,12 +92,14 @@ The system must detect that only the body changed and exit early with an informa
 unnecessary full pipeline run, wasting CI minutes and potentially causing rate-limit issues on busy repositories.
 
 **Independent Test**: This scenario can be tested by simulating an `edited` event with a changes payload containing only `changes.body.from` (no title change). The test verifies that the
-edit-relevance guard returns `(should_skip=True, reason="body-only edit, no guard-relevant changes")` and that no downstream guards or actions execute. The value delivered is elimination of wasted CI runs on body-only edits.
+edit-relevance guard returns `(should_skip=True, reason="body-only edit, no guard-relevant changes")` and that no downstream guards or actions execute. The value delivered is elimination of
+wasted CI runs on body-only edits.
 
 **Acceptance Scenarios**:
 
 1. **Given** a PR exists and the ai-pr-loop triggers on `edited` events, **When** a user edits only the PR body (description) without changing the title, **Then** the `EventPayload` has
-   `title_changed=False` and `body_changed=True`, the edit-relevance guard returns `(should_skip=True, reason="body-only edit, no guard-relevant changes")`, and no downstream guards or actions execute.
+   `title_changed=False` and `body_changed=True`, the edit-relevance guard returns
+   `(should_skip=True, reason="body-only edit, no guard-relevant changes")`, and no downstream guards or actions execute.
 
 2. **Given** a PR exists, **When** the raw event payload from GitHub contains `changes: {body: {from: "old text"}}` but no `changes.title` key, **Then** `GitHubActionsProvider.parse_event()` returns
    an `EventPayload` with `title_changed=False` and `body_changed=True`.
@@ -115,16 +117,16 @@ change metadata and must always pass through to subsequent guards without any ad
 **Why this priority**: This is essential for correctness but slightly lower priority because existing behavior already works for non-edited events. The guard must be designed to be transparent for
 these cases, preserving backward compatibility.
 
-**Independent Test**: This scenario can be tested by passing `EventPayload` instances with various `action` values (not `edited`) and verifying the edit-relevance guard unconditionally returns `(should_skip=False, reason="")`
-regardless of the `title_changed` and `body_changed` field values (which default to `False`).
+**Independent Test**: This scenario can be tested by passing `EventPayload` instances with various `action` values (not `edited`) and verifying the edit-relevance guard unconditionally
+returns `(should_skip=False, reason="")` regardless of the `title_changed` and `body_changed` field values (which default to `False`).
 
 **Acceptance Scenarios**:
 
 1. **Given** a PR is opened for the first time, **When** the `pull_request` event with `action=opened` is processed, **Then** the `EventPayload` has `title_changed=False` and `body_changed=False`
    (defaults), the edit-relevance guard returns `(should_skip=False, reason="")` (proceed), and all subsequent guards evaluate normally.
 
-2. **Given** a new commit is pushed to a PR branch, **When** the `pull_request` event with `action=synchronize` is processed, **Then** the edit-relevance guard returns `(should_skip=False, reason="")` (proceed) without inspecting the
-   `title_changed` or `body_changed` fields.
+2. **Given** a new commit is pushed to a PR branch, **When** the `pull_request` event with `action=synchronize` is processed, **Then** the edit-relevance guard returns
+   `(should_skip=False, reason="")` (proceed) without inspecting the `title_changed` or `body_changed` fields.
 
 3. **Given** a label is added to a PR, **When** the `pull_request` event with `action=labeled` is processed, **Then** the edit-relevance guard returns `(should_skip=False, reason="")` (proceed).
 
