@@ -43,6 +43,7 @@
 
 ### Category G Structured Findings
 
+<!-- markdownlint-disable MD013 -->
 [
   {
     "id": "G-01",
@@ -72,6 +73,7 @@
     "rationale": "Both tasks run full validation (T020: agdt-test full suite; T021: run-pr-checks.sh including tests+lint+format). Description overlap: both verify no regressions across full codebase. Different tools and scopes (test-only vs lint+format+markdownlint+mypy) justify keeping separate. Single-dimension overlap."
   }
 ]
+<!-- markdownlint-enable MD013 -->
 
 ## Next Actions
 
