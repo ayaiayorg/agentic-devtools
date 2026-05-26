@@ -43,7 +43,37 @@
 
 ### Category G Structured Findings
 
-[{"id":"G-01","overlap_type":"overlapping","severity":"HIGH","task_ids":["T010","T011","T012"],"dimensions":["description"],"rationale":"All three tasks add a test asserting ActionDecision.SKIP when active_session=True combined with one failing precondition, in the same test file. Description intent is similar (edge-case skip with session active) but each covers a distinct FR (002/003/004) and distinct precondition key. Single-dimension overlap only."},{"id":"G-02","overlap_type":"overlapping","severity":"HIGH","task_ids":["T020","T021"],"dimensions":["description"],"rationale":"Both tasks run full validation (T020: agdt-test full suite; T021: run-pr-checks.sh including tests+lint+format). Description overlap: both verify no regressions across full codebase. Different tools and scopes (test-only vs lint+format+markdownlint+mypy) justify keeping separate. Single-dimension overlap."}]
+```json
+[
+  {
+    "id": "G-01",
+    "overlap_type": "overlapping",
+    "severity": "HIGH",
+    "task_ids": [
+      "T010",
+      "T011",
+      "T012"
+    ],
+    "dimensions": [
+      "description"
+    ],
+    "rationale": "All three tasks add a test asserting ActionDecision.SKIP when active_session=True combined with one failing precondition, in the same test file. Description intent is similar (edge-case skip with session active) but each covers a distinct FR (002/003/004) and distinct precondition key. Single-dimension overlap only."
+  },
+  {
+    "id": "G-02",
+    "overlap_type": "overlapping",
+    "severity": "HIGH",
+    "task_ids": [
+      "T020",
+      "T021"
+    ],
+    "dimensions": [
+      "description"
+    ],
+    "rationale": "Both tasks run full validation (T020: agdt-test full suite; T021: run-pr-checks.sh including tests+lint+format). Description overlap: both verify no regressions across full codebase. Different tools and scopes (test-only vs lint+format+markdownlint+mypy) justify keeping separate. Single-dimension overlap."
+  }
+]
+```
 
 ## Next Actions
 
