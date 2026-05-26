@@ -30,7 +30,7 @@ Phases are 1:1 aligned with plan.md — no mapping needed.
   entry point configures logging before orchestrator logic)
 - [ ] T011 [US1] Wire `setup_logging()` call into `speckit_trigger_command()` in `agentic_devtools/cli/ci/commands.py` — place before command logic (FR-007: speckit entry point uses shared logging
   mechanism)
-- [ ] T012 [US1] Update/add tests in `tests/unit/cli/ci/commands/` to verify `setup_logging()` is called at the correct point in `ai_pr_loop_command()` control flow
+- [ ] T012 [US1] Update/add tests in `tests/unit/cli/ci/commands/` to verify `setup_logging()` is called at the correct point in `ai_pr_loop_command()` control flow (FR-001)
 - [ ] T013 [US1] Update/add tests in `tests/unit/cli/ci/commands/` to verify `setup_logging()` is called at the correct point in `speckit_trigger_command()` control flow (FR-007)
 
 ## Phase 4: User Story 2 — Expanded Log Groups (P2)
@@ -47,15 +47,15 @@ Phases are 1:1 aligned with plan.md — no mapping needed.
 - [ ] T019 [P] [US2] Add/adjust log statements in action modules where FR-004 is not satisfied — ensure action outcomes are `logger.info()` outside groups
 - [ ] T020 [US2] Ensure verbose payloads (JSON dumps, API responses) in orchestrator/runner are logged at DEBUG level or wrapped in `log_group()` context manager (FR-005: verbose details inside
   collapsed groups)
-- [ ] T021 [US2] Update tests in `tests/unit/cli/ci/orchestrator/` that mock removed private functions (`_log_group`, `_log_endgroup`, `_is_github_actions`) to use new import paths
-- [ ] T022 [US2] Update tests in `tests/unit/cli/ci/pipeline/runner/` that mock removed private functions to use new import paths
+- [ ] T021 [US2] Update tests in `tests/unit/cli/ci/orchestrator/` that mock removed private functions (`_log_group`, `_log_endgroup`, `_is_github_actions`) to use new import paths (FR-005, FR-008)
+- [ ] T022 [US2] Update tests in `tests/unit/cli/ci/pipeline/runner/` that mock removed private functions to use new import paths (FR-005, FR-008)
 
 ## Phase 5: User Story 3 — Configurable Log Verbosity (P3)
 
 - [ ] T023 [US3] Add test cases to `tests/unit/cli/ci/logging_config/test_setup_logging.py` covering `AGDT_LOG_LEVEL=DEBUG` enabling debug messages (FR-006)
 - [ ] T024 [US3] Add test cases covering `AGDT_LOG_LEVEL=WARNING` suppressing info messages (FR-006)
 - [ ] T025 [US3] Add test cases covering invalid `AGDT_LOG_LEVEL` value (e.g., `VERBOSE`) emitting warning and falling back to INFO (FR-006)
-- [ ] T026 [US3] Verify at least one known debug-level log statement exists in orchestrator modules (add one in state-transition logic if absent) for SC-005 validation
+- [ ] T026 [US3] Verify at least one known debug-level log statement exists in orchestrator modules (add one in state-transition logic if absent) for SC-005 validation (FR-006)
 
 ## Phase 6: Subprocess Output Handling
 
@@ -71,7 +71,7 @@ Phases are 1:1 aligned with plan.md — no mapping needed.
 - [ ] T032 Run `bash scripts/run-pr-checks.sh` — verify all CI-blocking checks pass (ruff, mypy, markdownlint, tests)
 - [ ] T033 Local validation: run `agdt-ai-pr-loop` with mock event payload — confirm ≥10 formatted log lines on stderr with timestamps and module names (SC-004)
 - [ ] T034 Performance validation: time `setup_logging()` across 100 invocations — confirm < 5ms average (SC-006, NFR-001)
-- [ ] T035 Verify with `GITHUB_ACTIONS` unset that output contains 0 occurrences of `::group::` or `::endgroup::` (SC-007)
+- [ ] T035 Verify with `GITHUB_ACTIONS` unset that output contains 0 occurrences of `::group::` or `::endgroup::` (SC-007) (FR-008)
 
 ## Dependencies
 
