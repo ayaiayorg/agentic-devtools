@@ -17,7 +17,8 @@ Phases are 1:1 aligned with plan.md — no mapping needed.
 - [ ] T005 Implement `setup_logging()` in `agentic_devtools/cli/ci/logging_config.py` — idempotent function that checks `logging.root.handlers`, adds `StreamHandler(sys.stderr)` with format
   `%(asctime)s %(levelname)-8s %(name)s: %(message)s` and `datefmt="%H:%M:%S"`, reads `AGDT_LOG_LEVEL` env var, validates level names, warns on invalid values, defaults to INFO (FR-001: configures
   logging to stderr; FR-002: format string with timestamp/level/module; FR-006: `AGDT_LOG_LEVEL` support)
-- [ ] T006 Write tests for `setup_logging()` in `tests/unit/cli/ci/logging_config/test_setup_logging.py` — covers idempotency, format verification, level override, invalid level warning, stderr output (FR-001, FR-002, FR-006)
+- [ ] T006 Write tests for `setup_logging()` in `tests/unit/cli/ci/logging_config/test_setup_logging.py` — covers
+  idempotency, format verification, level override, invalid level warning, stderr output (FR-001, FR-002, FR-006)
 - [ ] T007 Implement `log_group(title: str)` context manager in `agentic_devtools/cli/ci/logging_config.py` — emits `::group::{title}` / `::endgroup::` only when `is_github_actions()` is True,
   otherwise no-op; uses `try/finally` for cleanup (FR-005: verbose details inside collapsed groups; FR-008: no annotations outside GitHub Actions)
 - [ ] T008 Write tests for `log_group()` in `tests/unit/cli/ci/logging_config/test_log_group.py` — covers emission when GITHUB_ACTIONS=true, no-op otherwise, cleanup on exception (FR-005, FR-008)
