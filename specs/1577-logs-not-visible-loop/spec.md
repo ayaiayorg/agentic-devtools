@@ -15,7 +15,8 @@
   and `speckit_trigger_command()` without duplication.
 - Q: Should the `::group::`/`::endgroup::` annotations be emitted via the logging framework (custom formatter/handler) or remain as direct `print()` statements? → A: Via the logging subsystem, but not
   through the normal per-record log format string. Implement an explicit helper/context manager in `agentic_devtools/cli/ci/logging_config.py` that conditionally emits `::group::` and `::endgroup::`
-  when `GITHUB_ACTIONS=="true"`, while ordinary log records continue to use the standard formatter. This keeps FR-003/FR-004 logs outside grouped verbose sections unless a caller deliberately wraps them.
+  when `GITHUB_ACTIONS=="true"`, while ordinary log records continue to use the standard formatter. This keeps FR-003/FR-004 logs outside grouped verbose sections unless a caller deliberately wraps
+  them.
 - Q: How should subprocess output from `gh` CLI calls be handled — inherited via `subprocess.PIPE` and re-emitted through logging, or left as direct stderr/stdout inheritance? → A: Subprocess stderr
   should be captured and re-emitted through logging rather than inherited directly: use `logger.debug()` when the subprocess exits successfully to preserve diagnostic visibility without adding noise.
   If the subprocess exits non-zero, re-emit the captured stderr at `logger.warning()` or `logger.error()` (as appropriate) and include enough stderr content in that warning/error message for the
