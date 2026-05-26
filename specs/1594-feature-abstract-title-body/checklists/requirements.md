@@ -18,7 +18,9 @@
 
 - [ ] CHK005 Each acceptance scenario in User Stories 1-4 uses Given/When/Then format with observable, automatable assertions (return values, log output, field values on EventPayload)
 - [ ] CHK006 Edge cases section covers: simultaneous title+body edit, empty `changes` dict, missing change metadata entirely, and `edited` action with neither title nor body in changes
-- [ ] CHK007 All acceptance scenarios specify concrete expected outcomes using the `check_edit_relevance()` API (e.g., "returns `(should_skip=False, reason=\"\")`", "returns `(should_skip=True, reason=\"...\")`", "emits INFO log") rather than vague success descriptions
+- [ ] CHK007 All acceptance scenarios specify concrete expected outcomes using the `check_edit_relevance()` API
+  (e.g., "returns `(should_skip=False, reason=\"\")`", "returns `(should_skip=True, reason=\"...\")`", "emits INFO log")
+  rather than vague success descriptions
 - [ ] CHK008 Success criteria SC-001 through SC-006 each include a quantitative target (100% coverage, 80% reduction, zero regressions) with a defined verification method (unit tests, integration
   tests, CI suite)
 - [ ] CHK009 Scope boundaries are clear: legacy `run_ai_pr_loop()` in `orchestrator.py` is in scope; pipeline v2 `command.py` is explicitly out of scope; label handling via `labeled` action is
