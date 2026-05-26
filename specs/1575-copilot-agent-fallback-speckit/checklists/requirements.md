@@ -20,8 +20,8 @@
 
 - [ ] CHK005 Each acceptance scenario in US-1 through US-4 uses Given/When/Then format with concrete, verifiable conditions (e.g., US-1 Scenario 1 specifies exact error signatures and expected problem
   statement contents)
-- [ ] CHK006 Edge cases section addresses all boundary conditions: partial LLM output handling, insufficient token scopes, validation signature evolution, oversized issue bodies (>48KB with 48KB
-  truncation), and malformed API responses
+- [ ] CHK006 Edge cases section addresses all boundary conditions: partial LLM output handling, insufficient token scopes, validation signature evolution, oversized issue bodies (exceeding 48 KB /
+  49,152 UTF-8 bytes, with truncation to 48 KB / 49,152 UTF-8 bytes), and malformed API responses
 - [ ] CHK007 Acceptance scenarios for US-2 (Observability) fully specify the machine-readable marker comment format
   (`<!-- speckit:agent-fallback task_id=<id> task_url=<url> issue=<number> phase=<N> -->`) and label lifecycle (`speckit:processing` retention until terminal outcome)
 - [ ] CHK008 Success criteria SC-001 through SC-006 include quantitative targets (100%, 0 duplicates, 30 seconds, 0% false positive rate, <50 lines duplication) that are directly measurable in CI

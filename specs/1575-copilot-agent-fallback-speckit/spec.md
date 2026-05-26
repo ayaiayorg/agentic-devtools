@@ -202,10 +202,11 @@ note about the fallback failure.
 - **FR-002**: System MUST NOT trigger the agent fallback for non-structural failures including but not limited to: authentication errors, rate limiting, network timeouts, missing secrets, and Python
   import/dependency errors. The distinction is made by checking for the presence of known structural error signatures in step output; absence of these signatures means the failure is non-structural.
 
-- **FR-003**: System MUST construct a problem statement for the Copilot coding agent containing: the original issue title, the original issue body (truncated to 48KB with `[truncated]` marker if
-  exceeding limit), the phase being generated (1–5), the specific
+- **FR-003**: System MUST construct a problem statement for the Copilot coding agent containing: the original issue title, the original issue body, the phase being generated (1–5), the specific
   validation errors encountered, and a reference to at least one existing successful spec as a format example (default: `specs/1505-structural-validation-and-retry/spec.md`, overridable via
-  `SPECKIT_REFERENCE_SPEC_PATH` repository variable).
+  `SPECKIT_REFERENCE_SPEC_PATH` repository variable). For the original issue body portion only, implementations MUST enforce a maximum size of 48KB, defined as 49,152 bytes after UTF-8 encoding;
+  this limit does not apply to the rest of the constructed problem statement or the overall Coding Agent API request payload. If truncation is required, implementations MUST truncate only at Unicode
+  character boundaries, append the literal marker `[truncated]`, and ensure the final UTF-8 encoded issue-body portion including that marker is at most 49,152 bytes.
 
 - **FR-004**: System MUST call the Copilot Coding Agent API (`POST /repos/{owner}/{repo}/copilot/coding-agent/tasks`) with the constructed problem statement using the `COPILOT_GITHUB_TOKEN` secret.
   The expected response schema is `{ "id": "<task-id>", "url": "<task-url>", "status": "queued" }`.
