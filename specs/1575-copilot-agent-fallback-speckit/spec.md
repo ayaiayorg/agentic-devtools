@@ -235,8 +235,11 @@ note about the fallback failure.
 - **FR-012**: System MUST keep the `speckit:processing` label for the full
   duration of the fallback flow, including while any Copilot Coding Agent
   task is running asynchronously, and MUST remove it only when a terminal
-  outcome is reached — such as a PR being created (detected in GitHub Actions via `on: pull_request` with `types: [opened]`, filtered
-  to the `speckit/` branch pattern), the agent task failing
+  outcome is reached — such as a PR being created (detected in GitHub Actions via `on: pull_request` with `types: [opened]`, then
+  validated in-step to ensure the PR head branch matches the `speckit/`
+  pattern using `github.event.pull_request.head.ref` or `github.head_ref`,
+  consistent with the existing headRef validation pattern in
+  `.github/workflows/speckit-phase-progression.yml`), the agent task failing
   (detected via scheduled polling job querying the Coding Agent API using
   the task ID from the marker comment), the fallback being explicitly
   concluded without continuing agent execution, or standard failure
