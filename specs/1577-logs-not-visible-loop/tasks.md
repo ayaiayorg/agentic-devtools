@@ -15,7 +15,7 @@
 ## Phase 1: Setup
 
 - [ ] T001 Create module file `agentic_devtools/cli/ci/logging_config.py` with module docstring and imports (`logging`, `os`, `sys`, `contextlib`)
-- [ ] T002 Create test directory `tests/unit/cli/ci/logging_config/` with `__init__.py`
+- [ ] T002 [US1] Create test directory `tests/unit/cli/ci/logging_config/` with `__init__.py`
 
 ## Phase 2: Foundational
 
@@ -75,9 +75,9 @@
 
 ## Final Phase: Polish & Cross-Cutting
 
-- [ ] T030 Run `python scripts/validate_test_structure.py` to confirm all new test directories pass 1:1:1 validation
-- [ ] T031 Run `agdt-test` full suite — verify 0 regressions (SC-003)
-- [ ] T032 Run `bash scripts/run-pr-checks.sh` — verify all CI-blocking checks pass (ruff, mypy, markdownlint, tests)
+- [ ] T030 [US1] Run `python scripts/validate_test_structure.py` to confirm all new test directories pass 1:1:1 validation
+- [ ] T031 [US1] Run `agdt-test` full suite — verify 0 regressions (SC-003)
+- [ ] T032 [US1] Run `bash scripts/run-pr-checks.sh` — verify all CI-blocking checks pass (ruff, mypy, markdownlint, tests)
 - [ ] T033 Local validation: run `agdt-ai-pr-loop` with mock event payload — confirm ≥10 formatted log lines on stderr with timestamps and module names (SC-004)
 - [ ] T034 Performance validation: time `setup_logging()` across 100 invocations — confirm < 5ms average (SC-006, NFR-001)
 - [ ] T035 Verify with `GITHUB_ACTIONS` unset that output contains 0 occurrences of `::group::` or `::endgroup::` (SC-007) (FR-008)
