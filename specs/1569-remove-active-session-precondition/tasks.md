@@ -31,7 +31,8 @@
 - [ ] T007 [US1] GREEN: Remove lines 33–41 (the `no_active_session` precondition block) from `evaluate()` in `agentic_devtools/cli/ci/pipeline/actions/resolve_threads.py` (implements FR-001)
 - [ ] T008 [US1] GREEN: Update class docstring to remove "No active Copilot coding session" from Preconditions list, keeping "No pending Copilot review on HEAD" and "Unresolved threads exist from
   prior commits" (FR-006) in `agentic_devtools/cli/ci/pipeline/actions/resolve_threads.py`
-- [ ] T009 [US1] Verify `test_execute_when_active_session` and `test_no_active_session_key_in_preconditions` pass by running `agdt-test-pattern tests/unit/cli/ci/pipeline/actions/resolve_threads/ -v` (FR-001)
+- [ ] T009 [US1] Verify `test_execute_when_active_session` and `test_no_active_session_key_in_preconditions` pass by running `agdt-test-pattern tests/unit/cli/ci/pipeline/actions/resolve_threads/ -v`
+  (FR-001)
 
 ## Phase 4: User Story 2 — Remaining Preconditions Are Still Enforced (P1)
 
