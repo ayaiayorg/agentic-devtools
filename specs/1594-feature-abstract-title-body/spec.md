@@ -1,6 +1,6 @@
 # Feature Specification: Abstract PR Title/Body Change Event Filtering as a Provider-Agnostic Guard
 
-**Feature Branch**: `1594-abstract-pr-edit-event-guard`  
+**Feature Branch**: `speckit/1594/phase-1-specify`  
 **Created**: 2026-05-26  
 **Status**: Draft  
 **Input**: User description: "Abstract PR title/body change event filtering as a provider-agnostic guard"  
@@ -139,21 +139,13 @@ the pipeline run since no guard-relevant fields changed. The guard should log th
 
 ### Functional Requirements
 
-**FR-001**: The `EventPayload` dataclass MUST be extended with two new boolean fields: `title_changed` (default `False`) and `body_changed` (default `False`). These fields indicate whether the PR
-title or body was modified in the event that triggered the pipeline. The fields must be immutable (consistent with the frozen dataclass pattern) and must not break any existing code that constructs
-`EventPayload` instances without these fields (backward compatibility via defaults).
+**FR-001**: The `EventPayload` dataclass MUST be extended with three new fields: `title_changed` (default `False`), `body_changed` (default `False`), and `edit_changes_known` (default `False`). `edit_changes_known` indicates whether the provider had reliable per-field change metadata for an `edited` event. The fields must be immutable (consistent with the frozen dataclass pattern) and must not break any existing code that constructs `EventPayload` instances without these fields (backward compatibility via defaults).
 
-**FR-002**: The `GitHubActionsProvider.parse_event()` method MUST populate `title_changed=True` when the raw GitHub webhook payload contains a `changes.title` key (indicating the title was modified),
-and `body_changed=True` when the payload contains a `changes.body` key. When the event action is not `edited`, or when the `changes` key is absent from the payload, both fields MUST remain at their
-default value of `False`.
+**FR-002**: The `GitHubActionsProvider.parse_event()` method MUST set `edit_changes_known=True` when the raw GitHub webhook payload contains a `changes` key for an `edited` action (including when `changes` is present but empty). It MUST populate `title_changed=True` when the payload contains a `changes.title` key and `body_changed=True` when the payload contains a `changes.body` key. When the event action is not `edited`, or when the `changes` key is absent from the payload, `edit_changes_known` MUST remain `False` and `title_changed`/`body_changed` MUST remain at their default value of `False`.
 
-**FR-003**: The `AzureDevOpsProvider.parse_event()` method MUST populate the `title_changed` and `body_changed` fields based on the Azure DevOps service hook payload structure. When the payload
-includes information about which fields changed (such as `resource.fields` containing `System.Title`), the provider MUST set the corresponding boolean. When the payload does not include change
-metadata, both fields MUST remain `False` (fail-open).
+**FR-003**: The `AzureDevOpsProvider.parse_event()` method MUST populate the `title_changed` and `body_changed` fields based on the Azure DevOps service hook payload structure. When the payload includes reliable field-level change metadata (such as `resource.fields` containing `System.Title` / description fields), the provider MUST set `edit_changes_known=True` and set the corresponding booleans. When the payload does not include change metadata, `edit_changes_known` MUST remain `False` (fail-open).
 
-**FR-004**: A new guard (the "edit-relevance guard") MUST be added to the `GuardsAction` evaluation sequence. This guard MUST execute before all existing guards (before the WIP-title check, which is
-currently first). The guard MUST return BLOCKED when the event action is `edited` AND `title_changed` is `False`. For all other event actions, the guard MUST return EXECUTE unconditionally, regardless
-of the `title_changed` and `body_changed` field values.
+**FR-004**: A new guard (the "edit-relevance guard") MUST be added to the `GuardsAction` evaluation sequence. This guard MUST execute before all existing guards (before the WIP-title check, which is currently first). The guard MUST return BLOCKED when the event action is `edited` AND `edit_changes_known` is `True` AND `title_changed` is `False`. For all other event actions (and for `edited` events where `edit_changes_known` is `False`), the guard MUST return EXECUTE unconditionally, regardless of the `title_changed` and `body_changed` field values.
 
 **FR-005**: When the edit-relevance guard returns BLOCKED, the `ActionResult` MUST include a human-readable reason string that identifies the event as a body-only (or no-change) edit. This reason must
 be suitable for inclusion in log output and operator dashboards. The format should be consistent with existing guard reason strings in the codebase.
