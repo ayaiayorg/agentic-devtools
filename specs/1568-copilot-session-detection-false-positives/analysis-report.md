@@ -25,6 +25,7 @@
 
 ### Category G Structured Findings
 
+<!-- markdownlint-disable MD013 -->
 [
   {
     "id": "G-01",
@@ -67,6 +68,7 @@
     "rationale": "T019 runs focused tests on session_detector directory; T020 runs the full test suite, which includes the same tests; and T021 runs PR checks that include overlapping validation at a broader CI scope. These tasks target the same validation intent with increasing breadth, so the description overlap is real even though the execution scope expands at each step."
   }
 ]
+<!-- markdownlint-enable MD013 -->
 
 ---
 
