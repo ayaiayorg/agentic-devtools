@@ -128,9 +128,11 @@
       "fr_id": "FR-001",
       "priority": 2,
       "user_story": 7,
-      "is_covered": false,
+      "is_covered": true,
       "has_happy_path": false,
-      "test_task_ids": [],
+      "test_task_ids": [
+        "T025"
+      ],
       "test_types": []
     },
     "FR-012": {
