@@ -42,10 +42,13 @@
   call may be needed to capture the full count.
 
 - Q: FR-009 references "the Copilot SDK" for generating squash commit messages. What specific SDK or API is this? The
-  codebase doesn't appear to have an existing Copilot SDK integration for commit message generation. → A: FR-009 should
-  remain deterministic-only in this phase: commit messages are generated from commit subjects using the existing
-  `_build_squash_commit_message` pattern. Any Copilot SDK-based generation is future work behind the
-  `CommitMessageGenerator` interface and is explicitly out of scope for this phase.
+  current GitHub provider already includes an SDK-based commit message path
+  (`GitHubActionsProvider._generate_commit_message_via_sdk`) with deterministic fallback. → A: FR-009 should remain
+  deterministic-only in this phase: commit messages for this feature are generated from commit subjects using the
+  existing `_build_squash_commit_message` pattern. The existing SDK-based generator is acknowledged as current
+  codebase capability, but FR-009 does not require using it, changing it, or expanding its usage in this phase. Any
+  future Copilot SDK-based generation standardization should occur behind the `CommitMessageGenerator` interface and is
+  explicitly out of scope for this phase.
 
 - Q: FR-006 states that `RequestReviewAction` MUST be suppressed if `SquashAction` executed and set
   `invalidates_snapshot=True`. How does `RequestReviewAction` observe that `SquashAction` executed in the same pipeline
