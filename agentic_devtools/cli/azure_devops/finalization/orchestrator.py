@@ -94,9 +94,7 @@ def run_finalization_pass(
         for comment in all_comments:
             expected = compute_expected_content(comment, review_state, base_url)
             if not expected:
-                skipped_empty.append(
-                    {"thread_id": str(comment.thread_id), "reason": "empty expected content"}
-                )
+                skipped_empty.append({"thread_id": str(comment.thread_id), "reason": "empty expected content"})
                 continue
             expected_map[comment_key(comment)] = expected
 
@@ -106,9 +104,7 @@ def run_finalization_pass(
         # Record skipped-empty comments
         if skipped_empty:
             for skip in skipped_empty:
-                details.append(
-                    f"Skipped: thread {skip['thread_id']}: {skip['reason']}"
-                )
+                details.append(f"Skipped: thread {skip['thread_id']}: {skip['reason']}")
             eligible = EligibleComments(
                 file_summaries=[c for c in eligible.file_summaries if comment_key(c) in expected_map],
                 overall_summary=(
@@ -122,9 +118,7 @@ def run_finalization_pass(
             total_eligible = _count_eligible(eligible)
             if total_eligible == 0:
                 details.append("All eligible comments had empty expected content")
-                return _build_report(
-                    "no-op", 0, len(eligible.skipped), 0, 0, details, start_time, review_state
-                )
+                return _build_report("no-op", 0, len(eligible.skipped), 0, 0, details, start_time, review_state)
 
         # Phase 4: Check initial convergence
         unchanged = 0
@@ -245,7 +239,9 @@ def run_finalization_pass(
         else:
             status = "success"
 
-        return _build_report(status, repaired, len(eligible.skipped), unchanged, failed, details, start_time, review_state)
+        return _build_report(
+            status, repaired, len(eligible.skipped), unchanged, failed, details, start_time, review_state
+        )
 
     except Exception as exc:
         details.append(f"Finalization error: {exc}")

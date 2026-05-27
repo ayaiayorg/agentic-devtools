@@ -28,13 +28,13 @@ def render_tool_installs(selected_tools: list[str]) -> str:
         # For pip installs, prefix with sys.executable so the correct
         # interpreter is always used regardless of PATH.
         if argv and argv[0] == "pip":
-            argv_expr = f"[sys.executable, \"-m\", {', '.join(repr(a) for a in argv)}]"
+            argv_expr = f'[sys.executable, "-m", {", ".join(repr(a) for a in argv)}]'
             shell_expr = ""
         else:
             # Non-pip tools (e.g. npm) are batch scripts on Windows and
             # require shell=True to locate the .cmd wrapper.
             argv_expr = repr(argv)
-            shell_expr = ", shell=(sys.platform == \"win32\")"
+            shell_expr = ', shell=(sys.platform == "win32")'
         lines.append(f"    # {entry['description']}")
         lines.append(f'    print("Installing {tool_name}...")')
         lines.append(f"    result = subprocess.run({argv_expr}{shell_expr})")

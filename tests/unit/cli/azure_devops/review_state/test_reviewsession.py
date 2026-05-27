@@ -151,9 +151,7 @@ class TestReviewSession:
 
     def test_to_dict_includes_engine_when_set(self):
         """Test to_dict includes engine key when engine is not None."""
-        s = ReviewSession(
-            sessionId="x", modelId="m", startedUtc="2026-01-01T00:00:00Z", engine="langchain"
-        )
+        s = ReviewSession(sessionId="x", modelId="m", startedUtc="2026-01-01T00:00:00Z", engine="langchain")
         d = s.to_dict()
         assert d["engine"] == "langchain"
 
@@ -170,8 +168,6 @@ class TestReviewSession:
 
     def test_roundtrip_with_engine(self):
         """Test round-trip preserves engine field."""
-        original = ReviewSession(
-            sessionId="x", modelId="m", startedUtc="2026-01-01T00:00:00Z", engine="langchain"
-        )
+        original = ReviewSession(sessionId="x", modelId="m", startedUtc="2026-01-01T00:00:00Z", engine="langchain")
         restored = ReviewSession.from_dict(original.to_dict())
         assert restored.engine == "langchain"

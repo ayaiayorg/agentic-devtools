@@ -418,7 +418,10 @@ class TestMaybeInjectAutoStartBeforeVscode:
         tmp_path,
         capsys,
     ):
-        """When run_id is provided but _resolve_state_context_in_worktree returns None state path, injection is skipped."""
+        """When run_id is provided but resolved context returns no state path.
+
+        Injection is skipped.
+        """
         with patch(
             f"{_MODULE}._resolve_state_context_in_worktree",
             return_value=(None, ""),

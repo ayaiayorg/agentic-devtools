@@ -296,9 +296,7 @@ class CIPlatformProvider(ABC):
         Raises:
             NotImplementedError: If the provider does not support this operation.
         """
-        raise NotImplementedError(
-            f"{type(self).__name__} does not implement get_pr_diff"
-        )
+        raise NotImplementedError(f"{type(self).__name__} does not implement get_pr_diff")
 
     def get_commit_range_diff(self, base_sha: str, head_sha: str) -> str:
         """Get unified diff text between two commit SHAs.
@@ -313,6 +311,4 @@ class CIPlatformProvider(ABC):
         Raises:
             NotImplementedError: If the provider does not support this operation.
         """
-        raise NotImplementedError(
-            f"{type(self).__name__} does not implement get_commit_range_diff"
-        )
+        raise NotImplementedError(f"{type(self).__name__} does not implement get_commit_range_diff")

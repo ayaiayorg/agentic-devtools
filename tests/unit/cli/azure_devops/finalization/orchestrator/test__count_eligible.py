@@ -15,8 +15,12 @@ class TestCountEligible:
         """Should count file summaries."""
         eligible = EligibleComments(
             file_summaries=[
-                EligibleComment(thread_id=1, comment_id=1, marker_type="file-summary", marker_data={}, current_content="a"),
-                EligibleComment(thread_id=2, comment_id=1, marker_type="file-summary", marker_data={}, current_content="b"),
+                EligibleComment(
+                    thread_id=1, comment_id=1, marker_type="file-summary", marker_data={}, current_content="a"
+                ),
+                EligibleComment(
+                    thread_id=2, comment_id=1, marker_type="file-summary", marker_data={}, current_content="b"
+                ),
             ]
         )
         assert _count_eligible(eligible) == 2
@@ -34,7 +38,9 @@ class TestCountEligible:
         """Should count activity log entries."""
         eligible = EligibleComments(
             activity_log_entries=[
-                EligibleComment(thread_id=200, comment_id=2, marker_type="activity-log-entry", marker_data={}, current_content="l"),
+                EligibleComment(
+                    thread_id=200, comment_id=2, marker_type="activity-log-entry", marker_data={}, current_content="l"
+                ),
             ]
         )
         assert _count_eligible(eligible) == 1
@@ -43,13 +49,17 @@ class TestCountEligible:
         """Should count all types together."""
         eligible = EligibleComments(
             file_summaries=[
-                EligibleComment(thread_id=1, comment_id=1, marker_type="file-summary", marker_data={}, current_content="a"),
+                EligibleComment(
+                    thread_id=1, comment_id=1, marker_type="file-summary", marker_data={}, current_content="a"
+                ),
             ],
             overall_summary=EligibleComment(
                 thread_id=100, comment_id=1, marker_type="overall-summary", marker_data={}, current_content="s"
             ),
             activity_log_entries=[
-                EligibleComment(thread_id=200, comment_id=2, marker_type="activity-log-entry", marker_data={}, current_content="l"),
+                EligibleComment(
+                    thread_id=200, comment_id=2, marker_type="activity-log-entry", marker_data={}, current_content="l"
+                ),
             ],
         )
         assert _count_eligible(eligible) == 3

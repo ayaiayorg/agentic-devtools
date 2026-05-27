@@ -142,19 +142,30 @@ class TestVerifyConvergence:
     def test_includes_overall_summary_and_activity_log(self):
         """Should verify all comment types including overall summary."""
         fs = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
         )
         os_ = EligibleComment(
-            thread_id=100, comment_id=1, marker_type="overall-summary",
-            marker_data={}, current_content="old overall",
+            thread_id=100,
+            comment_id=1,
+            marker_type="overall-summary",
+            marker_data={},
+            current_content="old overall",
         )
         al = EligibleComment(
-            thread_id=200, comment_id=2, marker_type="activity-log-entry",
-            marker_data={}, current_content="old log",
+            thread_id=200,
+            comment_id=2,
+            marker_type="activity-log-entry",
+            marker_data={},
+            current_content="old log",
         )
         eligible = EligibleComments(
-            file_summaries=[fs], overall_summary=os_, activity_log_entries=[al],
+            file_summaries=[fs],
+            overall_summary=os_,
+            activity_log_entries=[al],
         )
 
         mock_requests = MagicMock()

@@ -61,9 +61,7 @@ class TestMigrateContent:
         legacy.write_text("print('legacy')\n", encoding="utf-8")
         target = tmp_path / "setup-repo-specific-dev-tools.py"
 
-        with patch(
-            "agentic_devtools.cli.setup.script_generators.legacy_migration.atomic_write"
-        ) as mock_aw:
+        with patch("agentic_devtools.cli.setup.script_generators.legacy_migration.atomic_write") as mock_aw:
             success, msg = migrate_legacy_content(legacy, target)
             assert success is True
             mock_aw.assert_called_once_with(target, "print('legacy')\n")

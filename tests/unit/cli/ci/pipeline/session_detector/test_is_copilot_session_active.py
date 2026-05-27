@@ -53,9 +53,7 @@ class TestIsCopilotSessionActive:
     def test_started_with_failure_returns_false(self) -> None:
         events = [
             IssueEvent(id=1, event="copilot_work_started", created_at=_recent_timestamp()),
-            IssueEvent(
-                id=2, event="copilot_work_finished_failure", created_at=_recent_timestamp(30)
-            ),
+            IssueEvent(id=2, event="copilot_work_finished_failure", created_at=_recent_timestamp(30)),
         ]
         provider = self._make_provider(events)
         assert is_copilot_session_active(provider, 1) is False
@@ -96,9 +94,7 @@ class TestIsCopilotSessionActive:
     def test_stale_session_custom_threshold_via_env(self) -> None:
         """AGDT_MAX_SESSION_AGE_SECONDS env var overrides default threshold."""
         # Use a 10-second threshold; event is 60 seconds old → stale
-        events = [
-            IssueEvent(id=1, event="copilot_work_started", created_at=_recent_timestamp(60))
-        ]
+        events = [IssueEvent(id=1, event="copilot_work_started", created_at=_recent_timestamp(60))]
         provider = self._make_provider(events)
         with patch.dict("os.environ", {"AGDT_MAX_SESSION_AGE_SECONDS": "10"}):
             assert is_copilot_session_active(provider, 1) is False
@@ -135,14 +131,10 @@ class TestIsSessionStale:
     def test_naive_datetime_is_handled(self) -> None:
         """Naive datetime (no timezone) is normalized to UTC without raising TypeError."""
         # A naive ISO timestamp (no offset, no Z) — e.g. from a misconfigured source
-        naive_old = (
-            datetime.now(tz=timezone.utc) - timedelta(seconds=7200)
-        ).strftime("%Y-%m-%dT%H:%M:%S")
+        naive_old = (datetime.now(tz=timezone.utc) - timedelta(seconds=7200)).strftime("%Y-%m-%dT%H:%M:%S")
         assert _is_session_stale(naive_old, 3600) is True
 
-        naive_recent = (
-            datetime.now(tz=timezone.utc) - timedelta(seconds=30)
-        ).strftime("%Y-%m-%dT%H:%M:%S")
+        naive_recent = (datetime.now(tz=timezone.utc) - timedelta(seconds=30)).strftime("%Y-%m-%dT%H:%M:%S")
         assert _is_session_stale(naive_recent, 3600) is False
 
 

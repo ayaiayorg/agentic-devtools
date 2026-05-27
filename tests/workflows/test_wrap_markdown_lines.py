@@ -96,7 +96,7 @@ class TestWrapMarkdownText:
         wrapped = module.wrap_markdown_text(text, width=80)
         lines = wrapped.splitlines()
         # The long line should be preserved exactly as-is
-        assert long_code.strip() in [l.strip() for l in lines]
+        assert long_code.strip() in [line.strip() for line in lines]
         # Make sure the lines are present without wrapping
         assert wrapped == text
 

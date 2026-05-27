@@ -252,7 +252,8 @@ def _verify_approval(
         # If not the last attempt, retry
         if attempt < total_attempts - 1:
             print(
-                f"Verification attempt {attempt + 1}/{total_attempts} failed ({last_error}); retrying in {retry_delay}s...",
+                f"Verification attempt {attempt + 1}/{total_attempts} failed "
+                f"({last_error}); retrying in {retry_delay}s...",
                 file=sys.stderr,
             )
             time.sleep(retry_delay)

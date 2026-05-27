@@ -253,9 +253,7 @@ def _commit_and_push_phase_branch(issue_number: int, spec_dir: str) -> None:
         _run_checked(["git", "checkout", "-b", branch_name])
     else:
         stderr = remote_check.stderr.strip()
-        raise RuntimeError(
-            f"git ls-remote failed (rc={remote_check.returncode}): {stderr or 'unknown error'}"
-        )
+        raise RuntimeError(f"git ls-remote failed (rc={remote_check.returncode}): {stderr or 'unknown error'}")
 
     _run_checked(["git", "add", spec_dir])
     _run_checked(

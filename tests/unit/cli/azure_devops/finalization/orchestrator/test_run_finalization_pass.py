@@ -303,7 +303,6 @@ class TestRunFinalizationPass:
             file_path="/src/a.py",
         )
         eligible = EligibleComments(file_summaries=[comment])
-        cr = ConvergenceResult(comment=comment, converged=False, expected_content="exp", observed_content="old")
 
         with (
             patch(
@@ -466,7 +465,10 @@ class TestRunFinalizationPassAdvanced:
             ),
         ):
             result = run_finalization_pass(
-                _minimal_review_state(), 42, _mock_config(), {},
+                _minimal_review_state(),
+                42,
+                _mock_config(),
+                {},
             )
         assert result.status == "no-op"
         assert result.skipped == 1
@@ -475,8 +477,12 @@ class TestRunFinalizationPassAdvanced:
     def test_noop_all_converged_with_skipped(self, temp_state_dir):
         """Should include skipped info in details when all converged but some skipped."""
         comment = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="correct", file_path="/src/a.py",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="correct",
+            file_path="/src/a.py",
         )
         eligible = EligibleComments(
             file_summaries=[comment],
@@ -509,7 +515,10 @@ class TestRunFinalizationPassAdvanced:
             ),
         ):
             result = run_finalization_pass(
-                _minimal_review_state(), 42, _mock_config(), {},
+                _minimal_review_state(),
+                42,
+                _mock_config(),
+                {},
             )
         assert result.status == "no-op"
         assert result.skipped == 1
@@ -518,17 +527,25 @@ class TestRunFinalizationPassAdvanced:
     def test_batch_errors_recorded_in_details(self, temp_state_dir):
         """Should record batch repair errors in details."""
         comment = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old", file_path="/src/a.py",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
+            file_path="/src/a.py",
         )
         eligible = EligibleComments(file_summaries=[comment])
         batch_result = BatchRepairResult(
-            attempted=1, succeeded=0, failed=1,
+            attempted=1,
+            succeeded=0,
+            failed=1,
             errors=["file-summary /src/a.py: API error"],
         )
         cr = ConvergenceResult(
-            comment=comment, converged=True,
-            expected_content="exp", observed_content="exp",
+            comment=comment,
+            converged=True,
+            expected_content="exp",
+            observed_content="exp",
         )
         with (
             patch(
@@ -565,24 +582,35 @@ class TestRunFinalizationPassAdvanced:
             ),
         ):
             result = run_finalization_pass(
-                _minimal_review_state(), 42, _mock_config(), {},
+                _minimal_review_state(),
+                42,
+                _mock_config(),
+                {},
             )
         assert any("Batch error" in d for d in result.details)
 
     def test_targeted_repair_on_retry(self, temp_state_dir):
         """Should perform targeted repair when verification finds non-converged."""
         comment = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old", file_path="/src/a.py",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
+            file_path="/src/a.py",
         )
         eligible = EligibleComments(file_summaries=[comment])
         cr_fail = ConvergenceResult(
-            comment=comment, converged=False,
-            expected_content="exp", observed_content="old",
+            comment=comment,
+            converged=False,
+            expected_content="exp",
+            observed_content="old",
         )
         cr_pass = ConvergenceResult(
-            comment=comment, converged=True,
-            expected_content="exp", observed_content="exp",
+            comment=comment,
+            converged=True,
+            expected_content="exp",
+            observed_content="exp",
         )
         from agentic_devtools.cli.azure_devops.finalization.models import TargetedRepairResult
 
@@ -636,7 +664,10 @@ class TestRunFinalizationPassAdvanced:
             mock_time.monotonic.return_value = 100.0
             mock_time.sleep = MagicMock()
             result = run_finalization_pass(
-                _minimal_review_state(), 42, _mock_config(), {},
+                _minimal_review_state(),
+                42,
+                _mock_config(),
+                {},
             )
         assert result.status == "success"
         assert any("targeted repair" in d for d in result.details)
@@ -644,13 +675,19 @@ class TestRunFinalizationPassAdvanced:
     def test_max_retries_reached(self, temp_state_dir):
         """Should report failure when max retries are reached."""
         comment = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old", file_path="/src/a.py",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
+            file_path="/src/a.py",
         )
         eligible = EligibleComments(file_summaries=[comment])
         cr_fail = ConvergenceResult(
-            comment=comment, converged=False,
-            expected_content="exp", observed_content="old",
+            comment=comment,
+            converged=False,
+            expected_content="exp",
+            observed_content="old",
         )
         from agentic_devtools.cli.azure_devops.finalization.models import TargetedRepairResult
 
@@ -704,7 +741,10 @@ class TestRunFinalizationPassAdvanced:
             mock_time.monotonic.return_value = 100.0
             mock_time.sleep = MagicMock()
             result = run_finalization_pass(
-                _minimal_review_state(), 42, _mock_config(), {},
+                _minimal_review_state(),
+                42,
+                _mock_config(),
+                {},
             )
         assert result.failed == 1
         assert any("Max retries" in d for d in result.details)
@@ -712,12 +752,20 @@ class TestRunFinalizationPassAdvanced:
     def test_partial_status_when_some_converge(self, temp_state_dir):
         """Should return partial when some converge but some fail."""
         c1 = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old", file_path="/src/a.py",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
+            file_path="/src/a.py",
         )
         c2 = EligibleComment(
-            thread_id=20, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old2", file_path="/src/b.py",
+            thread_id=20,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old2",
+            file_path="/src/b.py",
         )
         rs = _minimal_review_state()
         rs.files["/src/b.py"] = rs.files["/src/a.py"]
@@ -780,8 +828,12 @@ class TestRunFinalizationPassAdvanced:
     def test_skipped_info_added_after_retry_loop(self, temp_state_dir):
         """Should add skipped info at the end of the retry loop."""
         comment = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old", file_path="/src/a.py",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
+            file_path="/src/a.py",
         )
         eligible = EligibleComments(
             file_summaries=[comment],
@@ -828,7 +880,10 @@ class TestRunFinalizationPassAdvanced:
             ),
         ):
             result = run_finalization_pass(
-                _minimal_review_state(), 42, _mock_config(), {},
+                _minimal_review_state(),
+                42,
+                _mock_config(),
+                {},
             )
         assert result.skipped == 1
         assert any("other author" in d for d in result.details)
@@ -836,22 +891,32 @@ class TestRunFinalizationPassAdvanced:
     def test_targeted_repair_errors_recorded(self, temp_state_dir):
         """Should record targeted repair errors in details."""
         comment = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old", file_path="/src/a.py",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
+            file_path="/src/a.py",
         )
         eligible = EligibleComments(file_summaries=[comment])
         cr_fail = ConvergenceResult(
-            comment=comment, converged=False,
-            expected_content="exp", observed_content="old",
+            comment=comment,
+            converged=False,
+            expected_content="exp",
+            observed_content="old",
         )
         cr_pass = ConvergenceResult(
-            comment=comment, converged=True,
-            expected_content="exp", observed_content="exp",
+            comment=comment,
+            converged=True,
+            expected_content="exp",
+            observed_content="exp",
         )
         from agentic_devtools.cli.azure_devops.finalization.models import TargetedRepairResult
 
         targeted_result = TargetedRepairResult(
-            attempted=1, succeeded=0, failed=1,
+            attempted=1,
+            succeeded=0,
+            failed=1,
             errors=["file-summary thread=10: PATCH failed"],
         )
 
@@ -903,23 +968,38 @@ class TestRunFinalizationPassAdvanced:
             mock_time.monotonic.return_value = 100.0
             mock_time.sleep = MagicMock()
             result = run_finalization_pass(
-                _minimal_review_state(), 42, _mock_config(), {},
+                _minimal_review_state(),
+                42,
+                _mock_config(),
+                {},
             )
         assert any("Targeted repair error" in d for d in result.details)
 
     def test_seeding_includes_initially_converged(self, temp_state_dir):
         """Should seed converged_keys with comments that pass check_convergence in Phase 6."""
         c1 = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old1", file_path="/src/a.py",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old1",
+            file_path="/src/a.py",
         )
         c2 = EligibleComment(
-            thread_id=20, comment_id=2, marker_type="file-summary",
-            marker_data={}, current_content="old2", file_path="/src/b.py",
+            thread_id=20,
+            comment_id=2,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old2",
+            file_path="/src/b.py",
         )
         rs = _minimal_review_state()
         rs.files["/src/b.py"] = FileEntry(
-            threadId=20, commentId=2, folder="src", fileName="b.py", status="approved",
+            threadId=20,
+            commentId=2,
+            folder="src",
+            fileName="b.py",
+            status="approved",
         )
         eligible = EligibleComments(file_summaries=[c1, c2])
         cr_both = [
@@ -1003,24 +1083,42 @@ class TestRunFinalizationPassAdvanced:
     def test_partial_status_when_some_repaired_and_some_failed(self, temp_state_dir):
         """Should return 'partial' when some comments repaired but others failed."""
         c1 = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old1", file_path="/src/a.py",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old1",
+            file_path="/src/a.py",
         )
         c2 = EligibleComment(
-            thread_id=20, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old2", file_path="/src/b.py",
+            thread_id=20,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old2",
+            file_path="/src/b.py",
         )
         rs = _minimal_review_state()
         rs.files["/src/b.py"] = FileEntry(
-            threadId=20, commentId=1, folder="src", fileName="b.py", status="approved",
+            threadId=20,
+            commentId=1,
+            folder="src",
+            fileName="b.py",
+            status="approved",
         )
         eligible = EligibleComments(file_summaries=[c1, c2])
 
         cr1_pass = ConvergenceResult(
-            comment=c1, converged=True, expected_content="e1", observed_content="e1",
+            comment=c1,
+            converged=True,
+            expected_content="e1",
+            observed_content="e1",
         )
         cr2_fail = ConvergenceResult(
-            comment=c2, converged=False, expected_content="e2", observed_content="old2",
+            comment=c2,
+            converged=False,
+            expected_content="e2",
+            observed_content="old2",
         )
 
         from agentic_devtools.cli.azure_devops.finalization.models import TargetedRepairResult
@@ -1082,13 +1180,19 @@ class TestRunFinalizationPassAdvanced:
     def test_failure_status_when_none_repaired(self, temp_state_dir):
         """Should return 'failure' when no comments repaired and some failed."""
         comment = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old", file_path="/src/a.py",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
+            file_path="/src/a.py",
         )
         eligible = EligibleComments(file_summaries=[comment])
         cr_fail = ConvergenceResult(
-            comment=comment, converged=False,
-            expected_content="exp", observed_content="old",
+            comment=comment,
+            converged=False,
+            expected_content="exp",
+            observed_content="old",
         )
 
         from agentic_devtools.cli.azure_devops.finalization.models import TargetedRepairResult
@@ -1143,7 +1247,10 @@ class TestRunFinalizationPassAdvanced:
             mock_time.monotonic.return_value = 100.0
             mock_time.sleep = MagicMock()
             result = run_finalization_pass(
-                _minimal_review_state(), 42, _mock_config(), {},
+                _minimal_review_state(),
+                42,
+                _mock_config(),
+                {},
             )
         assert result.status == "failure"
         assert result.failed >= 1
@@ -1151,16 +1258,22 @@ class TestRunFinalizationPassAdvanced:
     def test_skipped_added_after_successful_repair_loop(self, temp_state_dir):
         """Should add skipped info after the repair loop completes successfully."""
         comment = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old", file_path="/src/a.py",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
+            file_path="/src/a.py",
         )
         eligible = EligibleComments(
             file_summaries=[comment],
             skipped=[{"thread_id": "55", "reason": "authored by bot"}],
         )
         cr = ConvergenceResult(
-            comment=comment, converged=True,
-            expected_content="exp", observed_content="exp",
+            comment=comment,
+            converged=True,
+            expected_content="exp",
+            observed_content="exp",
         )
 
         with (
@@ -1202,7 +1315,10 @@ class TestRunFinalizationPassAdvanced:
             ),
         ):
             result = run_finalization_pass(
-                _minimal_review_state(), 42, _mock_config(), {},
+                _minimal_review_state(),
+                42,
+                _mock_config(),
+                {},
             )
         assert result.skipped == 1
         assert any("authored by bot" in d for d in result.details)
@@ -1210,8 +1326,12 @@ class TestRunFinalizationPassAdvanced:
     def test_noop_when_all_comments_have_empty_expected_content(self, temp_state_dir):
         """Should return no-op when all eligible comments have empty expected content."""
         comment = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old", file_path="/src/missing.py",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
+            file_path="/src/missing.py",
         )
         eligible = EligibleComments(file_summaries=[comment])
 
@@ -1238,7 +1358,10 @@ class TestRunFinalizationPassAdvanced:
             ),
         ):
             result = run_finalization_pass(
-                _minimal_review_state(), 42, _mock_config(), {},
+                _minimal_review_state(),
+                42,
+                _mock_config(),
+                {},
             )
         assert result.status == "no-op"
         assert result.skipped == 1
@@ -1248,12 +1371,20 @@ class TestRunFinalizationPassAdvanced:
     def test_some_comments_with_empty_expected_content_are_skipped(self, temp_state_dir):
         """Should skip comments with empty expected content and proceed with the rest."""
         c1 = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old", file_path="/src/a.py",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
+            file_path="/src/a.py",
         )
         c2 = EligibleComment(
-            thread_id=20, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old2", file_path="/src/missing.py",
+            thread_id=20,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old2",
+            file_path="/src/missing.py",
         )
         eligible = EligibleComments(file_summaries=[c1, c2])
 
@@ -1289,7 +1420,10 @@ class TestRunFinalizationPassAdvanced:
             ),
         ):
             result = run_finalization_pass(
-                _minimal_review_state(), 42, _mock_config(), {},
+                _minimal_review_state(),
+                42,
+                _mock_config(),
+                {},
             )
         assert result.status == "no-op"
         assert result.skipped == 1
@@ -1299,12 +1433,19 @@ class TestRunFinalizationPassAdvanced:
     def test_overall_summary_with_empty_expected_content_is_skipped(self, temp_state_dir):
         """Should skip overall summary when it has empty expected content."""
         file_comment = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old", file_path="/src/a.py",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
+            file_path="/src/a.py",
         )
         overall_comment = EligibleComment(
-            thread_id=100, comment_id=1, marker_type="overall-summary",
-            marker_data={}, current_content="old-overall",
+            thread_id=100,
+            comment_id=1,
+            marker_type="overall-summary",
+            marker_data={},
+            current_content="old-overall",
         )
         eligible = EligibleComments(
             file_summaries=[file_comment],
@@ -1343,7 +1484,10 @@ class TestRunFinalizationPassAdvanced:
             ),
         ):
             result = run_finalization_pass(
-                _minimal_review_state(), 42, _mock_config(), {},
+                _minimal_review_state(),
+                42,
+                _mock_config(),
+                {},
             )
         assert result.status == "no-op"
         assert result.skipped == 1

@@ -27,8 +27,13 @@ class TestEngineLangchainRouting:
                     with patch("agentic_devtools.state.delete_pin_file"):
                         with patch("agentic_devtools.state.write_pin_file"):
                             with patch("agentic_devtools.cli.workflows.commands.clear_state_for_workflow_initiation"):
-                                with patch("agentic_devtools.cli.workflows.commands.get_default_copilot_model", return_value="gpt-4o"):
-                                    with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+                                with patch(
+                                    "agentic_devtools.cli.workflows.commands.get_default_copilot_model",
+                                    return_value="gpt-4o",
+                                ):
+                                    with patch(
+                                        "agentic_devtools.cli.workflows.commands.check_worktree_and_branch"
+                                    ) as mock_preflight:
                                         from agentic_devtools.cli.workflows.preflight import PreflightResult
 
                                         mock_preflight.return_value = PreflightResult(
@@ -38,15 +43,35 @@ class TestEngineLangchainRouting:
                                             branch_name="feature/test",
                                             issue_key=None,
                                         )
-                                        with patch("agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch", return_value="feature/test"):
-                                            with patch("agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr", return_value=None):
+                                        with patch(
+                                            "agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch",
+                                            return_value="feature/test",
+                                        ):
+                                            with patch(
+                                                "agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr",
+                                                return_value=None,
+                                            ):
                                                 with patch.dict("os.environ", {"AGENTIC_DEVTOOLS_STATE_DIR": tmp}):
-                                                    with patch("agentic_devtools.orchestration.review.preflight.validate_langchain_dependencies", return_value=True) as mock_preflight_deps:
-                                                        with patch("agentic_devtools.orchestration.review.runner.run_langchain_review") as mock_run:
-                                                            mock_run.return_value = {"status": "completed", "decision": "approved"}
-                                                            with patch("agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async") as mock_async:
-                                                                with patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review") as mock_session:
-                                                                    commands.initiate_pull_request_review_workflow(_argv=argv)
+                                                    with patch(
+                                                        "agentic_devtools.orchestration.review.preflight.validate_langchain_dependencies",
+                                                        return_value=True,
+                                                    ) as mock_preflight_deps:
+                                                        with patch(
+                                                            "agentic_devtools.orchestration.review.runner.run_langchain_review"
+                                                        ) as mock_run:
+                                                            mock_run.return_value = {
+                                                                "status": "completed",
+                                                                "decision": "approved",
+                                                            }
+                                                            with patch(
+                                                                "agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async"
+                                                            ) as mock_async:
+                                                                with patch(
+                                                                    "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review"
+                                                                ) as mock_session:
+                                                                    commands.initiate_pull_request_review_workflow(
+                                                                        _argv=argv
+                                                                    )
                                                                     return {
                                                                         "run_langchain": mock_run,
                                                                         "validate_deps": mock_preflight_deps,

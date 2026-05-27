@@ -246,9 +246,7 @@ class TestSpecKitConfigResolution:
 
         content = self.config_path.read_text()
         # Remote version pins look like: speckit-ext-agdt: "1.0.0" or speckit-ext-agdt@1.0.0
-        remote_pin_pattern = re.compile(
-            r'speckit-(?:ext|preset)-agdt(?:\s*:\s*["\']?|\s*@)\d+\.\d+\.\d+\b'
-        )
+        remote_pin_pattern = re.compile(r'speckit-(?:ext|preset)-agdt(?:\s*:\s*["\']?|\s*@)\d+\.\d+\.\d+\b')
         assert not remote_pin_pattern.search(content), (
             "config.yml still contains remote version pins; should use local paths"
         )
@@ -272,9 +270,8 @@ class TestSpecKitConfigResolution:
                 if any(token in content for token in LEGACY_SPECIFY_PATH_TOKENS):
                     stale_references.append(str(path.relative_to(REPO_ROOT)))
 
-        assert not stale_references, (
-            "Found stale legacy .specify path references in extension assets: "
-            + ", ".join(sorted(stale_references))
+        assert not stale_references, "Found stale legacy .specify path references in extension assets: " + ", ".join(
+            sorted(stale_references)
         )
 
 

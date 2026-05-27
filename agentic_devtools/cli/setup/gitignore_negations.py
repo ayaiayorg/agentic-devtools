@@ -87,11 +87,7 @@ def ensure_root_gitignore_negations(git_root: Path) -> bool:
             elif stripped == _NEGATION_LINES[1] and file_neg_idx is None:
                 file_neg_idx = i
 
-        if (
-            dir_neg_idx is not None
-            and file_neg_idx is not None
-            and dir_neg_idx < file_neg_idx
-        ):
+        if dir_neg_idx is not None and file_neg_idx is not None and dir_neg_idx < file_neg_idx:
             return False  # Both present and correctly ordered
 
         # Out-of-order: remove the misplaced file negation and re-insert
@@ -115,11 +111,7 @@ def ensure_root_gitignore_negations(git_root: Path) -> bool:
         # The directory negation exists after the ``.agdt/`` rule.
         # Insert the file negation right after it so gitignore ordering
         # stays correct (parent un-ignore before child).
-        dir_line_idx = next(
-            i
-            for i, line in enumerate(lines)
-            if i > agdt_line_idx and line.strip() == "!.agdt/config/"
-        )
+        dir_line_idx = next(i for i, line in enumerate(lines) if i > agdt_line_idx and line.strip() == "!.agdt/config/")
         insert_pos = dir_line_idx + 1
 
     # Ensure the line before the insertion ends with a newline

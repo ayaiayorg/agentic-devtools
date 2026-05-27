@@ -15,16 +15,12 @@ class TestVerifySourceIssueMarker:
     def test_marker_found_in_requirements_md(self, tmp_path) -> None:
         checklists = tmp_path / "checklists"
         checklists.mkdir()
-        (checklists / "requirements.md").write_text(
-            "**Source Issue** #123\nSome content\n"
-        )
+        (checklists / "requirements.md").write_text("**Source Issue** #123\nSome content\n")
         # Should not raise or exit
         _verify_source_issue_marker(str(tmp_path), 123)
 
     def test_marker_found_in_spec_md(self, tmp_path) -> None:
-        (tmp_path / "spec.md").write_text(
-            "**Source Issue** - see #456\n", encoding="utf-8"
-        )
+        (tmp_path / "spec.md").write_text("**Source Issue** - see #456\n", encoding="utf-8")
         _verify_source_issue_marker(str(tmp_path), 456)
 
     def test_no_marker_exits(self, tmp_path) -> None:

@@ -1,7 +1,6 @@
 """Tests for _check_timeout function."""
 
 import time
-from unittest.mock import patch
 
 from agentic_devtools.cli.azure_devops.finalization.orchestrator import _check_timeout
 

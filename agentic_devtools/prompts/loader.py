@@ -57,16 +57,12 @@ def load_ci_template(template_name: str) -> str:
     """
     # Validate template_name is a simple filename (no path separators)
     if "/" in template_name or "\\" in template_name or template_name != Path(template_name).name:
-        raise ValueError(
-            f"Invalid template name (must be a simple filename): {template_name!r}"
-        )
+        raise ValueError(f"Invalid template name (must be a simple filename): {template_name!r}")
     ci_dir = get_prompts_dir() / "ci"
     template_path = (ci_dir / template_name).resolve()
     # Ensure resolved path stays within the ci directory
     if not template_path.is_relative_to(ci_dir.resolve()):
-        raise ValueError(
-            f"Template path escapes prompts/ci directory: {template_name!r}"
-        )
+        raise ValueError(f"Template path escapes prompts/ci directory: {template_name!r}")
     if not template_path.exists():
         raise FileNotFoundError(f"CI template not found: {template_path}")
     return template_path.read_text(encoding="utf-8")

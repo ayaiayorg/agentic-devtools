@@ -53,7 +53,9 @@ class TestProcessSpeckitLabelEvent:
                 "GITHUB_REPOSITORY": "owner/repo",
             }
             with patch.dict(os.environ, env, clear=False):
-                result = process_speckit_label_event(MagicMock(), EventPayload(action="labeled", trigger_label="speckit"))
+                result = process_speckit_label_event(
+                    MagicMock(), EventPayload(action="labeled", trigger_label="speckit")
+                )
             assert result == EXIT_MALFORMED_EVENT
         finally:
             os.unlink(event_path)
@@ -69,7 +71,9 @@ class TestProcessSpeckitLabelEvent:
         try:
             env = {"GITHUB_EVENT_PATH": event_path, "SPECKIT_TRIGGER_LABEL": "speckit"}
             with patch.dict(os.environ, env, clear=True):
-                result = process_speckit_label_event(MagicMock(), EventPayload(action="labeled", trigger_label="speckit"))
+                result = process_speckit_label_event(
+                    MagicMock(), EventPayload(action="labeled", trigger_label="speckit")
+                )
             assert result == EXIT_MISSING_CONFIG
         finally:
             os.unlink(event_path)
@@ -90,7 +94,9 @@ class TestProcessSpeckitLabelEvent:
                 "GITHUB_REPOSITORY": "owner/repo",
             }
             with patch.dict(os.environ, env, clear=False):
-                result = process_speckit_label_event(MagicMock(), EventPayload(action="labeled", trigger_label="speckit"))
+                result = process_speckit_label_event(
+                    MagicMock(), EventPayload(action="labeled", trigger_label="speckit")
+                )
             assert result == EXIT_SUCCESS
             mock_set_labels.assert_not_called()
         finally:
@@ -113,7 +119,9 @@ class TestProcessSpeckitLabelEvent:
                 "GITHUB_REPOSITORY": "owner/repo",
             }
             with patch.dict(os.environ, env, clear=False):
-                result = process_speckit_label_event(MagicMock(), EventPayload(action="labeled", trigger_label="speckit"))
+                result = process_speckit_label_event(
+                    MagicMock(), EventPayload(action="labeled", trigger_label="speckit")
+                )
             assert result == EXIT_SUCCESS
             mock_run_script.assert_called_once()
             assert mock_set_labels.call_args_list == [
@@ -161,7 +169,9 @@ class TestProcessSpeckitLabelEvent:
                 "GITHUB_REPOSITORY": "owner/repo",
             }
             with patch.dict(os.environ, env, clear=False):
-                result = process_speckit_label_event(MagicMock(), EventPayload(action="labeled", trigger_label="speckit"))
+                result = process_speckit_label_event(
+                    MagicMock(), EventPayload(action="labeled", trigger_label="speckit")
+                )
             assert result == EXIT_SUCCESS
             mock_run_script.assert_called()
             mock_commit_push.assert_called_once_with(42, "specs/42-my-feature")
@@ -191,7 +201,9 @@ class TestProcessSpeckitLabelEvent:
                 "GITHUB_REPOSITORY": "owner/repo",
             }
             with patch.dict(os.environ, env, clear=False):
-                result = process_speckit_label_event(MagicMock(), EventPayload(action="labeled", trigger_label="speckit"))
+                result = process_speckit_label_event(
+                    MagicMock(), EventPayload(action="labeled", trigger_label="speckit")
+                )
             assert result == EXIT_FAILED
             assert mock_set_labels.call_count == 2
             assert mock_set_labels.call_args_list == [
@@ -222,7 +234,9 @@ class TestProcessSpeckitLabelEvent:
                 "GITHUB_REPOSITORY": "owner/repo",
             }
             with patch.dict(os.environ, env, clear=False):
-                result = process_speckit_label_event(MagicMock(), EventPayload(action="labeled", trigger_label="speckit"))
+                result = process_speckit_label_event(
+                    MagicMock(), EventPayload(action="labeled", trigger_label="speckit")
+                )
             assert result == EXIT_FAILED
             assert mock_set_labels.call_count == 2
             assert mock_set_labels.call_args_list == [
@@ -261,7 +275,9 @@ class TestProcessSpeckitLabelEvent:
                 "GITHUB_REPOSITORY": "owner/repo",
             }
             with patch.dict(os.environ, env, clear=False):
-                result = process_speckit_label_event(MagicMock(), EventPayload(action="labeled", trigger_label="speckit"))
+                result = process_speckit_label_event(
+                    MagicMock(), EventPayload(action="labeled", trigger_label="speckit")
+                )
             assert result == EXIT_FAILED
             assert mock_set_labels.call_args_list[-1] == call(
                 42,
@@ -498,13 +514,17 @@ class TestSpeckitTriggerHelpers:
                 "GITHUB_REPOSITORY": "owner/repo",
             }
             with patch.dict(os.environ, env, clear=False):
-                result = process_speckit_label_event(MagicMock(), EventPayload(action="labeled", trigger_label="speckit"))
+                result = process_speckit_label_event(
+                    MagicMock(), EventPayload(action="labeled", trigger_label="speckit")
+                )
             assert result == EXIT_FAILED
         finally:
             os.unlink(event_path)
 
     @patch("agentic_devtools.cli.ci.speckit_trigger._set_issue_labels", side_effect=RuntimeError("label api down"))
-    @patch("agentic_devtools.cli.ci.speckit_trigger._run_script_with_outputs", side_effect=RuntimeError("script failed"))
+    @patch(
+        "agentic_devtools.cli.ci.speckit_trigger._run_script_with_outputs", side_effect=RuntimeError("script failed")
+    )
     def test_returns_failed_when_failure_label_update_also_fails(self, mock_run_script, mock_set_labels) -> None:
         """Failure-label update errors are swallowed and EXIT_FAILED is still returned."""
         event_path = _write_event_payload(
@@ -527,7 +547,9 @@ class TestSpeckitTriggerHelpers:
                 "GITHUB_REPOSITORY": "owner/repo",
             }
             with patch.dict(os.environ, env, clear=False):
-                result = process_speckit_label_event(MagicMock(), EventPayload(action="labeled", trigger_label="speckit"))
+                result = process_speckit_label_event(
+                    MagicMock(), EventPayload(action="labeled", trigger_label="speckit")
+                )
             assert result == EXIT_FAILED
         finally:
             os.unlink(event_path)
