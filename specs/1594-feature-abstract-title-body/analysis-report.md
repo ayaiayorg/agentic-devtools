@@ -53,9 +53,9 @@
 ## Next Actions
 
 1. Update `plan.md` Phase 5 line references to match the current `commands.py` line numbers (F-01).
-2. Since `tasks.md` already includes a "Phase Mapping: Plan → Tasks" section, add a brief
-   cross-link from `plan.md` to that mapping (or otherwise clarify the numbering) to reduce
-   cross-reference confusion (F-02–F-04).
+2. Since `tasks.md` already includes a "Phase Mapping: Plan → Tasks" section, add a
+   brief cross-link from `plan.md` to that mapping (or otherwise clarify the
+   numbering) to reduce cross-reference confusion (F-02–F-04).
 3. Rephrase T001/T002 so each has a concrete, verifiable outcome (and, where applicable, an associated test task) rather than being phrased as a constraint/audit with unclear success criteria (F-05–F-06).
 4. Decide whether to keep the "under 1 millisecond" claim in NFR-001 as design intent or remove the timing assertion, and clarify how NFRs are tracked in the coverage matrix (F-07–F-09).
 

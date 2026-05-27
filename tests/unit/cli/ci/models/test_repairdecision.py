@@ -2,9 +2,7 @@
 
 from agentic_devtools.cli.ci.models import CheckRunStatus, RepairDecision, ReviewCommentInfo
 
-_COMMENT = ReviewCommentInfo(
-    id=1, path="foo.py", body="fix this", html_url="https://github.com/r/p#1"
-)
+_COMMENT = ReviewCommentInfo(id=1, path="foo.py", body="fix this", html_url="https://github.com/r/p#1")
 
 
 class TestRepairDecision:

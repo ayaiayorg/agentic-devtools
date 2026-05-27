@@ -224,6 +224,7 @@ class TestReadAndValidatePinFile:
         import datetime
 
         from agentic_devtools.state import read_and_validate_pin_file
+
         state_dir = tmp_path / ".agdt" / "workflows" / "user" / "KEY-1"
         state_dir.mkdir(parents=True)
         # Create a naive timestamp

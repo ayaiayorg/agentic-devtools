@@ -23,8 +23,11 @@ class TestFetchCommentContent:
         mock_requests.get.return_value = mock_response
 
         comment = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
         )
         with patch(
             "agentic_devtools.cli.azure_devops.helpers.require_requests",
@@ -42,8 +45,11 @@ class TestFetchCommentContent:
         mock_requests.get.return_value = mock_response
 
         comment = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
         )
         with patch(
             "agentic_devtools.cli.azure_devops.helpers.require_requests",
@@ -59,8 +65,11 @@ class TestFetchCommentContent:
         mock_requests.get.side_effect = Exception("connection error")
 
         comment = EligibleComment(
-            thread_id=10, comment_id=1, marker_type="file-summary",
-            marker_data={}, current_content="old",
+            thread_id=10,
+            comment_id=1,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
         )
         try:
             with patch(
@@ -81,8 +90,11 @@ class TestFetchCommentContent:
         mock_requests.get.return_value = mock_response
 
         comment = EligibleComment(
-            thread_id=10, comment_id=5, marker_type="file-summary",
-            marker_data={}, current_content="old",
+            thread_id=10,
+            comment_id=5,
+            marker_type="file-summary",
+            marker_data={},
+            current_content="old",
         )
         with patch(
             "agentic_devtools.cli.azure_devops.helpers.require_requests",
@@ -91,5 +103,11 @@ class TestFetchCommentContent:
             _fetch_comment_content(config, {}, "repo-guid", 42, comment)
 
         config.build_api_url.assert_called_once_with(
-            "repo-guid", "pullRequests", 42, "threads", 10, "comments", 5,
+            "repo-guid",
+            "pullRequests",
+            42,
+            "threads",
+            10,
+            "comments",
+            5,
         )

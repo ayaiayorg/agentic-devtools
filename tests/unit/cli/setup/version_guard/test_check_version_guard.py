@@ -50,27 +50,34 @@ class TestCheckVersionGuard:
         assert "Malformed" in capsys.readouterr().err
 
     def test_returns_none_on_equal_version(self, tmp_path: Path) -> None:
-        with patch(
-            "agentic_devtools.cli.config.project_config.load_project_config",
-            return_value={"agdt_version": "0.2.69"},
-        ), patch("agentic_devtools.__version__", "0.2.69"):
+        with (
+            patch(
+                "agentic_devtools.cli.config.project_config.load_project_config",
+                return_value={"agdt_version": "0.2.69"},
+            ),
+            patch("agentic_devtools.__version__", "0.2.69"),
+        ):
             assert check_version_guard(tmp_path, force_old_version=False) is None
 
     def test_returns_none_on_newer_version(self, tmp_path: Path) -> None:
-        with patch(
-            "agentic_devtools.cli.config.project_config.load_project_config",
-            return_value={"agdt_version": "0.2.69"},
-        ), patch("agentic_devtools.__version__", "0.2.70"):
+        with (
+            patch(
+                "agentic_devtools.cli.config.project_config.load_project_config",
+                return_value={"agdt_version": "0.2.69"},
+            ),
+            patch("agentic_devtools.__version__", "0.2.70"),
+        ):
             assert check_version_guard(tmp_path, force_old_version=False) is None
 
-    def test_returns_block_on_older_no_force(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_returns_block_on_older_no_force(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """FR-005: older version + no force → block."""
-        with patch(
-            "agentic_devtools.cli.config.project_config.load_project_config",
-            return_value={"agdt_version": "0.2.69"},
-        ), patch("agentic_devtools.__version__", "0.2.64"):
+        with (
+            patch(
+                "agentic_devtools.cli.config.project_config.load_project_config",
+                return_value={"agdt_version": "0.2.69"},
+            ),
+            patch("agentic_devtools.__version__", "0.2.64"),
+        ):
             result = check_version_guard(tmp_path, force_old_version=False)
         assert result == "block"
         err = capsys.readouterr().err
@@ -79,14 +86,15 @@ class TestCheckVersionGuard:
         assert "setup-dev-tools.py" in err
         assert "--force-old-version" in err
 
-    def test_returns_force_on_older_with_force(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_returns_force_on_older_with_force(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """FR-009: older version + force → warn + return 'force'."""
-        with patch(
-            "agentic_devtools.cli.config.project_config.load_project_config",
-            return_value={"agdt_version": "0.2.69"},
-        ), patch("agentic_devtools.__version__", "0.2.64"):
+        with (
+            patch(
+                "agentic_devtools.cli.config.project_config.load_project_config",
+                return_value={"agdt_version": "0.2.69"},
+            ),
+            patch("agentic_devtools.__version__", "0.2.64"),
+        ):
             result = check_version_guard(tmp_path, force_old_version=True)
         assert result == "force"
         err = capsys.readouterr().err
@@ -95,30 +103,39 @@ class TestCheckVersionGuard:
 
     def test_force_with_equal_version_is_noop(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """US3/AS4: --force-old-version + equal version → None silently."""
-        with patch(
-            "agentic_devtools.cli.config.project_config.load_project_config",
-            return_value={"agdt_version": "0.2.69"},
-        ), patch("agentic_devtools.__version__", "0.2.69"):
+        with (
+            patch(
+                "agentic_devtools.cli.config.project_config.load_project_config",
+                return_value={"agdt_version": "0.2.69"},
+            ),
+            patch("agentic_devtools.__version__", "0.2.69"),
+        ):
             result = check_version_guard(tmp_path, force_old_version=True)
         assert result is None
         assert capsys.readouterr().err == ""
 
     def test_force_with_newer_version_is_noop(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """US3/AS4: --force-old-version + newer version → None silently."""
-        with patch(
-            "agentic_devtools.cli.config.project_config.load_project_config",
-            return_value={"agdt_version": "0.2.69"},
-        ), patch("agentic_devtools.__version__", "0.2.70"):
+        with (
+            patch(
+                "agentic_devtools.cli.config.project_config.load_project_config",
+                return_value={"agdt_version": "0.2.69"},
+            ),
+            patch("agentic_devtools.__version__", "0.2.70"),
+        ):
             result = check_version_guard(tmp_path, force_old_version=True)
         assert result is None
         assert capsys.readouterr().err == ""
 
     def test_proceeds_when_packaging_unavailable(self, tmp_path: Path) -> None:
         """When packaging is not installed, pinned version validation is skipped and comparison proceeds."""
-        with patch(
-            "agentic_devtools.cli.config.project_config.load_project_config",
-            return_value={"agdt_version": "0.2.69"},
-        ), patch("agentic_devtools.__version__", "0.2.70"):
+        with (
+            patch(
+                "agentic_devtools.cli.config.project_config.load_project_config",
+                return_value={"agdt_version": "0.2.69"},
+            ),
+            patch("agentic_devtools.__version__", "0.2.70"),
+        ):
             # Make the packaging import fail inside check_version_guard
             original_import = __builtins__["__import__"] if isinstance(__builtins__, dict) else __builtins__.__import__
 

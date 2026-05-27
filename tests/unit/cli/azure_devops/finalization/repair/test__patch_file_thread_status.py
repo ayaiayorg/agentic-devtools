@@ -109,7 +109,11 @@ class TestPatchFileThreadStatus:
             "agentic_devtools.cli.azure_devops.finalization.repair.patch_thread_status",
         ) as mock_pts:
             _patch_file_thread_status(
-                comment, _minimal_review_state(), _mock_config(), {}, 42,
+                comment,
+                _minimal_review_state(),
+                _mock_config(),
+                {},
+                42,
             )
         mock_pts.assert_not_called()
 
@@ -127,7 +131,11 @@ class TestPatchFileThreadStatus:
             "agentic_devtools.cli.azure_devops.finalization.repair.patch_thread_status",
         ) as mock_pts:
             _patch_file_thread_status(
-                comment, _minimal_review_state(), _mock_config(), {}, 42,
+                comment,
+                _minimal_review_state(),
+                _mock_config(),
+                {},
+                42,
             )
         mock_pts.assert_not_called()
 

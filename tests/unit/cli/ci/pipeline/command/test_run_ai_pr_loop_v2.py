@@ -62,9 +62,7 @@ class TestRunAiPrLoopV2:
         ):
             run_ai_pr_loop_v2(provider, event)
 
-        assert call_order == ["acquire_lock", "get_pr_metadata"], (
-            "Lock must be acquired before building the snapshot"
-        )
+        assert call_order == ["acquire_lock", "get_pr_metadata"], "Lock must be acquired before building the snapshot"
 
     def test_snapshot_not_built_when_lock_not_acquired(self) -> None:
         """When lock returns None (already held), snapshot API calls are never made."""

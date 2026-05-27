@@ -10,12 +10,8 @@ from agentic_devtools.cli.ci.orchestrator import (
     _dispatch_repair,
 )
 
-_COMMENT = ReviewCommentInfo(
-    id=1, path="foo.py", body="Fix the null check", html_url="https://github.com/r/p#1"
-)
-_PREFETCHED = ReviewCommentInfo(
-    id=2, path="bar.py", body="pre-fetched comment", html_url="https://github.com/r/p#2"
-)
+_COMMENT = ReviewCommentInfo(id=1, path="foo.py", body="Fix the null check", html_url="https://github.com/r/p#1")
+_PREFETCHED = ReviewCommentInfo(id=2, path="bar.py", body="pre-fetched comment", html_url="https://github.com/r/p#2")
 
 
 class TestDispatchRepair:

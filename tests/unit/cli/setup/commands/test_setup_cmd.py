@@ -1262,9 +1262,7 @@ class TestSetupCmd:
                                     with patch(
                                         "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=False
                                     ):
-                                        with patch(
-                                            "agentic_devtools.skill_injector.inject_skills", return_value=False
-                                        ):
+                                        with patch("agentic_devtools.skill_injector.inject_skills", return_value=False):
                                             with patch.object(commands, "_prompt_project_config"):
                                                 with patch.object(commands, "_prompt_copilot_model"):
                                                     with patch.object(

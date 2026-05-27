@@ -24,8 +24,12 @@ def _minimal_review_state():
         folders={"src": FolderGroup(files=["/src/a.py"])},
         files={
             "/src/a.py": FileEntry(
-                threadId=10, commentId=1, folder="src", fileName="a.py",
-                status="approved", summary="LGTM",
+                threadId=10,
+                commentId=1,
+                folder="src",
+                fileName="a.py",
+                status="approved",
+                summary="LGTM",
             ),
         },
     )
@@ -62,8 +66,12 @@ class TestComputeOverallSummaryContent:
         """Should handle mix of terminal and non-terminal file statuses."""
         state = _minimal_review_state()
         state.files["/src/b.py"] = FileEntry(
-            threadId=11, commentId=1, folder="src", fileName="b.py",
-            status="in-progress", summary="WIP",
+            threadId=11,
+            commentId=1,
+            folder="src",
+            fileName="b.py",
+            status="in-progress",
+            summary="WIP",
         )
         state.folders["src"].files.append("/src/b.py")
 

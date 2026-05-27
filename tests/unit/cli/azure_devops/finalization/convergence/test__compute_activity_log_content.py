@@ -23,8 +23,12 @@ def _minimal_review_state(sessions=None, commit_hash="abc123def456"):
         folders={"src": FolderGroup(files=["/src/a.py"])},
         files={
             "/src/a.py": FileEntry(
-                threadId=10, commentId=1, folder="src", fileName="a.py",
-                status="approved", summary="LGTM",
+                threadId=10,
+                commentId=1,
+                folder="src",
+                fileName="a.py",
+                status="approved",
+                summary="LGTM",
             ),
         },
         sessions=sessions or [],
@@ -74,20 +78,22 @@ class TestComputeActivityLogContent:
             startedUtc="2026-01-01T00:00:00+00:00",
             status="in_progress",
         )
-        result = _compute_activity_log_content(
-            _minimal_review_state(sessions=[session], commit_hash=None)
-        )
+        result = _compute_activity_log_content(_minimal_review_state(sessions=[session], commit_hash=None))
         assert "unknown" in result
 
     def test_uses_latest_session(self):
         """Should use the last session in the list."""
         s1 = ReviewSession(
-            sessionId="sess-1", modelId="model-a",
-            startedUtc="2026-01-01T00:00:00+00:00", status="completed",
+            sessionId="sess-1",
+            modelId="model-a",
+            startedUtc="2026-01-01T00:00:00+00:00",
+            status="completed",
         )
         s2 = ReviewSession(
-            sessionId="sess-2", modelId="model-b",
-            startedUtc="2026-01-02T00:00:00+00:00", status="in_progress",
+            sessionId="sess-2",
+            modelId="model-b",
+            startedUtc="2026-01-02T00:00:00+00:00",
+            status="in_progress",
         )
         result = _compute_activity_log_content(_minimal_review_state(sessions=[s1, s2]))
         assert "model-b" in result

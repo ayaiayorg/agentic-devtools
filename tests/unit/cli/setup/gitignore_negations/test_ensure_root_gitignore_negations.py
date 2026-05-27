@@ -166,19 +166,15 @@ class TestEnsureRootGitignoreNegations:
         # Both negation rules must appear after the .agdt/ rule so they
         # are effective.  The original misplaced !.agdt/config/ remains
         # (harmless duplicate) but new copies are inserted after .agdt/.
-        dir_indices = [i for i, l in enumerate(lines) if l == "!.agdt/config/"]
-        assert any(i > agdt_idx for i in dir_indices), (
-            "!.agdt/config/ must appear after .agdt/"
-        )
+        dir_indices = [i for i, line in enumerate(lines) if line == "!.agdt/config/"]
+        assert any(i > agdt_idx for i in dir_indices), "!.agdt/config/ must appear after .agdt/"
         file_idx = lines.index("!.agdt/config/project.json")
         assert file_idx > agdt_idx
 
     def test_out_of_order_negations_reordered(self, tmp_path: Path) -> None:
         """When file negation appears before dir negation after .agdt/, reorders them."""
         gitignore = tmp_path / ".gitignore"
-        gitignore.write_text(
-            ".agdt/\n!.agdt/config/project.json\n!.agdt/config/\n"
-        )
+        gitignore.write_text(".agdt/\n!.agdt/config/project.json\n!.agdt/config/\n")
 
         result = ensure_root_gitignore_negations(tmp_path)
 
@@ -192,12 +188,7 @@ class TestEnsureRootGitignoreNegations:
     def test_out_of_order_with_duplicate_file_negation(self, tmp_path: Path) -> None:
         """When duplicate file negation lines exist in wrong order, fixes ordering."""
         gitignore = tmp_path / ".gitignore"
-        gitignore.write_text(
-            ".agdt/\n"
-            "!.agdt/config/project.json\n"
-            "!.agdt/config/project.json\n"
-            "!.agdt/config/\n"
-        )
+        gitignore.write_text(".agdt/\n!.agdt/config/project.json\n!.agdt/config/project.json\n!.agdt/config/\n")
 
         result = ensure_root_gitignore_negations(tmp_path)
 
@@ -205,7 +196,7 @@ class TestEnsureRootGitignoreNegations:
         lines = gitignore.read_text().splitlines()
         dir_idx = lines.index("!.agdt/config/")
         # At least one file negation must appear after the directory negation
-        file_indices = [i for i, l in enumerate(lines) if l == "!.agdt/config/project.json"]
+        file_indices = [i for i, line in enumerate(lines) if line == "!.agdt/config/project.json"]
         assert any(fi > dir_idx for fi in file_indices)
 
     def test_both_negations_before_agdt_rule_reinserted(self, tmp_path: Path) -> None:
