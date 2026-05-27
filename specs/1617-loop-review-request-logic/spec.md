@@ -43,12 +43,9 @@
 
 - Q: FR-009 references "the Copilot SDK" for generating squash commit messages. What specific SDK or API is this? The
   codebase doesn't appear to have an existing Copilot SDK integration for commit message generation. → A: FR-009 should
-  align with the existing GitHub provider behavior: there is already a Copilot SDK-based commit-message generation path
-  (`GitHubActionsProvider._generate_commit_message_via_sdk`) with deterministic fallback. The intended behavior is
-  SDK-first, falling back to the deterministic `_build_squash_commit_message` pattern (concatenated commit subjects) if
-  the SDK path is unavailable, disabled, or fails to produce a usable message. FR-009 and SC-008 should be read
-  accordingly: the feature is fallback-safe today, and SC-008's success metric applies to the SDK-primary flow with the
-  deterministic fallback preserving correctness when the SDK does not succeed.
+  remain deterministic-only in this phase: commit messages are generated from commit subjects using the existing
+  `_build_squash_commit_message` pattern. Any Copilot SDK-based generation is future work behind the
+  `CommitMessageGenerator` interface and is explicitly out of scope for this phase.
 
 - Q: FR-006 states that `RequestReviewAction` MUST be suppressed if `SquashAction` executed and set
   `invalidates_snapshot=True`. How does `RequestReviewAction` observe that `SquashAction` executed in the same pipeline
@@ -194,8 +191,8 @@ As a repository maintainer, I want the merge action to use squash merge strategy
 
 ### Edge Cases
 
-- What happens when a repair is dispatched but the repair agent never pushes code (stale repair)? The system should rely on the existing squash-wait timeout mechanism to eventually proceed. The dedup
-  marker SHA comparison ensures that once a new HEAD is pushed (by any means), review requests are unblocked.
+- What happens when a repair is dispatched but the repair agent never pushes code (stale repair)? The system should rely on the existing squash-wait timeout mechanism to eventually proceed. The
+  repair-dispatch marker SHA comparison ensures that once a new HEAD is pushed (by any means), review requests are unblocked.
 - How does the system handle a race condition where repair finishes and a review is requested simultaneously? The SHA-based deduplication ensures only one review per HEAD is active.
 - What happens when squash invalidates the snapshot but CI hasn't run on the new HEAD yet? The `invalidates_snapshot=True` flag causes the pipeline to exit early; the next workflow trigger (on the
   force-push event) re-evaluates from scratch.

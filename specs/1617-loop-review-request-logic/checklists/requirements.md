@@ -22,7 +22,8 @@
 - [ ] CHK007 All 15 acceptance scenarios across the 5 user stories use consistent Given/When/Then structure with concrete values (e.g., "2 unresolved threads", "3 commits above merge-base")
 - [ ] CHK008 Success criteria SC-001 through SC-009 include specific numeric targets (0%, 100%, 500ms p95, 50ms overhead) with defined measurement methods (CI logs, decision summary JSON, merge event
   payloads, unit test coverage)
-- [ ] CHK009 Scope boundaries are defined: FR-009 explicitly defers Copilot SDK integration to a future phase, SC-008 separates deterministic fallback (in-scope) from SDK success rate
+- [ ] CHK009 Scope boundaries are defined: FR-009 explicitly defers Copilot SDK integration to a future phase with deterministic-only commit message generation in-scope, and SC-008 separates
+  deterministic behavior (in-scope) from SDK success rate
   (post-integration KPI)
 - [ ] CHK010 Dependencies on existing infrastructure are documented in Clarifications section: repair-dispatch-specific marker/persistence mechanism for FR-002a, DerivedState pattern for FR-006,
   existing `unresolved_threads` field distinction from new `total_unresolved_threads` for FR-003
