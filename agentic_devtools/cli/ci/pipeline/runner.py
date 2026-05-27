@@ -7,6 +7,7 @@ import os
 import sys
 from datetime import datetime, timezone
 
+from agentic_devtools.cli.ci.logging_config import is_github_actions
 from agentic_devtools.cli.ci.pipeline.base import Action
 from agentic_devtools.cli.ci.pipeline.models import (
     ActionDecision,
@@ -19,20 +20,15 @@ from agentic_devtools.cli.ci.provider import CIPlatformProvider
 logger = logging.getLogger(__name__)
 
 
-def _is_github_actions() -> bool:
-    """Return True when running inside GitHub Actions."""
-    return os.environ.get("GITHUB_ACTIONS") == "true"
-
-
 def _log_group(title: str) -> None:
     """Emit a ::group:: annotation when running in GitHub Actions."""
-    if _is_github_actions():
+    if is_github_actions():
         print(f"::group::{title}", file=sys.stderr, flush=True)
 
 
 def _log_endgroup() -> None:
     """Emit an ::endgroup:: annotation when running in GitHub Actions."""
-    if _is_github_actions():
+    if is_github_actions():
         print("::endgroup::", file=sys.stderr, flush=True)
 
 

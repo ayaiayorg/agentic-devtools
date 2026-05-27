@@ -78,7 +78,7 @@ def _capture_summary(provider: MagicMock, payload: EventPayload) -> dict:
     buf = StringIO()
     with (
         patch("agentic_devtools.cli.ci.orchestrator.sys.stdout", buf),
-        patch("agentic_devtools.cli.ci.orchestrator._is_github_actions", return_value=False),
+        patch("agentic_devtools.cli.ci.orchestrator.is_github_actions", return_value=False),
     ):
         run_ai_pr_loop(provider, payload)
     return json.loads(buf.getvalue().strip())

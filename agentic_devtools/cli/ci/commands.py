@@ -15,6 +15,7 @@ import tempfile
 
 from agentic_devtools.cli.ci.exceptions import MalformedEventError
 from agentic_devtools.cli.ci.github_provider import GitHubActionsProvider
+from agentic_devtools.cli.ci.logging_config import setup_logging
 from agentic_devtools.cli.ci.models import EventPayload
 from agentic_devtools.cli.ci.orchestrator import run_ai_pr_loop
 from agentic_devtools.cli.ci.pipeline.command import run_ai_pr_loop_v2
@@ -63,6 +64,8 @@ def ai_pr_loop_command() -> None:
     if not _python_orchestrator_enabled():
         # Legacy path — let the YAML handle it
         sys.exit(0)
+
+    setup_logging()
 
     # Check gh CLI dependency
     if shutil.which("gh") is None:
@@ -120,6 +123,8 @@ def speckit_trigger_command() -> None:
     # Feature flag check
     if not _python_orchestrator_enabled():
         sys.exit(0)
+
+    setup_logging()
 
     # Check gh CLI dependency
     if shutil.which("gh") is None:
