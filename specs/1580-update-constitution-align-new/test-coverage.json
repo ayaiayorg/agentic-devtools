@@ -163,8 +163,8 @@
     "total_frs": 12,
     "covered_frs": 12,
     "uncovered_frs": 0,
-    "total_test_tasks": 14,
-    "unmapped_test_tasks": 2,
+    "total_test_tasks": 12,
+    "unmapped_test_tasks": 0,
     "total_findings": 0
   }
 }
