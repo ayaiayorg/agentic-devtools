@@ -1,6 +1,6 @@
 # Feature Specification: AI PR Loop Review Request Guards and Squash-First Review Strategy
 
-**Feature Branch**: `1617-ai-pr-loop-review-request-guards`  
+**Feature Branch**: `speckit/1617/phase-1-specify`  
 **Created**: 2026-05-27  
 **Status**: Draft  
 **Input**: GitHub Issue #1617  
@@ -39,7 +39,7 @@ that the repair agent is about to overwrite.
 **Acceptance Scenarios**:
 
 1. **Given** a PR where the orchestrator has just dispatched a repair (exit code = EXIT_REPAIR_DISPATCHED), **When** the review request logic is evaluated, **Then** no Copilot review request is sent
-   and the decision summary includes `"review_request_skipped_reason": "repair_dispatched"`.
+   and the decision summary includes `"reason": "repair_dispatched"`.
 
 2. **Given** a PR with an active Copilot session (detected via squash-wait marker or events API showing session in progress), **When** the `RequestReviewAction.evaluate()` is called, **Then** it
    returns `ActionDecision.SKIP` with details indicating repair/session is active.
@@ -177,7 +177,9 @@ and a Copilot-generated commit message.
 - **FR-009**: When using squash merge, the system MUST attempt to generate a commit message via the Copilot SDK, falling back to a deterministic message built from commit subjects if the SDK is
   unavailable or returns an error.
 
-- **FR-010**: The decision summary JSON MUST include the reason when a review request is suppressed (e.g., `"review_request_skipped_reason": "repair_active"` or `"unresolved_comments"`).
+- **FR-010**: The decision summary JSON MUST include a `"reason"` field when a review request is
+  suppressed (e.g., `"reason": "repair_active"` or `"reason": "unresolved_comments"`),
+  aligning with the existing `summary["reason"]` convention used throughout the orchestrator.
 
 ### Non-Functional Requirements
 
@@ -202,7 +204,7 @@ and a Copilot-generated commit message.
 
 - **SC-001**: 0 (zero) review requests are sent within the same pipeline run that dispatches a repair — measured across 100% of ai-pr-loop invocations in CI logs post-deployment.
 
-- **SC-002**: 0 (zero) review requests are sent when the PR has ≥1 unresolved comment thread — verified by auditing decision summary JSON for the `review_request_skipped_reason` field across all
+- **SC-002**: 0 (zero) review requests are sent when the PR has ≥1 unresolved comment thread — verified by auditing decision summary JSON for the `reason` field across all
   pipeline runs.
 
 - **SC-003**: For PRs with >1 commit, `SquashAction` executes before `RequestReviewAction` in 100% of pipeline runs where no active coding session blocks it — measured by action sequence order in
