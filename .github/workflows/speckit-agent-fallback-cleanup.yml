@@ -70,6 +70,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          github-token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           script: |
             // Find all issues with speckit:agent-fallback label that still have speckit:processing
             const issues = await github.paginate(github.rest.issues.listForRepo, {

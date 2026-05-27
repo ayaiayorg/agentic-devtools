@@ -380,7 +380,8 @@ async function run(params) {
   const idempotency = await checkIdempotency(github, owner, repo, normalizedIssueNumber, normalizedPhase);
   if (idempotency.skip) {
     core.info(`Idempotency guard: ${idempotency.reason}`);
-    core.setOutput('triggered', 'false');
+    // Treat this as "handled" so downstream failure handling doesn't mark the issue as failed.
+    core.setOutput('triggered', 'true');
     // Post skip comment
     const commentOnIssue = process.env.SPECKIT_COMMENT_ON_ISSUE !== 'false';
     if (commentOnIssue) {
