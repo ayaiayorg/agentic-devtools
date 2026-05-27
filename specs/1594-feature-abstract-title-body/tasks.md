@@ -80,7 +80,7 @@ user story/provider and add setup plus final cross-cutting validation work.
   body-only edit exits 0 with INFO log (FR-006), happy-path success title change proceeds
   to routing, non-edited event proceeds (FR-004)
 - [ ] T021 [US1] [US2] Import `check_edit_relevance` from `guards` and `logging` in `agentic_devtools/cli/ci/commands.py` (FR-004)
-- [ ] T022 [US1] [US2] Insert edit-relevance preflight between event parsing (line ~97) and v1/v2 routing (line ~103) in `ai_pr_loop_command()`: call `check_edit_relevance(event_payload)`, if
+- [ ] T022 [US1] [US2] Insert edit-relevance preflight in `ai_pr_loop_command()` after parsing the event payload and before the v1/v2 routing logic: call `check_edit_relevance(event_payload)`, if
   `should_skip` then log INFO and `sys.exit(0)` (FR-004, FR-006)
 - [ ] T023 [US2] Verify INFO log message includes PR number and skip reason matching format "PR #%d: %s" (FR-006, NFR-004)
 - [ ] T024 [US1] [US2] Verify command-level tests confirm call ordering: parse → guard → route (FR-004, SC-004)
