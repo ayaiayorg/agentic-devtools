@@ -105,13 +105,16 @@ jobs:
                 per_page: 100,
               });
 
-              const markerRegex = /<!-- speckit:agent-fallback task_id=([^ ]+) task_url=([^ ]+)/;
+              const markerRegex = /<!--\s*speckit:agent-fallback\s+task_id=([^ ]+)\s+task_url=([^ ]+)\s+issue=(\d+)\s+phase=(\d+)\s*-->/;
               let taskId = null;
               let taskUrl = null;
               let latestMarkerCreatedAt = null;
               for (const comment of comments) {
                 const match = comment.body && comment.body.match(markerRegex);
                 if (match) {
+                  const markerIssue = Number(match[3]);
+                  if (markerIssue !== issue.number) continue;
+
                   // Keep the most recent marker to avoid acting on stale tasks
                   if (!latestMarkerCreatedAt || new Date(comment.created_at) > new Date(latestMarkerCreatedAt)) {
                     taskId = match[1];

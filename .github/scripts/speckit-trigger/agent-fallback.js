@@ -308,7 +308,11 @@ async function applyLabelsAndComment(octokit, owner, repo, issueNumber, taskId, 
     });
   } catch (e) {
     // Label may not exist — log but don't fail
-    console.log(`Warning: Could not add speckit labels: ${e.message}`);
+    if (core) {
+      core.warning(`Could not add speckit labels: ${e.message}`);
+    } else {
+      console.log(`Warning: Could not add speckit labels: ${e.message}`);
+    }
   }
 
   // Remove speckit:failed if present (FR-007)
