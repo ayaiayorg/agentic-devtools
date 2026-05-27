@@ -3,11 +3,24 @@
 **Feature**: #1617  
 **Spec Branch**: `speckit/1617/phase-1-specify`
 
+## Phase Mapping: Plan → Tasks
+
+| Plan Phase (`plan.md`) | Tasks Phase (`tasks.md`) |
+|---|---|
+| Phase 1: Data Model & Snapshot Extensions (Foundation) | Phase 1: Setup & Scaffolding + Phase 2: Foundational — Data Model & Snapshot Extensions |
+| Phase 2: DispatchRepairAction — Repair Marker & DerivedState Flag | Phase 3: User Story 1 — Review Request Blocked During Active Repair |
+| Phase 3: RequestReviewAction — New Guards | Phase 3: User Story 1 + Phase 4: User Story 2 + Phase 5: User Story 3 |
+| Phase 4: SquashAction — Remove Pending Review Blocker | Phase 6: User Story 4 — Squash Not Blocked by Pending Review |
+| Phase 5: Pipeline Reordering | Phase 5: User Story 3 — Squash-First Review Trigger for Multi-Commit PRs |
+| Phase 6: MergeAction — Dynamic Strategy | Phase 7: User Story 5 — Squash Merge for Multi-Commit PRs at Merge Time |
+| Phase 7: Legacy Orchestrator Alignment | Phase 8: Legacy Orchestrator Alignment |
+| Phase 8: Tests | Phase 9: Polish & Cross-Cutting |
+
 ## Phase 1: Setup & Scaffolding
 
 - [ ] T001 Create `agentic_devtools/cli/ci/pipeline/commit_message.py` with module docstring and imports
-- [ ] T002 Create `tests/unit/cli/ci/pipeline/commit_message/__init__.py`
-- [ ] T003 Create `tests/unit/cli/ci/guards/` directory with `__init__.py` (if not exists)
+- [ ] T002 Create `tests/unit/cli/ci/pipeline/commit_message/__init__.py` (FR-009)
+- [ ] T003 Create `tests/unit/cli/ci/guards/` directory with `__init__.py` (if not exists) (FR-002)
 
 ## Phase 2: Foundational — Data Model & Snapshot Extensions
 
@@ -30,24 +43,24 @@
 - [ ] T014 [P] [US1] Write test: `RequestReviewAction` returns SKIP with reason `"active_session"` when `snapshot.active_session == True` —
   `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-002)
 - [ ] T015 [P] [US1] Write test: `RequestReviewAction` returns SKIP with reason `"repair_dispatched_prior_run"` when repair marker SHA matches HEAD —
-  `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-002a)
-- [ ] T016 [P] [US1] Write test: `RequestReviewAction` returns EXECUTE when no repair active and all guards pass — `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py`
+  `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-002, FR-002a)
+- [ ] T016 [P] [US1] Write test: `RequestReviewAction` returns EXECUTE when no repair active and all guards pass — `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-010)
 - [ ] T017 [P] [US1] Write test: `DispatchRepairAction.execute()` sets `derived.repair_dispatched = True` after successful dispatch —
   `tests/unit/cli/ci/pipeline/actions/dispatch_repair/test_dispatchrepairaction.py` (FR-001)
 - [ ] T018 [P] [US1] Write test: `DispatchRepairAction.execute()` writes repair-dispatch marker with HEAD SHA — `tests/unit/cli/ci/pipeline/actions/dispatch_repair/test_dispatchrepairaction.py`
-  (FR-002a)
-- [ ] T019 [P] [US1] Write test: repair-dispatch marker helpers parse and write correct format — `tests/unit/cli/ci/guards/test_repair_dispatch_marker.py`
+  (FR-002, FR-002a)
+- [ ] T019 [P] [US1] Write test: repair-dispatch marker helpers parse and write correct format — `tests/unit/cli/ci/guards/test_repair_dispatch_marker.py` (FR-002)
 
 ### Implementation (GREEN)
 
 - [ ] T020 [US1] Add `derived.set("repair_dispatched", True)` in `DispatchRepairAction.execute()` after successful dispatch — `agentic_devtools/cli/ci/pipeline/actions/dispatch_repair.py` (FR-001)
-- [ ] T021 [US1] Write repair-dispatch marker in `DispatchRepairAction.execute()` after successful dispatch — `agentic_devtools/cli/ci/pipeline/actions/dispatch_repair.py` (FR-002a)
+- [ ] T021 [US1] Write repair-dispatch marker in `DispatchRepairAction.execute()` after successful dispatch — `agentic_devtools/cli/ci/pipeline/actions/dispatch_repair.py` (FR-002, FR-002a)
 - [ ] T022 [US1] Add guard in `RequestReviewAction.evaluate()`: skip if `derived.repair_dispatched == True` with reason `"repair_dispatched"` —
   `agentic_devtools/cli/ci/pipeline/actions/request_review.py` (FR-001, FR-010)
 - [ ] T023 [US1] Add guard in `RequestReviewAction.evaluate()`: skip if `snapshot.active_session == True` with reason `"active_session"` — `agentic_devtools/cli/ci/pipeline/actions/request_review.py`
   (FR-002, FR-010)
 - [ ] T024 [US1] Add guard in `RequestReviewAction.evaluate()`: read repair-dispatch marker, skip if SHA matches HEAD with reason `"repair_dispatched_prior_run"` —
-  `agentic_devtools/cli/ci/pipeline/actions/request_review.py` (FR-002a, FR-010)
+  `agentic_devtools/cli/ci/pipeline/actions/request_review.py` (FR-002, FR-002a, FR-010)
 
 ## Phase 4: User Story 2 — Review Request Blocked When Unresolved Comments Exist (P1)
 
@@ -57,8 +70,8 @@
   `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-003)
 - [ ] T026 [P] [US2] Write test: `RequestReviewAction` returns EXECUTE when `total_unresolved_threads == 0` (no blocking) —
   `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-003)
-- [ ] T027 [P] [US2] Write test: `build_pr_state_snapshot` populates `total_unresolved_threads` from provider — `tests/unit/cli/ci/pipeline/snapshot/test_prstatesnapshot.py`
-- [ ] T028 [P] [US2] Write test: `count_total_unresolved_threads` returns count from provider — `tests/unit/cli/ci/pipeline/snapshot/test_count_total_unresolved_threads.py`
+- [ ] T027 [P] [US2] Write test: `build_pr_state_snapshot` populates `total_unresolved_threads` from provider — `tests/unit/cli/ci/pipeline/snapshot/test_prstatesnapshot.py` (FR-003)
+- [ ] T028 [P] [US2] Write test: `count_total_unresolved_threads` returns count from provider — `tests/unit/cli/ci/pipeline/snapshot/test_count_total_unresolved_threads.py` (FR-003)
 
 ### Implementation (GREEN)
 
@@ -76,7 +89,7 @@
 - [ ] T032 [P] [US3] Write test: `RequestReviewAction` returns EXECUTE (fallback) when `SquashAction` is skipped and `derived.snapshot_invalidated == False` —
   `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-007)
 - [ ] T033 [P] [US3] Write test: action ordering in `command.py` has `DispatchRepairAction` and `SquashAction` before `RequestReviewAction` —
-  `tests/unit/cli/ci/pipeline/command/test_run_ai_pr_loop_v2.py`
+  `tests/unit/cli/ci/pipeline/command/test_run_ai_pr_loop_v2.py` (FR-006, FR-007)
 
 ### Implementation (GREEN)
 
@@ -133,11 +146,11 @@
 
 ## Phase 9: Polish & Cross-Cutting
 
-- [ ] T055 Run full test suite (`agdt-test`) and verify 0 regressions (SC-006)
+- [ ] T055 Run full test suite (`agdt-test`) and verify 0 regressions (SC-006) (FR-010)
 - [ ] T056 Run `ruff check` and `ruff format` on all modified files
-- [ ] T057 Run `bash scripts/run-pr-checks.sh` to validate all CI checks pass
-- [ ] T058 Verify 100% branch coverage for all new guard logic (SC-007)
-- [ ] T059 Verify action ordering in pipeline summary output matches design (`DispatchRepair` → `Squash` → `RequestReview`)
+- [ ] T057 Run `bash scripts/run-pr-checks.sh` to validate all CI checks pass (FR-010)
+- [ ] T058 Verify 100% branch coverage for all new guard logic (SC-007) (FR-010)
+- [ ] T059 Verify action ordering in pipeline summary output matches design (`DispatchRepair` → `Squash` → `RequestReview`) (FR-006, FR-007)
 
 ## Dependency Graph
 
@@ -158,16 +171,16 @@ T013-T054 → T055-T059 (all impl before polish)
 | FR | Tasks |
 |---|---|
 | FR-001 | T013, T017, T020, T022, T050, T052 |
-| FR-002 | T014, T023 |
-| FR-002a | T015, T018, T019, T021, T024 |
+| FR-002 | T003, T014, T015, T018, T019, T021, T023, T024 |
+| FR-002a | T015, T018, T021, T024 |
 | FR-003 | T025, T026, T027, T028, T029, T051, T053 |
 | FR-004 | T050, T051, T052, T053 |
 | FR-005 | T037, T038, T039 |
-| FR-006 | T030, T031, T034, T035, T036 |
+| FR-006 | T030, T031, T033, T034, T035, T036, T059 |
 | FR-007 | T032, T035, T036 |
 | FR-008 | T041, T042, T043, T047, T048, T049 |
-| FR-009 | T040, T044, T045, T046, T049 |
-| FR-010 | T022, T023, T024, T029, T035 |
+| FR-009 | T002, T040, T044, T045, T046, T049 |
+| FR-010 | T016, T022, T023, T024, T029, T035, T055, T057, T058 |
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
