@@ -1,49 +1,56 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 -> 1.1.0
+- Version change: 1.1.0 -> 1.2.0
 - Modified principles:
-   - IV. Test-Driven Development (Non-Negotiable) -> IV. Test-Driven Development & Coverage
-   - V. Python Package Best Practices -> VIII. Python Package Best Practices (renumbered)
+   - I. Auto-Approval Friendly Design -> I. Scoped Tool Availability
+   - II. Single Source of Truth -> II. State Architecture
+   - IV. Test-Driven Development & Coverage (coverage 95% -> 100%)
+   - VI. User Experience Consistency (removed breaking-change-requires-major-bump)
 - Added sections:
-   - V. Code Quality & Maintainability
-   - VI. User Experience Consistency
-   - VII. Performance & Responsiveness
+   - IX. LangGraph Orchestration
+   - X. Dual-Engine Compatibility
+   - XI. Pre-1.0 Flexibility
+- Modified sections:
+   - Development Workflow → Code Changes (pre-1.0 flexibility replaces backward-compat)
+   - Governance → Amendments (migration plan no longer mandatory pre-1.0)
+   - Quality Gates → Pre-Commit (coverage 95% -> 100%)
 - Removed sections: None
 - Templates requiring updates:
-   - .specify/presets/agdt-templates/templates/spec-template.md ✅ updated
-   - .specify/presets/agdt-templates/templates/tasks-template.md ✅ updated
-   - .specify/extensions/agdt-workflows/commands/tasks.md ✅ updated
-   - .specify/extensions/agdt-workflows/commands/implement.md ✅ updated
-   - README.md ✅ updated
-   - SPEC_DRIVEN_DEVELOPMENT.md ✅ updated
-- Follow-up TODOs: None
+   - .specify/presets/agdt-templates/templates/spec-template.md (review for alignment)
+   - .specify/presets/agdt-templates/templates/tasks-template.md (review for alignment)
+   - .specify/extensions/agdt-workflows/commands/tasks.md (review for alignment)
+   - .specify/extensions/agdt-workflows/commands/implement.md (review for alignment)
+- Follow-up TODOs:
+   - docs/08-cross-cutting-concepts.md coverage table updated in this PR
+   - docs/10-quality-requirements.md coverage references updated in this PR
 -->
 
 # agentic-devtools Constitution
 
 ## Core Principles
 
-### I. Auto-Approval Friendly Design
+### I. Scoped Tool Availability
 
-All CLI commands must be designed for auto-approval by AI assistants:
+Each workflow step must have a precisely defined set of tools and commands available to it:
 
-- Use generic `agdt-set key value` pattern for state management (approve once, use for all keys)
-- Parameterless action commands that read from state (e.g., `agdt-reply-to-pr-thread`)
-- Native Python CLI handling of special characters and multiline content
-- Clear, predictable command patterns that enable trust-based automation
+- Workflow definitions declare explicit capability sets per step
+- Tools and commands are scoped to the minimum required for each operation
+- Auto-approval and autopilot modes are recognized as temporary workarounds, not design goals
+- Generic patterns (e.g., `agdt-set key value`) remain for flexibility but are not the primary scoping mechanism
 
-**Rationale**: Minimizes approval friction for AI assistants while maintaining safety through state transparency.
+**Rationale**: Explicit capability declarations improve safety, auditability, and predictability of AI-driven workflows.
 
-### II. Single Source of Truth
+### II. State Architecture
 
-State management must use a single JSON file (`.agdt/workflows/{identity}/{worktree_key}/state.json`):
+State management uses a dual-layer approach:
 
-- All parameters stored in one location
-- No distributed configuration
+- **CLI state**: Parallel-safe isolated JSON segments (`.agdt/workflows/{identity}/{worktree_key}/`)
+- **Orchestration state**: LangGraph checkpointing for multi-step workflow recovery
 - Transparent state inspection via `agdt-show`
 - Atomic state updates with file locking
+- Parallel-safe isolated state segments for concurrent subagent execution
 
-**Rationale**: Simplifies debugging, ensures consistency, and provides clear audit trail.
+**Rationale**: Enables reliable orchestration with checkpoint recovery while maintaining CLI-level state transparency and parallel safety.
 
 ### III. Background Task Architecture
 
@@ -61,7 +68,7 @@ All action commands that mutate state or perform API calls must run as backgroun
 All features must follow TDD practices:
 
 - Tests written before implementation
-- Minimum 95% code coverage for new or changed code
+- 100% code coverage for new or changed code
 - Unit tests for new logic and integration tests for all CLI commands
 - Use `agdt-test` commands (never run pytest directly)
 - Background task execution for test runs
@@ -87,7 +94,6 @@ CLI user experience must be consistent and predictable:
 - Command naming, flags, and state keys MUST follow existing patterns
 - Output MUST be structured, concise, and include next-step guidance
 - Error messages MUST explain cause and resolution steps
-- Breaking changes to CLI UX require a major version bump and migration notes
 
 **Rationale**: Enables AI and human users to operate the CLI confidently.
 
@@ -114,11 +120,44 @@ Follow standard Python packaging conventions:
 
 **Rationale**: Maintains professional standards and enables easy installation/distribution.
 
+### IX. LangGraph Orchestration
+
+Multi-step workflows use LangGraph with checkpoint state recovery:
+
+- Workflow state persisted via LangGraph checkpointing for resumability
+- Human-in-the-loop interrupts at defined decision points
+- Automatic retry and recovery from transient failures
+- Clear separation between orchestration state and CLI state
+
+**Rationale**: Provides reliable, resumable multi-step workflow execution with built-in recovery.
+
+### X. Dual-Engine Compatibility
+
+New orchestration engines must coexist with existing execution paths:
+
+- Explicit opt-in routing via `--engine` flag
+- Failures in one engine MUST NOT affect the other
+- Both engines share the same CLI commands and state interfaces
+- Migration between engines is user-initiated, never automatic
+
+**Rationale**: Enables incremental adoption of new orchestration without disrupting existing workflows.
+
+### XI. Pre-1.0 Flexibility
+
+Until v1.0.0, the project prioritizes optimization over stability:
+
+- Breaking changes are allowed and expected
+- Optimization and simplification preferred over backward compatibility
+- Dead code, unused config, and deprecated paths should be actively removed
+- No migration plans or deprecation periods required pre-1.0
+
+**Rationale**: Enables rapid iteration and architectural improvements during early development.
+
 ## Development Workflow
 
 ### Code Changes
 
-1. All changes must maintain backward compatibility unless major version bump
+1. Breaking changes are permitted pre-1.0 (see Principle XI); prefer simplification over backward compatibility
 2. New commands require:
    - State management pattern documentation
    - Background task integration (for actions)
@@ -147,7 +186,7 @@ Follow standard Python packaging conventions:
 ### Pre-Commit
 
 - All tests pass
-- Code coverage ≥ 95% for changed files
+- Code coverage = 100% for changed files
 - No linting errors
 - Type checking passes
 - UX output and error handling conform to established patterns
@@ -192,8 +231,7 @@ Constitution changes require:
 
 1. Documentation of rationale
 2. Approval from maintainers
-3. Migration plan for affected code
-4. Version bump following semantic versioning
+3. Version bump following semantic versioning
 
 ### Compliance
 
@@ -201,4 +239,4 @@ Constitution changes require:
 - Code reviews must reference relevant principles
 - Non-compliance requires explicit justification and approval
 
-**Version**: 1.1.0 | **Ratified**: 2026-02-02 | **Last Amended**: 2026-02-03
+**Version**: 1.2.0 | **Ratified**: 2026-02-02 | **Last Amended**: 2026-05-27

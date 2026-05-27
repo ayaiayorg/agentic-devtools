@@ -16,7 +16,7 @@ graph TB
     Usability --> U2[Clear error messages]
     Usability --> U3[Actionable output]
     
-    Reliability --> R1[95%+ test coverage]
+    Reliability --> R1[100% test coverage]
     Reliability --> R2[Error handling]
     Reliability --> R3[State consistency]
     
@@ -159,14 +159,14 @@ agdt-add-pull-request-comment  # No approval needed!
 
 **Stimulus**: Run test suite
 
-**Response**: Coverage remains ≥95%
+**Response**: Coverage remains at 100%
 
 **Measure**:
 
-- ✅ Success: 95%+ coverage, all tests pass
-- ❌ Failure: Coverage drops below 95%
+- ✅ Success: 100% coverage, all tests pass
+- ❌ Failure: Coverage drops below 100%
 
-**Enforcement**: CI pipeline currently blocks merge if coverage <90% (target coverage remains ≥95%)
+**Enforcement**: CI pipeline blocks merge if coverage <100%
 
 ### 10.2.3 Performance
 
@@ -333,7 +333,7 @@ Authorization: Bearer abc123xyz...
 
 | Metric | Target | Actual | Measurement |
 |--------|--------|--------|-------------|
-| **Test Coverage** | ≥95% | Check in CI | pytest-cov |
+| **Test Coverage** | 100% | Check in CI | pytest-cov |
 | **Command Approvals** | ≤15 unique | ~10 | Manual count |
 | **Background Task Overhead** | <1s | ~200ms | Time measurement |
 | **State Read Time** | <50ms | ~10ms | Profiling |
@@ -362,8 +362,8 @@ flowchart TD
     LintCI -->|Pass| Coverage
     LintCI -->|Fail| Fix
     
-    Coverage -->|≥95%| Merge[Merge Allowed]
-    Coverage -->|<95%| Fix
+    Coverage -->|100%| Merge[Merge Allowed]
+    Coverage -->|<100%| Fix
     
     Fix --> Dev
     
@@ -384,7 +384,7 @@ flowchart TD
 - [ ] Has actionable output format
 - [ ] Has type hints on all functions
 - [ ] Has docstrings with examples
-- [ ] Has unit tests with 95%+ coverage
+- [ ] Has unit tests with 100% coverage
 - [ ] Has integration test (if applicable)
 - [ ] Has entry point in `pyproject.toml`
 - [ ] Documented in appropriate module README

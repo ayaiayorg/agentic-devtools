@@ -225,10 +225,10 @@ graph TB
 | Component | Coverage Target | Test Type |
 |-----------|----------------|-----------|
 | **Core (state, locking)** | 100% | Unit |
-| **CLI Commands** | 95% | Unit + Integration |
-| **Background Tasks** | 90% | Integration |
-| **API Helpers** | 95% | Unit (mocked APIs) |
-| **Workflows** | 85% | Integration |
+| **CLI Commands** | 100% | Unit + Integration |
+| **Background Tasks** | 100% | Integration |
+| **API Helpers** | 100% | Unit (mocked APIs) |
+| **Workflows** | 100% | Integration |
 
 ### 8.5.3 Test Execution Pattern
 
