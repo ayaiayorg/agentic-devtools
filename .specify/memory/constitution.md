@@ -68,7 +68,7 @@ All action commands that mutate state or perform API calls must run as backgroun
 All features must follow TDD practices:
 
 - Tests written before implementation
-- 100% code coverage for new or changed code
+- Overall package coverage must remain at 100% (`--cov-fail-under=100`); new or changed lines must be covered
 - Unit tests for new logic and integration tests for all CLI commands
 - Use `agdt-test` commands (never run pytest directly)
 - Background task execution for test runs
