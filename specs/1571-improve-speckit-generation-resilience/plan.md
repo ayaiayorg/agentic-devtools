@@ -4,11 +4,11 @@
 
 - **Stack**: Bash shell scripts (`.github/scripts/speckit-trigger/`), Python (`copilot_generate.py`), GitHub Actions CI
 - **Key Files**:
-  - `generate-spec-from-issue.sh` — orchestrator (~2200 lines)
+  - `generate-spec-from-issue.sh` — orchestrator (~3800 lines)
   - `lib/spec-validation.sh` — structural validation library
   - `lib/clarify-retry.sh` — clarify phase multi-layer retry
   - `.specify/presets/agdt-templates/templates/spec-template.md` — LLM template
-- **Existing Retry Architecture**: `run_specify_phase_with_validation_retries()` loops up to `SPECIFY_MAX_RETRIES=3`, uses `_build_structured_specify_feedback()` for retry prompts, and
+- **Existing Retry Architecture**: `run_specify_phase_with_validation_retries()` loops up to `SPECIFY_MAX_RETRIES` (default: `3`), uses `_build_structured_specify_feedback()` for retry prompts, and
   `_validate_spec_content()` for validation
 - **Validation Checks** (in `validate_spec_quality`): file size, mandatory sections, FR/NFR count, user story count, measurable criteria, bullet ratio
 - **Existing Pattern**: `_build_structured_clarify_feedback` in clarify-retry.sh provides the model for adaptive retry enrichment
