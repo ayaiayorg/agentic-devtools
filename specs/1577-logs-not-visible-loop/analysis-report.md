@@ -4,7 +4,7 @@
 
 | ID | Category | Severity | Location(s) | Summary | Recommendation |
 |----|----------|----------|-------------|---------|----------------|
-| F-01 | G. Task Deduplication | HIGH | tasks.md T016, T017 | T016 audits guards.py for FR-003, T017 audits actions for FR-004 — both also appear as test tasks for FR-003/FR-004 in coverage data but are audit/verification tasks, not dedicated test-writing tasks | Clarify whether T016/T017 produce test artifacts or are purely audit tasks; if tests are needed, add explicit test-writing tasks for FR-003/FR-004 happy paths |
+| F-01 | E. Coverage Gaps | HIGH | tasks.md T016, T017 | T016 audits guards.py for FR-003, T017 audits actions for FR-004 — both also appear as test tasks for FR-003/FR-004 in coverage data but are audit/verification tasks, not dedicated test-writing tasks | Clarify whether T016/T017 produce test artifacts or are purely audit tasks; if tests are needed, add explicit test-writing tasks for FR-003/FR-004 happy paths |
 | F-02 | G. Task Deduplication | HIGH | tasks.md T018, T016 | T018 ("Add/adjust log statements in guards modules where FR-003 is not satisfied") overlaps T016 ("Audit guards.py — verify guard outcomes logged at INFO outside groups") on the same file and code section — T016's audit naturally leads to T018's fix | Consider merging T016 and T018 into a single "audit and fix guards.py" task |
 | F-03 | G. Task Deduplication | HIGH | tasks.md T019, T017 | T019 ("Add/adjust log statements in action modules where FR-004 is not satisfied") overlaps T017 ("Audit actions — verify action outcomes logged at INFO outside groups") — same pattern as F-02 | Consider merging T017 and T019 into a single "audit and fix action modules" task |
 | F-04 | B. Ambiguity | LOW | spec.md FR-005 | "Verbose details" lacks a precise definition — no exhaustive list of what qualifies as verbose vs. important | Add examples or a heuristic (e.g., payloads > N lines, raw JSON responses) to FR-005 |
@@ -19,28 +19,20 @@
 
 [
   {
-    "id": "F-01",
-    "overlap_type": "overlapping",
-    "severity": "HIGH",
-    "task_ids": ["T016", "T018"],
-    "dimensions": ["file_path", "code_section"],
-    "rationale": "T016 audits guards.py for FR-003; T018 fixes non-compliant log statements in the same file/sections. Audit then fix — sequential but overlapping in scope."
-  },
-  {
     "id": "F-02",
     "overlap_type": "overlapping",
     "severity": "HIGH",
-    "task_ids": ["T017", "T019"],
+    "task_ids": ["T018", "T016"],
     "dimensions": ["file_path", "code_section"],
-    "rationale": "T017 audits actions for FR-004; T019 fixes non-compliant log statements in the same files/sections. Same audit-then-fix pattern as F-01."
+    "rationale": "T018 adds/adjusts log statements in guards.py where FR-003 is not satisfied; T016 audits the same file/sections for FR-003 compliance. Audit then fix — sequential but overlapping in scope."
   },
   {
     "id": "F-03",
     "overlap_type": "overlapping",
     "severity": "HIGH",
-    "task_ids": ["T016", "T017"],
-    "dimensions": ["description"],
-    "rationale": "Both are 'audit module X — verify Y logged at INFO outside log_group()'. Identical intent on different modules. Not duplicate but overlapping in description."
+    "task_ids": ["T019", "T017"],
+    "dimensions": ["file_path", "code_section"],
+    "rationale": "T019 adds/adjusts log statements in action modules where FR-004 is not satisfied; T017 audits the same files/sections for FR-004 compliance. Same audit-then-fix pattern as F-02."
   }
 ]
 
@@ -71,8 +63,8 @@
 | Ambiguity Count | 1 |
 | Requirement Duplication Count (Category A) | 1 |
 | Critical Issues Count | 0 |
-| Task Deduplication Finding Count | 3 |
-| Task Deduplication by Type | duplicate: 0 / overlapping: 3 / conflicting: 0 |
+| Task Deduplication Finding Count | 2 |
+| Task Deduplication by Type | duplicate: 0 / overlapping: 2 / conflicting: 0 |
 | Multi-Task Group Count | 0 |
 
 ---
