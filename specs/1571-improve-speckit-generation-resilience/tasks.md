@@ -6,7 +6,6 @@ Phases in this `tasks.md` are 1:1 aligned with the phases defined in `plan.md`.
 
 ## Phase 1: Setup & Scaffolding
 
-- [ ] T001 Create feature branch `speckit/1571/phase-1-specify` from `main`
 - [ ] T002 Create template file `.github/scripts/speckit-trigger/templates/example-valid-spec.md` with a truncated (~1500 char) reference spec that passes all validation checks (FR-010)
 - [ ] T003 Create skeleton block file `.github/scripts/speckit-trigger/templates/specify-skeleton.md` containing all 4 mandatory section headings with `<!-- FILL: ... -->` markers (FR-001)
 
