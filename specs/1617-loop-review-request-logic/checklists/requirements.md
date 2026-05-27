@@ -24,13 +24,15 @@
   payloads, unit test coverage)
 - [ ] CHK009 Scope boundaries are defined: FR-009 explicitly defers Copilot SDK integration to a future phase, SC-008 separates deterministic fallback (in-scope) from SDK success rate
   (post-integration KPI)
-- [ ] CHK010 Dependencies on existing infrastructure are documented in Clarifications section: dedup marker mechanism for FR-002a, DerivedState pattern for FR-006, existing `unresolved_threads` field
-  distinction from new `total_unresolved_threads` for FR-003
+- [ ] CHK010 Dependencies on existing infrastructure are documented in Clarifications section: repair-dispatch-specific marker/persistence mechanism for FR-002a, DerivedState pattern for FR-006,
+  existing `unresolved_threads` field distinction from new `total_unresolved_threads` for FR-003
 
 ## Feature Readiness
 
-- [ ] CHK011 All functional requirements FR-001 through FR-010 have corresponding acceptance scenarios in at least one user story (FR-001→US-1-S1, FR-002→US-1-S2, FR-002a→US-1-S3, FR-003→US-2-S1/S3,
-  FR-005→US-4, FR-006→US-3-S1, FR-007→US-3-S2, FR-008→US-5-S1/S2, FR-009→US-5-S1/S3)
+- [ ] CHK011 All functional requirements FR-001 through FR-010 have corresponding acceptance scenarios in at least one user story
+  (FR-001→US-1-S1, FR-002→US-1-S2, FR-002a→US-1-S3,
+  FR-003→US-2-S1/S3, FR-005→US-4, FR-006→US-3-S1,
+  FR-007→US-3-S2, FR-008→US-5-S1/S2, FR-009→US-5-S1/S3)
 - [ ] CHK012 User scenarios cover the complete action lifecycle: repair-active suppression (US-1), unresolved-comment suppression (US-2), squash-first ordering (US-3), squash precondition fix (US-4),
   and merge strategy selection (US-5)
 - [ ] CHK013 Success criteria SC-001 through SC-009 each specify a measurable outcome with a defined verification method — no criteria rely on subjective assessment
