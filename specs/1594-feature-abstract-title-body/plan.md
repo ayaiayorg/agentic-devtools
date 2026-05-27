@@ -24,6 +24,9 @@ normal CI evaluation across GitHub and Azure DevOps providers.
 
 ```text
 specs/1594-feature-abstract-title-body/
+├── research.md
+├── data-model.md
+├── quickstart.md
 ├── plan.md
 ├── spec.md
 ├── checklists/
