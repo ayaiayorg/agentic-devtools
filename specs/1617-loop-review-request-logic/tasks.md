@@ -19,8 +19,8 @@
 ## Phase 1: Setup & Scaffolding
 
 - [ ] T001 Create `agentic_devtools/cli/ci/pipeline/commit_message.py` with module docstring and imports
-- [ ] T002 Create `tests/unit/cli/ci/pipeline/commit_message/__init__.py`
-- [ ] T003 Create `tests/unit/cli/ci/guards/` directory with `__init__.py` (if not exists)
+- [ ] T002 [US5] Create `tests/unit/cli/ci/pipeline/commit_message/__init__.py` (FR-009)
+- [ ] T003 [US1] Create `tests/unit/cli/ci/guards/` directory with `__init__.py` (if not exists) (FR-002)
 
 ## Phase 2: Foundational — Data Model & Snapshot Extensions
 
@@ -38,29 +38,29 @@
 
 ### Tests (RED)
 
-- [ ] T013 [P] [US1] Write test: `RequestReviewAction` returns SKIP with reason `"repair_dispatched"` when `derived.repair_dispatched == True` —
+- [ ] T013 [P] [US1] Write happy path test: `RequestReviewAction` returns SKIP with reason `"repair_dispatched"` when `derived.repair_dispatched == True` —
   `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-001)
-- [ ] T014 [P] [US1] Write test: `RequestReviewAction` returns SKIP with reason `"active_session"` when `snapshot.active_session == True` —
+- [ ] T014 [P] [US1] Write happy path test: `RequestReviewAction` returns SKIP with reason `"active_session"` when `snapshot.active_session == True` —
   `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-002)
-- [ ] T015 [P] [US1] Write test: `RequestReviewAction` returns SKIP with reason `"repair_dispatched_prior_run"` when repair marker SHA matches HEAD —
-  `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-002, FR-002a)
-- [ ] T016 [P] [US1] Write test: `RequestReviewAction` returns EXECUTE when no repair active and all guards pass — `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-010)
-- [ ] T017 [P] [US1] Write test: `DispatchRepairAction.execute()` sets `derived.repair_dispatched = True` after successful dispatch —
+- [ ] T015 [P] [US1] Write happy path test: `RequestReviewAction` returns SKIP with reason `"repair_dispatched_prior_run"` when repair marker SHA matches HEAD —
+  `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-002, FR-011)
+- [ ] T016 [P] [US1] Write happy path test: `RequestReviewAction` returns EXECUTE when no repair active and all guards pass — `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-010)
+- [ ] T017 [P] [US1] Write happy path test: `DispatchRepairAction.execute()` sets `derived.repair_dispatched = True` after successful dispatch —
   `tests/unit/cli/ci/pipeline/actions/dispatch_repair/test_dispatchrepairaction.py` (FR-001)
-- [ ] T018 [P] [US1] Write test: `DispatchRepairAction.execute()` writes repair-dispatch marker with HEAD SHA — `tests/unit/cli/ci/pipeline/actions/dispatch_repair/test_dispatchrepairaction.py`
-  (FR-002, FR-002a)
+- [ ] T018 [P] [US1] Write happy path test: `DispatchRepairAction.execute()` writes repair-dispatch marker with HEAD SHA — `tests/unit/cli/ci/pipeline/actions/dispatch_repair/test_dispatchrepairaction.py`
+  (FR-002, FR-011)
 - [ ] T019 [P] [US1] Write test: repair-dispatch marker helpers parse and write correct format — `tests/unit/cli/ci/guards/test_repair_dispatch_marker.py` (FR-002)
 
 ### Implementation (GREEN)
 
 - [ ] T020 [US1] Add `derived.set("repair_dispatched", True)` in `DispatchRepairAction.execute()` after successful dispatch — `agentic_devtools/cli/ci/pipeline/actions/dispatch_repair.py` (FR-001)
-- [ ] T021 [US1] Write repair-dispatch marker in `DispatchRepairAction.execute()` after successful dispatch — `agentic_devtools/cli/ci/pipeline/actions/dispatch_repair.py` (FR-002, FR-002a)
+- [ ] T021 [US1] Write repair-dispatch marker in `DispatchRepairAction.execute()` after successful dispatch — `agentic_devtools/cli/ci/pipeline/actions/dispatch_repair.py` (FR-002, FR-011)
 - [ ] T022 [US1] Add guard in `RequestReviewAction.evaluate()`: skip if `derived.repair_dispatched == True` with reason `"repair_dispatched"` —
   `agentic_devtools/cli/ci/pipeline/actions/request_review.py` (FR-001, FR-010)
 - [ ] T023 [US1] Add guard in `RequestReviewAction.evaluate()`: skip if `snapshot.active_session == True` with reason `"active_session"` — `agentic_devtools/cli/ci/pipeline/actions/request_review.py`
   (FR-002, FR-010)
 - [ ] T024 [US1] Add guard in `RequestReviewAction.evaluate()`: read repair-dispatch marker, skip if SHA matches HEAD with reason `"repair_dispatched_prior_run"` —
-  `agentic_devtools/cli/ci/pipeline/actions/request_review.py` (FR-002, FR-002a, FR-010)
+  `agentic_devtools/cli/ci/pipeline/actions/request_review.py` (FR-002, FR-011, FR-010)
 
 ## Phase 4: User Story 2 — Review Request Blocked When Unresolved Comments Exist (P1)
 
@@ -68,7 +68,7 @@
 
 - [ ] T025 [P] [US2] Write test: `RequestReviewAction` returns SKIP with reason `"unresolved_comments"` when `snapshot.total_unresolved_threads > 0` —
   `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-003)
-- [ ] T026 [P] [US2] Write test: `RequestReviewAction` returns EXECUTE when `total_unresolved_threads == 0` (no blocking) —
+- [ ] T026 [P] [US2] Write happy path test: `RequestReviewAction` returns EXECUTE when `total_unresolved_threads == 0` (no blocking) —
   `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-003)
 - [ ] T027 [P] [US2] Write unit test: snapshot creation populates `total_unresolved_threads` from provider count — `tests/unit/cli/ci/pipeline/snapshot/test_prstatesnapshot.py` (FR-003)
 - [ ] T028 [P] [US2] Write test: `count_total_unresolved_threads` returns count from provider — `tests/unit/cli/ci/pipeline/snapshot/test_count_total_unresolved_threads.py` (FR-003)
@@ -136,7 +136,7 @@
 ### Tests (RED)
 
 - [ ] T050 [P] [US1] Write test: `_request_copilot_review_if_needed` returns skip reason when repair dispatched — `tests/unit/cli/ci/orchestrator/test_run_ai_pr_loop.py` (FR-004)
-- [ ] T051 [P] [US2] Write test: `_request_copilot_review_if_needed` returns skip reason when unresolved comments exist — `tests/unit/cli/ci/orchestrator/test_run_ai_pr_loop.py` (FR-004)
+- [ ] T051 [P] [US2] Write happy path test: `_request_copilot_review_if_needed` returns skip reason when unresolved comments exist — `tests/unit/cli/ci/orchestrator/test_run_ai_pr_loop.py` (FR-004)
 
 ### Implementation (GREEN)
 
@@ -172,7 +172,7 @@ T013-T054 → T055-T059 (all impl before polish)
 |---|---|
 | FR-001 | T013, T017, T020, T022, T050, T052 |
 | FR-002 | T003, T014, T015, T018, T019, T021, T023, T024 |
-| FR-002a | T015, T018, T021, T024 |
+| FR-011 | T015, T018, T021, T024 |
 | FR-003 | T025, T026, T027, T028, T029, T051, T053 |
 | FR-004 | T050, T051, T052, T053 |
 | FR-005 | T037, T038, T039 |

@@ -18,9 +18,9 @@
   than reusing `unresolved_threads`. The Key Entities section has been corrected to preserve `unresolved_threads` for
   the existing Copilot-only count and use the new total count for FR-003.
 
-- Q: FR-002a requires suppressing review requests across runs when a repair was dispatched in a prior run and HEAD has
+- Q: FR-011 requires suppressing review requests across runs when a repair was dispatched in a prior run and HEAD has
   not changed. How is the "HEAD SHA at repair dispatch time" persisted across workflow invocations? The current
-  `repair_dispatched` is a local boolean within a single run. → A: FR-002a uses two distinct PR comment markers with
+  `repair_dispatched` is a local boolean within a single run. → A: FR-011 uses two distinct PR comment markers with
   different purposes. The existing `DEDUP_MARKER_PREFIX` marker is the run-dedup / dispatch-budget marker used by
   `check_deduplication()` to deduplicate orchestrator runs; because that guard may create or update the marker even
   when no repair is dispatched, the `DEDUP_MARKER_PREFIX` marker MUST NOT be treated as evidence that a repair was
@@ -88,7 +88,7 @@ that the repair agent is about to overwrite.
 
 **Independent Test**: Can be tested by simulating a repair dispatch event and verifying that subsequent `request_review` evaluations return SKIP with a "repair active" reason.
 
-**Mapped FRs**: FR-001, FR-002, FR-002a, FR-010.
+**Mapped FRs**: FR-001, FR-002, FR-011, FR-010.
 
 **Acceptance Scenarios**:
 
@@ -222,7 +222,7 @@ As a repository maintainer, I want the merge action to use squash merge strategy
 
 - **FR-002**: The `RequestReviewAction` MUST skip when an active Copilot coding session is detected (via `snapshot.active_session == True`).
 
-- **FR-002a**: The `RequestReviewAction` MUST skip on cross-run re-triggers when a repair was dispatched in a prior run and the HEAD SHA has not changed since
+- **FR-011**: The `RequestReviewAction` MUST skip on cross-run re-triggers when a repair was dispatched in a prior run and the HEAD SHA has not changed since
   that dispatch. Detection mechanism: a dedicated repair-dispatch marker comment (for example, using `REPAIR_DISPATCH_MARKER_PREFIX`) contains the HEAD SHA at successful dispatch time; this marker
   MUST be written only when `DispatchRepairAction` actually dispatches a repair. On re-trigger, the orchestrator reads this repair-specific marker and compares its SHA against current HEAD.
   Suppression is lifted when HEAD SHA differs from the marker SHA (indicating the repair agent pushed new code).
