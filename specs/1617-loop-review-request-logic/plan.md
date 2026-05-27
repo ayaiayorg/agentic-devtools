@@ -120,8 +120,8 @@ Key design choices:
 **Deliverables:**
 
 1. Reorder actions in `command.py` so `DispatchRepairAction` and `SquashAction` precede `RequestReviewAction`
-2. Update `run_pipeline` to set `derived.set("snapshot_invalidated", True)` when any action returns `invalidates_snapshot=True` (already tracked via `snapshot_invalidated_by` — just add the derived
-   set)
+2. Update `run_pipeline` so snapshot invalidation sets `derived.set("snapshot_invalidated", True)` and
+   `RequestReviewAction` reports `reason="snapshot_invalidated"` (either via evaluation after invalidation or a runner-generated SKIP result).
 
 **New action order:**
 
@@ -197,7 +197,7 @@ Each new guard check gets ≥2 test cases (positive: SKIP triggered; negative: g
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
 | Pipeline reorder breaks existing test expectations | Medium | Medium | Run full test suite after reorder; update test assertions |
-| `list_review_thread_states` GraphQL adds latency | Low | Low | Already called during snapshot build path; NFR-001 budget is 1 extra API call max |
+| `list_review_thread_states` GraphQL adds latency | Low | Low | Adds 1 GraphQL call during snapshot build; keep within NFR-001 by reusing this call for `total_unresolved_threads` |
 | `total_unresolved_threads` includes bot/stale threads | Medium | Low | Spec explicitly says "all unresolved regardless of author" — this is intentional |
 | `merge_pr` signature change breaks ADO provider | Low | Medium | Make `commit_message` param optional with default `None`; ADO provider ignores it |
 | Legacy orchestrator diverges from pipeline behavior | Medium | Medium | Phase 7 explicitly mirrors pipeline guards; shared helper functions |
