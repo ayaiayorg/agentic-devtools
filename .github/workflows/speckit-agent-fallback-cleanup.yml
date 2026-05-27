@@ -93,6 +93,10 @@ jobs:
             });
 
             for (const issue of issues) {
+              if (issue.pull_request) {
+                continue;
+              }
+
               // Parse marker comment for task ID (paginate to cover all comments)
               const comments = await github.paginate(github.rest.issues.listComments, {
                 owner: context.repo.owner,

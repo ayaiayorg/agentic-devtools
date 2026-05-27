@@ -186,6 +186,7 @@ async function checkIdempotency(octokit, owner, repo, issueNumber, phase) {
         skip: true,
         reason: `Existing open PR #${prs[0].number} on branch \`${expectedBranch}\``,
         url: prs[0].html_url,
+        source: 'open_pr',
       };
     }
   } catch (e) {
@@ -213,6 +214,8 @@ async function checkIdempotency(octokit, owner, repo, issueNumber, phase) {
             skip: true,
             reason: `Existing agent fallback task for issue #${issueNumber} phase ${phase}`,
             url: match[2],
+            taskId: match[1],
+            source: 'marker',
           };
         }
       }
@@ -225,7 +228,7 @@ async function checkIdempotency(octokit, owner, repo, issueNumber, phase) {
     // Non-fatal — continue
   }
 
-  return { skip: false, reason: '', url: '' };
+  return { skip: false, reason: '', url: '', source: '' };
 }
 
 // ---------------------------------------------------------------------------
@@ -380,8 +383,31 @@ async function run(params) {
   const idempotency = await checkIdempotency(github, owner, repo, normalizedIssueNumber, normalizedPhase);
   if (idempotency.skip) {
     core.info(`Idempotency guard: ${idempotency.reason}`);
-    // Treat this as "handled" so downstream failure handling doesn't mark the issue as failed.
-    core.setOutput('triggered', 'true');
+    // Only treat marker-based idempotency as handled when the referenced task is non-terminal.
+    // This prevents stale marker comments from suppressing normal failure handling.
+    let handled = true;
+    if (idempotency.source === 'marker') {
+      handled = false;
+      if (idempotency.taskId && token) {
+        try {
+          const resp = await github.request('GET /repos/{owner}/{repo}/copilot/coding-agent/tasks/{task_id}', {
+            owner,
+            repo,
+            task_id: idempotency.taskId,
+            headers: { 'X-GitHub-Api-Version': '2022-11-28' },
+          });
+          const status = String(resp?.data?.status || '').toLowerCase();
+          const nonTerminalStatuses = new Set(['queued', 'in_progress', 'requested', 'waiting']);
+          handled = nonTerminalStatuses.has(status);
+          core.info(`Idempotency marker task status=${status || 'unknown'} (handled=${handled})`);
+        } catch (e) {
+          core.warning(`Could not verify idempotency marker task status: ${e.message}`);
+        }
+      } else {
+        core.warning('Cannot verify idempotency marker task status (missing task id or token)');
+      }
+    }
+    core.setOutput('triggered', handled ? 'true' : 'false');
     // Post skip comment
     const commentOnIssue = process.env.SPECKIT_COMMENT_ON_ISSUE !== 'false';
     if (commentOnIssue) {
@@ -390,7 +416,7 @@ async function run(params) {
           owner,
           repo,
           issue_number: normalizedIssueNumber,
-          body: `## ℹ️ SpecKit: Agent Fallback Skipped\n\nFallback was not triggered because: ${idempotency.reason}\n\n**Existing**: [View](${idempotency.url})`,
+          body: `## ℹ️ SpecKit: Agent Fallback Skipped\n\nFallback was not triggered because: ${idempotency.reason}\n\n**Existing**: [View](${idempotency.url})\n\n**Handled by fallback guard**: ${handled ? 'yes' : 'no'}`,
         });
       } catch (e) {
         core.warning(`Could not post idempotency skip comment: ${e.message}`);

@@ -432,6 +432,99 @@ console.log('=== Testing kill-switch ===');
   }
 
   // ---------------------------------------------------------------------------
+  // Tests for marker idempotency handling in run()
+  // ---------------------------------------------------------------------------
+  console.log('=== Testing run() marker idempotency handling ===');
+
+  {
+    const outputsMarkerTerminal = {};
+    const mockCoreMarkerTerminal = {
+      info: () => {},
+      warning: () => {},
+      setOutput: (key, val) => { outputsMarkerTerminal[key] = val; },
+    };
+    const mockGithubMarkerTerminal = {
+      rest: {
+        pulls: { list: async () => ({ data: [] }) },
+        issues: {
+          listComments: async () => ({
+            data: [{
+              body: '<!-- speckit:agent-fallback task_id=abc123 task_url=https://example.com/task issue=123 phase=1 -->',
+            }],
+          }),
+          createComment: async () => ({}),
+        },
+      },
+      request: async (route) => {
+        if (route && route.includes('/copilot/coding-agent/tasks/')) {
+          return { data: { status: 'failed' } };
+        }
+        return { data: { id: 'x', url: 'https://example.com' } };
+      },
+    };
+    process.env.SPECKIT_COMMENT_ON_ISSUE = 'false';
+    await fallback.run({
+      github: mockGithubMarkerTerminal,
+      context: mockContext,
+      core: mockCoreMarkerTerminal,
+      phase: 1,
+      validationErrors: 'MISSING_SECTIONS: ## Foo',
+      workspaceFile: null,
+      issueNumber: 123,
+      issueTitle: 'Test',
+      issueBody: 'Body',
+      token: 'fake-token',
+      killSwitch: 'true',
+      referenceSpecPath: '',
+    });
+    assertEqual('marker skip with terminal task sets triggered to false', 'false', outputsMarkerTerminal.triggered);
+  }
+
+  {
+    const outputsMarkerRunning = {};
+    const mockCoreMarkerRunning = {
+      info: () => {},
+      warning: () => {},
+      setOutput: (key, val) => { outputsMarkerRunning[key] = val; },
+    };
+    const mockGithubMarkerRunning = {
+      rest: {
+        pulls: { list: async () => ({ data: [] }) },
+        issues: {
+          listComments: async () => ({
+            data: [{
+              body: '<!-- speckit:agent-fallback task_id=abc123 task_url=https://example.com/task issue=123 phase=1 -->',
+            }],
+          }),
+          createComment: async () => ({}),
+        },
+      },
+      request: async (route) => {
+        if (route && route.includes('/copilot/coding-agent/tasks/')) {
+          return { data: { status: 'in_progress' } };
+        }
+        return { data: { id: 'x', url: 'https://example.com' } };
+      },
+    };
+    process.env.SPECKIT_COMMENT_ON_ISSUE = 'false';
+    await fallback.run({
+      github: mockGithubMarkerRunning,
+      context: mockContext,
+      core: mockCoreMarkerRunning,
+      phase: 1,
+      validationErrors: 'MISSING_SECTIONS: ## Foo',
+      workspaceFile: null,
+      issueNumber: 123,
+      issueTitle: 'Test',
+      issueBody: 'Body',
+      token: 'fake-token',
+      killSwitch: 'true',
+      referenceSpecPath: '',
+    });
+    assertEqual('marker skip with non-terminal task sets triggered to true', 'true', outputsMarkerRunning.triggered);
+  }
+
+  // ---------------------------------------------------------------------------
   // Tests for STRUCTURAL_ERROR_SIGNATURES constant
   // ---------------------------------------------------------------------------
   console.log('=== Testing STRUCTURAL_ERROR_SIGNATURES ===');
