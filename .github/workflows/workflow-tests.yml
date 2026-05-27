@@ -58,6 +58,10 @@ jobs:
         run: |
           pytest tests/workflows/ -v --override-ini="addopts="
 
+      - name: Run Speckit agent fallback JS tests
+        run: |
+          node .github/scripts/speckit-trigger/tests/test_agent_fallback.js
+
   workflow-tests-skipped:
     name: Workflow Tests (Skipped — No Workflow Changes)
     needs: changes

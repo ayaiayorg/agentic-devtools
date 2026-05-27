@@ -2091,6 +2091,49 @@ Do NOT include any conversational preamble before the heading."
 }
 
 # ---------------------------------------------------------------------------
+# _emit_validation_errors <phase_number> <phase_name> <failures_text>
+#
+# Emits structured validation errors to $GITHUB_OUTPUT and writes a
+# validation-errors.json workspace file for downstream fallback consumption.
+# Only called on structural validation failures (FR-001).
+# ---------------------------------------------------------------------------
+_emit_validation_errors() {
+    local phase_number="$1"
+    local phase_name="$2"
+    local failures_text="$3"
+
+    # Emit semicolon-delimited validation_errors to GITHUB_OUTPUT
+    local output_line
+    output_line=$(printf '%s' "$failures_text" | tr '\n' ';' | sed 's/;$//')
+    echo "validation_errors=${output_line}" >> "${GITHUB_OUTPUT:-/dev/null}"
+
+    # Write validation-errors.json workspace file
+    local json_errors="["
+    local first=true
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        local category detail
+        category=$(printf '%s' "$line" | sed 's/^[[:space:]]*//' | cut -d: -f1)
+        detail=$(printf '%s' "$line" | sed 's/^[^:]*:[[:space:]]*//')
+        if [[ "$first" == "true" ]]; then
+            first=false
+        else
+            json_errors+=","
+        fi
+        # Escape JSON special characters in detail
+        detail=$(printf '%s' "$detail" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        json_errors+="{\"category\":\"${category}\",\"detail\":\"${detail}\"}"
+    done <<< "$failures_text"
+    json_errors+="]"
+
+    local json_file="${GITHUB_WORKSPACE:-${RUNNER_TEMP:-/tmp}}/validation-errors.json"
+    cat > "$json_file" <<JSONEOF
+{"phase":${phase_number},"phase_name":"${phase_name}","errors":${json_errors}}
+JSONEOF
+    echo "[Agent Fallback] Wrote validation errors to ${json_file}" >&2
+}
+
+# ---------------------------------------------------------------------------
 # run_specify_phase_with_validation_retries
 #
 # Runs Phase 1 specify with structural validation retries and structured
@@ -2182,6 +2225,8 @@ run_specify_phase_with_validation_retries() {
         echo "Error: Specify phase failed structural validation after ${SPECIFY_MAX_RETRIES} attempts." >&2
         echo "Failures:" >&2
         printf '%s\n' "$specify_last_failures" >&2
+        # Emit structured validation errors for downstream fallback consumption (FR-001)
+        _emit_validation_errors "1" "specify" "$specify_last_failures"
     fi
     return 1
 }

@@ -1,0 +1,212 @@
+name: SpecKit Agent Fallback Cleanup
+
+on:
+  pull_request:
+    types: [opened]
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+
+permissions: { contents: read, issues: write, pull-requests: read }
+
+jobs:
+  # Job 1: On PR opened, if head branch matches speckit/*/phase-*, remove
+  # speckit:processing from the linked issue (FR-012)
+  pr-cleanup:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Remove processing label on agent PR creation
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const headRef = context.payload.pull_request?.head?.ref || '';
+            const match = headRef.match(/^speckit\/(\d+)\/phase-\d+-/);
+            if (!match) {
+              core.info(`PR head ref '${headRef}' does not match speckit branch pattern — skipping`);
+              return;
+            }
+            const issueNumber = Number(match[1]);
+            if (!issueNumber) return;
+
+            // Check if issue has speckit:agent-fallback label (only clean up agent-triggered PRs)
+            try {
+              const { data: labels } = await github.rest.issues.listLabelsOnIssue({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+              });
+              const hasAgentLabel = labels.some(l => l.name === 'speckit:agent-fallback');
+              if (!hasAgentLabel) {
+                core.info(`Issue #${issueNumber} does not have speckit:agent-fallback label — skipping`);
+                return;
+              }
+            } catch (e) {
+              core.warning(`Could not check labels on issue #${issueNumber}: ${e.message}`);
+              return;
+            }
+
+            // Remove speckit:processing label
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:processing',
+              });
+              core.info(`Removed speckit:processing from issue #${issueNumber}`);
+            } catch (e) {
+              // Label may not exist — that's fine
+              core.info(`Could not remove speckit:processing from issue #${issueNumber}: ${e.message}`);
+            }
+
+  # Job 2: Scheduled polling — scan issues with speckit:agent-fallback label,
+  # check for terminal failure states, remove speckit:processing (FR-012)
+  poll-agent-tasks:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Poll agent fallback tasks for terminal states
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Find all issues with speckit:agent-fallback label that still have speckit:processing
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'speckit:agent-fallback,speckit:processing',
+              state: 'open',
+              per_page: 100,
+            });
+
+            if (issues.length === 0) {
+              core.info('No issues with both speckit:agent-fallback and speckit:processing labels');
+              return;
+            }
+
+            const openPulls = await github.paginate(github.rest.pulls.list, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              per_page: 100,
+            });
+
+            for (const issue of issues) {
+              // Parse marker comment for task ID (paginate to cover all comments)
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                per_page: 100,
+              });
+
+              const markerRegex = /<!-- speckit:agent-fallback task_id=([^ ]+) task_url=([^ ]+)/;
+              let taskId = null;
+              let taskUrl = null;
+              for (const comment of comments) {
+                const match = comment.body && comment.body.match(markerRegex);
+                if (match) {
+                  taskId = match[1];
+                  taskUrl = match[2];
+                  break;
+                }
+              }
+
+              if (!taskId) {
+                core.warning(`Issue #${issue.number}: no agent-fallback marker comment found`);
+                continue;
+              }
+
+              // Check if a PR already exists for this issue (terminal success)
+              const issueMatch = issue.number;
+              const hasPr = openPulls.some(pr =>
+                pr.head.ref.startsWith(`speckit/${issueMatch}/phase-`)
+              );
+
+              if (hasPr) {
+                // Terminal success — PR exists, remove processing label
+                try {
+                  await github.rest.issues.removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    name: 'speckit:processing',
+                  });
+                  core.info(`Issue #${issue.number}: PR found, removed speckit:processing`);
+                } catch (e) {
+                  core.info(`Issue #${issue.number}: could not remove label: ${e.message}`);
+                }
+                continue;
+              }
+
+              // Query Coding Agent task status API
+              let taskStatus = null;
+              try {
+                const resp = await github.request('GET /repos/{owner}/{repo}/copilot/coding-agent/tasks/{task_id}', {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  task_id: taskId,
+                  headers: { 'X-GitHub-Api-Version': '2022-11-28' },
+                });
+                taskStatus = resp.data.status;
+                core.info(`Issue #${issue.number}: agent task status = ${taskStatus}`);
+              } catch (e) {
+                core.warning(`Issue #${issue.number}: could not query task status: ${e.message}`);
+              }
+
+              // Handle terminal failure from API
+              if (taskStatus === 'failed' || taskStatus === 'cancelled') {
+                try {
+                  await github.rest.issues.removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    name: 'speckit:processing',
+                  });
+                  await github.rest.issues.addLabels({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    labels: ['speckit:failed'],
+                  });
+                  core.info(`Issue #${issue.number}: agent task ${taskStatus}, removed speckit:processing, added speckit:failed`);
+                } catch (e) {
+                  core.warning(`Issue #${issue.number}: could not update labels: ${e.message}`);
+                }
+                continue;
+              }
+
+              // If API returned a non-terminal status, skip timeout check
+              if (taskStatus && taskStatus !== 'failed' && taskStatus !== 'cancelled') {
+                continue;
+              }
+
+              // Fallback: check task age — if marker comment is older than 2 hours, consider it failed
+              const markerComment = comments.find(c => c.body && markerRegex.test(c.body));
+              if (markerComment) {
+                const createdAt = new Date(markerComment.created_at);
+                const now = new Date();
+                const ageMs = now - createdAt;
+                const twoHours = 2 * 60 * 60 * 1000;
+                if (ageMs > twoHours) {
+                  // Terminal failure — task timed out
+                  try {
+                    await github.rest.issues.removeLabel({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: issue.number,
+                      name: 'speckit:processing',
+                    });
+                    await github.rest.issues.addLabels({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: issue.number,
+                      labels: ['speckit:failed'],
+                    });
+                    core.info(`Issue #${issue.number}: agent task timed out (>2h), removed speckit:processing, added speckit:failed`);
+                  } catch (e) {
+                    core.warning(`Issue #${issue.number}: could not update labels: ${e.message}`);
+                  }
+                }
+              }
+            }
