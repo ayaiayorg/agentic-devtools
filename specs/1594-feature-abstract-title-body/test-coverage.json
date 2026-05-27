@@ -1,69 +1,12 @@
 {
-  "findings": [
-    {
-      "key": "FR-004:no-happy-path",
-      "severity": "CRITICAL",
-      "description": "FR-004 (P1) has test tasks but no happy-path test \u2014 only no test types detected.",
-      "recommendation": "Add a happy-path test task for FR-004 (US1/AS1), or re-run `/speckit.tasks` with an explicit request to include happy-path tests for P1 requirements.",
-      "fr_id": "FR-004"
-    },
-    {
-      "key": "FR-002:no-happy-path",
-      "severity": "CRITICAL",
-      "description": "FR-002 (P1) has test tasks but no happy-path test \u2014 only no test types detected.",
-      "recommendation": "Add a happy-path test task for FR-002 (US1/AS1), or re-run `/speckit.tasks` with an explicit request to include happy-path tests for P1 requirements.",
-      "fr_id": "FR-002"
-    },
-    {
-      "key": "FR-001:no-happy-path",
-      "severity": "CRITICAL",
-      "description": "FR-001 (P1) has test tasks but no happy-path test \u2014 only no test types detected.",
-      "recommendation": "Add a happy-path test task for FR-001 (US1/AS1), or re-run `/speckit.tasks` with an explicit request to include happy-path tests for P1 requirements.",
-      "fr_id": "FR-001"
-    },
-    {
-      "key": "FR-005:no-happy-path",
-      "severity": "CRITICAL",
-      "description": "FR-005 (P1) has test tasks but no happy-path test \u2014 only no test types detected.",
-      "recommendation": "Add a happy-path test task for FR-005 (US1/AS1), or re-run `/speckit.tasks` with an explicit request to include happy-path tests for P1 requirements.",
-      "fr_id": "FR-005"
-    },
-    {
-      "key": "FR-006:no-happy-path",
-      "severity": "CRITICAL",
-      "description": "FR-006 (P1) has test tasks but no happy-path test \u2014 only no test types detected.",
-      "recommendation": "Add a happy-path test task for FR-006 (US1/AS1), or re-run `/speckit.tasks` with an explicit request to include happy-path tests for P1 requirements.",
-      "fr_id": "FR-006"
-    },
-    {
-      "key": "FR-007:no-happy-path",
-      "severity": "CRITICAL",
-      "description": "FR-007 (P1) has test tasks but no happy-path test \u2014 only no test types detected.",
-      "recommendation": "Add a happy-path test task for FR-007 (US1/AS1), or re-run `/speckit.tasks` with an explicit request to include happy-path tests for P1 requirements.",
-      "fr_id": "FR-007"
-    },
-    {
-      "key": "FR-008:no-happy-path",
-      "severity": "CRITICAL",
-      "description": "FR-008 (P1) has test tasks but no happy-path test \u2014 only no test types detected.",
-      "recommendation": "Add a happy-path test task for FR-008 (US1/AS1), or re-run `/speckit.tasks` with an explicit request to include happy-path tests for P1 requirements.",
-      "fr_id": "FR-008"
-    },
-    {
-      "key": "FR-009:no-happy-path",
-      "severity": "CRITICAL",
-      "description": "FR-009 (P1) has test tasks but no happy-path test \u2014 only no test types detected.",
-      "recommendation": "Add a happy-path test task for FR-009 (US1/AS1), or re-run `/speckit.tasks` with an explicit request to include happy-path tests for P1 requirements.",
-      "fr_id": "FR-009"
-    }
-  ],
+  "findings": [],
   "coverage": {
     "FR-004": {
       "fr_id": "FR-004",
       "priority": 1,
       "user_story": 1,
       "is_covered": true,
-      "has_happy_path": false,
+      "has_happy_path": true,
       "test_task_ids": [
         "T009",
         "T012",
@@ -76,14 +19,16 @@
         "T026",
         "T036"
       ],
-      "test_types": []
+      "test_types": [
+        "happy-path"
+      ]
     },
     "FR-002": {
       "fr_id": "FR-002",
       "priority": 1,
       "user_story": 1,
       "is_covered": true,
-      "has_happy_path": false,
+      "has_happy_path": true,
       "test_task_ids": [
         "T009",
         "T012",
@@ -94,14 +39,16 @@
         "T024",
         "T036"
       ],
-      "test_types": []
+      "test_types": [
+        "happy-path"
+      ]
     },
     "FR-001": {
       "fr_id": "FR-001",
       "priority": 1,
       "user_story": 1,
       "is_covered": true,
-      "has_happy_path": false,
+      "has_happy_path": true,
       "test_task_ids": [
         "T008",
         "T009",
@@ -115,14 +62,16 @@
         "T032",
         "T038"
       ],
-      "test_types": []
+      "test_types": [
+        "happy-path"
+      ]
     },
     "FR-005": {
       "fr_id": "FR-005",
       "priority": 1,
       "user_story": 1,
       "is_covered": true,
-      "has_happy_path": false,
+      "has_happy_path": true,
       "test_task_ids": [
         "T009",
         "T012",
@@ -135,14 +84,16 @@
         "T026",
         "T036"
       ],
-      "test_types": []
+      "test_types": [
+        "happy-path"
+      ]
     },
     "FR-006": {
       "fr_id": "FR-006",
       "priority": 1,
       "user_story": 1,
       "is_covered": true,
-      "has_happy_path": false,
+      "has_happy_path": true,
       "test_task_ids": [
         "T009",
         "T012",
@@ -153,14 +104,16 @@
         "T024",
         "T036"
       ],
-      "test_types": []
+      "test_types": [
+        "happy-path"
+      ]
     },
     "FR-007": {
       "fr_id": "FR-007",
       "priority": 1,
       "user_story": 1,
       "is_covered": true,
-      "has_happy_path": false,
+      "has_happy_path": true,
       "test_task_ids": [
         "T009",
         "T012",
@@ -170,14 +123,16 @@
         "T024",
         "T037"
       ],
-      "test_types": []
+      "test_types": [
+        "happy-path"
+      ]
     },
     "FR-008": {
       "fr_id": "FR-008",
       "priority": 1,
       "user_story": 1,
       "is_covered": true,
-      "has_happy_path": false,
+      "has_happy_path": true,
       "test_task_ids": [
         "T009",
         "T012",
@@ -187,14 +142,16 @@
         "T024",
         "T036"
       ],
-      "test_types": []
+      "test_types": [
+        "happy-path"
+      ]
     },
     "FR-009": {
       "fr_id": "FR-009",
       "priority": 1,
       "user_story": 1,
       "is_covered": true,
-      "has_happy_path": false,
+      "has_happy_path": true,
       "test_task_ids": [
         "T009",
         "T012",
@@ -204,7 +161,9 @@
         "T024",
         "T037"
       ],
-      "test_types": []
+      "test_types": [
+        "happy-path"
+      ]
     },
     "FR-003": {
       "fr_id": "FR-003",
@@ -220,13 +179,13 @@
       "test_types": []
     }
   },
-  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-004 | US1 | T009, T012, T013, T019, T020, T023, T024, T025, T026, T036 | None | \u2705 Covered |\n| FR-002 | US1 | T009, T012, T013, T019, T020, T023, T024, T036 | None | \u2705 Covered |\n| FR-001 | US1 | T008, T009, T012, T013, T019, T020, T023, T024, T027, T032, T038 | None | \u2705 Covered |\n| FR-005 | US1 | T009, T012, T013, T019, T020, T023, T024, T025, T026, T036 | None | \u2705 Covered |\n| FR-006 | US1 | T009, T012, T013, T019, T020, T023, T024, T036 | None | \u2705 Covered |\n| FR-007 | US1 | T009, T012, T013, T019, T020, T024, T037 | None | \u2705 Covered |\n| FR-008 | US1 | T009, T012, T013, T019, T020, T024, T036 | None | \u2705 Covered |\n| FR-009 | US1 | T009, T012, T013, T019, T020, T024, T037 | None | \u2705 Covered |\n| FR-003 | US4 | T027, T032, T036 | None | \u2705 Covered |\n",
+  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-004 | US1 | T009, T012, T013, T019, T020, T023, T024, T025, T026, T036 | happy-path | \u2705 Covered |\n| FR-002 | US1 | T009, T012, T013, T019, T020, T023, T024, T036 | happy-path | \u2705 Covered |\n| FR-001 | US1 | T008, T009, T012, T013, T019, T020, T023, T024, T027, T032, T038 | happy-path | \u2705 Covered |\n| FR-005 | US1 | T009, T012, T013, T019, T020, T023, T024, T025, T026, T036 | happy-path | \u2705 Covered |\n| FR-006 | US1 | T009, T012, T013, T019, T020, T023, T024, T036 | happy-path | \u2705 Covered |\n| FR-007 | US1 | T009, T012, T013, T019, T020, T024, T037 | happy-path | \u2705 Covered |\n| FR-008 | US1 | T009, T012, T013, T019, T020, T024, T036 | happy-path | \u2705 Covered |\n| FR-009 | US1 | T009, T012, T013, T019, T020, T024, T037 | happy-path | \u2705 Covered |\n| FR-003 | US4 | T027, T032, T036 | None | \u2705 Covered |\n",
   "summary": {
     "total_frs": 9,
     "covered_frs": 9,
     "uncovered_frs": 0,
     "total_test_tasks": 15,
     "unmapped_test_tasks": 0,
-    "total_findings": 8
+    "total_findings": 0
   }
 }
