@@ -29,16 +29,17 @@
 
 ### Tests
 
-- [ ] T007 [US1] Write happy-path unit tests for `detectStructuralFailure()` function: verify known structural signatures are detected and parsed from step outputs or fallback file (FR-001),
-  and verify nominal non-structural failures are ignored without emitting fallback state (FR-002).
-  File: `.github/scripts/speckit-trigger/__tests__/agent-fallback.test.js`
-- [ ] T008 [US1] [P] Write happy-path unit tests for `buildProblemStatement()` function: verify issue title, body, phase, validation errors, and reference spec path are included in the
-  success/nominal output (FR-003); verify truncation to 49,152 bytes with `[truncated]` marker within the 49,152-byte budget
-- [ ] T009 [US1] [P] Write happy-path unit tests for `triggerCodingAgent()` function: verify correct API endpoint
+- [ ] T007 [US1] Add shell-based tests for `detectStructuralFailure()` using the existing `speckit-trigger` test harness: verify known structural signatures are detected and parsed from step outputs
+  or fallback file (FR-001), and verify nominal non-structural failures are ignored without emitting fallback state (FR-002).
+  Files: `.github/scripts/speckit-trigger/tests/agent-fallback-detect-structural-failure.*` and/or `.github/scripts/speckit-trigger/test_*.sh`
+- [ ] T008 [US1] [P] Add shell-based tests for `buildProblemStatement()` using the existing `speckit-trigger` test harness: verify issue title, body, phase, validation errors, and reference spec
+  path are included in the success/nominal output (FR-003); verify truncation to 49,152 bytes with `[truncated]` marker within the 49,152-byte budget
+- [ ] T009 [US1] [P] Add shell-based tests for `triggerCodingAgent()` using the existing `speckit-trigger` test harness: verify the correct API endpoint
   `POST /repos/{owner}/{repo}/copilot/coding-agent/tasks` is called with problem statement (FR-004); verify successful response parsing of `{id, url, status}`
-- [ ] T010 [US1] [P] Write unit tests for kill-switch: verify the happy-path/success case runs fallback when `SPECKIT_AGENT_FALLBACK` is enabled or unset, and verify fallback is skipped
-  entirely when `SPECKIT_AGENT_FALLBACK` is `"false"` (FR-009)
-- [ ] T011 [US1] [P] Write happy-path unit tests verifying the module works with both phase 1 context and phases 2–5 context in nominal execution (FR-010)
+- [ ] T010 [US1] [P] Add shell-based tests for the kill-switch using the existing `speckit-trigger` test harness: verify the happy-path/success case runs fallback when
+  `SPECKIT_AGENT_FALLBACK` is enabled or unset, and verify fallback is skipped entirely when `SPECKIT_AGENT_FALLBACK` is `"false"` (FR-009)
+- [ ] T011 [US1] [P] Add shell-based tests using the existing `speckit-trigger` test harness verifying the module works with both phase 1 context and phases 2–5 context in nominal
+  execution (FR-010)
 
 ### Implementation — Shared Module
 
@@ -55,9 +56,12 @@
 
 ### Workflow Integration
 
-- [ ] T018 [US1] Add "Agent Fallback" step to `.github/workflows/speckit-issue-trigger.yml` with `if: failure()`, loading `agent-fallback.js` via `actions/github-script@v7`, passing phase=1 (FR-010)
-- [ ] T019 [US1] [P] Add "Agent Fallback" step to `.github/workflows/speckit-phase-progression.yml` with `if: failure()`, loading `agent-fallback.js` via `actions/github-script@v7`, passing dynamic
-  phase (FR-010)
+- [ ] T018 [US1] Add "Agent Fallback" step to `.github/workflows/speckit-issue-trigger.yml` with `id: agent-fallback` and `if: failure()`, loading `agent-fallback.js` via `actions/github-script@v7`,
+  passing phase=1, and setting step output `triggered` to `'true'` when fallback is started or `'false'` otherwise so downstream conditions can read
+  `steps.agent-fallback.outputs.triggered` (FR-010)
+- [ ] T019 [US1] [P] Add "Agent Fallback" step to `.github/workflows/speckit-phase-progression.yml` with `id: agent-fallback` and `if: failure()`, loading `agent-fallback.js` via
+  `actions/github-script@v7`, passing dynamic phase, and setting step output `triggered` to `'true'` when fallback is started or `'false'` otherwise so downstream
+  conditions can read `steps.agent-fallback.outputs.triggered` (FR-010)
 - [ ] T020 [US1] Modify existing "Handle Failure" step condition in both workflows to `if: failure() && steps.agent-fallback.outputs.triggered != 'true'` so standard failure only runs when fallback
   did NOT trigger
 
