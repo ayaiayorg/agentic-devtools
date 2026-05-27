@@ -6,6 +6,29 @@
 **Input**: User description: "Improve SpecKit generation resilience to reduce frequent structural validation failures"
 **Source Issue**: #1571 (<https://github.com/ayaiayorg/agentic-devtools/issues/1571>)
 
+## Clarifications
+
+### Session 2026-05-27
+
+- Q: Where does the mandatory skeleton injection (FR-001) apply — only to the Phase 1 (specify) LLM prompt, or also to retry prompts in the clarify phase? → A: The skeleton injection applies
+  exclusively to the Phase 1 (specify) prompt template. The clarify phase already has its own retry logic in `clarify-retry.sh` with structured feedback. FR-001 targets the initial generation prompt
+  to ensure the LLM fills in a pre-structured document rather than generating headings from scratch.
+- Q: The spec says "3 retries" for the fallback (FR-003/US3), but the existing `SPECIFY_MAX_RETRIES=3` in `spec-validation.sh` represents 3 total retry attempts (not 3 retries after the initial
+  attempt, so 4 total calls). Which semantics does this feature follow? → A: The existing `SPECIFY_MAX_RETRIES=3` semantics are preserved — this means up to 3 retry attempts after the initial
+  generation (4 total LLM calls maximum). The fallback activates only after all 3 retry attempts have been exhausted. This is consistent with the existing variable name and behavior in
+  `spec-validation.sh`.
+- Q: FR-009 requires re-validation after phases that modify the spec. Given the pipeline is specify → clarify → checklist → plan → tasks → analyze, which specific phases trigger re-validation of the
+  spec structural integrity? → A: Re-validation runs after the specify phase (primary) and after the clarify phase (which modifies spec.md). The checklist, plan, tasks, and analyze phases produce
+  separate artifacts and do not modify spec.md, so they do not trigger spec structural re-validation. This aligns with the existing `generate-spec-from-issue.sh` architecture.
+- Q: For the dynamic threshold adaptation (FR-004), should the reduction apply only to `MIN_SPEC_BYTES` or also to `MIN_FUNCTIONAL_REQUIREMENTS` and `MIN_USER_STORIES`? The spec says "reduced
+  proportionally while maintaining minimum counts for requirements and user stories" which seems contradictory with the acceptance scenario mentioning "still requiring all mandatory sections and
+  minimum requirement counts." → A: The reduction applies ONLY to `MIN_SPEC_BYTES`. The `MIN_FUNCTIONAL_REQUIREMENTS` (5) and `MIN_USER_STORIES` (3) thresholds remain fixed regardless of issue
+  complexity. This ensures structural completeness while allowing shorter prose for simple issues.
+- Q: NFR-002 requires idempotent retries producing "structurally equivalent output." Does this mean byte-for-byte deterministic output, or that repeated runs on the same input always produce output
+  that passes the same structural validation checks (sections present, requirement counts met) even if prose content varies? → A: Structural equivalence means that repeated runs on the same input must
+  always pass the same structural validation checks — all mandatory sections present, requirement counts within the same range (±1), and bullet percentage below threshold. Byte-for-byte determinism is
+  NOT required and is not achievable with LLM-based generation. The idempotency guarantee is at the structural contract level, not the content level.
+
 ## Problem Statement
 
 The SpecKit specification generation workflow suffers from frequent structural validation failures that block pull requests and reduce developer productivity. When the LLM-based generation produces
@@ -70,7 +93,8 @@ the second attempt produces a valid spec.
 2. **Given** a first-attempt spec that failed because bullet percentage exceeded 80%, **When** the retry mechanism activates, **Then** the enriched prompt includes specific instructions to use prose
    paragraphs for descriptions, explains the bullet percentage rule, and provides an example of acceptable prose-to-bullet ratio.
 
-3. **Given** a first-attempt spec that failed because it was below the minimum byte threshold, **When** the retry mechanism activates, **Then** the enriched prompt instructs the LLM to expand each
+3. **Given** a first-attempt spec that failed because it was below the minimum byte threshold (default: 2048 bytes), **When** the retry mechanism activates, **Then** the enriched prompt instructs the
+   LLM to expand each
    section with detailed descriptions, elaborated acceptance scenarios, and comprehensive requirement definitions rather than terse summaries.
 
 ---
@@ -91,7 +115,8 @@ markers indicating it needs manual review.
 
 **Acceptance Scenarios**:
 
-1. **Given** that the spec generation has failed all configured retry attempts (default: 3 retries), **When** the final retry produces invalid output, **Then** the system writes a deterministic
+1. **Given** that the spec generation has failed all 3 configured retry attempts (totaling 4 LLM calls: 1 initial + 3 retries, controlled by `SPECIFY_MAX_RETRIES`), **When** the final retry produces
+   invalid output, **Then** the system writes a deterministic
    skeleton spec that includes all mandatory sections (Problem Statement, User Scenarios & Testing, Requirements, Success Criteria) populated with content derived from the issue title and body text.
 
 2. **Given** that the deterministic fallback skeleton has been written, **When** structural validation runs against it, **Then** it passes all checks including minimum length (via expanded template
@@ -115,10 +140,11 @@ rather than applying the same minimum byte count that would be appropriate for a
 
 **Acceptance Scenarios**:
 
-1. **Given** an issue with fewer than 200 characters of description, **When** the validation thresholds are computed, **Then** the minimum spec bytes threshold is reduced by up to 40% from the
-   default, while still requiring all mandatory sections and minimum requirement counts.
+1. **Given** an issue with fewer than 200 characters of description, **When** the validation thresholds are computed, **Then** the `MIN_SPEC_BYTES` threshold is reduced by up to 40% from the
+   default (from 2048 to a minimum of 1229 bytes), while `MIN_FUNCTIONAL_REQUIREMENTS` (5) and `MIN_USER_STORIES` (3) remain unchanged.
 
-2. **Given** an issue with a comprehensive multi-paragraph description exceeding 2000 characters, **When** the validation thresholds are computed, **Then** the standard minimum spec bytes threshold
+2. **Given** an issue with a comprehensive multi-paragraph description exceeding 2000 characters, **When** the validation thresholds are computed, **Then** the standard `MIN_SPEC_BYTES` threshold
+   (2048 bytes)
    applies without reduction.
 
 ---
@@ -141,7 +167,7 @@ expects.
    but also "Add a '## Success Criteria' section with at least one SC-### entry containing a measurable outcome metric."
 
 2. **Given** a spec that fails validation due to excessive bullet percentage (e.g., 95%), **When** the error report is generated, **Then** the message includes the actual percentage, the maximum
-   allowed percentage, and a suggestion such as "Convert bullet lists in Problem Statement and Requirements sections to prose paragraphs with explanatory context."
+   allowed percentage (80%), and a suggestion such as "Convert bullet lists in Problem Statement and Requirements sections to prose paragraphs with explanatory context."
 
 ---
 
@@ -173,7 +199,7 @@ detected" fallback.
 The following boundary conditions must be handled gracefully by the resilient generation pipeline:
 
 1. **Empty or near-empty issue body**: When the issue has only a title and no description body, the system must still generate a structurally valid spec by synthesizing content from the title alone,
-   applying reduced validation thresholds, and clearly marking synthesized sections.
+   applying reduced validation thresholds (40% reduction to `MIN_SPEC_BYTES` only), and clearly marking synthesized sections.
 
 2. **Malformed LLM output with partial sections**: When the LLM produces output with some mandatory sections present but others missing or malformed (e.g., a "Requirements" heading with no FR-###
    entries beneath it), the retry feedback must identify both the structural absence and the content absence separately.
@@ -195,16 +221,19 @@ The following functional requirements define the capabilities that the resilient
 goal of reducing structural validation failures.
 
 - **FR-001**: The system MUST inject a mandatory skeleton containing all required section headings (## Problem Statement, ## User Scenarios & Testing, ## Requirements, ## Success Criteria) into the
-  LLM prompt as a structural template that the LLM fills in rather than generates from scratch. This ensures that even minimal LLM output retains the required document structure.
+  Phase 1 (specify) LLM prompt as a structural template that the LLM fills in rather than generates from scratch. This skeleton injection applies exclusively to the specify phase prompt; the clarify
+  phase retains its existing retry logic in `clarify-retry.sh`. This ensures that even minimal LLM output retains the required document structure.
 
 - **FR-002**: The system MUST implement adaptive retry prompt enrichment that analyzes the specific validation failures from the previous attempt and includes targeted remediation instructions in the
-  retry prompt. The enrichment must address each distinct failure reason (missing sections, insufficient length, too few requirements, excessive bullets) with specific corrective guidance.
+  retry prompt. The enrichment must address each distinct failure reason (missing sections, insufficient length, too few requirements, excessive bullets) with specific corrective guidance. This builds
+  upon the existing `_build_structured_clarify_feedback` pattern in `clarify-retry.sh`.
 
-- **FR-003**: The system MUST provide a deterministic fallback skeleton generator that activates after all retry attempts are exhausted. The fallback skeleton must pass structural validation, derive
+- **FR-003**: The system MUST provide a deterministic fallback skeleton generator that activates after all retry attempts are exhausted (after `SPECIFY_MAX_RETRIES` retry attempts, defaulting to 3
+  retries = 4 total LLM calls). The fallback skeleton must pass structural validation, derive
   content from the issue title and body, and include a visible banner indicating fallback activation.
 
 - **FR-004**: The system MUST support dynamic validation threshold adaptation based on input issue complexity. For issues with description length below a configurable threshold (default: 200
-  characters), the minimum spec byte count must be reduced proportionally while maintaining minimum counts for requirements and user stories.
+  characters), the `MIN_SPEC_BYTES` threshold must be reduced by up to 40% while `MIN_FUNCTIONAL_REQUIREMENTS` (5) and `MIN_USER_STORIES` (3) remain fixed regardless of issue complexity.
 
 - **FR-005**: The system MUST emit structured, actionable error feedback for each validation failure that includes the specific failure reason, the actual vs. expected values, and a concrete
   remediation suggestion. This feedback must be consumable both by the retry mechanism (machine-readable) and by developers reviewing logs (human-readable).
@@ -215,11 +244,12 @@ goal of reducing structural validation failures.
 - **FR-007**: The system MUST track and report spec generation success metrics including first-attempt success rate, average retry count, fallback activation rate, and most common failure reasons.
   These metrics must be available in CI logs for monitoring.
 
-- **FR-008**: The system MUST validate that the bullet-to-prose ratio in generated specs does not exceed 80% of total content lines. When the ratio exceeds this threshold during generation, the retry
+- **FR-008**: The system MUST validate that the bullet-to-prose ratio in generated specs does not exceed 80% of total content lines (controlled by `MAX_BULLET_LINE_PCT`). When the ratio exceeds this
+  threshold during generation, the retry
   prompt must include explicit instructions to convert bullet lists into prose paragraphs with explanatory context.
 
-- **FR-009**: The system MUST preserve heading and requirement counts through all phases of the workflow (clarification, checklist, planning) by re-validating structural integrity after each phase
-  that modifies the spec content.
+- **FR-009**: The system MUST preserve heading and requirement counts through the specify and clarify phases by re-validating structural integrity after each phase that modifies `spec.md`. The
+  checklist, plan, tasks, and analyze phases produce separate artifacts and do not require spec re-validation.
 
 - **FR-010**: The system MUST support an explicit example injection mechanism in retry prompts, where on the second or subsequent retry, a reference example of a valid passing spec structure is
   included in the prompt to guide the LLM toward correct output format.
@@ -232,20 +262,23 @@ goal of reducing structural validation failures.
 The following non-functional requirements define quality attributes and constraints for the resilient generation system.
 
 - **NFR-001**: The total spec generation time including all retries must not exceed 120 seconds for any single issue. Each individual LLM call should complete within 30 seconds, and retry delays
-  should use exponential backoff starting at 2 seconds.
+  should use exponential backoff starting at 2 seconds (2s, 4s, 8s for retries 1, 2, 3 respectively).
 
-- **NFR-002**: The retry mechanism must be idempotent — running the same generation multiple times on the same issue input must produce structurally equivalent output (all mandatory sections present,
-  similar requirement counts) even if prose content varies between runs.
+- **NFR-002**: The retry mechanism must be structurally idempotent — running the same generation multiple times on the same issue input must produce structurally equivalent output (all mandatory
+  sections present,
+  requirement counts within ±1 of each other, bullet percentage below threshold) even if prose content varies between runs. Byte-for-byte determinism is not required.
 
 - **NFR-003**: All error messages and log output must follow the existing logging conventions established in the speckit-trigger scripts, using consistent formatting (emoji prefixes for
   warnings/errors, structured JSON for machine-readable output).
 
 - **NFR-004**: The fallback skeleton generator must execute in under 1 second without any network calls, using only the locally available issue data and template files.
 
-- **NFR-005**: The dynamic threshold adaptation must be configurable via environment variables (e.g., AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR) to allow per-repository tuning without code changes.
+- **NFR-005**: The dynamic threshold adaptation must be configurable via environment variables (e.g., `AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR`, defaulting to `0.6` representing 60% of original threshold
+  as the floor) to allow per-repository tuning without code changes.
 
-- **NFR-006**: The solution must maintain backward compatibility with existing spec-validation.sh contract — all existing validation checks must continue to work identically for specs generated by
-  other means (manual authoring, external tools).
+- **NFR-006**: The solution must maintain backward compatibility with existing `spec-validation.sh` contract — all existing validation checks must continue to work identically for specs generated by
+  other means (manual authoring, external tools). The existing configurable thresholds (`MIN_SPEC_BYTES`, `MIN_FUNCTIONAL_REQUIREMENTS`, `MIN_USER_STORIES`, `MAX_BULLET_LINE_PCT`,
+  `SPECIFY_MAX_RETRIES`) retain their current override semantics.
 
 ## Success Criteria
 
