@@ -394,7 +394,10 @@ async function run(params) {
             owner,
             repo,
             task_id: idempotency.taskId,
-            headers: { 'X-GitHub-Api-Version': '2022-11-28' },
+            headers: {
+              authorization: `token ${token}`,
+              'X-GitHub-Api-Version': '2022-11-28',
+            },
           });
           const status = String(resp?.data?.status || '').toLowerCase();
           const nonTerminalStatuses = new Set(['queued', 'in_progress', 'requested', 'waiting']);
