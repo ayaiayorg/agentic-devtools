@@ -2,15 +2,15 @@
 
 ## Phase Mapping: Plan → Tasks
 
-| Tasks Phase | Plan Phase |
-|-------------|------------|
-| Phase 1: Setup & Scaffolding | (pre-requisite scaffolding, not a plan phase) |
-| Phase 2: Foundational — Upstream Signal Emission | Phase 1: Upstream Signal Emission |
-| Phase 3: User Story 1 — Automatic Agent Fallback | Phase 2: Shared Fallback Module + Phase 3: Workflow Integration |
-| Phase 4: User Story 2 — Observability via Labels and Comments | Phase 5: Follow-up Workflows (partial) |
-| Phase 5: User Story 3 — Idempotent Fallback | Phase 4: Idempotency Guards |
-| Phase 6: User Story 4 — Graceful Degradation | Phase 2: Shared Fallback Module (degradation subset) |
-| Phase 7: Polish & Cross-Cutting | Phase 6: Testing & Validation |
+| Tasks Phase | Plan Phase(s) | Description |
+|-------------|---------------|-------------|
+| Phase 1: Setup & Scaffolding | (pre-requisite scaffolding, not a plan phase) | Repository and configuration prerequisites needed before implementation work begins. |
+| Phase 2: Foundational — Upstream Signal Emission | Phase 1: Upstream Signal Emission | Establishes the upstream validation failure signals consumed by fallback logic. |
+| Phase 3: User Story 1 — Automatic Agent Fallback | Phase 2: Shared Fallback Module + Phase 3: Workflow Integration | Implements the core automatic coding-agent fallback flow and integrates it into workflows. |
+| Phase 4: User Story 2 — Observability via Labels and Comments | Phase 5: Follow-up Workflows (partial) | Adds labels and issue comments so fallback activity is visible to users and maintainers. |
+| Phase 5: User Story 3 — Idempotent Fallback | Phase 4: Idempotency Guards | Prevents duplicate fallback task creation when workflows are retried or rerun. |
+| Phase 6: User Story 4 — Graceful Degradation | Phase 2: Shared Fallback Module (degradation subset) | Ensures fallback failures degrade safely without breaking the primary workflow experience. |
+| Phase 7: Polish & Cross-Cutting | Phase 6: Testing & Validation | Covers final validation, cleanup, and cross-cutting quality work across all stories. |
 
 ## Phase 1: Setup & Scaffolding
 
