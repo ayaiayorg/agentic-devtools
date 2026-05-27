@@ -66,7 +66,7 @@ All decisions align with the proven `squash-wait-scheduler.yml` pattern.
      - `schedule: - cron: '*/2 * * * *'` (meets the 120-second latency target from FR-001)
      - `workflow_dispatch` (manual trigger)
    - Permissions: `contents: read`, `pull-requests: read`, `actions: write`, `issues: read`
-   - Single job `monitor-agent-sessions`, `runs-on: ubuntu-latest`, `timeout-minutes: 5`
+   - Single job `monitor-agent-sessions`, `runs-on: ubuntu-latest`, `timeout-minutes: 2`
    - **Concurrency group**: `agent-session-monitor` with `cancel-in-progress: false` (serializes scheduled runs)
 
 2. **Step: Restore cache** — use `actions/cache/restore@v4` with:
