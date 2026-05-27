@@ -9,11 +9,11 @@
 | Phase 3: US4 | Plan Phase 2 | Rewrite Principle I (Scoped Tool Availability) |
 | Phase 4: US1 | Plan Phase 3 | Rewrite Principle II (Dual-Layer State) |
 | Phase 5: US2 | Plan Phases 4, 8 | Update Principle IV + Quality Gates coverage |
-| Phase 6: US5 | Plan Phase 6 (IX) | Add Principle IX (Graph Orchestration) |
-| Phase 7: US6 | Plan Phase 6 (X) | Add Principle X (Dual-Engine) |
-| Phase 8: US3 | Plan Phases 6 (XI), 7, 9 | Add Principle XI + update Dev Workflow + Governance |
-| Phase 9: US8 | Plan Phase 5 | Update Principle VI (remove version bump) |
-| Phase 10: US7 | Plan Phase 1 (verify) | Verify Sync Impact Report completeness |
+| Phase 6: US3 | Plan Phases 6 (XI), 7, 9 | Add Principle XI + update Dev Workflow + Governance |
+| Phase 7: US5 | Plan Phase 6 (IX) | Add Principle IX (Graph Orchestration) |
+| Phase 8: US6 | Plan Phase 6 (X) | Add Principle X (Dual-Engine) |
+| Phase 9: US7 | Plan Phase 1 (verify) | Verify Sync Impact Report completeness |
+| Phase 10: US8 | Plan Phase 5 | Update Principle VI (remove version bump) |
 | Phase 11: Version Footer | Plan Phase 10 | Update version footer |
 | Final Phase | Plan Phase 11 | Verification & cross-cutting checks |
 
@@ -93,16 +93,16 @@
 
 ## Final Phase: Verification & Cross-Cutting
 
-- [ ] T025 Run SC-001 verification: confirm `**Version**: 1.2.0` exists in `.specify/memory/constitution.md`
-- [ ] T026 Run SC-002 verification: confirm zero occurrences of "95%" in `.specify/memory/constitution.md`
-- [ ] T027 Run SC-003 verification: confirm "No distributed configuration" does not appear in `.specify/memory/constitution.md`
-- [ ] T028 Run SC-004 verification: confirm "Breaking changes to CLI UX require a major version bump" does not appear in `.specify/memory/constitution.md`
-- [ ] T029 Run SC-005 verification: confirm "Migration plan for affected code" does not appear in `.specify/memory/constitution.md`
-- [ ] T030 Run SC-006 verification: confirm Principles IX, X, XI exist with correct titles in `.specify/memory/constitution.md`
-- [ ] T031 Run SC-007 verification: confirm Sync Impact Report references `1.1.0 → 1.2.0` in `.specify/memory/constitution.md`
-- [ ] T032 Run SC-008 verification: confirm principles III, V, VII, VIII are unchanged and IX, X, XI are appended after VIII (no renumbering) in `.specify/memory/constitution.md`
-- [ ] T033 Run NFR-004 verification: confirm all principles use `### N. Title` heading format and include `**Rationale**:` block in `.specify/memory/constitution.md`
-- [ ] T034 Run markdownlint on `.specify/memory/constitution.md` to confirm no formatting regressions
+- [ ] T025 Review SC-001 status — `**Version**: 1.2.0` is present in `.specify/memory/constitution.md`
+- [ ] T026 Review SC-002 status — zero occurrences of "95%" remain in `.specify/memory/constitution.md`
+- [ ] T027 Review SC-003 status — "No distributed configuration" is absent from `.specify/memory/constitution.md`
+- [ ] T028 Review SC-004 status — "Breaking changes to CLI UX require a major version bump" is absent from `.specify/memory/constitution.md`
+- [ ] T029 Review SC-005 status — "Migration plan for affected code" is absent from `.specify/memory/constitution.md`
+- [ ] T030 Review SC-006 status — Principles IX, X, XI are present with correct titles in `.specify/memory/constitution.md`
+- [ ] T031 Review SC-007 status — Sync Impact Report references `1.1.0 → 1.2.0` in `.specify/memory/constitution.md`
+- [ ] T032 Review SC-008 status — principles III, V, VII, VIII are unchanged and IX, X, XI are appended after VIII (no renumbering) in `.specify/memory/constitution.md`
+- [ ] T033 Review NFR-004 status — all principles use `### N. Title` heading format and include `**Rationale**:` block in `.specify/memory/constitution.md`
+- [ ] T034 Run markdownlint on `.specify/memory/constitution.md` and fix any formatting regressions
 
 ## Dependencies
 
