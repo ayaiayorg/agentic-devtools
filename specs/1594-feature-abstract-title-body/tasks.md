@@ -47,7 +47,8 @@ user story/provider and add setup plus final cross-cutting validation work.
 
 ## Phase 3: User Story 1 & 2 — Edit-Relevance Guard Implementation (P1)
 
-- [ ] T009 [US1] [US2] Write failing tests for `check_edit_relevance` covering: non-edited action passes through (US3), edited+unknown metadata passes through, happy-path success title change proceeds (US1), base change
+- [ ] T009 [US1] [US2] Write failing tests for `check_edit_relevance` covering: non-edited action passes through (US3), edited+unknown metadata passes through,
+  happy-path success title change proceeds (US1), base change
   proceeds, body-only skips (US2), simultaneous title+body proceeds (FR-005, FR-008), empty changes dict skips in `tests/unit/cli/ci/guards/test_check_edit_relevance.py`
 - [ ] T010 [US1] [US2] Implement `check_edit_relevance(event: EventPayload) -> tuple[bool, str]` in `agentic_devtools/cli/ci/guards.py` — returns `(True, reason)` to skip when `action=="edited"` AND
   `edit_changes_known=True` AND `title_changed=False` AND `base_changed=False`; returns `(False, "")` otherwise (FR-004, FR-005, FR-008)
@@ -58,7 +59,8 @@ user story/provider and add setup plus final cross-cutting validation work.
 
 ## Phase 4: User Story 1 & 2 — GitHub Provider Changes (P1)
 
-- [ ] T013 [P] [US1] Write failing happy-path success tests for GitHub provider `_parse_pull_request_event()` with edited event payloads containing `changes.title`, `changes.body`, `changes.base`, empty changes, no
+- [ ] T013 [P] [US1] Write failing happy-path success tests for GitHub provider `_parse_pull_request_event()` with edited event payloads containing
+  `changes.title`, `changes.body`, `changes.base`, empty changes, no
   changes key, and non-edited action in `tests/unit/cli/ci/github_provider/test_parse_event.py` (FR-002)
 - [ ] T014 [US1] Modify `_parse_pull_request_event()` in `agentic_devtools/cli/ci/github_provider.py` to set `edit_changes_known=True` when `action=="edited"` and `"changes"` key is present in raw
   payload (FR-002)
@@ -72,7 +74,8 @@ user story/provider and add setup plus final cross-cutting validation work.
 
 ## Phase 5: User Story 1 & 2 — Wire Guard into Command Entry Point (P1)
 
-- [ ] T020 [US1] [US2] Write failing tests for `ai_pr_loop_command()` in `tests/unit/cli/ci/commands/test_ai_pr_loop_command.py`: body-only edit exits 0 with INFO log (FR-006), happy-path success title change proceeds
+- [ ] T020 [US1] [US2] Write failing tests for `ai_pr_loop_command()` in `tests/unit/cli/ci/commands/test_ai_pr_loop_command.py`:
+  body-only edit exits 0 with INFO log (FR-006), happy-path success title change proceeds
   to routing, non-edited event proceeds (FR-004)
 - [ ] T021 [US1] [US2] Import `check_edit_relevance` from `guards` and `logging` in `agentic_devtools/cli/ci/commands.py` (FR-004)
 - [ ] T022 [US1] [US2] Insert edit-relevance preflight between event parsing (line ~97) and v1/v2 routing (line ~103) in `ai_pr_loop_command()`: call `check_edit_relevance(event_payload)`, if
