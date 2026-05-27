@@ -45,7 +45,7 @@ Each workflow step must have a precisely defined set of tools and commands avail
 State management uses a dual-layer approach:
 
 - **CLI state**: Single `state.json` per workflow directory (`.agdt/workflows/{identity}/{worktree_key}/state.json`)
-- **Orchestration state**: LangGraph checkpointing for multi-step workflow recovery
+- **Orchestration state**: LangGraph checkpointing for multi-step workflow recovery when running `--engine langchain`
 - Transparent state inspection via `agdt-show`
 - Atomic state updates with file locking
 - Worktree/identity-scoped isolation with file locking for concurrent task safety
@@ -122,7 +122,7 @@ Follow standard Python packaging conventions:
 
 ### IX. LangGraph Orchestration
 
-Multi-step workflows use LangGraph with checkpoint state recovery:
+Multi-step workflows using `--engine langchain` use LangGraph with checkpoint state recovery:
 
 - Workflow state persisted via LangGraph checkpointing for resumability
 - Human-in-the-loop interrupts at defined decision points

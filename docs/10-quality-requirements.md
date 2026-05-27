@@ -384,7 +384,7 @@ flowchart TD
 - [ ] Has actionable output format
 - [ ] Has type hints on all functions
 - [ ] Has docstrings with examples
-- [ ] Has unit tests with 100% coverage
+- [ ] Has tests that maintain 100% overall coverage
 - [ ] Has integration test (if applicable)
 - [ ] Has entry point in `pyproject.toml`
 - [ ] Documented in appropriate module README
