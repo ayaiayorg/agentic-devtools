@@ -52,7 +52,9 @@ user story/provider and add setup plus final cross-cutting validation work.
   proceeds, body-only skips (US2), simultaneous title+body proceeds (FR-005, FR-008), empty changes dict skips in `tests/unit/cli/ci/guards/test_check_edit_relevance.py`
 - [ ] T010 [US1] [US2] Implement `check_edit_relevance(event: EventPayload) -> tuple[bool, str]` in `agentic_devtools/cli/ci/guards.py` — returns `(True, reason)` to skip when `action=="edited"` AND
   `edit_changes_known=True` AND `title_changed=False` AND `base_changed=False`; returns `(False, "")` otherwise (FR-004, FR-005, FR-008)
-- [ ] T011 [US2] Ensure `check_edit_relevance` skip reason for body-only/non-title edits captures the required invariant (edited event with no title or base change) without requiring an exact sentence; tests should assert key substrings/structure consistent with the spec/examples (FR-005)
+- [ ] T011 [US2] Ensure `check_edit_relevance` skip reason for body-only/non-title edits captures the required invariant
+  (edited event with no title or base change) without requiring an exact sentence; tests should assert key
+  substrings/structure consistent with the spec/examples (FR-005)
 - [ ] T012 [US1] [US2] Verify all test branches pass for `check_edit_relevance` — confirm 100% line and branch coverage (FR-004, FR-005, FR-008)
 
 ---
