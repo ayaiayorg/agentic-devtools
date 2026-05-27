@@ -362,8 +362,8 @@ flowchart TD
     LintCI -->|Pass| Coverage
     LintCI -->|Fail| Fix
     
-    Coverage -->|"==100% (required)"| Merge[Merge Allowed]
-    Coverage -->|"<100%"| Fix
+    Coverage -->|==100% (required)| Merge[Merge Allowed]
+    Coverage -->|<100%| Fix
     
     Fix --> Dev
     
