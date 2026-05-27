@@ -16,9 +16,11 @@
   `unresolved_threads`. The Key Entities section has been corrected to preserve `unresolved_threads` for the existing Copilot-only count and use the new total count for FR-003.
 
 - Q: FR-002a requires suppressing review requests across runs when a repair was dispatched in a prior run and HEAD has not changed. How is the "HEAD SHA at repair dispatch time" persisted across
-  workflow invocations? The current `repair_dispatched` is a local boolean within a single run. → A: The repair dispatch SHA is persisted via the existing deduplication marker mechanism
-  (`DEDUP_MARKER_PREFIX` comment on the PR). The `DispatchRepairAction` already posts a marker comment containing the HEAD SHA. On re-trigger, the orchestrator reads this marker to detect prior repair
-  dispatches and compares the marker SHA against current HEAD. No new persistence mechanism is needed — FR-002a leverages the existing dedup marker infrastructure.
+  workflow invocations? The current `repair_dispatched` is a local boolean within a single run. → A: The repair dispatch SHA is persisted via a dedicated repair-dispatch marker comment on the PR,
+  distinct from the general deduplication marker (`DEDUP_MARKER_PREFIX`). Because `check_deduplication()` in the legacy orchestrator runs in the guard phase on most invocations and may create/update
+  the general dedup marker even when no repair is dispatched, it cannot reliably signal that a repair was actually dispatched. FR-002a therefore requires a separate marker prefix
+  (e.g., `REPAIR_DISPATCH_MARKER_PREFIX`) that is written only when `DispatchRepairAction` actually dispatches a repair. On re-trigger, the orchestrator reads this repair-specific marker to detect
+  prior repair dispatches and compares the marker SHA against current HEAD. No new persistence mechanism beyond a PR comment is needed, but the marker must be distinct from the run-dedup marker.
 
 - Q: FR-003 says "unresolved review comment threads" but the existing `unresolved_threads` field on `PRStateSnapshot` specifically counts "unresolved Copilot review threads from prior commits." Should
   FR-003 block on ALL unresolved threads (including human reviewer threads and threads on current HEAD), or only the subset already tracked? → A: FR-003 should block on ALL unresolved review threads
