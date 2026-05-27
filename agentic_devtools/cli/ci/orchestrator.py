@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 from datetime import datetime, timezone
 from typing import Any
@@ -43,6 +42,7 @@ from agentic_devtools.cli.ci.guards import (
     read_squash_wait_marker,
     write_squash_wait_marker,
 )
+from agentic_devtools.cli.ci.logging_config import is_github_actions, log_group
 from agentic_devtools.cli.ci.models import (
     COPILOT_COMMENT_LOGINS,
     COPILOT_LOGINS,
@@ -63,20 +63,15 @@ from agentic_devtools.cli.ci.provider import CIPlatformProvider
 logger = logging.getLogger(__name__)
 
 
-def _is_github_actions() -> bool:
-    """Return True when running inside GitHub Actions."""
-    return os.environ.get("GITHUB_ACTIONS") == "true"
-
-
 def _log_group(title: str) -> None:
     """Emit a ``::group::`` annotation when running in GitHub Actions."""
-    if _is_github_actions():
+    if is_github_actions():
         print(f"::group::{title}", file=sys.stderr, flush=True)
 
 
 def _log_endgroup() -> None:
     """Emit an ``::endgroup::`` annotation when running in GitHub Actions."""
-    if _is_github_actions():
+    if is_github_actions():
         print("::endgroup::", file=sys.stderr, flush=True)
 
 
@@ -87,11 +82,10 @@ def _emit_decision_summary(summary: dict[str, Any]) -> None:
     so that CI logs are self-documenting and diagnosable without digging
     through raw log text.
     """
-    _log_group("AI PR Loop — Decision Summary")
-    json.dump(summary, sys.stdout, indent=2)
-    sys.stdout.write("\n")
-    sys.stdout.flush()
-    _log_endgroup()
+    with log_group("AI PR Loop — Decision Summary"):
+        json.dump(summary, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        sys.stdout.flush()
 
 
 # Exit codes used by the AI PR loop orchestrator.

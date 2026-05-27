@@ -15,7 +15,7 @@ class TestEmitDecisionSummary:
         summary = {"decision": "merged", "exit_code": 0}
         buf = StringIO()
         with patch("agentic_devtools.cli.ci.orchestrator.sys.stdout", buf):
-            with patch("agentic_devtools.cli.ci.orchestrator._is_github_actions", return_value=False):
+            with patch("agentic_devtools.cli.ci.logging_config.is_github_actions", return_value=False):
                 _emit_decision_summary(summary)
         output = buf.getvalue()
         parsed = json.loads(output)
@@ -29,7 +29,7 @@ class TestEmitDecisionSummary:
         with (
             patch("agentic_devtools.cli.ci.orchestrator.sys.stdout", out_buf),
             patch("agentic_devtools.cli.ci.orchestrator.sys.stderr", err_buf),
-            patch("agentic_devtools.cli.ci.orchestrator._is_github_actions", return_value=True),
+            patch("agentic_devtools.cli.ci.logging_config.is_github_actions", return_value=True),
         ):
             _emit_decision_summary(summary)
         assert json.loads(out_buf.getvalue()) == summary
@@ -45,7 +45,7 @@ class TestEmitDecisionSummary:
         with (
             patch("agentic_devtools.cli.ci.orchestrator.sys.stdout", out_buf),
             patch("agentic_devtools.cli.ci.orchestrator.sys.stderr", err_buf),
-            patch("agentic_devtools.cli.ci.orchestrator._is_github_actions", return_value=False),
+            patch("agentic_devtools.cli.ci.logging_config.is_github_actions", return_value=False),
         ):
             _emit_decision_summary(summary)
         assert json.loads(out_buf.getvalue()) == summary
