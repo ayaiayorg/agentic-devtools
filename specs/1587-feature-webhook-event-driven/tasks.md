@@ -1,6 +1,6 @@
 # Tasks: Event-Driven Trigger for AI PR Loop on Agent Session Completion
 
-**Feature Branch**: `1587-feature-webhook-event-driven`
+**Feature Branch**: `speckit/1587/phase-4-tasks`
 **Source Issue**: [#1587](https://github.com/ayaiayorg/agentic-devtools/issues/1587)
 
 ---
@@ -13,7 +13,7 @@ Phases are 1:1 aligned with `plan.md`.
 
 ## Phase 1: Setup
 
-- [ ] T001 Create feature branch `1587-feature-webhook-event-driven` from `main`
+- [ ] T001 Create feature branch `feature/1587/webhook-event-driven` from `main`
 - [ ] T002 Create workflow file scaffold at `.github/workflows/agent-session-monitor.yml` with name, triggers (`on: schedule: - cron: '*/2 * * * *'`,
   `workflow_dispatch`), permissions (`contents: read`, `pull-requests:
   read`, `actions: write`, `issues: read`), and empty job skeleton
@@ -75,7 +75,7 @@ Phases are 1:1 aligned with `plan.md`.
 - [ ] T021 Add `DRY_RUN` environment variable support — when set, log dispatch commands without executing `gh workflow run`
 - [ ] T022 [US2] Create a test fixture `.github/test-fixtures/seen-events-sample.json` with pre-seeded event IDs for deduplication validation in dry-run mode (FR-002)
 - [ ] T023 [US2] Validate deduplication by running monitor with `DRY_RUN=true` and pre-seeded seen-events fixture, confirming already-seen events are skipped (FR-002)
-- [ ] T024 [US1] Manual happy-path success validation — trigger `workflow_dispatch` on `agent-session-monitor.yml` and verify structured logs, cache creation,
+- [ ] T024 [US1] Manual happy-path success test — trigger `workflow_dispatch` on `agent-session-monitor.yml` and verify structured logs, cache creation,
   and dispatch behavior for eligible open PRs (FR-004)
 - [ ] T025 Integration verification — confirm dispatched `workflow_dispatch` is received by `ai-pr-loop.yml` and PR number is correctly resolved in its concurrency group
 
@@ -112,9 +112,9 @@ T025 → T026, T027 (parallel) → T028 → T029
 | FR | Tasks |
 | --- | --- |
 | FR-001 | T007, T010 |
-| FR-002 | T006, T012, T013, T014 |
+| FR-002 | T006, T012, T013, T014, T022, T023 |
 | FR-003 | T010 |
-| FR-004 | T008 |
+| FR-004 | T008, T024 |
 | FR-005 | T010 |
 | FR-006 | T015, T016 |
 | FR-007 | T009 |
