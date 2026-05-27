@@ -24,7 +24,7 @@
 ## Phase 2: Foundational — Sync Impact Report
 
 - [ ] T002 (FR-012) Replace the Sync Impact Report HTML comment block with a v1.1.0 → v1.2.0 change report listing modified principles (I, II, IV, VI), added principles (IX, X, XI), removed
-  content, and templates requiring review in `.specify/memory/constitution.md`
+  content, templates requiring review, and stale-documentation follow-up items (for example docs still referencing 95%) in `.specify/memory/constitution.md`
 
 ## Phase 3: User Story 4 — Scoped Tool Availability (P1)
 
@@ -75,17 +75,17 @@
   `.specify/memory/constitution.md`
 - [ ] T020 [US3] (FR-010) Verify happy-path: confirm "Migration plan for affected code" does not appear in Governance → Amendments in `.specify/memory/constitution.md`
 
-## Phase 9: User Story 8 — UX Consistency Update (P3)
+## Phase 9: User Story 7 — Sync Impact Report (P2)
 
-- [ ] T021 [US8] (FR-005) Update Principle VI: remove "Breaking changes to CLI UX require a major version bump and migration notes" and replace with reference to Principle XI in
+- [ ] T021 [US7] (FR-012) Verify the Sync Impact Report (from T002) lists all modified principles (I, II, IV, VI), added principles (IX, X, XI), removed content, templates requiring review, and
+  stale-documentation follow-up items — adjust if needed in `.specify/memory/constitution.md`
+
+## Phase 10: User Story 8 — UX Consistency Update (P3)
+
+- [ ] T022 [US8] (FR-005) Update Principle VI: remove "Breaking changes to CLI UX require a major version bump and migration notes" and replace with reference to Principle XI in
   `.specify/memory/constitution.md`
-- [ ] T022 [US8] (FR-005) Validate: confirm Principle VI no longer contains "Breaking changes to CLI UX require a major version bump and migration notes" and now includes a reference to Principle XI
+- [ ] T023 [US8] (FR-005) Validate: confirm Principle VI no longer contains "Breaking changes to CLI UX require a major version bump and migration notes" and now includes a reference to Principle XI
   ("Pre-1.0 Flexibility") in `.specify/memory/constitution.md`
-
-## Phase 10: User Story 7 — Sync Impact Report (P2)
-
-- [ ] T023 [US7] (FR-012) Verify the Sync Impact Report (from T002) lists all modified principles (I, II, IV, VI), added principles (IX, X, XI), removed content, and templates requiring review —
-  adjust if needed in `.specify/memory/constitution.md`
 
 ## Phase 11: Version Footer
 
@@ -110,8 +110,8 @@
 T001 → T002, T003, T005, T007, T008, T011, T013, T015, T016, T017, T021, T024
 T011 → T013 (Principle X inserted after IX)
 T013 → T015 (Principle XI inserted after X)
-T015 → T016, T017, T021 (references to Principle XI require it to exist)
-T002 → T023 (verify Sync Impact Report completeness after all edits)
+T015 → T016, T017, T022 (references to Principle XI require it to exist)
+T002 → T021 (verify Sync Impact Report completeness after all edits)
 T003 → T004 (verify FR-002 after implementation)
 T005 → T006 (verify FR-003 after implementation)
 T007 → T009 (verify FR-004 after implementation)
@@ -121,8 +121,8 @@ T016 → T019 (verify FR-009 after implementation)
 T017 → T020 (verify FR-010 after implementation)
 T011 → T012 (verify FR-006 after implementation)
 T013 → T014 (verify FR-007 after implementation)
-T021 → T022 (verify FR-005 after implementation)
-T003, T005, T007, T008, T015, T016, T017, T011, T013, T021, T024 → T025–T034 (verification after all edits)
+T022 → T023 (verify FR-005 after implementation)
+T003, T005, T007, T008, T015, T016, T017, T011, T013, T022, T024 → T025–T034 (verification after all edits)
 ```
 
 ---
