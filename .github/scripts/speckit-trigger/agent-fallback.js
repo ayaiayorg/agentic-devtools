@@ -294,8 +294,16 @@ async function applyLabelsAndComment(octokit, owner, repo, issueNumber, taskId, 
       issue_number: issueNumber,
       body,
     });
-  } else if (core) {
-    core.info('Skipping issue comment: SPECKIT_COMMENT_ON_ISSUE=false');
+  } else {
+    if (core) {
+      core.info('Posting marker-only issue comment: SPECKIT_COMMENT_ON_ISSUE=false');
+    }
+    await octokit.rest.issues.createComment({
+      owner,
+      repo,
+      issue_number: issueNumber,
+      body: marker,
+    });
   }
 
   // Add speckit:agent-fallback label (FR-005) and ensure speckit:processing remains present (FR-012)

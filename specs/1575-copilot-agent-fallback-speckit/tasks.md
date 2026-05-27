@@ -23,7 +23,7 @@
 - [x] T004 Modify `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` to emit `validation_errors` to `$GITHUB_OUTPUT` on structural validation failure (FR-001). Output format:
   semicolon-delimited `CATEGORY: detail` pairs. Ensure non-structural failures (auth, network, import errors) do NOT emit these markers (FR-002)
 - [x] T005 [P] Modify `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` to write `validation-errors.json` workspace file as fallback signal alongside `$GITHUB_OUTPUT` (FR-001)
-- [x] T006 Add `id: generate` (or equivalent step id) to the orchestrator step in both workflow files to enable `steps.generate.outputs.validation_errors` access
+- [x] T006 Add `id: generate` (or equivalent step id) to the phase-progression workflow to enable `steps.generate.outputs.validation_errors` access; in the phase-1 issue-trigger workflow, rely on workspace `validation-errors.json` because the Python orchestrator does not propagate script-emitted outputs to the step `$GITHUB_OUTPUT`
 
 ## Phase 3: User Story 1 — Automatic Agent Fallback (P1)
 
@@ -57,11 +57,11 @@
 ### Workflow Integration
 
 - [x] T018 [US1] Add "Agent Fallback" step to `.github/workflows/speckit-issue-trigger.yml` with `id: agent-fallback` and `if: failure()`, loading `agent-fallback.js` via `actions/github-script@v7`,
-  passing phase=1, and setting step output `triggered` to `'true'` when fallback is started or `'false'` otherwise so downstream conditions can read
-  `steps.agent-fallback.outputs.triggered` (FR-010)
+  passing phase=1, and setting outputs where `triggered` indicates whether fallback started and `handled` controls downstream failure gating via
+  `steps.agent-fallback.outputs.handled` (FR-010)
 - [x] T019 [US1] [P] Add "Agent Fallback" step to `.github/workflows/speckit-phase-progression.yml` with `id: agent-fallback` and `if: failure()`, loading `agent-fallback.js` via
-  `actions/github-script@v7`, passing dynamic phase, and setting step output `triggered` to `'true'` when fallback is started or `'false'` otherwise so downstream
-  conditions can read `steps.agent-fallback.outputs.triggered` (FR-010)
+  `actions/github-script@v7`, passing dynamic phase, and setting outputs where `triggered` indicates whether fallback started and `handled` controls downstream failure
+  gating via `steps.agent-fallback.outputs.handled` (FR-010)
 - [x] T020 [US1] Modify existing "Handle Failure" step condition in both workflows to `if: failure() && steps.agent-fallback.outputs.handled != 'true'` so standard failure only runs when fallback
   did NOT handle the failure
 

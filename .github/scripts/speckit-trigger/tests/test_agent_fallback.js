@@ -432,6 +432,61 @@ console.log('=== Testing kill-switch ===');
   }
 
   // ---------------------------------------------------------------------------
+  // Tests for marker persistence when SPECKIT_COMMENT_ON_ISSUE=false
+  // ---------------------------------------------------------------------------
+  console.log('=== Testing marker persistence with comments disabled ===');
+
+  {
+    const outputsMarkerOnly = {};
+    const createdComments = [];
+    const mockCoreMarkerOnly = {
+      info: () => {},
+      warning: () => {},
+      setOutput: (key, val) => { outputsMarkerOnly[key] = val; },
+    };
+    const mockGithubMarkerOnly = {
+      rest: {
+        pulls: { list: async () => ({ data: [] }) },
+        issues: {
+          listComments: async () => ({ data: [] }),
+          createComment: async ({ body }) => {
+            createdComments.push(body);
+            return {};
+          },
+          addLabels: async () => ({}),
+          removeLabel: async () => ({}),
+        },
+      },
+      request: async (route) => {
+        if (route && route.includes('coding-agent/tasks')) {
+          return { data: { id: 'task-123', url: 'https://example.com/task/123', status: 'queued' } };
+        }
+        return { data: {} };
+      },
+    };
+    process.env.SPECKIT_COMMENT_ON_ISSUE = 'false';
+    await fallback.run({
+      github: mockGithubMarkerOnly,
+      context: mockContext,
+      core: mockCoreMarkerOnly,
+      phase: 1,
+      validationErrors: 'MISSING_SECTIONS: ## Foo',
+      workspaceFile: null,
+      issueNumber: 123,
+      issueTitle: 'Test',
+      issueBody: 'Body',
+      token: 'fake-token',
+      killSwitch: 'true',
+      referenceSpecPath: '',
+    });
+    assertEqual('comments-disabled success sets triggered to true', 'true', outputsMarkerOnly.triggered);
+    assertEqual('comments-disabled success sets handled to true', 'true', outputsMarkerOnly.handled);
+    assertEqual('creates one marker-only comment', 1, createdComments.length);
+    assertTruthy('marker-only comment contains task id marker', createdComments[0].includes('<!-- speckit:agent-fallback task_id=task-123'));
+    assertTruthy('marker-only comment omits user-facing heading', !createdComments[0].includes('SpecKit: Agent Fallback Triggered'));
+  }
+
+  // ---------------------------------------------------------------------------
   // Tests for marker idempotency handling in run()
   // ---------------------------------------------------------------------------
   console.log('=== Testing run() marker idempotency handling ===');

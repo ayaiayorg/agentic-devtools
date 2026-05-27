@@ -98,6 +98,9 @@ jobs:
                 continue;
               }
 
+              const now = new Date();
+              const twoHours = 2 * 60 * 60 * 1000;
+
               // Parse marker comment for task ID (paginate to cover all comments)
               const comments = await github.paginate(github.rest.issues.listComments, {
                 owner: context.repo.owner,
@@ -124,7 +127,29 @@ jobs:
               }
 
               if (!taskId) {
-                core.warning(`Issue #${issue.number}: no agent-fallback marker comment found`);
+                const issueUpdatedAt = new Date(issue.updated_at || issue.created_at);
+                const ageMs = now - issueUpdatedAt;
+                if (ageMs > twoHours) {
+                  try {
+                    await github.rest.issues.removeLabel({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: issue.number,
+                      name: 'speckit:processing',
+                    });
+                    await github.rest.issues.addLabels({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: issue.number,
+                      labels: ['speckit:failed'],
+                    });
+                    core.warning(`Issue #${issue.number}: no marker found and issue stale (>2h), removed speckit:processing, added speckit:failed`);
+                  } catch (e) {
+                    core.warning(`Issue #${issue.number}: could not update labels for stale missing marker: ${e.message}`);
+                  }
+                } else {
+                  core.warning(`Issue #${issue.number}: no agent-fallback marker comment found`);
+                }
                 continue;
               }
 
@@ -195,9 +220,7 @@ jobs:
               // Fallback: check task age — if the most recent marker comment is older than 2 hours, consider it failed
               if (latestMarkerCreatedAt) {
                 const createdAt = new Date(latestMarkerCreatedAt);
-                const now = new Date();
                 const ageMs = now - createdAt;
-                const twoHours = 2 * 60 * 60 * 1000;
                 if (ageMs > twoHours) {
                   // Terminal failure — task timed out
                   try {

@@ -104,7 +104,7 @@ jobs:
               context,
               core,
               phase: 1,
-              validationErrors: process.env.VALIDATION_ERRORS,
+              validationErrors: '',
               workspaceFile: process.env.WORKSPACE_FILE,
               issueNumber: Number(process.env.ISSUE_NUMBER_ENV) || 0,
               issueTitle: process.env.ISSUE_TITLE_ENV,
