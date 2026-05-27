@@ -24,7 +24,7 @@
 ## Phase 2: Foundational — Sync Impact Report
 
 - [ ] T002 (FR-012) Replace the Sync Impact Report HTML comment block with a v1.1.0 → v1.2.0 change report listing modified principles (I, II, IV, VI), added principles (IX, X, XI), removed
-  content, templates requiring review, and stale-documentation follow-up items (for example docs still referencing 95%) in `.specify/memory/constitution.md`
+  content, templates requiring review, and stale-documentation follow-up items (for example docs still referencing the prior coverage threshold) in `.specify/memory/constitution.md`
 
 ## Phase 3: User Story 4 — Scoped Tool Availability (P1)
 
@@ -82,10 +82,10 @@
 
 ## Phase 10: User Story 8 — UX Consistency Update (P3)
 
-- [ ] T022 [US8] (FR-005) Update Principle VI: remove "Breaking changes to CLI UX require a major version bump and migration notes" and replace with reference to Principle XI in
-  `.specify/memory/constitution.md`
+- [ ] T022 [US8] (FR-005) Update Principle VI: remove "Breaking changes to CLI UX require a major version bump and migration notes" and replace with text that references Principle XI and requires
+  changelog documentation for breaking CLI UX changes in `.specify/memory/constitution.md`
 - [ ] T023 [US8] (FR-005) Validate: confirm Principle VI no longer contains "Breaking changes to CLI UX require a major version bump and migration notes" and now includes a reference to Principle XI
-  ("Pre-1.0 Flexibility") in `.specify/memory/constitution.md`
+  ("Pre-1.0 Flexibility") plus a requirement for changelog documentation for breaking CLI UX changes in `.specify/memory/constitution.md`
 
 ## Phase 11: Version Footer
 
