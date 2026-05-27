@@ -21,15 +21,17 @@
 - Q: FR-002a requires suppressing review requests across runs when a repair was dispatched in a prior run and HEAD has
   not changed. How is the "HEAD SHA at repair dispatch time" persisted across workflow invocations? The current
   `repair_dispatched` is a local boolean within a single run. → A: FR-002a uses two distinct PR comment markers with
-  different purposes. The general run-dedup marker uses `DEDUP_MARKER_PREFIX` and exists only for deduplicating
-  orchestrator runs; because `check_deduplication()` in the legacy orchestrator runs in the guard phase on most
-  invocations and may create/update that marker even when no repair is dispatched, the run-dedup marker MUST NOT be
-  treated as evidence that a repair was dispatched. The repair-dispatch SHA is instead persisted via a separate
-  repair-dispatch marker comment using a dedicated prefix (e.g., `REPAIR_DISPATCH_MARKER_PREFIX`), written only when
-  `DispatchRepairAction` actually dispatches a repair. On re-trigger, the orchestrator reads only the repair-dispatch
-  marker to detect a prior repair dispatch and compares the SHA stored in that repair-dispatch marker against current
-  HEAD. No new persistence mechanism beyond PR comments is needed, but the repair-dispatch marker must remain distinct
-  from the run-dedup marker.
+  different purposes. The existing `DEDUP_MARKER_PREFIX` marker is the run-dedup / dispatch-budget marker used by
+  `check_deduplication()` to deduplicate orchestrator runs; because that guard may create or update the marker even
+  when no repair is dispatched, the `DEDUP_MARKER_PREFIX` marker MUST NOT be treated as evidence that a repair was
+  dispatched. The "repair actually dispatched at SHA" state is instead persisted in a separate repair-dispatch marker
+  comment using a different prefix constant, `REPAIR_DISPATCH_MARKER_PREFIX`, whose literal string MUST be distinct
+  from `DEDUP_MARKER_PREFIX` (for example, a dedicated `<!-- repair-dispatched-sha:... -->` prefix rather than the
+  existing `<!-- repair-dispatch:... -->` prefix). That repair-dispatch marker is written only when
+  `DispatchRepairAction` actually dispatches a repair. On re-trigger, the orchestrator reads only the
+  `REPAIR_DISPATCH_MARKER_PREFIX` marker to detect a prior repair dispatch and compares the SHA stored in that marker
+  against current HEAD. No new persistence mechanism beyond PR comments is needed, but the two marker formats must be
+  unambiguously distinguishable when parsed.
 
 - Q: FR-003 says "unresolved review comment threads" but the existing `unresolved_threads` field on `PRStateSnapshot`
   specifically counts "unresolved Copilot review threads from prior commits." Should FR-003 block on ALL unresolved
@@ -40,11 +42,13 @@
   call may be needed to capture the full count.
 
 - Q: FR-009 references "the Copilot SDK" for generating squash commit messages. What specific SDK or API is this? The
-  codebase doesn't appear to have an existing Copilot SDK integration for commit message generation. → A: "Copilot SDK"
-  refers to a future integration point that does not yet exist in the codebase. For the initial implementation, FR-009's
-  primary path should use the deterministic fallback (`_build_squash_commit_message` pattern — concatenating commit
-  subjects). The Copilot SDK integration should be stubbed behind an interface so it can be wired in later. SC-008's 80%
-  success metric becomes a post-integration KPI and does not apply until the SDK is available.
+  codebase doesn't appear to have an existing Copilot SDK integration for commit message generation. → A: FR-009 should
+  align with the existing GitHub provider behavior: there is already a Copilot SDK-based commit-message generation path
+  (`GitHubActionsProvider._generate_commit_message_via_sdk`) with deterministic fallback. The intended behavior is
+  SDK-first, falling back to the deterministic `_build_squash_commit_message` pattern (concatenated commit subjects) if
+  the SDK path is unavailable, disabled, or fails to produce a usable message. FR-009 and SC-008 should be read
+  accordingly: the feature is fallback-safe today, and SC-008's success metric applies to the SDK-primary flow with the
+  deterministic fallback preserving correctness when the SDK does not succeed.
 
 - Q: FR-006 states that `RequestReviewAction` MUST be suppressed if `SquashAction` executed and set
   `invalidates_snapshot=True`. How does `RequestReviewAction` observe that `SquashAction` executed in the same pipeline
@@ -227,7 +231,7 @@ As a repository maintainer, I want the merge action to use squash merge strategy
   `invalidates_snapshot=True`. Implementation: the pipeline runner sets `derived.set("snapshot_invalidated", True)` when any action returns `ActionResult.invalidates_snapshot == True`, and
   `RequestReviewAction.evaluate()` checks this flag.
 
-- **FR-007**: `RequestReviewAction` MUST fire as a fallback if `SquashAction` was skipped (e.g., only 1 commit) or failed (i.e., `derived.snapshot_invalidated` is not set).
+- **FR-007**: `RequestReviewAction` MUST fire as a fallback if `SquashAction` was skipped (e.g., only 1 commit) or failed without invalidating the snapshot (i.e., `derived.snapshot_invalidated` is `False`).
 
 - **FR-008**: `MergeAction.execute()` MUST select merge strategy based on commit count: use `"squash"` when `snapshot.commit_count > 1`, use `"rebase"` when
   `snapshot.commit_count == 1`. When `commit_count` is unavailable (e.g., provider does not support it or returns `None`), the system MUST fall back to `"rebase"` to preserve existing behavior.
