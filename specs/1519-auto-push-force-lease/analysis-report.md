@@ -5,11 +5,11 @@
 | ID | Category | Severity | Location(s) | Summary | Recommendation |
 |----|----------|----------|-------------|---------|----------------|
 | F-01 | B | MEDIUM | Spec FR-4 | "remote branch is already aligned" and "no publishable branch update exists" lack measurable detection criteria — how does the code determine alignment? | Specify the exact git comparison (e.g., `git rev-parse HEAD == git rev-parse @{u}`) or note that `force_push()` itself is idempotent and safe to call |
-| F-02 | C | MEDIUM | Spec NFR-1 | "All existing callers of `checkout_and_sync_branch()` must be updated" — does not enumerate callers; tasks T004/T005/T029 partially address this but T029 references a legacy flat test path (`tests/azure_devops/test_review_commands.py`) outside 1:1:1 structure | Enumerate known callers explicitly in spec or plan; confirm T029 file path is correct |
+| F-02 | C | MEDIUM | Spec NFR-1 | "All existing callers of `checkout_and_sync_branch()` must be updated" — does not enumerate callers; tasks T004/T005/T029 partially address this and T029 references the existing legacy flat test path (`tests/azure_devops/test_review_commands.py`) outside 1:1:1 structure | Enumerate known callers explicitly in spec or plan; keep T029 as a legacy-path compatibility update and optionally add a follow-up task to migrate this test to 1:1:1 structure |
 | F-03 | F | LOW | Plan Phase 2 vs Tasks T001 | Plan Phase 2 describes helper + return type changes; Tasks Phase 1 (T001) is directory scaffolding mapped to "Phase 3: Tests" in plan. Naming mismatch between plan phases and task phases may confuse implementers | Add a note in tasks clarifying that "Tasks Phase N" ≠ "Plan Phase N" (the mapping table helps but phase numbers still collide) |
 | F-04 | G | HIGH | T009, T010 | T009 and T010 both verify `force_push()` is called after successful rebase in `commit_cmd()`/`_sync_with_main()` — T009 says "called exactly once after successful rebase and zero times when no rebase"; T010 says "verify existing behavior that force_push() is called when rebase_occurred=True" | Consolidate into one task or clarify T010 is strictly a regression guard with different test approach (e.g., integration-level) |
 | F-05 | G | HIGH | T026, T027, T028 | T026 runs full test suite, T027 validates test structure, T028 runs full PR checks (which includes tests + structure validation). T028 is a superset of T026+T027 making them redundant when run sequentially | Keep T028 as the gate; mark T026/T027 as optional pre-flight or merge into T028 |
-| F-06 | D | LOW | Spec | No explicit `## Out of Scope` or `## Assumptions` section; these are common SpecKit-mandated sections in some constitutions | Verify project constitution requirements; add if mandated |
+| F-06 | D | LOW | Spec | Spec includes the constitution-required sections (`## Problem Statement`, `## User Scenarios & Testing`, `## Requirements`, `## Success Criteria`) but does not include optional `## Out of Scope` / `## Assumptions` sections | Keep current structure as compliant; optionally add `Out of Scope` and `Assumptions` for extra reader clarity |
 | F-07 | C | MEDIUM | Tasks T008 | T008 says "call `force_push(dry_run=True)` or `publish_branch(dry_run=True)` based on `needs_force_push`" but does not specify what determines `needs_force_push` in dry-run mode since the actual rebase doesn't execute in dry-run | Clarify whether `_sync_with_main(dry_run=True)` returns a simulated `needs_force_push` value or if the dry-run path infers it differently |
 | F-08 | F | LOW | Spec FR-2 vs Plan Phase 2 | Spec says push occurs "immediately after a clean successful rebase"; Plan says "after line 202 where it prints 'Branch is synced with main.'". Line 202 reference may drift — consider anchoring to logic not line numbers | Remove line-number references from plan; anchor to logical position (after rebase success print) |
 
@@ -48,12 +48,12 @@
 | NFR-1 | ✅ | T003, T004, T005, T029 | Caller updates for new tuple |
 | NFR-2 | ✅ | T002, T017 | Reuses `--force-with-lease` via `force_push()` |
 | NFR-3 | ✅ | T019, T020, T021, T022 | Warning messaging tests |
-| NFR-4 | ✅ | — | Structural compliance (spec has all sections) |
+| NFR-4 | N/A | — | Structural requirement is satisfied by existing required sections; no implementation task is needed |
 | SC-1 | ✅ | T009, T010 | `_sync_with_main` test coverage |
 | SC-2 | ✅ | T011-T018 | `checkout_and_sync_branch` test coverage |
 | SC-3 | ✅ | T006, T007, T008, T016 | Dry-run scenarios |
 | SC-4 | ✅ | T019-T023 | Push failure scenarios |
-| SC-5 | ✅ | — | Spec structure is compliant |
+| SC-5 | N/A | — | Spec structure is compliant; no task-backed change is required |
 
 ## Metrics
 
