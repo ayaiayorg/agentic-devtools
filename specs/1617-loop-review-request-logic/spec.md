@@ -231,7 +231,8 @@ As a repository maintainer, I want the merge action to use squash merge strategy
   `invalidates_snapshot=True`. Implementation: the pipeline runner sets `derived.set("snapshot_invalidated", True)` when any action returns `ActionResult.invalidates_snapshot == True`, and
   `RequestReviewAction.evaluate()` checks this flag.
 
-- **FR-007**: `RequestReviewAction` MUST fire as a fallback if `SquashAction` was skipped (e.g., only 1 commit) or failed without invalidating the snapshot (i.e., `derived.snapshot_invalidated` is `False`).
+- **FR-007**: `RequestReviewAction` MUST fire as a fallback if `SquashAction` was skipped (e.g., only 1 commit)
+  or failed without invalidating the snapshot (i.e., `derived.snapshot_invalidated` is `False`).
 
 - **FR-008**: `MergeAction.execute()` MUST select merge strategy based on commit count: use `"squash"` when `snapshot.commit_count > 1`, use `"rebase"` when
   `snapshot.commit_count == 1`. When `commit_count` is unavailable (e.g., provider does not support it or returns `None`), the system MUST fall back to `"rebase"` to preserve existing behavior.
@@ -263,9 +264,14 @@ As a repository maintainer, I want the merge action to use squash merge strategy
   compatibility and any existing logic that
   depends on that specific count. A new `total_unresolved_threads` field is added for FR-003 and is the field consumed by `RequestReviewAction` when applying the broader unresolved-thread guard
   (all unresolved threads regardless of author or commit).
-- **DerivedState**: Extended with two new flags that MUST be initialized to `False` at the start of every orchestrator/pipeline run before any action evaluation occurs, so downstream code can safely use direct attribute access without `AttributeError` when a flag was never set during that run:
-  - `repair_dispatched` (bool) — initialized to `False` at run start, then set to `True` by `DispatchRepairAction` upon successful execution to communicate repair status to downstream actions like `RequestReviewAction`.
-  - `snapshot_invalidated` (bool) — initialized to `False` at run start, then set to `True` by the pipeline runner when any action returns `ActionResult.invalidates_snapshot == True`, consumed by `RequestReviewAction` to implement FR-006.
+- **DerivedState**: Extended with two new flags that MUST be initialized to `False` at the start of every
+  orchestrator/pipeline run before any action evaluation occurs, so downstream code can safely use direct
+  attribute access without `AttributeError` when a flag was never set during that run:
+  - `repair_dispatched` (bool) — initialized to `False` at run start, then set to `True` by `DispatchRepairAction`
+    upon successful execution to communicate repair status to downstream actions like `RequestReviewAction`.
+  - `snapshot_invalidated` (bool) — initialized to `False` at run start, then set to `True` by the pipeline
+    runner when any action returns `ActionResult.invalidates_snapshot == True`, consumed by
+    `RequestReviewAction` to implement FR-006.
 - **ActionResult**: Already supports `invalidates_snapshot` which is used by the squash-first logic (FR-006).
 - **CommitMessageGenerator** (protocol): New interface for commit message generation, with a single `DeterministicCommitMessageGenerator` implementation initially. Stubbed for future Copilot SDK
   integration.
