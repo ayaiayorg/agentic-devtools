@@ -22,11 +22,10 @@
 
 No separate `research.md` artifact was generated for this feature. Key decisions are inlined here:
 
-1. **Repair-dispatch marker format**: Use a distinct `REPAIR_DISPATCH_MARKER_PREFIX = "<!-- repair-dispatched-sha:"` constant
-   (separate from the existing dedup marker) to avoid ambiguity when reading back markers.
-2. **`total_unresolved_threads` fetching strategy**: Add `count_total_unresolved_threads` as an abstract/optional method on
-   `CIPlatformProvider`; the GitHub implementation reuses the existing `list_review_thread_states` GraphQL call. This introduces
-   one additional provider call during snapshot build, budgeted against NFR-001 as a single GraphQL round-trip.
+1. **Repair-dispatch marker format**: Use a distinct marker comment `<!-- repair-dispatched-sha:{sha} -->` with constant prefix
+   `REPAIR_DISPATCH_MARKER_PREFIX = "<!-- repair-dispatched-sha:"` (separate from the existing dedup marker) to avoid ambiguity when reading back markers; parsing extracts the SHA between the prefix and the closing `-->`.
+2. **`total_unresolved_threads` fetching strategy**: Add `count_total_unresolved_threads` as an optional capability on
+   `CIPlatformProvider` (default implementation returns `0` for providers that don't support review threads). The GitHub implementation reuses the existing `list_review_thread_states` GraphQL call, adding one GraphQL round-trip during snapshot build (budgeted against NFR-001).
 3. **`DerivedState` flag initialization**: Both `repair_dispatched` and `snapshot_invalidated` are initialized to `False` at the
    start of `run_pipeline` so downstream actions always find a defined value.
 4. **`CommitMessageGenerator` protocol design**: A `CommitMessageGenerator` protocol with a `DeterministicCommitMessageGenerator`
@@ -99,7 +98,7 @@ Key design choices:
 **Deliverables:**
 
 1. Add guard: skip if `derived.repair_dispatched == True` → reason `"repair_dispatched"`
-2. Add guard: skip if `snapshot.active_session == True` → reason `"repair_active"`
+2. Add guard: skip if `snapshot.active_session == True` → reason `"active_session"`
 3. Add guard: skip if prior-run repair marker SHA matches current HEAD → reason `"repair_dispatched_prior_run"`
 4. Add guard: skip if `snapshot.total_unresolved_threads > 0` → reason `"unresolved_comments"`
 5. Add guard: skip if `derived.snapshot_invalidated == True` → reason `"snapshot_invalidated"`
