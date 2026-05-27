@@ -11,8 +11,9 @@
 ### Session 2026-05-27
 
 - Q: The spec proposes extending `PRStateSnapshot` with `unresolved_thread_count`, but the existing field is named `unresolved_threads` (already present on `PRStateSnapshot`). Should the spec use the
-  existing field name, or does it intend a semantically different field? → A: The spec should use the existing `unresolved_threads` field already on `PRStateSnapshot`. No new field is needed. The Key
-  Entities section has been corrected to clarify that `unresolved_threads` is reused (not extended) for FR-003.
+  existing field name, or does it intend a semantically different field? → A: `unresolved_threads` should continue to mean the existing narrower count already on `PRStateSnapshot` (unresolved Copilot
+  review threads from prior commits). FR-003 now requires a broader all-authors/all-unresolved-threads count, so it should use a separate field such as `total_unresolved_threads` rather than reusing
+  `unresolved_threads`. The Key Entities section has been corrected to preserve `unresolved_threads` for the existing Copilot-only count and use the new total count for FR-003.
 
 - Q: FR-002a requires suppressing review requests across runs when a repair was dispatched in a prior run and HEAD has not changed. How is the "HEAD SHA at repair dispatch time" persisted across
   workflow invocations? The current `repair_dispatched` is a local boolean within a single run. → A: The repair dispatch SHA is persisted via the existing deduplication marker mechanism
@@ -234,8 +235,9 @@ and a deterministic commit message.
 
 ### Key Entities
 
-- **PRStateSnapshot**: The existing `unresolved_threads` field (counts prior-commit Copilot threads) is reused for `MergeAction` blocking. A new `total_unresolved_threads` field is added to support
-  FR-003's broader scope (all unresolved threads regardless of author or commit).
+- **PRStateSnapshot**: The existing `unresolved_threads` field (counts prior-commit Copilot threads) is retained with its current narrow semantics for backward compatibility and any existing logic that
+  depends on that specific count. A new `total_unresolved_threads` field is added for FR-003 and is the field consumed by `RequestReviewAction` when applying the broader unresolved-thread guard
+  (all unresolved threads regardless of author or commit).
 - **DerivedState**: Extended with two new flags:
   - `repair_dispatched` (bool) — set by `DispatchRepairAction` upon successful execution to communicate repair status to downstream actions like `RequestReviewAction`.
   - `snapshot_invalidated` (bool) — set by the pipeline runner when any action returns `ActionResult.invalidates_snapshot == True`, consumed by `RequestReviewAction` to implement FR-006.
