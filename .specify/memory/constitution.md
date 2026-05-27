@@ -44,11 +44,11 @@ Each workflow step must have a precisely defined set of tools and commands avail
 
 State management uses a dual-layer approach:
 
-- **CLI state**: Parallel-safe isolated JSON segments (`.agdt/workflows/{identity}/{worktree_key}/`)
+- **CLI state**: Single `state.json` per workflow directory (`.agdt/workflows/{identity}/{worktree_key}/state.json`)
 - **Orchestration state**: LangGraph checkpointing for multi-step workflow recovery
 - Transparent state inspection via `agdt-show`
 - Atomic state updates with file locking
-- Parallel-safe isolated state segments for concurrent subagent execution
+- Worktree/identity-scoped isolation with file locking for concurrent task safety
 
 **Rationale**: Enables reliable orchestration with checkpoint recovery while maintaining CLI-level state transparency and parallel safety.
 
@@ -186,7 +186,7 @@ Until v1.0.0, the project prioritizes optimization over stability:
 ### Pre-Commit
 
 - All tests pass
-- Code coverage = 100% for changed files
+- Overall coverage gate remains 100% (`--cov-fail-under=100`), so uncovered new/changed lines fail checks
 - No linting errors
 - Type checking passes
 - UX output and error handling conform to established patterns
