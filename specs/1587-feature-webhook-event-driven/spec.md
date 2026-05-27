@@ -85,8 +85,7 @@ exactly one workflow run (or the second should be cancelled by concurrency contr
 1. **Given** the event-driven monitor has already dispatched the AI PR loop for a `copilot_work_finished` event with a specific event ID, **When** a subsequent monitor cycle detects the same event ID
    in its Issues Events API response, **Then** no additional `workflow_dispatch` is issued because the event ID is found in the restored GitHub Actions cache list (prefix
    `agent-monitor-seen-events-`).
-   checks) cause the run to exit early without side effects.
-3. **Given** duplicate deliveries of the same `copilot_work_finished` event ID for a PR (e.g., API retry/read overlap), **When** the monitor processes both deliveries, **Then** only one
+2. **Given** duplicate deliveries of the same `copilot_work_finished` event ID for a PR (e.g., API retry/read overlap), **When** the monitor processes both deliveries, **Then** only one
    `workflow_dispatch` is emitted, deduplicated by event ID in the cache.
 
 ---
@@ -154,8 +153,8 @@ were found, and what dispatch actions were taken.
   Dispatch MUST be performed via `gh workflow run ai-pr-loop.yml --repo <owner/repo> --field pr_number="<N>" --field trigger_reason=agent_session_finished`.
 
 - **FR-002**: The system MUST deduplicate event-driven triggers so that a single `copilot_work_finished` event (identified by its unique event ID) results in at most one dispatched AI PR loop workflow
-  run. The deduplication mechanism MUST use GitHub Actions cache (`actions/cache`) by restoring the latest cache via prefix `agent-monitor-seen-events-{YYYY-MM-DD}-`, then saving the updated JSON set
-  of processed event IDs under a per-run key `agent-monitor-seen-events-{YYYY-MM-DD}-{github.run_id}` to persist state across monitor cycles and prevent re-processing of already-handled events.
+  run. The deduplication mechanism MUST use GitHub Actions cache (`actions/cache`) by restoring the latest cache via prefix `agent-monitor-seen-events-`, then saving the updated JSON array
+  of processed integer event IDs under a per-run key `agent-monitor-seen-events-{github.run_id}` to persist state across monitor cycles and prevent re-processing of already-handled events.
 
 - **FR-003**: The system MUST pass the PR number to the AI PR loop workflow when dispatching via `workflow_dispatch`, using the existing `pr_number` input parameter (as string) and `trigger_reason`
   input parameter, compatible with the existing `ai-pr-loop.yml` concurrency group expression (which resolves PR number from pull_request/issue/workflow_run/inputs, with `github.run_id` fallback).
@@ -191,8 +190,8 @@ were found, and what dispatch actions were taken.
 
 - **Agent Session Event**: A GitHub Issues Events API entry with event type `copilot_work_finished`, `copilot_work_finished_failure`, or `copilot_work_started`. Identified by a unique numeric event
   ID, associated with a PR number, and timestamped with `created_at`.
-- **Event Dispatch Record**: A JSON entry in the GitHub Actions cache (restored with prefix `agent-monitor-seen-events-{YYYY-MM-DD}-`, saved with key
-  `agent-monitor-seen-events-{YYYY-MM-DD}-{github.run_id}`) recording that a specific event ID has already been dispatched to the AI PR loop. The cache contains a set of integer event IDs. Entries
+- **Event Dispatch Record**: A JSON entry in the GitHub Actions cache (restored with prefix `agent-monitor-seen-events-`, saved with key
+  `agent-monitor-seen-events-{github.run_id}`) recording that a specific event ID has already been dispatched to the AI PR loop. The cache contains a JSON array of integer event IDs. Entries
   expire naturally with the cache TTL (7 days).
 - **Monitor Cycle**: A single execution of the `agent-session-monitor.yml` scheduled workflow. Scans all eligible open PRs, checks for unprocessed terminal events against the cached seen-events set,
   and dispatches `workflow_dispatch` triggers as needed.
