@@ -215,6 +215,27 @@ class TestAzureDevOpsProvider:
         assert result.body_changed is False
         assert result.base_changed is False
 
+    def test_parse_event_pr_updated_empty_changed_fields_marks_known(self) -> None:
+        """PR updated event with empty changedFields is known but irrelevant."""
+        provider = AzureDevOpsProvider()
+        raw = {
+            "resource": {
+                "pullRequestId": 42,
+                "sourceRefName": "refs/heads/feature/test",
+                "targetRefName": "refs/heads/main",
+                "lastMergeSourceCommit": {"commitId": "abc123"},
+                "repository": {"name": "my-repo"},
+            },
+            "resourceContainers": {"project": {"id": "my-project"}},
+            "changedFields": {},
+        }
+        result = provider.parse_event(raw, "git.pullrequest.updated")
+        assert result.action == "edited"
+        assert result.edit_changes_known is True
+        assert result.title_changed is False
+        assert result.body_changed is False
+        assert result.base_changed is False
+
     def test_parse_event_non_update_event_keeps_defaults(self) -> None:
         """Non-update events keep all edit fields at defaults."""
         provider = AzureDevOpsProvider()

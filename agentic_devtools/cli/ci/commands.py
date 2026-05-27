@@ -102,7 +102,7 @@ def ai_pr_loop_command() -> None:
         sys.stderr.write("\n")
         sys.exit(2)
 
-    # Edit-relevance preflight — skip body-only edits before any provider calls
+    # Edit-relevance preflight — skip body-only edits before orchestrator calls
     should_skip, skip_reason = check_edit_relevance(event_payload)
     if should_skip:
         logger = logging.getLogger(__name__)
