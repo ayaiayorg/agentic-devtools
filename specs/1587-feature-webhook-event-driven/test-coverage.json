@@ -1,0 +1,148 @@
+{
+  "findings": [
+    {
+      "key": "FR-004:no-happy-path",
+      "severity": "CRITICAL",
+      "description": "FR-004 (P1) has test tasks but no happy-path test \u2014 only no test types detected.",
+      "recommendation": "Add a happy-path test task for FR-004 (US1/AS1), or re-run `/speckit.tasks` with an explicit request to include happy-path tests for P1 requirements.",
+      "fr_id": "FR-004"
+    },
+    {
+      "key": "FR-006:priority-ambiguous",
+      "severity": "LOW",
+      "description": "FR-006 priority could not be determined \u2014 defaulting to non-P1, so missing test coverage would be HIGH (not CRITICAL).",
+      "recommendation": "Associate FR-006 with a user story that has an explicit priority (P1/P2/P3) in the spec.",
+      "fr_id": "FR-006"
+    },
+    {
+      "key": "FR-001:priority-ambiguous",
+      "severity": "LOW",
+      "description": "FR-001 priority could not be determined \u2014 defaulting to non-P1, so missing test coverage would be HIGH (not CRITICAL).",
+      "recommendation": "Associate FR-001 with a user story that has an explicit priority (P1/P2/P3) in the spec.",
+      "fr_id": "FR-001"
+    },
+    {
+      "key": "FR-002:priority-ambiguous",
+      "severity": "LOW",
+      "description": "FR-002 priority could not be determined \u2014 defaulting to non-P1, so missing test coverage would be HIGH (not CRITICAL).",
+      "recommendation": "Associate FR-002 with a user story that has an explicit priority (P1/P2/P3) in the spec.",
+      "fr_id": "FR-002"
+    },
+    {
+      "key": "FR-003:priority-ambiguous",
+      "severity": "LOW",
+      "description": "FR-003 priority could not be determined \u2014 defaulting to non-P1, so missing test coverage would be HIGH (not CRITICAL).",
+      "recommendation": "Associate FR-003 with a user story that has an explicit priority (P1/P2/P3) in the spec.",
+      "fr_id": "FR-003"
+    },
+    {
+      "key": "FR-005:priority-ambiguous",
+      "severity": "LOW",
+      "description": "FR-005 priority could not be determined \u2014 defaulting to non-P1, so missing test coverage would be HIGH (not CRITICAL).",
+      "recommendation": "Associate FR-005 with a user story that has an explicit priority (P1/P2/P3) in the spec.",
+      "fr_id": "FR-005"
+    },
+    {
+      "key": "FR-007:priority-ambiguous",
+      "severity": "LOW",
+      "description": "FR-007 priority could not be determined \u2014 defaulting to non-P1, so missing test coverage would be HIGH (not CRITICAL).",
+      "recommendation": "Associate FR-007 with a user story that has an explicit priority (P1/P2/P3) in the spec.",
+      "fr_id": "FR-007"
+    },
+    {
+      "key": "TASK:unmapped-test-task",
+      "severity": "LOW",
+      "description": "3 test task(s) lack both an FR reference and a valid [USn] label: T022, T023, T024.",
+      "recommendation": "Add explicit FR-NNN references or [USn] labels to these tasks so they can be mapped to requirements."
+    }
+  ],
+  "coverage": {
+    "FR-006": {
+      "fr_id": "FR-006",
+      "priority": 2,
+      "user_story": null,
+      "is_covered": true,
+      "has_happy_path": false,
+      "test_task_ids": [
+        "T015",
+        "T029"
+      ],
+      "test_types": []
+    },
+    "FR-004": {
+      "fr_id": "FR-004",
+      "priority": 1,
+      "user_story": 1,
+      "is_covered": true,
+      "has_happy_path": false,
+      "test_task_ids": [
+        "T029"
+      ],
+      "test_types": []
+    },
+    "FR-001": {
+      "fr_id": "FR-001",
+      "priority": 2,
+      "user_story": null,
+      "is_covered": true,
+      "has_happy_path": false,
+      "test_task_ids": [
+        "T029"
+      ],
+      "test_types": []
+    },
+    "FR-002": {
+      "fr_id": "FR-002",
+      "priority": 2,
+      "user_story": null,
+      "is_covered": true,
+      "has_happy_path": false,
+      "test_task_ids": [
+        "T029"
+      ],
+      "test_types": []
+    },
+    "FR-003": {
+      "fr_id": "FR-003",
+      "priority": 2,
+      "user_story": null,
+      "is_covered": true,
+      "has_happy_path": false,
+      "test_task_ids": [
+        "T029"
+      ],
+      "test_types": []
+    },
+    "FR-005": {
+      "fr_id": "FR-005",
+      "priority": 2,
+      "user_story": null,
+      "is_covered": true,
+      "has_happy_path": false,
+      "test_task_ids": [
+        "T029"
+      ],
+      "test_types": []
+    },
+    "FR-007": {
+      "fr_id": "FR-007",
+      "priority": 2,
+      "user_story": null,
+      "is_covered": true,
+      "has_happy_path": false,
+      "test_task_ids": [
+        "T029"
+      ],
+      "test_types": []
+    }
+  },
+  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-006 | N/A | T015, T029 | None | \u2705 Covered |\n| FR-004 | US1 | T029 | None | \u2705 Covered |\n| FR-001 | N/A | T029 | None | \u2705 Covered |\n| FR-002 | N/A | T029 | None | \u2705 Covered |\n| FR-003 | N/A | T029 | None | \u2705 Covered |\n| FR-005 | N/A | T029 | None | \u2705 Covered |\n| FR-007 | N/A | T029 | None | \u2705 Covered |\n",
+  "summary": {
+    "total_frs": 7,
+    "covered_frs": 7,
+    "uncovered_frs": 0,
+    "total_test_tasks": 5,
+    "unmapped_test_tasks": 3,
+    "total_findings": 8
+  }
+}
