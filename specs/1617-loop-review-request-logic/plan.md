@@ -88,7 +88,7 @@ Key design choices:
 - `agentic_devtools/cli/ci/pipeline/runner.py`
 - `agentic_devtools/cli/ci/provider.py` (add `count_total_unresolved_threads` abstract method or make it optional)
 
-### Phase 2: DispatchRepairAction — Repair Marker & DerivedState Flag (FR-001, FR-002a)
+### Phase 2: DispatchRepairAction — Repair Marker & DerivedState Flag (FR-001, FR-011)
 
 **Deliverables:**
 
@@ -103,7 +103,7 @@ Key design choices:
 - `agentic_devtools/cli/ci/provider.py` (optional methods)
 - `agentic_devtools/cli/ci/guards.py` (new marker helpers)
 
-### Phase 3: RequestReviewAction — New Guards (FR-001, FR-002, FR-002a, FR-003, FR-006, FR-007, FR-010)
+### Phase 3: RequestReviewAction — New Guards (FR-001, FR-002, FR-011, FR-003, FR-006, FR-007, FR-010)
 
 **Deliverables:**
 

@@ -18,9 +18,9 @@
   than reusing `unresolved_threads`. The Key Entities section has been corrected to preserve `unresolved_threads` for
   the existing Copilot-only count and use the new total count for FR-003.
 
-- Q: FR-002a requires suppressing review requests across runs when a repair was dispatched in a prior run and HEAD has
+- Q: FR-011 requires suppressing review requests across runs when a repair was dispatched in a prior run and HEAD has
   not changed. How is the "HEAD SHA at repair dispatch time" persisted across workflow invocations? The current
-  `repair_dispatched` is a local boolean within a single run. → A: FR-002a uses two distinct PR comment markers with
+  `repair_dispatched` is a local boolean within a single run. → A: FR-011 uses two distinct PR comment markers with
   different purposes. The existing `DEDUP_MARKER_PREFIX` marker is the run-dedup / dispatch-budget marker used by
   `check_deduplication()` to deduplicate orchestrator runs; because that guard may create or update the marker even
   when no repair is dispatched, the `DEDUP_MARKER_PREFIX` marker MUST NOT be treated as evidence that a repair was
@@ -88,6 +88,8 @@ that the repair agent is about to overwrite.
 
 **Independent Test**: Can be tested by simulating a repair dispatch event and verifying that subsequent `request_review` evaluations return SKIP with a "repair active" reason.
 
+**Mapped FRs**: FR-001, FR-002, FR-011, FR-010.
+
 **Acceptance Scenarios**:
 
 1. **Given** a PR where the orchestrator has just dispatched a repair (exit code = EXIT_REPAIR_DISPATCHED), **When** the review request logic is evaluated, **Then** no Copilot review request is sent
@@ -110,6 +112,8 @@ reviews.
 **Why this priority**: Requesting a new review while prior feedback is unresolved defeats the safety gate model — reviewers expect all prior comments to be addressed before re-review.
 
 **Independent Test**: Can be tested by configuring a PR snapshot with unresolved review threads or actionable inline comments and verifying `RequestReviewAction` returns SKIP.
+
+**Mapped FRs**: FR-003, FR-004.
 
 **Acceptance Scenarios**:
 
@@ -135,6 +139,8 @@ an optimization of an existing functional path rather than a correctness fix.
 **Independent Test**: Can be tested by setting up a multi-commit PR snapshot where CI passes and no session is active, verifying that squash executes before request_review, and that request_review
 only fires as a fallback if squash did not invalidate the snapshot.
 
+**Mapped FRs**: FR-006, FR-007.
+
 **Acceptance Scenarios**:
 
 1. **Given** a PR with 3 commits above merge-base and CI passing, **When** the pipeline action sequence runs, **Then** `SquashAction` executes first and `RequestReviewAction` is skipped because the
@@ -157,6 +163,8 @@ HEAD). Only active coding sessions are disrupted by squash.
 
 **Independent Test**: Can be tested by configuring a snapshot with `copilot_review_pending=True` and `active_session=False` and verifying `SquashAction.evaluate()` returns EXECUTE.
 
+**Mapped FRs**: FR-005.
+
 **Acceptance Scenarios**:
 
 1. **Given** a PR with >1 commit, a pending Copilot review, and no active Copilot coding session, **When** `SquashAction.evaluate()` is called, **Then** it returns `ActionDecision.EXECUTE` (squash
@@ -178,6 +186,8 @@ As a repository maintainer, I want the merge action to use squash merge strategy
 
 **Independent Test**: Can be tested by configuring a PR snapshot with `commit_count > 1` at the merge step and verifying `MergeAction.execute()` calls
 `provider.merge_pr()` with method `"squash"` and a deterministic commit message.
+
+**Mapped FRs**: FR-008, FR-009.
 
 **Acceptance Scenarios**:
 
@@ -212,7 +222,7 @@ As a repository maintainer, I want the merge action to use squash merge strategy
 
 - **FR-002**: The `RequestReviewAction` MUST skip when an active Copilot coding session is detected (via `snapshot.active_session == True`).
 
-- **FR-002a**: The `RequestReviewAction` MUST skip on cross-run re-triggers when a repair was dispatched in a prior run and the HEAD SHA has not changed since
+- **FR-011**: The `RequestReviewAction` MUST skip on cross-run re-triggers when a repair was dispatched in a prior run and the HEAD SHA has not changed since
   that dispatch. Detection mechanism: a dedicated repair-dispatch marker comment (for example, using `REPAIR_DISPATCH_MARKER_PREFIX`) contains the HEAD SHA at successful dispatch time; this marker
   MUST be written only when `DispatchRepairAction` actually dispatches a repair. On re-trigger, the orchestrator reads this repair-specific marker and compares its SHA against current HEAD.
   Suppression is lifted when HEAD SHA differs from the marker SHA (indicating the repair agent pushed new code).
