@@ -153,7 +153,8 @@ As a repository maintainer, I want the merge action to use squash merge strategy
 
 **Why this priority**: This is a safety net ensuring that multiple commits never result in a polluted main branch history, regardless of whether the pre-merge squash succeeded.
 
-**Independent Test**: Can be tested by configuring a PR snapshot with `commit_count > 1` at the merge step and verifying `MergeAction.execute()` calls `provider.merge_pr()` with method `"squash"` and a deterministic commit message.
+**Independent Test**: Can be tested by configuring a PR snapshot with `commit_count > 1` at the merge step and verifying `MergeAction.execute()` calls
+`provider.merge_pr()` with method `"squash"` and a deterministic commit message.
 
 **Acceptance Scenarios**:
 
@@ -233,7 +234,8 @@ As a repository maintainer, I want the merge action to use squash merge strategy
 
 ### Key Entities
 
-- **PRStateSnapshot**: The existing `unresolved_threads` field (counts prior-commit Copilot threads) is retained with its current narrow semantics for backward compatibility and any existing logic that
+- **PRStateSnapshot**: The existing `unresolved_threads` field (counts prior-commit Copilot threads) is retained with its current narrow semantics for backward
+  compatibility and any existing logic that
   depends on that specific count. A new `total_unresolved_threads` field is added for FR-003 and is the field consumed by `RequestReviewAction` when applying the broader unresolved-thread guard
   (all unresolved threads regardless of author or commit).
 - **DerivedState**: Extended with two new flags:
