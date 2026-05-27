@@ -28,7 +28,8 @@ user story/provider and add setup plus final cross-cutting validation work.
 
 - [ ] T001 Extend the existing CI guard module in `agentic_devtools/cli/ci/guards.py` for this feature; do not create a new `agentic_devtools/cli/ci/guards/` package directory
 
-- [ ] T002 Audit existing `agentic_devtools/cli/ci/` package directories and add missing `__init__.py` files only where an actual package directory lacks one; do not treat single-module files such as `models.py`, `github_provider.py`, `azure_devops_provider.py`, or `commands.py` as package directories
+- [ ] T002 Audit existing `agentic_devtools/cli/ci/` package directories and add missing `__init__.py` files only where an actual package directory lacks one;
+  do not treat single-module files such as `models.py`, `github_provider.py`, `ado_provider.py`, or `commands.py` as package directories
 
 ---
 

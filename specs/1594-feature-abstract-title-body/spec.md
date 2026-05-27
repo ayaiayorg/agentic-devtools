@@ -86,6 +86,8 @@ edit-relevance guard returns `(should_skip=False, reason="")` (proceed) and allo
 3. **Given** a PR with a title change event, **When** the `GitHubActionsProvider.parse_event()` is called with the raw GitHub webhook payload containing `changes.title.from`, **Then** the returned
    `EventPayload` has `title_changed=True` and `body_changed=False` (assuming the body did not also change).
 
+**Requirements covered**: FR-001, FR-002, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009
+
 ---
 
 ### User Story 2 - Body-Only Edits Are Silently Skipped (Priority: P1)
@@ -112,6 +114,8 @@ wasted CI runs on body-only edits.
 3. **Given** a body-only edit event is processed, **When** the orchestrator logs the skip decision, **Then** an INFO-level log message is emitted containing the PR number and the reason for skipping,
    enabling operators to audit why the pipeline did not proceed.
 
+**Requirements covered**: FR-001, FR-002, FR-004, FR-005, FR-006
+
 ---
 
 ### User Story 3 - Non-Edited Events Pass Through Unconditionally (Priority: P2)
@@ -134,6 +138,8 @@ returns `(should_skip=False, reason="")` regardless of the `title_changed` and `
    `(should_skip=False, reason="")` (proceed) without inspecting the `title_changed` or `body_changed` fields.
 
 3. **Given** a label is added to a PR, **When** the `pull_request` event with `action=labeled` is processed, **Then** the edit-relevance guard returns `(should_skip=False, reason="")` (proceed).
+
+**Requirements covered**: FR-004, FR-005
 
 ---
 
@@ -158,6 +164,8 @@ provider should populate the fields correctly when its webhook payload contains 
 
 3. **Given** the ADO webhook payload does not include change metadata (e.g., older API versions), **When** `parse_event()` processes it, **Then** both `title_changed` and `body_changed` default to
    `False`, and the edit-relevance guard passes through (fail-open behavior for unknown metadata).
+
+**Requirements covered**: FR-001, FR-003
 
 ---
 
