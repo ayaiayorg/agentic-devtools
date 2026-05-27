@@ -78,7 +78,7 @@ See [research.md](research.md) for detailed decisions on:
 1. Add `AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR` env var (default: `0.6`, NFR-005)
 2. Implement `_compute_dynamic_thresholds()` that:
    - Measures `ISSUE_BODY` character length
-   - If < 200 chars → reduces `MIN_SPEC_BYTES` by factor (floor = default × 0.6 = 1229)
+   - If < 200 chars → reduces `MIN_SPEC_BYTES` by factor (e.g., 2048 × 0.6 ≈ 1229 bytes)
    - Leaves `MIN_FUNCTIONAL_REQUIREMENTS` and `MIN_USER_STORIES` unchanged
 3. Call `_compute_dynamic_thresholds` at start of `run_specify_phase_with_validation_retries()`
 4. Add test cases for threshold computation edge cases
