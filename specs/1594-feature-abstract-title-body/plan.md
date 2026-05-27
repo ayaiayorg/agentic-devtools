@@ -1,5 +1,64 @@
 # Implementation Plan: Abstract PR Title/Body Change Event Filtering as a Provider-Agnostic Guard
 
+**Branch**: `speckit/1594/phase-3-plan` | **Date**: 2026-05-27 | **Spec**: `specs/1594-feature-abstract-title-body/spec.md`  
+**Input**: Feature specification from `/specs/1594-feature-abstract-title-body/spec.md`
+
+## Summary
+
+Introduce provider-agnostic edit-change metadata on `EventPayload` and a pure preflight guard in
+`ai_pr_loop_command()` so body-only PR edits are skipped while title/base edits continue through
+normal CI evaluation across GitHub and Azure DevOps providers.
+
+## Constitution Check
+
+*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+
+- ✅ Auto-Approval Friendly Design: no new CLI patterns; change is internal to CI event handling.
+- ✅ Single Source of Truth / Background Task Architecture: no workflow-state model changes.
+- ✅ TDD & Coverage / Code Quality: plan includes unit tests for all new model/guard/provider branches.
+- ✅ UX & Performance: skips irrelevant body-only edits early, reducing unnecessary pipeline work.
+
+## Project Structure
+
+### Documentation (this feature)
+
+```text
+specs/1594-feature-abstract-title-body/
+├── plan.md
+├── spec.md
+└── contracts/
+    └── .gitkeep
+```
+
+Artifact scope for this PR is intentionally limited to `plan.md` and `spec.md` (plus
+`contracts/.gitkeep`). `research.md`, `data-model.md`, `quickstart.md`, and populated contracts are
+not generated in this branch and should not be treated as available inputs for subsequent phases.
+
+### Source Code (repository root)
+
+```text
+agentic_devtools/cli/ci/
+├── models.py
+├── guards.py
+├── commands.py
+├── github_provider.py
+└── ado_provider.py
+
+tests/unit/cli/ci/
+├── models/
+├── guards/
+├── commands/
+├── github_provider/
+└── ado_provider/
+```
+
+**Structure Decision**: Keep changes scoped to existing CI provider/guard modules and mirrored unit
+test paths under `tests/unit/cli/ci/`.
+
+## Complexity Tracking
+
+No constitution violations or complexity exemptions identified for this plan.
+
 ## Technical Context
 
 - **Stack**: Python 3.x, frozen dataclasses, `logging` module, `gh` CLI for GitHub API
