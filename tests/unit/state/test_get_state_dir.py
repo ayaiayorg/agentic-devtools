@@ -379,9 +379,7 @@ class TestGetStateDirPinFile:
         self._write_pin(tmp_path, state_dir)
 
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
-            with patch.dict(
-                "os.environ", {"AGENTIC_DEVTOOLS_STATE_DIR": "   "}, clear=True
-            ):
+            with patch.dict("os.environ", {"AGENTIC_DEVTOOLS_STATE_DIR": "   "}, clear=True):
                 result = state.get_state_dir()
                 # Pin should be honored since whitespace-only env var is treated as unset
                 assert result == state_dir

@@ -19,14 +19,22 @@ class TestCommentKey:
 
     def test_different_threads_same_comment_id_produce_different_keys(self):
         """Composite key must distinguish comments with the same comment_id in different threads."""
-        c1 = EligibleComment(thread_id=10, comment_id=1, marker_type="file-summary", marker_data={}, current_content="a")
-        c2 = EligibleComment(thread_id=20, comment_id=1, marker_type="file-summary", marker_data={}, current_content="b")
+        c1 = EligibleComment(
+            thread_id=10, comment_id=1, marker_type="file-summary", marker_data={}, current_content="a"
+        )
+        c2 = EligibleComment(
+            thread_id=20, comment_id=1, marker_type="file-summary", marker_data={}, current_content="b"
+        )
         assert comment_key(c1) != comment_key(c2)
 
     def test_same_thread_different_comment_ids_produce_different_keys(self):
         """Composite key must distinguish comments within the same thread."""
-        c1 = EligibleComment(thread_id=10, comment_id=1, marker_type="file-summary", marker_data={}, current_content="a")
-        c2 = EligibleComment(thread_id=10, comment_id=2, marker_type="file-summary", marker_data={}, current_content="b")
+        c1 = EligibleComment(
+            thread_id=10, comment_id=1, marker_type="file-summary", marker_data={}, current_content="a"
+        )
+        c2 = EligibleComment(
+            thread_id=10, comment_id=2, marker_type="file-summary", marker_data={}, current_content="b"
+        )
         assert comment_key(c1) != comment_key(c2)
 
     def test_usable_as_dict_key(self):

@@ -1,7 +1,7 @@
 """Tests for _build_report helper function."""
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from agentic_devtools.cli.azure_devops.finalization.orchestrator import _build_report
 from agentic_devtools.cli.azure_devops.review_state import (

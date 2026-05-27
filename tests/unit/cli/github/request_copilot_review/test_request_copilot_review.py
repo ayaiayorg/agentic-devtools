@@ -61,7 +61,13 @@ class TestRequestCopilotReview:
     @patch(f"{MODULE}._post_review_request", return_value=(True, None, False))
     @patch(f"{MODULE}.shutil.which", return_value="/usr/bin/gh")
     def test_all_verification_attempts_fail(
-        self, mock_which, mock_post, mock_verify, mock_reviews, mock_set, mock_sleep,
+        self,
+        mock_which,
+        mock_post,
+        mock_verify,
+        mock_reviews,
+        mock_set,
+        mock_sleep,
     ):
         """All verification attempts fail including reviews fallback → verified=False."""
         result = request_copilot_review(42, "owner/repo")
@@ -156,8 +162,8 @@ class TestRequestCopilotReview:
         """Exponential backoff delays are used between retries."""
         request_copilot_review(42, "owner/repo")
         assert mock_sleep.call_args_list == [
-            call(_INITIAL_BACKOFF_SECONDS),        # 2s
-            call(_INITIAL_BACKOFF_SECONDS * 2),    # 4s
+            call(_INITIAL_BACKOFF_SECONDS),  # 2s
+            call(_INITIAL_BACKOFF_SECONDS * 2),  # 4s
         ]
 
     @patch(f"{MODULE}.time.sleep")
@@ -170,7 +176,13 @@ class TestRequestCopilotReview:
     @patch(f"{MODULE}._post_review_request", return_value=(True, None, False))
     @patch(f"{MODULE}.shutil.which", return_value="/usr/bin/gh")
     def test_state_keys_written_on_unverified(
-        self, mock_which, mock_post, mock_verify, mock_reviews, mock_set, mock_sleep,
+        self,
+        mock_which,
+        mock_post,
+        mock_verify,
+        mock_reviews,
+        mock_set,
+        mock_sleep,
     ):
         """State keys reflect verified=False when verification exhausted."""
         request_copilot_review(42, "owner/repo")

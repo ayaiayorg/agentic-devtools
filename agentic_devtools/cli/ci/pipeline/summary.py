@@ -151,9 +151,7 @@ def _render_state_snapshot(snapshot: PRStateSnapshot) -> str:
     inline_count = snapshot.copilot_review_inline_count
     inline_count_unknown = inline_count is None or inline_count < 0
     show_inline_suffix = (
-        snapshot.review_state == "COMMENTED"
-        or inline_count_unknown
-        or (inline_count is not None and inline_count > 0)
+        snapshot.review_state == "COMMENTED" or inline_count_unknown or (inline_count is not None and inline_count > 0)
     )
     if show_inline_suffix:
         if inline_count_unknown:

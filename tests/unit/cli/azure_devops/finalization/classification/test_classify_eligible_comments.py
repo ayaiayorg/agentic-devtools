@@ -177,9 +177,7 @@ class TestClassifyEligibleComments:
         # thread that has empty comments.  Since classify_agdt_threads only looks at
         # the first comment, the empty thread won't be classified.  Instead, construct
         # a thread with marker in first comment but manually empty after classification.
-        result = classify_eligible_comments(
-            [thread, empty_thread], "my-user", _minimal_review_state()
-        )
+        result = classify_eligible_comments([thread, empty_thread], "my-user", _minimal_review_state())
         # Only the valid thread produces a file summary
         assert len(result.file_summaries) == 1
 
@@ -203,9 +201,7 @@ class TestClassifyEligibleComments:
             },
         ]
         thread = _make_activity_log_thread(200, replies)
-        result = classify_eligible_comments(
-            [thread], "my-user", _minimal_review_state(sessions=[session])
-        )
+        result = classify_eligible_comments([thread], "my-user", _minimal_review_state(sessions=[session]))
         # Only the valid entry should be included; the plain reply is skipped
         assert len(result.activity_log_entries) == 1
         assert "sess-1" in result.activity_log_entries[0].current_content
@@ -225,9 +221,7 @@ class TestClassifyEligibleComments:
             },
         ]
         thread = _make_activity_log_thread(200, replies)
-        result = classify_eligible_comments(
-            [thread], "my-user", _minimal_review_state(sessions=[session])
-        )
+        result = classify_eligible_comments([thread], "my-user", _minimal_review_state(sessions=[session]))
         assert len(result.activity_log_entries) == 0
         # The wrong-author entry should be in skipped
         skipped_reasons = [s.get("reason", "") for s in result.skipped]

@@ -25,9 +25,7 @@ class TestBuildPrReviewGraph:
         from unittest.mock import patch
 
         # Mock the PR details fetch to avoid real API calls
-        with patch(
-            "agentic_devtools.orchestration.review.graph_builder.fetch_pr_details_node"
-        ) as mock_fetch:
+        with patch("agentic_devtools.orchestration.review.graph_builder.fetch_pr_details_node") as mock_fetch:
             graph = build_pr_review_graph()
             mock_fetch.return_value = {
                 "step": "fetch_pr_details",
@@ -40,15 +38,17 @@ class TestBuildPrReviewGraph:
                 "events": [{"event": "fetch_pr_details_complete", "timestamp": "2024-01-01T00:00:00Z"}],
             }
 
-            result = graph.invoke({
-                "pr_id": 123,
-                "state_dir": "/tmp/test",
-                "config": {},
-                "step": "init",
-                "status": "active",
-                "review_comments": [],
-                "events": [],
-            })
+            result = graph.invoke(
+                {
+                    "pr_id": 123,
+                    "state_dir": "/tmp/test",
+                    "config": {},
+                    "step": "init",
+                    "status": "active",
+                    "review_comments": [],
+                    "events": [],
+                }
+            )
 
             assert result["status"] == "completed"
             assert result["step"] == "completion"
@@ -57,9 +57,7 @@ class TestBuildPrReviewGraph:
         """Graph stops early when fetch step fails."""
         from unittest.mock import patch
 
-        with patch(
-            "agentic_devtools.orchestration.review.graph_builder.fetch_pr_details_node"
-        ) as mock_fetch:
+        with patch("agentic_devtools.orchestration.review.graph_builder.fetch_pr_details_node") as mock_fetch:
             graph = build_pr_review_graph()
             mock_fetch.return_value = {
                 "step": "fetch_pr_details",
@@ -68,15 +66,17 @@ class TestBuildPrReviewGraph:
                 "events": [{"event": "fetch_pr_details_failed", "timestamp": "2024-01-01T00:00:00Z"}],
             }
 
-            result = graph.invoke({
-                "pr_id": 123,
-                "state_dir": "/tmp/test",
-                "config": {},
-                "step": "init",
-                "status": "active",
-                "review_comments": [],
-                "events": [],
-            })
+            result = graph.invoke(
+                {
+                    "pr_id": 123,
+                    "state_dir": "/tmp/test",
+                    "config": {},
+                    "step": "init",
+                    "status": "active",
+                    "review_comments": [],
+                    "events": [],
+                }
+            )
 
             assert result["status"] == "failed"
             assert result["step"] == "fetch_pr_details"

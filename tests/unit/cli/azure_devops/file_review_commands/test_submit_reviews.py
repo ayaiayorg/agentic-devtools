@@ -1294,7 +1294,10 @@ class TestSubmitReviewsParallelExecution:
         assert "duplicate file_path" in captured.err
 
     def test_materializes_review_state_when_local_copy_missing(self, temp_state_dir, clear_state_before, capsys):
-        """When review state was loaded (e.g. from -agdt branch) but no local file exists, save_review_state is called."""
+        """When review state was loaded (e.g. from -agdt branch) but no local file exists.
+
+        save_review_state is called.
+        """
         from agentic_devtools.state import set_value
 
         mock_config = MagicMock()

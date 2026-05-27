@@ -6,11 +6,7 @@ import importlib.util
 from pathlib import Path
 
 SCRIPT_PATH = (
-    Path(__file__).resolve().parents[2]
-    / ".github"
-    / "scripts"
-    / "speckit-trigger"
-    / "fix_markdown_deterministic.py"
+    Path(__file__).resolve().parents[2] / ".github" / "scripts" / "speckit-trigger" / "fix_markdown_deterministic.py"
 )
 
 
@@ -59,11 +55,11 @@ class TestFixMD040:
         # Use a 4-backtick opener so that a 3-backtick line inside is
         # genuinely content (closing requires >= 4 markers of same type).
         lines = [
-            "````python\n",   # 4-backtick opener
+            "````python\n",  # 4-backtick opener
             "Here is an example:\n",
-            "```\n",           # 3 backticks — content, NOT a closer (needs 4+)
+            "```\n",  # 3 backticks — content, NOT a closer (needs 4+)
             "more code\n",
-            "````\n",          # 4 backticks — this IS the closing fence
+            "````\n",  # 4 backticks — this IS the closing fence
         ]
         result = mod.fix_md040(lines)
         # Nothing should be modified — the inner ``` is content
@@ -72,9 +68,13 @@ class TestFixMD040:
     def test_multiple_bare_fences(self):
         mod = _load_module()
         lines = [
-            "```\n", "block 1\n", "```\n",
+            "```\n",
+            "block 1\n",
+            "```\n",
             "\n",
-            "```\n", "block 2\n", "```\n",
+            "```\n",
+            "block 2\n",
+            "```\n",
         ]
         result = mod.fix_md040(lines)
         assert result[0] == "```text\n"
@@ -181,13 +181,7 @@ class TestFixFile:
         mod = _load_module()
         md_file = tmp_path / "test.md"
         md_file.write_text(
-            "# Test\n\n"
-            "```\n"
-            "code\n"
-            "```\n\n"
-            "| A | B | C |\n"
-            "|---|---|---|\n"
-            "| 1 | 2 |\n",
+            "# Test\n\n```\ncode\n```\n\n| A | B | C |\n|---|---|---|\n| 1 | 2 |\n",
             encoding="utf-8",
         )
         modified = mod.fix_file(md_file)

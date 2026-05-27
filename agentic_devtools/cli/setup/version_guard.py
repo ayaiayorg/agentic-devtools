@@ -91,7 +91,7 @@ def _segment_value(segment: str) -> tuple[int, int, int]:
             return (num, 0, 0)
         for key, order in suffix_map.items():
             if suffix.startswith(key):
-                suffix_num_str = suffix[len(key):]
+                suffix_num_str = suffix[len(key) :]
                 suffix_num = int(suffix_num_str) if suffix_num_str.isdigit() else 0
                 return (num, order, suffix_num)
         return (num, 0, 0)
@@ -108,7 +108,7 @@ def _segment_value(segment: str) -> tuple[int, int, int]:
     }
     for key, order in _pure_prerelease_map.items():
         if segment.startswith(key):
-            suffix_num_str = segment[len(key):]
+            suffix_num_str = segment[len(key) :]
             suffix_num = int(suffix_num_str) if suffix_num_str.isdigit() else 0
             return (0, order, suffix_num)
 

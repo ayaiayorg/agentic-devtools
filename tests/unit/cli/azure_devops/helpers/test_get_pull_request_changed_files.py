@@ -291,9 +291,6 @@ class TestGetPullRequestChangedFiles:
         assert first_url.startswith("https://dev.azure.com/test-org/Proj%20Name/_apis/git/repositories/repo-id-123/")
         assert second_url.startswith("https://dev.azure.com/test-org/Proj%20Name/_apis/git/repositories/repo-id-123/")
         assert first_url.endswith(f"/pullrequests/123/iterations?api-version={API_VERSION}")
-        assert (
-            second_url.endswith(
-                "/pullrequests/123/iterations/2/changes"
-                f"?api-version={PR_ITERATION_CHANGES_API_VERSION}"
-            )
+        assert second_url.endswith(
+            f"/pullrequests/123/iterations/2/changes?api-version={PR_ITERATION_CHANGES_API_VERSION}"
         )

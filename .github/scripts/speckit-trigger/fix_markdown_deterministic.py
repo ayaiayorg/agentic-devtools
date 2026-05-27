@@ -59,7 +59,7 @@ def fix_md040(lines: list[str]) -> list[str]:
             m2 = _FENCE_OPEN_RE.match(stripped)
             if m2:
                 indent, marker = m2.group(1), m2.group(2)
-                after_marker = stripped[len(indent) + len(marker):]
+                after_marker = stripped[len(indent) + len(marker) :]
                 # Only enter fence if there's content after the marker
                 # (language identifier) or if it's a closing fence for a
                 # never-opened block (shouldn't happen in valid markdown)
@@ -72,9 +72,7 @@ def fix_md040(lines: list[str]) -> list[str]:
             # Per CommonMark spec, a closing fence can have 0-3 spaces of
             # indentation regardless of the opener's indent, and must use the
             # same fence character with at least as many markers.
-            close_re = re.compile(
-                r"^ {0,3}" + re.escape(fence_marker[0]) + r"{" + str(len(fence_marker)) + r",}\s*$"
-            )
+            close_re = re.compile(r"^ {0,3}" + re.escape(fence_marker[0]) + r"{" + str(len(fence_marker)) + r",}\s*$")
             if close_re.match(stripped):
                 in_fence = False
                 fence_marker = ""

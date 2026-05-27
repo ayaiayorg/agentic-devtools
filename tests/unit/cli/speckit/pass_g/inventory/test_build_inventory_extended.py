@@ -138,8 +138,6 @@ def test_discover_files_rglob_fallback_valueerror(tmp_path):
     # Mock rglob to yield a path that can't be made relative to tmp_path
     outside_path = Path("/some/outside/path.py")
 
-    original_rglob = Path.rglob
-
     def mock_rglob(self, pattern):
         # Yield the valid file, then yield the outside path
         yield tmp_path / "valid.py"

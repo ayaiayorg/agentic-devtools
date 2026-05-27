@@ -294,8 +294,7 @@ def request_copilot_review(pr_number: int, repo: str) -> dict:
     # --- Fallback: check whether the bot already submitted a review ---
     if not verified:
         print(
-            "Requested-reviewers verification exhausted; "
-            "checking reviews endpoint as fallback...",
+            "Requested-reviewers verification exhausted; checking reviews endpoint as fallback...",
             file=sys.stderr,
         )
         verified = _check_reviewer_in_reviews(pr_number, owner, repo_name)

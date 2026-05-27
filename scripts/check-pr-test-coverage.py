@@ -51,9 +51,19 @@ def _get_changed_files(base_ref: str, cwd: str) -> list[str]:
     coverage runs against modules that no longer exist.
     """
     result = subprocess.run(
-        ["git", "diff", "--name-only", "--diff-filter=d", f"{base_ref}..HEAD", "--",
-         "agentic_devtools/*.py", "agentic_devtools/**/*.py"],
-        capture_output=True, text=True, cwd=cwd,
+        [
+            "git",
+            "diff",
+            "--name-only",
+            "--diff-filter=d",
+            f"{base_ref}..HEAD",
+            "--",
+            "agentic_devtools/*.py",
+            "agentic_devtools/**/*.py",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=cwd,
     )
     if result.returncode != 0:
         print(f"ERROR: git diff failed (exit code {result.returncode})")
@@ -112,8 +122,7 @@ def main() -> int:
     # Step 2: Full test suite (all tests must pass)
     print("-- Step 1/2: Full test suite (all tests must pass) --")
     rc = _run(
-        [sys.executable, "-m", "pytest", "tests/", "-v", "--tb=short",
-         "-o", "addopts=", "--no-cov"],
+        [sys.executable, "-m", "pytest", "tests/", "-v", "--tb=short", "-o", "addopts=", "--no-cov"],
         cwd=workspace,
     )
     if rc != 0:
@@ -142,12 +151,20 @@ def main() -> int:
         print(f"\n-- [{checked}] {source_file} -> {test_path} --")
 
         rc = _run(
-            [sys.executable, "-m", "pytest", test_path, "-v", "--tb=short",
-             "-o", "addopts=",
-             f"--cov={source_module}",
-             "--cov-branch",
-             "--cov-report=term-missing",
-             "--cov-fail-under=100"],
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                test_path,
+                "-v",
+                "--tb=short",
+                "-o",
+                "addopts=",
+                f"--cov={source_module}",
+                "--cov-branch",
+                "--cov-report=term-missing",
+                "--cov-fail-under=100",
+            ],
             cwd=workspace,
         )
         if rc != 0:

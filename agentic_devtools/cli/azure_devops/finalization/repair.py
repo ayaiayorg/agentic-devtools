@@ -54,7 +54,9 @@ def batch_repair_pass(
             expected = compute_expected_content(comment, review_state, base_url)
             if not expected:
                 result.failed += 1
-                result.errors.append(f"file-summary {comment.file_path}: empty expected content, skipping to avoid wiping comment")
+                result.errors.append(
+                    f"file-summary {comment.file_path}: empty expected content, skipping to avoid wiping comment"
+                )
                 continue
             # Skip PATCH if already converged to avoid unnecessary API calls
             if check_convergence(comment, expected):
@@ -79,7 +81,11 @@ def batch_repair_pass(
             )
             # Sync thread status with file review status
             _patch_file_thread_status(
-                comment, review_state, config, headers, pr_id,
+                comment,
+                review_state,
+                config,
+                headers,
+                pr_id,
             )
             result.succeeded += 1
         except Exception as exc:
@@ -154,7 +160,9 @@ def targeted_repair(
         expected = expected_map.get(comment_key(comment), "")
         if not expected:
             result.failed += 1
-            result.errors.append(f"No expected content for comment thread={comment.thread_id} comment={comment.comment_id}")
+            result.errors.append(
+                f"No expected content for comment thread={comment.thread_id} comment={comment.comment_id}"
+            )
             continue
 
         try:
@@ -181,7 +189,11 @@ def targeted_repair(
                 # Sync thread status for file-summary comments
                 if comment.marker_type == "file-summary":
                     _patch_file_thread_status(
-                        comment, review_state, config, headers, pr_id,
+                        comment,
+                        review_state,
+                        config,
+                        headers,
+                        pr_id,
                     )
             result.succeeded += 1
         except Exception as exc:
@@ -248,7 +260,10 @@ def _complete_activity_log(
 
         requests_module = require_requests()
         threads_url = config.build_api_url(
-            review_state.repoId, "pullRequests", pr_id, "threads",
+            review_state.repoId,
+            "pullRequests",
+            pr_id,
+            "threads",
         )
         session_index = review_state.sessions.index(completed_session) + 1
 
