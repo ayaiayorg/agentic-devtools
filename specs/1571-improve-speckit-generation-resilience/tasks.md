@@ -2,10 +2,20 @@
 
 ## Phase Mapping: Plan → Tasks
 
-Phases in this `tasks.md` are 1:1 aligned with the phases defined in `plan.md`.
+| Plan Phase(s) | Tasks Phase | Mapping Rationale |
+| --- | --- | --- |
+| Plan Phase 1 | Phase 1: Setup & Scaffolding | Template and skeleton assets needed before feature implementation begins. |
+| Plan Phase 2 | Phase 2: Foundational — Blocking Prerequisites | Shared validation, configuration, remediation messaging, and metrics prerequisites. |
+| Plan Phase 3 | Phase 3: User Story 1 — Reliable First-Attempt Spec Generation (P1) | Implements first-attempt prompt construction and success-path metrics. |
+| Plan Phase 4 | Phase 4: User Story 2 — Adaptive Retry with Enriched Feedback (P1) | Covers retry-loop behavior and improved validation feedback. |
+| Plan Phase 5 | Phase 5: User Story 3 | Covers the third user-story implementation phase. |
+| Plan Phase 6 | Phase 6: User Story 4 | Covers the fourth user-story implementation phase. |
+| Plan Phase 7 | Phases 7–8: User Story 5 and User Story 6 | `tasks.md` splits implementation into two user-story phases where `plan.md` groups this work under one broader delivery phase. |
+| Plan Phase 8 | Phase 9: Polish & Cross-Cutting | Final hardening, cleanup, and cross-cutting completion work. |
 
 ## Phase 1: Setup & Scaffolding
 
+- [ ] T001 Define Phase 1 scaffolding for SpecKit prompt templates so the new template assets are tracked from the first contiguous task ID (FR-001, FR-010)
 - [ ] T002 Create template file `.github/scripts/speckit-trigger/templates/example-valid-spec.md` with a truncated (~1500 char) reference spec that passes all validation checks (FR-010)
 - [ ] T003 Create skeleton block file `.github/scripts/speckit-trigger/templates/specify-skeleton.md` containing all 4 mandatory section headings with `<!-- FILL: ... -->` markers (FR-001)
 
