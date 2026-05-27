@@ -139,14 +139,14 @@ returns `(should_skip=False, reason="")` regardless of the `title_changed` and `
 
 ### User Story 4 - Azure DevOps Provider Handles Edit Events (Priority: P3)
 
-When the ai-pr-loop runs on Azure DevOps (or a future alternate provider), the provider's `parse_event()` implementation extracts title/body change information from the platform-specific webhook
-payload and populates the same `title_changed` and `body_changed` fields on `EventPayload`. This ensures the edit-relevance guard works identically regardless of the CI platform.
+When the ai-pr-loop runs on Azure DevOps (or a future alternate provider), the provider's `parse_event()` implementation extracts title/body/base change information from the platform-specific webhook
+payload and populates the same `title_changed`, `body_changed`, and `base_changed` fields on `EventPayload`. This ensures the edit-relevance guard works identically regardless of the CI platform.
 
 **Why this priority**: Azure DevOps support is currently a stub implementation, so this story is lower priority. However, the data model and guard must be designed to accommodate it, and the ADO
 provider should populate the fields correctly when its webhook payload contains the relevant information.
 
 **Independent Test**: This scenario can be tested by constructing an Azure DevOps service hook payload that represents a PR update event with title changes, passing it to
-`AzureDevOpsProvider.parse_event()`, and verifying the returned `EventPayload` has the correct `title_changed` and `body_changed` values.
+`AzureDevOpsProvider.parse_event()`, and verifying the returned `EventPayload` has the correct `title_changed`, `body_changed`, and `base_changed` values.
 
 **Acceptance Scenarios**:
 
@@ -267,8 +267,8 @@ or building a PR state snapshot).
 **NFR-002**: The implementation MUST maintain full backward compatibility with
 existing `EventPayload` construction patterns. Any code that creates
 `EventPayload(pr_number=1, head_branch="main", ...)` without specifying
-`title_changed` or `body_changed` MUST continue to work without modification,
-with both new fields defaulting to `False`.
+`title_changed`, `body_changed`, `base_changed`, or `edit_changes_known` MUST continue to work without modification,
+with all four new fields defaulting to `False`.
 
 **NFR-003**: All new guard logic MUST be covered by unit tests following the
 repository's 1:1:1 test structure policy. Test files must be placed under
@@ -318,15 +318,16 @@ running any downstream guards or actions.
   edits outnumber title edits approximately 4:1).
 
 - **SC-003**: All new code (the `EventPayload` fields
-  `title_changed`, `body_changed`, `edit_changes_known`, provider
+  `title_changed`, `body_changed`, `base_changed`, `edit_changes_known`, provider
   `parse_event()` changes, and the edit-relevance guard) MUST achieve
   100% line and branch coverage in unit tests, consistent with the
   repository's existing coverage requirements enforced by CI.
 
-- **SC-004**: The edit-relevance guard MUST be the first guard evaluated in the
-  `GuardsAction` sequence, verified by a unit test that asserts guard ordering
-  and by an integration test confirming that a body-only edit does not trigger
-  evaluation of any subsequent guard (WIP check, fork check, etc.).
+- **SC-004**: The edit-relevance guard MUST run as the entrypoint preflight in
+  `ai_pr_loop_command()` immediately after event parsing and before routing and
+  any provider/network calls (including metadata fetch and snapshot/lock steps),
+  verified by command-level tests that assert call ordering and by an integration
+  test confirming that a body-only edit exits before any downstream guards/actions.
 
 - **SC-005**: Zero regressions in existing guard behavior, verified by the full
   existing test suite (`tests/unit/cli/ci/`) passing without modification. The
