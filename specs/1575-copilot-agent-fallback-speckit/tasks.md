@@ -23,7 +23,10 @@
 - [x] T004 Modify `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` to emit `validation_errors` to `$GITHUB_OUTPUT` on structural validation failure (FR-001). Output format:
   semicolon-delimited `CATEGORY: detail` pairs. Ensure non-structural failures (auth, network, import errors) do NOT emit these markers (FR-002)
 - [x] T005 [P] Modify `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` to write `validation-errors.json` workspace file as fallback signal alongside `$GITHUB_OUTPUT` (FR-001)
-- [x] T006 Add `id: generate` (or equivalent step id) to the phase-progression workflow to enable `steps.generate.outputs.validation_errors` access; in the phase-1 issue-trigger workflow, rely on workspace `validation-errors.json` because the Python orchestrator does not propagate script-emitted outputs to the step `$GITHUB_OUTPUT`
+- [x] T006 Add `id: generate` (or equivalent step id) to the phase-progression workflow to enable
+  `steps.generate.outputs.validation_errors` access; in the phase-1 issue-trigger workflow, rely on workspace
+  `validation-errors.json` because the Python orchestrator does not propagate script-emitted outputs to the step
+  `$GITHUB_OUTPUT`
 
 ## Phase 3: User Story 1 — Automatic Agent Fallback (P1)
 
