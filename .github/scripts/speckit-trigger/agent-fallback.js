@@ -361,6 +361,7 @@ async function run(params) {
   if (killSwitch === 'false') {
     core.info('Agent fallback disabled via SPECKIT_AGENT_FALLBACK=false');
     core.setOutput('triggered', 'false');
+    core.setOutput('handled', 'false');
     return;
   }
 
@@ -370,6 +371,7 @@ async function run(params) {
   ) {
     core.warning(`Skipping agent fallback due to invalid input: issueNumber=${issueNumber}, phase=${phase}`);
     core.setOutput('triggered', 'false');
+    core.setOutput('handled', 'false');
     return;
   }
 
@@ -378,6 +380,7 @@ async function run(params) {
   if (!errors) {
     core.info('No structural validation failure detected — skipping agent fallback');
     core.setOutput('triggered', 'false');
+    core.setOutput('handled', 'false');
     return;
   }
 
@@ -414,7 +417,8 @@ async function run(params) {
         core.warning('Cannot verify idempotency marker task status (missing task id or token)');
       }
     }
-    core.setOutput('triggered', handled ? 'true' : 'false');
+    core.setOutput('triggered', 'false');
+    core.setOutput('handled', handled ? 'true' : 'false');
     // Post skip comment
     const commentOnIssue = process.env.SPECKIT_COMMENT_ON_ISSUE !== 'false';
     if (commentOnIssue) {
@@ -445,6 +449,7 @@ async function run(params) {
   if (!token) {
     core.warning('COPILOT_GITHUB_TOKEN is not set — skipping agent fallback. Configure the secret to enable this feature.');
     core.setOutput('triggered', 'false');
+    core.setOutput('handled', 'false');
     return;
   }
 
@@ -456,6 +461,7 @@ async function run(params) {
     // Graceful degradation (FR-011) — fall through to standard failure handler
     core.warning(`Agent fallback API call failed: ${e.message}`);
     core.setOutput('triggered', 'false');
+    core.setOutput('handled', 'false');
     return;
   }
 
@@ -473,6 +479,7 @@ async function run(params) {
   }
 
   core.setOutput('triggered', 'true');
+  core.setOutput('handled', 'true');
 }
 
 module.exports = {

@@ -116,7 +116,7 @@ jobs:
             });
 
       - name: Handle Failure (Comment + Label)
-        if: failure() && steps['agent-fallback'].outputs.triggered != 'true'
+        if: failure() && steps['agent-fallback'].outputs.handled != 'true'
         uses: actions/github-script@v7
         env:
           ISSUE_NUMBER_INPUT: ${{ inputs.issue_number || '' }}

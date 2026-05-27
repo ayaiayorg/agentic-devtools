@@ -478,6 +478,7 @@ console.log('=== Testing kill-switch ===');
       referenceSpecPath: '',
     });
     assertEqual('marker skip with terminal task sets triggered to false', 'false', outputsMarkerTerminal.triggered);
+    assertEqual('marker skip with terminal task sets handled to false', 'false', outputsMarkerTerminal.handled);
   }
 
   {
@@ -521,7 +522,8 @@ console.log('=== Testing kill-switch ===');
       killSwitch: 'true',
       referenceSpecPath: '',
     });
-    assertEqual('marker skip with non-terminal task sets triggered to true', 'true', outputsMarkerRunning.triggered);
+    assertEqual('marker skip with non-terminal task sets triggered to false', 'false', outputsMarkerRunning.triggered);
+    assertEqual('marker skip with non-terminal task sets handled to true', 'true', outputsMarkerRunning.handled);
   }
 
   // ---------------------------------------------------------------------------
