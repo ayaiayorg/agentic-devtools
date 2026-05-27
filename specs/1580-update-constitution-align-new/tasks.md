@@ -93,7 +93,7 @@
 
 ## Final Phase: Verification & Cross-Cutting
 
-- [ ] T025 Review SC-001 status — `**Version**: 1.2.0` is present in `.specify/memory/constitution.md`
+- [ ] T025 Verify (FR-001) SC-001 — `**Version**: 1.2.0` is present in `.specify/memory/constitution.md`
 - [ ] T026 Review SC-002 status — zero occurrences of "95%" remain in `.specify/memory/constitution.md`
 - [ ] T027 Review SC-003 status — "No distributed configuration" is absent from `.specify/memory/constitution.md`
 - [ ] T028 Review SC-004 status — "Breaking changes to CLI UX require a major version bump" is absent from `.specify/memory/constitution.md`
