@@ -50,7 +50,7 @@
 
 ## Phase 6: User Story 3 — Pre-1.0 Flexibility (P1)
 
-- [ ] T011 [US3] (FR-008) Add new Principle XI "Pre-1.0 Flexibility" after Principle X codifying that breaking changes are allowed pre-1.0, no migration plans required, active removal of dead code in
+- [ ] T011 [US3] (FR-008) Add new Principle XI "Pre-1.0 Flexibility" after Principle VIII codifying that breaking changes are allowed pre-1.0, no migration plans required, active removal of dead code in
   `.specify/memory/constitution.md`
 - [ ] T012 [US3] (FR-009) Update Development Workflow → Code Changes: replace backward-compatibility requirement with "Breaking changes are permitted per Principle XI (Pre-1.0 Flexibility)"
   in `.specify/memory/constitution.md`
@@ -109,7 +109,6 @@
 ```text
 T001 → T002, T003, T005, T007, T008, T011, T012, T013, T017, T019, T021, T024
 T017 → T019 (Principle X inserted after IX)
-T019 → T011 (Principle XI inserted after X)
 T011 → T012, T013, T022 (references to Principle XI require it to exist)
 T002 → T021 (verify Sync Impact Report completeness after all edits)
 T003 → T004 (verify FR-002 after implementation)
