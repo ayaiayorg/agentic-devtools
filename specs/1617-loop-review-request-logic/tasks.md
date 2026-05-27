@@ -48,7 +48,8 @@
   `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-010)
 - [ ] T017 [P] [US1] Write happy path test: `DispatchRepairAction.execute()` sets `derived.repair_dispatched = True` after successful dispatch —
   `tests/unit/cli/ci/pipeline/actions/dispatch_repair/test_dispatchrepairaction.py` (FR-001)
-- [ ] T018 [P] [US1] Write happy path test: `DispatchRepairAction.execute()` writes repair-dispatch marker with HEAD SHA — `tests/unit/cli/ci/pipeline/actions/dispatch_repair/test_dispatchrepairaction.py`
+- [ ] T018 [P] [US1] Write happy path test: `DispatchRepairAction.execute()` writes repair-dispatch marker with HEAD SHA —
+  `tests/unit/cli/ci/pipeline/actions/dispatch_repair/test_dispatchrepairaction.py`
   (FR-002, FR-011)
 - [ ] T019 [P] [US1] Write test: repair-dispatch marker helpers parse and write correct format — `tests/unit/cli/ci/guards/test_repair_dispatch_marker.py` (FR-002)
 
