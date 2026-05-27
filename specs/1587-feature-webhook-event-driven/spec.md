@@ -18,8 +18,9 @@
   This provides a worst-case latency of ~120 seconds (event recorded just after a cycle completes → detected on next cycle) while keeping GitHub Actions consumption reasonable. Combined with the
   lightweight per-run budget (under 2 minutes), this avoids overlapping runs.
 - Q: What persistence mechanism should be used for event ID deduplication across monitor cycles — workflow artifacts, GitHub Actions cache, issue comment markers, or a state file committed to the
-  repo? → A: Use GitHub Actions cache (`actions/cache`) with a rolling key pattern (e.g., `agent-monitor-seen-events-{YYYY-MM-DD}`) storing a JSON set of processed event IDs. Cache entries expire naturally
-  after 7 days. This is lightweight, requires no repo writes, is fast to read/write, and survives across workflow runs without polluting issues or artifacts.
+  repo? → A: Use GitHub Actions cache (`actions/cache`) with restore prefix `agent-monitor-seen-events-{YYYY-MM-DD}-` and per-run save key
+  `agent-monitor-seen-events-{YYYY-MM-DD}-{github.run_id}` storing a JSON set of processed event IDs. Cache entries expire naturally after 7 days. This is lightweight, requires no repo writes, is fast
+  to read/write, and survives across workflow runs without polluting issues or artifacts.
 - Q: Should the monitor only trigger for PRs that have the `ai-auto-merge-allowed` label (as mentioned in User Story 1), or should it trigger for all open PRs regardless of label? → A: The monitor
   should trigger for ALL open PRs that have a `copilot_work_finished` event, regardless of label. The `ai-auto-merge-allowed` label is checked by the orchestrator during execution, not by the trigger
   mechanism. This keeps the monitor simple and ensures the orchestrator's own guard logic (which handles labeling, state, and eligibility) remains the single source of truth for PR eligibility.
@@ -82,11 +83,12 @@ exactly one workflow run (or the second should be cancelled by concurrency contr
 **Acceptance Scenarios**:
 
 1. **Given** the event-driven monitor has already dispatched the AI PR loop for a `copilot_work_finished` event with a specific event ID, **When** a subsequent monitor cycle detects the same event ID
-   in its Issues Events API response, **Then** no additional `workflow_dispatch` is issued because the event ID is found in the GitHub Actions cache (`agent-monitor-seen-events-{date}`).
+   in its Issues Events API response, **Then** no additional `workflow_dispatch` is issued because the event ID is found in the restored GitHub Actions cache set (prefix
+   `agent-monitor-seen-events-{YYYY-MM-DD}-`).
 2. **Given** a PR that has already been merged by the AI PR loop, **When** a late-arriving event-driven trigger fires for the same PR, **Then** the orchestrator's existing guards (dedup markers, state
    checks) cause the run to exit early without side effects.
-3. **Given** two `copilot_work_finished` events on the same PR within a short window (e.g., from a retry), **When** the monitor processes both, **Then** only one `workflow_dispatch` is emitted,
-   deduplicated by event ID in the cache.
+3. **Given** duplicate deliveries of the same `copilot_work_finished` event ID for a PR (e.g., API retry/read overlap), **When** the monitor processes both deliveries, **Then** only one
+   `workflow_dispatch` is emitted, deduplicated by event ID in the cache.
 
 ---
 
@@ -153,8 +155,8 @@ were found, and what dispatch actions were taken.
   trigger_reason=agent_session_finished` within 120 seconds of the event being recorded in the GitHub Issues Events API.
 
 - **FR-002**: The system MUST deduplicate event-driven triggers so that a single `copilot_work_finished` event (identified by its unique event ID) results in at most one dispatched AI PR loop workflow
-  run. The deduplication mechanism MUST use GitHub Actions cache (`actions/cache`) with a rolling key pattern (`agent-monitor-seen-events-{YYYY-MM-DD}`) storing a JSON set of processed event IDs,
-  persisting state across monitor cycles to prevent re-processing of already-handled events.
+  run. The deduplication mechanism MUST use GitHub Actions cache (`actions/cache`) by restoring the latest cache via prefix `agent-monitor-seen-events-{YYYY-MM-DD}-`, then saving the updated JSON set
+  of processed event IDs under a per-run key `agent-monitor-seen-events-{YYYY-MM-DD}-{github.run_id}` to persist state across monitor cycles and prevent re-processing of already-handled events.
 
 - **FR-003**: The system MUST pass the PR number to the AI PR loop workflow when dispatching via `workflow_dispatch`, using the existing `pr_number` input parameter (as string) and `trigger_reason`
   input parameter, compatible with the existing `ai-pr-loop.yml` concurrency group expression (which resolves PR number from pull_request/issue/workflow_run/inputs, with `github.run_id` fallback).
@@ -190,8 +192,9 @@ were found, and what dispatch actions were taken.
 
 - **Agent Session Event**: A GitHub Issues Events API entry with event type `copilot_work_finished`, `copilot_work_finished_failure`, or `copilot_work_started`. Identified by a unique numeric event
   ID, associated with a PR number, and timestamped with `created_at`.
-- **Event Dispatch Record**: A JSON entry in the GitHub Actions cache (key: `agent-monitor-seen-events-{YYYY-MM-DD}`) recording that a specific event ID has already been dispatched to the AI PR loop.
-  The cache contains a set of integer event IDs. Entries expire naturally with the cache TTL (7 days).
+- **Event Dispatch Record**: A JSON entry in the GitHub Actions cache (restored with prefix `agent-monitor-seen-events-{YYYY-MM-DD}-`, saved with key
+  `agent-monitor-seen-events-{YYYY-MM-DD}-{github.run_id}`) recording that a specific event ID has already been dispatched to the AI PR loop. The cache contains a set of integer event IDs. Entries
+  expire naturally with the cache TTL (7 days).
 - **Monitor Cycle**: A single execution of the `agent-session-monitor.yml` scheduled workflow. Scans all eligible open PRs, checks for unprocessed terminal events against the cached seen-events set,
   and dispatches `workflow_dispatch` triggers as needed.
 
