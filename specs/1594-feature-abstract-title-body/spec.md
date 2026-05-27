@@ -86,7 +86,7 @@ edit-relevance guard returns `(should_skip=False, reason="")` (proceed) and allo
 3. **Given** a PR with a title change event, **When** the `GitHubActionsProvider.parse_event()` is called with the raw GitHub webhook payload containing `changes.title.from`, **Then** the returned
    `EventPayload` has `title_changed=True` and `body_changed=False` (assuming the body did not also change).
 
-**Requirements covered**: FR-001, FR-002, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009
+**Requirements covered**: FR-001, FR-002, FR-004, FR-007, FR-008, FR-009
 
 ---
 
