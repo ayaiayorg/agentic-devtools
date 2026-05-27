@@ -19,8 +19,9 @@
   lightweight per-run budget (under 2 minutes), this avoids overlapping runs.
 - Q: What persistence mechanism should be used for event ID deduplication across monitor cycles — workflow artifacts, GitHub Actions cache, issue comment markers, or a state file committed to the
   repo? → A: Use GitHub Actions cache (`actions/cache`) with restore-keys prefix `agent-monitor-seen-events-` and per-run save key
-  `agent-monitor-seen-events-{github.run_id}` storing a JSON array of processed integer event IDs. Cache retention is best-effort (typically up to ~7 days of inactivity) and entries may be evicted earlier. This is lightweight, requires no repo writes, is fast
-  to read/write, and survives across workflow runs without polluting issues or artifacts.
+  `agent-monitor-seen-events-{github.run_id}` storing a JSON array of processed integer event IDs.
+  Cache retention is best-effort (typically up to ~7 days of inactivity) and entries may be evicted earlier.
+  This is lightweight, requires no repo writes, is fast to read/write, and survives across workflow runs without polluting issues or artifacts.
 - Q: Should the monitor only trigger for PRs that have the `ai-auto-merge-allowed` label (as mentioned in User Story 1), or should it trigger for all open PRs regardless of label? → A: The monitor
   should trigger for ALL open PRs that have a `copilot_work_finished` event, regardless of label. The `ai-auto-merge-allowed` label is checked by the orchestrator during execution, not by the trigger
   mechanism. This keeps the monitor simple and ensures the orchestrator's own guard logic (which handles labeling, state, and eligibility) remains the single source of truth for PR eligibility.
@@ -61,7 +62,11 @@ loop workflow starting. The test passes if the workflow starts within 120 second
 **Acceptance Scenarios**:
 
 1. **Given** a PR where Copilot is actively working, **When** the agent session completes successfully and a `copilot_work_finished` event is recorded on the PR, **Then** the AI PR loop workflow is
-   triggered for that specific PR number within 120 seconds of the event timestamp via `gh workflow run ai-pr-loop.yml --repo <owner/repo> --field pr_number="<N>" --field trigger_reason=agent_session_finished`.
+   triggered for that specific PR number within 120 seconds of the event timestamp via:
+   ```bash
+   gh workflow run ai-pr-loop.yml --repo <owner/repo> --field pr_number="<N>" --field trigger_reason=agent_session_finished
+   ```
+
 2. **Given** a PR where the AI PR loop is already running for the same PR number, **When** a `copilot_work_finished` event fires and would trigger a second run, **Then** the concurrency group
    `ai-pr-loop-{pr_number}` ensures only one runs at a time and the second is queued (since `cancel-in-progress: false`).
 3. **Given** a PR where the agent session completes with a failure (`copilot_work_finished_failure`), **When** the event-driven trigger detects this terminal event, **Then** the AI PR loop is still
@@ -183,8 +188,9 @@ were found, and what dispatch actions were taken.
 - **NFR-003**: The system MUST be resilient to transient GitHub API failures (rate limits, 5xx errors). A single failed API call must not prevent the monitor from processing other PRs in the same
   cycle, and failed PRs should be retried on the next cycle. The monitor MUST isolate per-PR failures so processing continues for other PRs in the same cycle, with structured error logging.
 
-- **NFR-004**: The system MUST produce structured, parseable log output (one line per action, emitted as key=value structured fields) that enables operators to audit which events were processed, which dispatches were issued, and
-  which PRs were skipped (with reasons).
+- **NFR-004**: The system MUST produce structured, parseable log output (one line per action, emitted as
+  key=value structured fields) that enables operators to audit which events were processed, which
+  dispatches were issued, and which PRs were skipped (with reasons).
 
 ### Key Entities
 
