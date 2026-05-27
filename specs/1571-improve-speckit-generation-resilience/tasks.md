@@ -97,7 +97,6 @@ Phases in this `tasks.md` are 1:1 aligned with the phases defined in `plan.md`.
 ## Dependencies
 
 ```text
-T001 → T002, T003 (branch before files)
 T005 → T006 (env var before function)
 T006 → T029, T030 (function before integration/tests)
 T007 → T032, T033 (format before specific messages)
