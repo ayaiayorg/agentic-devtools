@@ -75,8 +75,7 @@ that the repair agent is about to overwrite.
    returns `ActionDecision.SKIP` with details indicating repair/session is active.
 
 3. **Given** a PR where a repair was dispatched in a prior run and the repair agent has not yet pushed new code (HEAD SHA matches the dedup marker SHA), **When** the ai-pr-loop is re-triggered (e.g.,
-   by a workflow_run event), **Then** the
-   review request is suppressed until the repair cycle produces a new HEAD SHA.
+   by a workflow_run event), **Then** the review request is suppressed until the repair cycle produces a new HEAD SHA.
 
 ---
 
