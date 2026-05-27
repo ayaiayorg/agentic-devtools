@@ -19,12 +19,14 @@ convey what specifically changed during an `edited` event, so the orchestrator c
 The core problem is twofold. First, the orchestrator lacks the metadata needed to determine whether an `edited` event warrants a full pipeline run. Second, because this metadata is absent from the
 provider-agnostic `EventPayload` model, there is no clean way to implement the filtering without coupling the orchestrator to a specific CI platform's raw event schema.
 
-This feature introduces three fields on the `EventPayload` model: `title_changed`
-and `body_changed` (both default `False`), plus `edit_changes_known` (default
-`False`) to indicate whether the provider had reliable per-field change metadata.
-A new edit-relevance guard runs before all existing guards and short-circuits
-`pull_request` `edited` events when `edit_changes_known=True` and
-`title_changed=False` (body-only or other non-title edits).
+This feature introduces four fields on the `EventPayload` model: `title_changed`,
+`body_changed`, and `base_changed` (all default `False`), plus `edit_changes_known`
+(default `False`) to indicate whether the provider had reliable per-field change
+metadata. A new edit-relevance guard runs before all existing guards and
+short-circuits `pull_request` `edited` events when `edit_changes_known=True`,
+`title_changed=False`, and `base_changed=False` (body-only or other non-relevant
+edits). Base-ref changes are treated as potentially relevant because they can alter
+the PR diff and affect downstream guard/action behavior.
 This approach keeps the YAML triggers minimal (simply adding `edited` to the
 event list), moves filtering into testable Python, and works identically across
 all supported CI providers.
@@ -44,8 +46,10 @@ all supported CI providers.
 
 - Q: For non-title/body edits present in the `changes` dict of a PR `edited` event (e.g., a `base` ref change), should `edit_changes_known` be `True` even when neither
   title nor body keys are in the `changes` dict? → A: Yes. When the `changes` key is present in the payload (even if it contains neither `title` nor `body` — e.g., only `base`),
-  `edit_changes_known` should be set to `True`. This correctly signals that the provider had metadata and confidently determined that no title change occurred, allowing the guard to skip. This is
-  already specified in the edge cases section and FR-002.
+  `edit_changes_known` should be set to `True`. This correctly signals that the provider had metadata and confidently determined that no title change occurred. However, `edit_changes_known=True`
+  alone is not sufficient to skip — the guard also checks `base_changed`. If `base_changed=True` (i.e., the `changes` dict contains a `base` key), the guard proceeds with normal processing
+  because base-branch changes can alter the PR diff and affect downstream guard/action behavior. The guard only skips when `edit_changes_known=True` AND `title_changed=False` AND
+  `base_changed=False` (see FR-004). This is consistent with the edge cases section and FR-002.
 
 - Q: The spec mentions the pipeline `command.py` (`run_ai_pr_loop_v2`) as a newer entry point alongside the legacy `orchestrator.py` (`run_ai_pr_loop`). Should the edit-relevance preflight be
   implemented in both entry points or only one? → A: The edit-relevance preflight should be implemented in `ai_pr_loop_command()` (in `commands.py`) after event parsing but before the v1/v2
@@ -194,13 +198,14 @@ action is not `edited`, or when the `changes` key is absent from the payload, `e
 `title_changed`/`body_changed`/`base_changed` MUST remain at their default value of `False`.
 
 **FR-003**: The `AzureDevOpsProvider.parse_event()` method MUST populate the
-`title_changed` and `body_changed` fields based on the Azure DevOps service hook
-payload structure. When the payload includes reliable field-level change metadata,
-the provider MUST set `edit_changes_known=True` and set the corresponding booleans.
-For PR update/edit events, the provider MUST normalize `EventPayload.action` to
-`edited` (provider-agnostic) so the edit-relevance guard can apply consistently.
-When the payload does not include change metadata, `edit_changes_known` MUST
-remain `False` (fail-open).
+`title_changed`, `body_changed`, and `base_changed` fields based on the Azure
+DevOps service hook payload structure. When the payload includes reliable
+field-level change metadata, the provider MUST set `edit_changes_known=True` and
+set the corresponding booleans (including `base_changed=True` when the payload
+indicates a target/base branch change). For PR update/edit events, the provider
+MUST normalize `EventPayload.action` to `edited` (provider-agnostic) so the
+edit-relevance guard can apply consistently. When the payload does not include
+change metadata, `edit_changes_known` MUST remain `False` (fail-open).
 
 **FR-004**: A new precondition (the "edit-relevance preflight") MUST be evaluated
 in the `ai_pr_loop_command()` function (in `commands.py`) immediately after `EventPayload` is parsed and
@@ -282,19 +287,19 @@ must not contain sensitive information (no raw payload dumps).
 ### Key Entities
 
 **EventPayload** (extended): The immutable dataclass representing a normalized CI
-event. It gains three new fields to describe `edited` events: `title_changed`
-(default `False`), `body_changed` (default `False`), and `edit_changes_known`
-(default `False`) to indicate whether the provider had reliable per-field change
-metadata. This entity is the single point of truth consumed by all guards and
-downstream pipeline actions.
+event. It gains four new fields to describe `edited` events: `title_changed`
+(default `False`), `body_changed` (default `False`), `base_changed` (default
+`False`), and `edit_changes_known` (default `False`) to indicate whether the
+provider had reliable per-field change metadata. This entity is the single point
+of truth consumed by all guards and downstream pipeline actions.
 
 **Edit-Relevance Guard** (`check_edit_relevance`): A standalone function in
 `agentic_devtools/cli/ci/guards.py` that inspects the `action`,
-`edit_changes_known`, and `title_changed` fields of an `EventPayload` to
-determine whether the event warrants full pipeline evaluation. Returns
-`(should_skip: bool, reason: str)`. It is purely in-memory (no I/O); when it
-decides to skip, the orchestrator logs the reason and exits 0 without running
-any downstream guards or actions.
+`edit_changes_known`, `title_changed`, and `base_changed` fields of an
+`EventPayload` to determine whether the event warrants full pipeline evaluation.
+Returns `(should_skip: bool, reason: str)`. It is purely in-memory (no I/O);
+when it decides to skip, the orchestrator logs the reason and exits 0 without
+running any downstream guards or actions.
 
 ## Success Criteria
 
