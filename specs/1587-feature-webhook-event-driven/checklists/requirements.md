@@ -1,8 +1,8 @@
 # Specification Quality Checklist: Event-Driven Trigger for AI PR Loop on Agent Session Completion
 
-**Purpose**: Validate specification completeness before proceeding to planning
-**Created**: 2026-05-27
-**Feature**: [spec.md](../spec.md)
+**Purpose**: Validate specification completeness before proceeding to planning  
+**Created**: 2026-05-27  
+**Feature**: [spec.md](../spec.md)  
 **Source Issue**: #1587
 
 ## Content Quality
@@ -21,7 +21,7 @@
   GitHub Actions cache eviction
 - [ ] CHK007 All acceptance scenarios specify observable system behavior (workflow starts, logs contain entries, cache prevents re-dispatch) rather than internal implementation state
 - [ ] CHK008 Success criteria SC-001 through SC-005 include quantitative thresholds (120s median latency, zero duplicates over 30 days, 95% success rate, 40% reduction in end-to-end time, 100%
-  existing test pass rate)
+  pass rate for existing tests)
 - [ ] CHK009 Scope boundaries are defined: new standalone workflow file (`agent-session-monitor.yml`), no modification to existing `ai-pr-loop.yml`, supplements rather than replaces existing triggers
   (FR-006)
 - [ ] CHK010 Dependencies documented: relies on GitHub Issues Events API availability, GitHub Actions cache (`actions/cache`), existing `ai-pr-loop.yml` `workflow_dispatch` inputs (`pr_number`,

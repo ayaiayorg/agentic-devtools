@@ -87,7 +87,7 @@ the AI PR loop processes the PR exactly once per unique terminal event.
 requirement that must ship alongside the trigger itself.
 
 **Independent Test**: Can be tested by simulating a scenario where both the event-driven trigger and a residual polling cycle detect the same `copilot_work_finished` event. The system should produce
-exactly one workflow run (or the second should be cancelled by concurrency controls).
+exactly one workflow run (or the second should be queued and deduplicated by concurrency controls with `cancel-in-progress: false`).
 
 **Acceptance Scenarios**:
 
