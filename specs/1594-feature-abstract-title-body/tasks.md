@@ -10,17 +10,17 @@
 The plan phases map to task phases as follows. Tasks split some plan phases by
 user story/provider and add setup plus final cross-cutting validation work.
 
-| Plan Phase | Tasks Phase(s) | Tasks |
-|------------|----------------|-------|
-| — | Phase 1: Setup | T001–T002 |
-| Phase 1: Extend `EventPayload` Model | Phase 2: Foundational — Extend `EventPayload` Model | T003–T008 |
-| Phase 2: Implement `check_edit_relevance` Guard | Phase 3: User Story 1 & 2 — Edit-Relevance Guard Implementation | T009–T012 |
-| Phase 3: Update GitHub Provider | Phase 4: User Story 1 & 2 — GitHub Provider Changes | T013–T019 |
-| Phase 4: Wire Guard into Command Entry Point | Phase 5: User Story 1 & 2 — Wire Guard into Command Entry Point | T020–T024 |
-| Phase 5: Non-Edited Events Pass Through | Phase 6: User Story 3 — Non-Edited Events Pass Through | T025–T026 |
-| Phase 6: Azure DevOps Provider | Phase 7: User Story 4 — Azure DevOps Provider | T027–T032 |
-| Phase 7: Workflow YAML Update | Phase 8: Workflow YAML Update | T033–T034 |
-| Cross-cutting validation across plan phases | Final Phase: Polish & Cross-Cutting | T035–T038 |
+| Tasks Phase | Plan Phase(s) | Description |
+|-------------|---------------|-------------|
+| Phase 1: Setup | — | Initial setup work for this feature (T001–T002). |
+| Phase 2: Foundational — Extend `EventPayload` Model | Phase 1: Extend `EventPayload` Model | Foundational model updates and tests for the new edit-related fields (T003–T008). |
+| Phase 3: User Story 1 & 2 — Edit-Relevance Guard Implementation | Phase 2: Implement `check_edit_relevance` Guard | Implement the provider-agnostic edit-relevance guard logic (T009–T012). |
+| Phase 4: User Story 1 & 2 — GitHub Provider Changes | Phase 3: Update GitHub Provider | Apply the new guard-related change detection in the GitHub provider (T013–T019). |
+| Phase 5: User Story 1 & 2 — Wire Guard into Command Entry Point | Phase 4: Wire Guard into Command Entry Point | Integrate the guard into command execution flow (T020–T024). |
+| Phase 6: User Story 3 — Non-Edited Events Pass Through | Phase 5: Non-Edited Events Pass Through | Ensure non-edited events continue through the existing path unchanged (T025–T026). |
+| Phase 7: User Story 4 — Azure DevOps Provider | Phase 6: Azure DevOps Provider | Add corresponding Azure DevOps provider support for the guard and edit change flags (T027–T032). |
+| Phase 8: Workflow YAML Update | Phase 7: Workflow YAML Update | Update workflow YAML configuration to support the new behavior (T033–T034). |
+| Final Phase: Polish & Cross-Cutting | Cross-cutting validation across plan phases | Final polish and validation spanning the earlier plan phases (T035–T038). |
 
 ---
 
@@ -52,7 +52,7 @@ user story/provider and add setup plus final cross-cutting validation work.
   proceeds, body-only skips (US2), simultaneous title+body proceeds (FR-005, FR-008), empty changes dict skips in `tests/unit/cli/ci/guards/test_check_edit_relevance.py`
 - [ ] T010 [US1] [US2] Implement `check_edit_relevance(event: EventPayload) -> tuple[bool, str]` in `agentic_devtools/cli/ci/guards.py` — returns `(True, reason)` to skip when `action=="edited"` AND
   `edit_changes_known=True` AND `title_changed=False` AND `base_changed=False`; returns `(False, "")` otherwise (FR-004, FR-005, FR-008)
-- [ ] T011 [US2] Ensure `check_edit_relevance` reason string matches format "edited event with no title or base change" for body-only/non-title edits (FR-005)
+- [ ] T011 [US2] Ensure `check_edit_relevance` skip reason for body-only/non-title edits captures the required invariant (edited event with no title or base change) without requiring an exact sentence; tests should assert key substrings/structure consistent with the spec/examples (FR-005)
 - [ ] T012 [US1] [US2] Verify all test branches pass for `check_edit_relevance` — confirm 100% line and branch coverage (FR-004, FR-005, FR-008)
 
 ---
