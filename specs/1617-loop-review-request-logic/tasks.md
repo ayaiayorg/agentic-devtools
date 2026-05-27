@@ -19,8 +19,8 @@
 ## Phase 1: Setup & Scaffolding
 
 - [ ] T001 Create `agentic_devtools/cli/ci/pipeline/commit_message.py` with module docstring and imports
-- [ ] T002 Create `tests/unit/cli/ci/pipeline/commit_message/__init__.py` (FR-009)
-- [ ] T003 Create `tests/unit/cli/ci/guards/` directory with `__init__.py` (if not exists) (FR-002)
+- [ ] T002 Create `tests/unit/cli/ci/pipeline/commit_message/__init__.py`
+- [ ] T003 Create `tests/unit/cli/ci/guards/` directory with `__init__.py` (if not exists)
 
 ## Phase 2: Foundational — Data Model & Snapshot Extensions
 

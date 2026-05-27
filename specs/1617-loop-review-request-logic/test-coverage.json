@@ -99,7 +99,6 @@
       "is_covered": true,
       "has_happy_path": false,
       "test_task_ids": [
-        "T002",
         "T040",
         "T044"
       ],
@@ -218,19 +217,17 @@
       "has_happy_path": false,
       "test_task_ids": [
         "T015",
-        "T018",
-        "T021",
-        "T024"
+        "T018"
       ],
       "test_types": []
     }
   },
-  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-003 | N/A | T025, T026, T027, T028 | None | ✅ Covered |\n| FR-009 | N/A | T002, T040, T044 | None | ✅ Covered |\n| FR-006 | N/A | T030, T031, T033, T059 | None | ✅ Covered |\n| FR-001 | N/A | T013, T017 | None | ✅ Covered |\n| FR-002 | N/A | T003, T014, T015, T018, T019 | None | ✅ Covered |\n| FR-002a | N/A | T015, T018, T021, T024 | None | ✅ Covered |\n| FR-004 | N/A | T050, T051 | None | ✅ Covered |\n| FR-005 | N/A | T037, T038 | None | ✅ Covered |\n| FR-007 | N/A | T032, T033, T059 | None | ✅ Covered |\n| FR-008 | N/A | T041, T042, T043 | None | ✅ Covered |\n| FR-010 | N/A | T016, T055, T057, T058 | None | ✅ Covered |\n",
+  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-003 | N/A | T025, T026, T027, T028 | None | ✅ Covered |\n| FR-009 | N/A | T002, T040, T044 | None | ✅ Covered |\n| FR-006 | N/A | T030, T031, T033, T059 | None | ✅ Covered |\n| FR-001 | N/A | T013, T017 | None | ✅ Covered |\n| FR-002 | N/A | T003, T014, T015, T018, T019 | None | ✅ Covered |\n| FR-002a | N/A | T015, T018 | None | ✅ Covered |\n| FR-004 | N/A | T050, T051 | None | ✅ Covered |\n| FR-005 | N/A | T037, T038 | None | ✅ Covered |\n| FR-007 | N/A | T032, T033, T059 | None | ✅ Covered |\n| FR-008 | N/A | T041, T042, T043 | None | ✅ Covered |\n| FR-010 | N/A | T016, T055, T057, T058 | None | ✅ Covered |\n",
   "summary": {
     "total_frs": 11,
     "covered_frs": 11,
     "uncovered_frs": 0,
-    "total_test_tasks": 34,
+    "total_test_tasks": 32,
     "unmapped_test_tasks": 0,
     "total_findings": 11
   }
