@@ -262,7 +262,7 @@ goal of reducing structural validation failures.
 The following non-functional requirements define quality attributes and constraints for the resilient generation system.
 
 - **NFR-001**: The total spec generation time including all retries must not exceed 120 seconds for any single issue. Each individual LLM call should complete within 30 seconds, and retry delays
-  should use exponential backoff starting at 2 seconds (2s, 4s, 8s for retries 1, 2, 3 respectively).
+  should use exponential backoff starting at 2 seconds (2s and 4s before retries 1 and 2 respectively, consistent with 3 total validation-consuming attempts).
 
 - **NFR-002**: The retry mechanism must be structurally idempotent — running the same generation multiple times on the same issue input must produce structurally equivalent output (all mandatory
   sections present,
