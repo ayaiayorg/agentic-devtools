@@ -2,7 +2,7 @@
 
 ## Technical Context
 
-- **Language/Runtime**: Python 3.x, pip-installable package (`agentic-devtools`)
+- **Language/Runtime**: Python >=3.10, pip-installable package (`agentic-devtools`)
 - **Architecture**: Sequential action pipeline (`run_pipeline`) evaluating actions against an immutable `PRStateSnapshot` + mutable `DerivedState`
 - **Key Files**:
   - `agentic_devtools/cli/ci/pipeline/snapshot.py` — `PRStateSnapshot`, `DerivedState`, `build_pr_state_snapshot`
@@ -15,7 +15,7 @@
   - `agentic_devtools/cli/ci/orchestrator.py` — Legacy `run_ai_pr_loop` + `_request_copilot_review_if_needed`
   - `agentic_devtools/cli/ci/guards.py` — `DEDUP_MARKER_PREFIX`, dedup/cycle checks
   - `agentic_devtools/cli/ci/github_provider.py` — `_build_squash_commit_message`, `merge_pr`, `list_review_thread_states`
-- **Test Policy**: 1:1:1 structure under `tests/unit/`, 100% branch coverage, TDD workflow
+- **Test Policy**: 1:1:1 structure under `tests/unit/`, 100% coverage, TDD workflow
 - **CI**: `scripts/run-pr-checks.sh`, ruff lint/format, mypy, markdownlint
 
 ## Research Summary
