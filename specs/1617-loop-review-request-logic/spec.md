@@ -6,6 +6,58 @@
 **Input**: GitHub Issue #1617  
 **Source Issue**: #1617 (<https://github.com/ayaiayorg/agentic-devtools/issues/1617>)
 
+## Clarifications
+
+### Session 2026-05-27
+
+- Q: The spec proposes extending `PRStateSnapshot` with `unresolved_thread_count`, but the existing field is named
+  `unresolved_threads` (already present on `PRStateSnapshot`). Should the spec use the existing field name, or does it
+  intend a semantically different field? → A: `unresolved_threads` should continue to mean the existing narrower count
+  already on `PRStateSnapshot` (unresolved Copilot review threads from prior commits). FR-003 now requires a broader
+  all-authors/all-unresolved-threads count, so it should use a separate field such as `total_unresolved_threads` rather
+  than reusing `unresolved_threads`. The Key Entities section has been corrected to preserve `unresolved_threads` for
+  the existing Copilot-only count and use the new total count for FR-003.
+
+- Q: FR-002a requires suppressing review requests across runs when a repair was dispatched in a prior run and HEAD has
+  not changed. How is the "HEAD SHA at repair dispatch time" persisted across workflow invocations? The current
+  `repair_dispatched` is a local boolean within a single run. → A: FR-002a uses two distinct PR comment markers with
+  different purposes. The existing `DEDUP_MARKER_PREFIX` marker is the run-dedup / dispatch-budget marker used by
+  `check_deduplication()` to deduplicate orchestrator runs; because that guard may create or update the marker even
+  when no repair is dispatched, the `DEDUP_MARKER_PREFIX` marker MUST NOT be treated as evidence that a repair was
+  dispatched. The "repair actually dispatched at SHA" state is instead persisted in a separate repair-dispatch marker
+  comment using a different prefix constant, `REPAIR_DISPATCH_MARKER_PREFIX`, whose literal string MUST be distinct
+  from `DEDUP_MARKER_PREFIX` (for example, a dedicated `<!-- repair-dispatched-sha:... -->` prefix rather than the
+  existing `<!-- repair-dispatch:... -->` prefix). That repair-dispatch marker is written only when
+  `DispatchRepairAction` actually dispatches a repair. On re-trigger, the orchestrator reads only the
+  `REPAIR_DISPATCH_MARKER_PREFIX` marker to detect a prior repair dispatch and compares the SHA stored in that marker
+  against current HEAD. No new persistence mechanism beyond PR comments is needed, but the two marker formats must be
+  unambiguously distinguishable when parsed.
+
+- Q: FR-003 says "unresolved review comment threads" but the existing `unresolved_threads` field on `PRStateSnapshot`
+  specifically counts "unresolved Copilot review threads from prior commits." Should FR-003 block on ALL unresolved
+  threads (including human reviewer threads and threads on current HEAD), or only the subset already tracked? → A:
+  FR-003 should block on ALL unresolved review threads on the PR regardless of author or commit, matching User Story 2
+  Scenario 3 which explicitly includes non-Copilot human reviewer threads. The `RequestReviewAction` guard should use a
+  broader count that includes all unresolved threads, not just the prior-commit subset. A new snapshot field or provider
+  call may be needed to capture the full count.
+
+- Q: FR-009 references "the Copilot SDK" for generating squash commit messages. What specific SDK or API is this? The
+  current GitHub provider already includes an SDK-based commit message path
+  (`GitHubActionsProvider._generate_commit_message_via_sdk`) with deterministic fallback. → A: FR-009 should remain
+  deterministic-only in this phase: commit messages for this feature are generated from commit subjects using the
+  existing `_build_squash_commit_message` pattern. The existing SDK-based generator is acknowledged as current
+  codebase capability, but FR-009 does not require using it, changing it, or expanding its usage in this phase. Any
+  future Copilot SDK-based generation standardization should occur behind the `CommitMessageGenerator` interface and is
+  explicitly out of scope for this phase.
+
+- Q: FR-006 states that `RequestReviewAction` MUST be suppressed if `SquashAction` executed and set
+  `invalidates_snapshot=True`. How does `RequestReviewAction` observe that `SquashAction` executed in the same pipeline
+  run? The current action pipeline evaluates actions sequentially but each action only sees `DerivedState` — there's no
+  mechanism to inspect prior `ActionResult.invalidates_snapshot`. → A: The pipeline runner should set a `DerivedState`
+  flag (e.g., `derived.set("snapshot_invalidated", True)`) when any action returns `invalidates_snapshot=True`.
+  `RequestReviewAction.evaluate()` then checks `derived.snapshot_invalidated` and skips if true. This follows the same
+  pattern used for `copilot_review_pending` where actions communicate state to downstream actions via `DerivedState`.
+
 ## Problem Statement
 
 The ai-pr-loop orchestrator has logic errors in its review request and merge pathways:
@@ -44,8 +96,9 @@ that the repair agent is about to overwrite.
 2. **Given** a PR with an active Copilot session (detected via squash-wait marker or events API showing session in progress), **When** the `RequestReviewAction.evaluate()` is called, **Then** it
    returns `ActionDecision.SKIP` with details indicating repair/session is active.
 
-3. **Given** a PR where a repair was dispatched in a prior run and the repair agent has not yet pushed new code, **When** the ai-pr-loop is re-triggered (e.g., by a workflow_run event), **Then** the
-   review request is suppressed until the repair cycle produces a new HEAD SHA.
+3. **Given** a PR where a repair was dispatched in a prior run and the repair agent has not yet pushed new code (HEAD SHA matches the repair-dispatch marker SHA, i.e. the dedicated persisted marker
+   written only when `DispatchRepairAction` actually dispatches a repair), **When** the ai-pr-loop is re-triggered (e.g., by a workflow_run event), **Then** the review request is suppressed until the
+   repair cycle produces a new HEAD SHA.
 
 ---
 
@@ -67,7 +120,7 @@ reviews.
    `ActionDecision.EXECUTE`.
 
 3. **Given** a PR with unresolved comments from a non-Copilot human reviewer, **When** `RequestReviewAction.evaluate()` is called, **Then** it returns `ActionDecision.SKIP` (any unresolved comment
-   blocks new review requests).
+   blocks new review requests, regardless of author).
 
 ---
 
@@ -85,7 +138,7 @@ only fires as a fallback if squash did not invalidate the snapshot.
 **Acceptance Scenarios**:
 
 1. **Given** a PR with 3 commits above merge-base and CI passing, **When** the pipeline action sequence runs, **Then** `SquashAction` executes first and `RequestReviewAction` is skipped because the
-   squash force-push will trigger a Copilot review automatically.
+   squash force-push will trigger a Copilot review automatically (detected via `derived.snapshot_invalidated == True`).
 
 2. **Given** a PR with 3 commits where squash fails (e.g., rebase conflict), **When** the pipeline action sequence continues, **Then** `RequestReviewAction` fires as a fallback and requests review on
    the current HEAD.
@@ -118,73 +171,86 @@ HEAD). Only active coding sessions are disrupted by squash.
 
 ### User Story 5 - Squash Merge for Multi-Commit PRs at Merge Time (Priority: P2)
 
-As a repository maintainer, I want the merge action to use squash merge strategy when a PR still has multiple commits at merge time, with a commit message sourced from the Copilot SDK when available,
-so that even if pre-merge squash was skipped or failed, the resulting merge maintains clean linear history.
+As a repository maintainer, I want the merge action to use squash merge strategy when a PR still has multiple commits at merge time, with a commit message sourced from the deterministic fallback
+(concatenated commit subjects), so that even if pre-merge squash was skipped or failed, the resulting merge maintains clean linear history.
 
 **Why this priority**: This is a safety net ensuring that multiple commits never result in a polluted main branch history, regardless of whether the pre-merge squash succeeded.
 
-**Independent Test**: Can be tested by configuring a PR snapshot with `commit_count > 1` at the merge step and verifying `MergeAction.execute()` calls `provider.merge_pr()` with strategy `"squash"`
-and a Copilot-generated commit message.
+**Independent Test**: Can be tested by configuring a PR snapshot with `commit_count > 1` at the merge step and verifying `MergeAction.execute()` calls
+`provider.merge_pr()` with method `"squash"` and a deterministic commit message.
 
 **Acceptance Scenarios**:
 
 1. **Given** a PR with 2 commits above merge-base that passes all merge preconditions, **When** `MergeAction.execute()` runs, **Then** it calls `provider.merge_pr()` with method `"squash"` and a
-   descriptive commit message.
+   descriptive commit message built from the commit subjects.
 
 2. **Given** a PR with exactly 1 commit that passes all merge preconditions, **When** `MergeAction.execute()` runs, **Then** it calls `provider.merge_pr()` with method `"rebase"` (existing behavior
    preserved).
 
-3. **Given** a multi-commit PR where the Copilot SDK is unavailable for commit message generation, **When** `MergeAction.execute()` runs with squash strategy, **Then** it falls back to a deterministic
-   commit message built from the commit subjects (same pattern as `_build_squash_commit_message`).
+3. **Given** a multi-commit PR where the commit message generation interface is not configured, **When** `MergeAction.execute()` runs with squash strategy, **Then** it uses the deterministic
+   commit message built from commit subjects (same pattern as `_build_squash_commit_message`).
 
 ---
 
 ### Edge Cases
 
-- What happens when a repair is dispatched but the repair agent never pushes code (stale repair)? The system should rely on the existing squash-wait timeout mechanism to eventually proceed.
+- What happens when a repair is dispatched but the repair agent never pushes code (stale repair)? The system should rely on the existing squash-wait timeout mechanism to eventually proceed. The
+  repair-dispatch marker SHA comparison ensures that once a new HEAD is pushed (by any means), review requests are unblocked.
 - How does the system handle a race condition where repair finishes and a review is requested simultaneously? The SHA-based deduplication ensures only one review per HEAD is active.
 - What happens when squash invalidates the snapshot but CI hasn't run on the new HEAD yet? The `invalidates_snapshot=True` flag causes the pipeline to exit early; the next workflow trigger (on the
   force-push event) re-evaluates from scratch.
 - What happens when `commit_count` is unavailable (provider doesn't support it)? The merge should fall back to rebase, maintaining current behavior.
+- What happens when `snapshot_invalidated` is set by an action other than `SquashAction` (e.g., a future action that force-pushes)? `RequestReviewAction` should still skip — the guard is generic and
+  applies to any snapshot invalidation, not just squash.
 
 ## Requirements
 
 ### Functional Requirements
 
-- **FR-001**: The `RequestReviewAction` MUST skip (return `ActionDecision.SKIP`) when a repair has been dispatched in the current pipeline run (i.e., when `DispatchRepairAction` returned
-  `ActionDecision.EXECUTE` in the same action sequence).
+- **FR-001**: The `RequestReviewAction` MUST skip (return `ActionDecision.SKIP`) when a repair has been dispatched in the current pipeline run. Detection mechanism: `DispatchRepairAction` sets
+  `derived.set("repair_dispatched", True)` upon successful execution, and `RequestReviewAction.evaluate()` checks this flag.
 
 - **FR-002**: The `RequestReviewAction` MUST skip when an active Copilot coding session is detected (via `snapshot.active_session == True`).
 
 - **FR-002a**: The `RequestReviewAction` MUST skip on cross-run re-triggers when a repair was dispatched in a prior run and the HEAD SHA has not changed since
-  that dispatch (i.e., the repair agent has not yet pushed new code). Suppression is keyed on the HEAD SHA recorded at repair dispatch time.
+  that dispatch. Detection mechanism: a dedicated repair-dispatch marker comment (for example, using `REPAIR_DISPATCH_MARKER_PREFIX`) contains the HEAD SHA at successful dispatch time; this marker
+  MUST be written only when `DispatchRepairAction` actually dispatches a repair. On re-trigger, the orchestrator reads this repair-specific marker and compares its SHA against current HEAD.
+  Suppression is lifted when HEAD SHA differs from the marker SHA (indicating the repair agent pushed new code).
 
-- **FR-003**: The `RequestReviewAction` MUST skip when unresolved review comment threads exist on the PR (thread count > 0 as reported by the provider).
+- **FR-003**: The `RequestReviewAction` MUST skip when unresolved review comment threads exist on the PR (total unresolved thread count > 0 across all reviewers, as reported by the provider). This
+  requires a broader thread count than the existing `snapshot.unresolved_threads` field (which only counts prior-commit Copilot threads). A new field `snapshot.total_unresolved_threads` (or equivalent
+  provider query) captures all unresolved threads regardless of author or commit.
 
 - **FR-004**: The `_request_copilot_review_if_needed` function in the legacy orchestrator path MUST check for repair dispatch status and unresolved comments before requesting review, mirroring FR-001
   and FR-003.
 
-- **FR-005**: The `SquashAction` MUST NOT use `copilot_review_pending` as a blocking precondition. It MUST only defer when `snapshot.active_session` is true (active coding/repair session).
+- **FR-005**: The `SquashAction` MUST NOT use `copilot_review_pending` as a blocking precondition. It MUST only defer when `snapshot.active_session` is true (active coding/repair session). The
+  existing `no_pending_review` precondition check must be removed from `SquashAction.evaluate()`.
 
-- **FR-006**: When the pipeline action sequence includes both `SquashAction` and `RequestReviewAction`, the `RequestReviewAction` MUST be suppressed (skip) if `SquashAction` executed successfully and
-  set `invalidates_snapshot=True`, since the force-push will naturally trigger a new review.
+- **FR-006**: When the pipeline action sequence includes both `SquashAction` and `RequestReviewAction`, the `RequestReviewAction` MUST be suppressed (skip) if any prior action set
+  `invalidates_snapshot=True`. Implementation: the pipeline runner sets `derived.set("snapshot_invalidated", True)` when any action returns `ActionResult.invalidates_snapshot == True`, and
+  `RequestReviewAction.evaluate()` checks this flag.
 
-- **FR-007**: `RequestReviewAction` MUST fire as a fallback if `SquashAction` was skipped (e.g., only 1 commit) or failed.
+- **FR-007**: `RequestReviewAction` MUST fire as a fallback if `SquashAction` was skipped (e.g., only 1 commit)
+  or failed without invalidating the snapshot (i.e., `derived.snapshot_invalidated` is `False`).
 
 - **FR-008**: `MergeAction.execute()` MUST select merge strategy based on commit count: use `"squash"` when `snapshot.commit_count > 1`, use `"rebase"` when
   `snapshot.commit_count == 1`. When `commit_count` is unavailable (e.g., provider does not support it or returns `None`), the system MUST fall back to `"rebase"` to preserve existing behavior.
 
-- **FR-009**: When using squash merge, the system MUST attempt to generate a commit message via the Copilot SDK, falling back to a deterministic message built from commit subjects if the SDK is
-  unavailable or returns an error.
+- **FR-009**: When using squash merge, the system MUST generate a commit message using a deterministic approach built from commit subjects (same pattern as `_build_squash_commit_message`). A future
+  Copilot SDK integration point SHOULD be stubbed behind an interface (`CommitMessageGenerator` protocol) so it can be wired in when available, but the initial implementation uses the deterministic
+  fallback exclusively.
 
 - **FR-010**: The decision summary JSON MUST include a `"reason"` field when a review request is
-  suppressed (e.g., `"reason": "repair_active"` or `"reason": "unresolved_comments"`),
-  aligning with the existing `summary["reason"]` convention used throughout the orchestrator.
+  suppressed (e.g., `"reason": "repair_active"`, `"reason": "repair_dispatched"`, `"reason": "repair_dispatched_prior_run"`,
+  `"reason": "unresolved_comments"`, or `"reason": "snapshot_invalidated"`), aligning with the existing `summary["reason"]`
+  convention used throughout the orchestrator.
 
 ### Non-Functional Requirements
 
-- **NFR-001**: The additional guard checks (repair status, unresolved comments) MUST NOT add more than 1 additional API call per orchestrator invocation. Unresolved thread count SHOULD be derivable
-  from data already fetched in the pipeline snapshot.
+- **NFR-001**: The additional guard checks (repair status, unresolved comments) MUST NOT add more than 1 additional API call per orchestrator invocation. The repair dispatch check uses `DerivedState`
+  (zero API calls). The unresolved thread count SHOULD be derivable from data already fetched in the pipeline snapshot; if a broader thread count is needed (per FR-003), it MUST be fetched in the
+  `build_pr_state_snapshot` phase alongside existing provider calls.
 
 - **NFR-002**: All new precondition checks MUST be logged at INFO level with structured context (PR number, reason, counts) for diagnosability.
 
@@ -194,9 +260,21 @@ and a Copilot-generated commit message.
 
 ### Key Entities
 
-- **PRStateSnapshot**: Extended with `unresolved_thread_count` field to support FR-003 without additional API calls.
-- **DerivedState**: Extended with `repair_dispatched` flag set by `DispatchRepairAction` to communicate repair status to downstream actions like `RequestReviewAction`.
+- **PRStateSnapshot**: The existing `unresolved_threads` field (counts prior-commit Copilot threads) is retained with its current narrow semantics for backward
+  compatibility and any existing logic that
+  depends on that specific count. A new `total_unresolved_threads` field is added for FR-003 and is the field consumed by `RequestReviewAction` when applying the broader unresolved-thread guard
+  (all unresolved threads regardless of author or commit).
+- **DerivedState**: Extended with two new flags that MUST be initialized to `False` at the start of every
+  orchestrator/pipeline run before any action evaluation occurs, so downstream code can safely use direct
+  attribute access without `AttributeError` when a flag was never set during that run:
+  - `repair_dispatched` (bool) — initialized to `False` at run start, then set to `True` by `DispatchRepairAction`
+    upon successful execution to communicate repair status to downstream actions like `RequestReviewAction`.
+  - `snapshot_invalidated` (bool) — initialized to `False` at run start, then set to `True` by the pipeline
+    runner when any action returns `ActionResult.invalidates_snapshot == True`, consumed by
+    `RequestReviewAction` to implement FR-006.
 - **ActionResult**: Already supports `invalidates_snapshot` which is used by the squash-first logic (FR-006).
+- **CommitMessageGenerator** (protocol): New interface for commit message generation, with a single `DeterministicCommitMessageGenerator` implementation initially. Stubbed for future Copilot SDK
+  integration.
 
 ## Success Criteria
 
@@ -220,8 +298,8 @@ and a Copilot-generated commit message.
 - **SC-007**: New guard logic achieves 100% branch coverage in unit tests (matching the repository's `--cov-fail-under=100` CI gate), with a minimum of 2 test
   cases (1 positive, 1 negative) per new precondition check.
 
-- **SC-008**: The Copilot SDK commit message generation path succeeds in ≥80% of squash-merge invocations (remaining ≤20% use the deterministic fallback) — measured over the first 30 days
-  post-deployment.
+- **SC-008**: The `CommitMessageGenerator` protocol is implemented with the deterministic fallback achieving 100% success. The Copilot SDK path success rate (≥80% target) becomes measurable only after
+  the SDK integration is wired in — tracked as a post-integration KPI over the first 30 days after SDK availability.
 
 - **SC-009**: End-to-end latency of the `RequestReviewAction.evaluate()` method remains under 500ms (p95) with the new guard checks, adding no more than 50ms over the baseline without guards.
 
