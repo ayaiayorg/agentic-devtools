@@ -1,5 +1,9 @@
 # Tasks: Improve SpecKit Generation Resilience
 
+## Phase Mapping: Plan → Tasks
+
+Phases in this `tasks.md` are 1:1 aligned with the phases defined in `plan.md`.
+
 ## Phase 1: Setup & Scaffolding
 
 - [ ] T001 Create feature branch `speckit/1571/phase-1-specify` from `main`
@@ -18,19 +22,19 @@
 
 ## Phase 3: User Story 1 — Reliable First-Attempt Spec Generation (P1)
 
-- [ ] T009 [US1] Write test cases in `.github/scripts/speckit-trigger/test_specify_retry.sh` verifying skeleton presence in generated specify prompts (FR-001)
+- [ ] T009 [US1] Write happy-path test cases in `.github/scripts/speckit-trigger/test_specify_retry.sh` verifying that a normal generated specify prompt includes the mandatory skeleton block and preserves all 4 required section headings before validation succeeds (FR-001)
 - [ ] T010 [US1] Modify `run_specify_phase()` in `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` to inject the mandatory skeleton block from `templates/specify-skeleton.md` into the
   specify prompt between instructions and template reference (FR-001)
 - [ ] T011 [US1] Add explicit prose-to-bullet ratio instruction referencing `MAX_BULLET_LINE_PCT` in the skeleton injection block within `run_specify_phase()` (FR-008)
 - [ ] T012 [US1] Update `run_specify_phase_with_feedback()` in `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` to also include the skeleton on retries (FR-001)
-- [ ] T013 [P] [US1] Write test in `.github/scripts/speckit-trigger/test_specify_retry.sh` verifying that bullet percentage instruction is present in prompts (FR-008)
-- [ ] T014 [P] [US1] Write test in `.github/scripts/speckit-trigger/test_spec_validation.sh` verifying metrics JSON output format from `_report_specify_metrics()` (FR-007)
+- [ ] T013 [P] [US1] Write happy-path test in `.github/scripts/speckit-trigger/test_specify_retry.sh` verifying that a successful prompt includes the bullet percentage instruction so the generated spec follows the prose-heavy format on the first attempt (FR-008)
+- [ ] T014 [P] [US1] Write happy-path test in `.github/scripts/speckit-trigger/test_spec_validation.sh` verifying `_report_specify_metrics()` emits valid metrics JSON for a successful first-attempt generation flow with zero retries and no fallback (FR-007)
 - [ ] T015 [US1] Implement `_report_specify_metrics()` function in `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` that emits JSON metrics to stderr and `GITHUB_OUTPUT` at end of
   `run_specify_phase_with_validation_retries()` (FR-007)
 
 ## Phase 4: User Story 2 — Adaptive Retry with Enriched Feedback (P1)
 
-- [ ] T016 [US2] Write test cases in `.github/scripts/speckit-trigger/test_specify_retry.sh` for enriched feedback content per failure category (FR-002)
+- [ ] T016 [US2] Write happy-path test cases in `.github/scripts/speckit-trigger/test_specify_retry.sh` verifying that, when validation detects a specific failure category, the retry flow returns enriched feedback with the matching remediation suggestion and example content for that category (FR-002)
 - [ ] T017 [US2] Extend `_build_structured_specify_feedback()` in `.github/scripts/speckit-trigger/lib/spec-validation.sh` to include per-category remediation suggestions: `MISSING_SECTIONS` → exact
   headings + example, `BELOW_SIZE_THRESHOLD` → expand prose instruction, `INSUFFICIENT_REQUIREMENTS` → FR-### format example, `BULLET_SUMMARY_DETECTED` → prose conversion example (FR-002)
 - [ ] T018 [US2] Implement `_get_specify_example_spec()` function in `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` that reads and returns the truncated example from
