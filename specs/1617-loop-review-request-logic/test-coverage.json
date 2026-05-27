@@ -49,9 +49,6 @@
       "test_task_ids": [
         "T002",
         "T040",
-        "T041",
-        "T042",
-        "T043",
         "T044"
       ],
       "test_types": []
@@ -188,17 +185,14 @@
       "is_covered": true,
       "has_happy_path": false,
       "test_task_ids": [
-        "T002",
-        "T040",
         "T041",
         "T042",
-        "T043",
-        "T044"
+        "T043"
       ],
       "test_types": []
     }
   },
-  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-003 | US2 | T025, T026, T027, T028, T051 | happy-path, unit | \u2705 Covered |\n| FR-011 | US1 | T003, T013, T014, T015, T016, T017, T018, T019, T050 | happy-path | \u2705 Covered |\n| FR-009 | US5 | T002, T040, T041, T042, T043, T044 | None | \u2705 Covered |\n| FR-006 | US3 | T030, T031, T032, T033 | None | \u2705 Covered |\n| FR-001 | US1 | T003, T013, T014, T015, T016, T017, T018, T019, T050 | happy-path | \u2705 Covered |\n| FR-002 | US1 | T003, T013, T014, T015, T016, T017, T018, T019, T050 | happy-path | \u2705 Covered |\n| FR-010 | US1 | T003, T013, T014, T015, T016, T017, T018, T019, T050, T055, T057, T058 | happy-path | \u2705 Covered |\n| FR-004 | US2 | T025, T026, T027, T028, T050, T051 | happy-path, unit | \u2705 Covered |\n| FR-007 | US3 | T030, T031, T032, T033 | None | \u2705 Covered |\n| FR-005 | US4 | T037, T038 | None | \u2705 Covered |\n| FR-008 | US5 | T002, T040, T041, T042, T043, T044 | None | \u2705 Covered |\n",
+  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-003 | US2 | T025, T026, T027, T028, T051 | happy-path, unit | \u2705 Covered |\n| FR-011 | US1 | T003, T013, T014, T015, T016, T017, T018, T019, T050 | happy-path | \u2705 Covered |\n| FR-009 | US5 | T002, T040, T044 | None | \u2705 Covered |\n| FR-006 | US3 | T030, T031, T032, T033 | None | \u2705 Covered |\n| FR-001 | US1 | T003, T013, T014, T015, T016, T017, T018, T019, T050 | happy-path | \u2705 Covered |\n| FR-002 | US1 | T003, T013, T014, T015, T016, T017, T018, T019, T050 | happy-path | \u2705 Covered |\n| FR-010 | US1 | T003, T013, T014, T015, T016, T017, T018, T019, T050, T055, T057, T058 | happy-path | \u2705 Covered |\n| FR-004 | US2 | T025, T026, T027, T028, T050, T051 | happy-path, unit | \u2705 Covered |\n| FR-007 | US3 | T030, T031, T032, T033 | None | \u2705 Covered |\n| FR-005 | US4 | T037, T038 | None | \u2705 Covered |\n| FR-008 | US5 | T041, T042, T043 | None | \u2705 Covered |\n",
   "summary": {
     "total_frs": 11,
     "covered_frs": 11,
