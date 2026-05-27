@@ -821,8 +821,41 @@ jobs:
               // Expected when label is not present — ignore
             }
 
-      - name: Handle Failure (Comment + Label)
+      - name: Agent Fallback on Structural Failure
+        id: agent-fallback
         if: failure()
+        uses: actions/github-script@v7
+        env:
+          VALIDATION_ERRORS: ${{ steps.generate.outputs.validation_errors || '' }}
+          WORKSPACE_FILE: ${{ github.workspace }}/validation-errors.json
+          ISSUE_NUMBER_ENV: ${{ steps.extract.outputs.issue_number || '0' }}
+          ISSUE_TITLE_ENV: ${{ steps.issue.outputs.title || '' }}
+          ISSUE_BODY_ENV: ${{ steps.issue.outputs.body || '' }}
+          PHASE_ENV: ${{ steps.extract.outputs.next_phase || '0' }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          SPECKIT_AGENT_FALLBACK: ${{ vars.SPECKIT_AGENT_FALLBACK || '' }}
+          SPECKIT_REFERENCE_SPEC_PATH: ${{ vars.SPECKIT_REFERENCE_SPEC_PATH || '' }}
+          SPECKIT_COMMENT_ON_ISSUE: ${{ vars.SPECKIT_COMMENT_ON_ISSUE || '' }}
+        with:
+          script: |
+            const fallback = require('./.github/scripts/speckit-trigger/agent-fallback.js');
+            await fallback.run({
+              github,
+              context,
+              core,
+              phase: Number(process.env.PHASE_ENV) || 0,
+              validationErrors: process.env.VALIDATION_ERRORS,
+              workspaceFile: process.env.WORKSPACE_FILE,
+              issueNumber: Number(process.env.ISSUE_NUMBER_ENV) || 0,
+              issueTitle: process.env.ISSUE_TITLE_ENV,
+              issueBody: process.env.ISSUE_BODY_ENV,
+              token: process.env.COPILOT_GITHUB_TOKEN,
+              killSwitch: process.env.SPECKIT_AGENT_FALLBACK,
+              referenceSpecPath: process.env.SPECKIT_REFERENCE_SPEC_PATH,
+            });
+
+      - name: Handle Failure (Comment + Label)
+        if: failure() && steps['agent-fallback'].outputs.handled != 'true'
         uses: actions/github-script@v7
         env:
           NEXT_PHASE_NAME: ${{ steps.extract.outputs.next_phase_name || 'unknown' }}

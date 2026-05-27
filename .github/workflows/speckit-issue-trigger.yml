@@ -42,7 +42,8 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install github-copilot-sdk
           python -m pip install . --no-deps
-      - env:
+      - id: generate
+        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           SPECKIT_TRIGGER_LABEL: ${{ vars.SPECKIT_TRIGGER_LABEL || 'speckit' }}
@@ -82,8 +83,39 @@ jobs:
               core.warning(`Could not add ai-auto-merge-allowed label: ${e.message}`);
             }
 
-      - name: Handle Failure (Comment + Label)
+      - name: Agent Fallback on Structural Failure
+        id: agent-fallback
         if: failure()
+        uses: actions/github-script@v7
+        env:
+          WORKSPACE_FILE: ${{ github.workspace }}/validation-errors.json
+          ISSUE_NUMBER_ENV: ${{ github.event.issue.number || inputs.issue_number || '0' }}
+          ISSUE_TITLE_ENV: ${{ github.event.issue.title || '' }}
+          ISSUE_BODY_ENV: ${{ github.event.issue.body || '' }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          SPECKIT_AGENT_FALLBACK: ${{ vars.SPECKIT_AGENT_FALLBACK || '' }}
+          SPECKIT_REFERENCE_SPEC_PATH: ${{ vars.SPECKIT_REFERENCE_SPEC_PATH || '' }}
+          SPECKIT_COMMENT_ON_ISSUE: ${{ vars.SPECKIT_COMMENT_ON_ISSUE || '' }}
+        with:
+          script: |
+            const fallback = require('./.github/scripts/speckit-trigger/agent-fallback.js');
+            await fallback.run({
+              github,
+              context,
+              core,
+              phase: 1,
+              validationErrors: '',
+              workspaceFile: process.env.WORKSPACE_FILE,
+              issueNumber: Number(process.env.ISSUE_NUMBER_ENV) || 0,
+              issueTitle: process.env.ISSUE_TITLE_ENV,
+              issueBody: process.env.ISSUE_BODY_ENV,
+              token: process.env.COPILOT_GITHUB_TOKEN,
+              killSwitch: process.env.SPECKIT_AGENT_FALLBACK,
+              referenceSpecPath: process.env.SPECKIT_REFERENCE_SPEC_PATH,
+            });
+
+      - name: Handle Failure (Comment + Label)
+        if: failure() && steps['agent-fallback'].outputs.handled != 'true'
         uses: actions/github-script@v7
         env:
           ISSUE_NUMBER_INPUT: ${{ inputs.issue_number || '' }}

@@ -2091,6 +2091,49 @@ Do NOT include any conversational preamble before the heading."
 }
 
 # ---------------------------------------------------------------------------
+# _emit_validation_errors <phase_number> <phase_name> <failures_text>
+#
+# Emits structured validation errors to $GITHUB_OUTPUT and writes a
+# validation-errors.json workspace file for downstream fallback consumption.
+# Only called on structural validation failures (FR-001).
+# ---------------------------------------------------------------------------
+_emit_validation_errors() {
+    local phase_number="$1"
+    local phase_name="$2"
+    local failures_text="$3"
+
+    # Emit semicolon-delimited validation_errors to GITHUB_OUTPUT
+    local output_line
+    output_line=$(printf '%s' "$failures_text" | tr '\n' ';' | sed 's/;$//')
+    echo "validation_errors=${output_line}" >> "${GITHUB_OUTPUT:-/dev/null}"
+
+    # Write validation-errors.json workspace file
+    local json_errors="["
+    local first=true
+    while IFS= read -r line; do
+        [[ -z "$line" ]] && continue
+        local category detail
+        category=$(printf '%s' "$line" | sed 's/^[[:space:]]*//' | cut -d: -f1)
+        detail=$(printf '%s' "$line" | sed 's/^[^:]*:[[:space:]]*//')
+        if [[ "$first" == "true" ]]; then
+            first=false
+        else
+            json_errors+=","
+        fi
+        # Escape JSON special characters in detail
+        detail=$(printf '%s' "$detail" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        json_errors+="{\"category\":\"${category}\",\"detail\":\"${detail}\"}"
+    done <<< "$failures_text"
+    json_errors+="]"
+
+    local json_file="${GITHUB_WORKSPACE:-${RUNNER_TEMP:-/tmp}}/validation-errors.json"
+    cat > "$json_file" <<JSONEOF
+{"phase":${phase_number},"phase_name":"${phase_name}","errors":${json_errors}}
+JSONEOF
+    echo "[Agent Fallback] Wrote validation errors to ${json_file}" >&2
+}
+
+# ---------------------------------------------------------------------------
 # run_specify_phase_with_validation_retries
 #
 # Runs Phase 1 specify with structural validation retries and structured
@@ -2182,6 +2225,8 @@ run_specify_phase_with_validation_retries() {
         echo "Error: Specify phase failed structural validation after ${SPECIFY_MAX_RETRIES} attempts." >&2
         echo "Failures:" >&2
         printf '%s\n' "$specify_last_failures" >&2
+        # Emit structured validation errors for downstream fallback consumption (FR-001)
+        _emit_validation_errors "1" "specify" "$specify_last_failures"
     fi
     return 1
 }
@@ -2772,6 +2817,8 @@ Do NOT include any conversational preamble before the heading."
         # --- Safe write with validation for existing checklist ---
         if ! safe_write_with_validation "$checklist_file" "$result" --type checklist; then
             echo "Error: Checklist phase output failed structural validation. Original checklist preserved." >&2
+            # Emit structured validation errors for downstream fallback consumption (FR-001)
+            _emit_validation_errors "2" "checklist" "MISSING_SECTIONS: checklist output failed structural validation"
             return 1
         fi
     else
@@ -3006,6 +3053,8 @@ $line"
     # Verify plan.md was produced and is non-empty (required artifact)
     if [[ ! -s "$SPEC_DIR/plan.md" ]]; then
         echo "Error: Plan phase did not produce a non-empty plan.md" >&2
+        # Emit structured validation errors for downstream fallback consumption (FR-001)
+        _emit_validation_errors "3" "plan" "MISSING_FILE: plan.md was not produced"
         return 1
     fi
 }
@@ -3131,11 +3180,15 @@ You MUST address ALL findings listed above. Failure to do so will cause the CRIT
     result=$(call_llm "$prompt") || return 1
     if [[ -z "$result" ]]; then
         echo "Error: Tasks phase returned empty content" >&2
+        # Emit structured validation errors for downstream fallback consumption (FR-001)
+        _emit_validation_errors "4" "tasks" "MISSING_FILE: tasks.md content was empty"
         return 1
     fi
     result=$(strip_llm_preamble "$result" "# ")
     if [[ -z "${result//[[:space:]]/}" ]]; then
         echo "Error: Tasks phase returned blank content after sanitization" >&2
+        # Emit structured validation errors for downstream fallback consumption (FR-001)
+        _emit_validation_errors "4" "tasks" "MISSING_FILE: tasks.md content was blank after sanitization"
         return 1
     fi
     result=$(ensure_heading_start "$result" "# Task List")
@@ -3483,11 +3536,15 @@ Do NOT include any conversational preamble before the heading."
     result=$(call_llm "$prompt") || return 1
     if [[ -z "$result" ]]; then
         echo "Error: Analyze phase returned empty content" >&2
+        # Emit structured validation errors for downstream fallback consumption (FR-001)
+        _emit_validation_errors "5" "analyze" "MISSING_FILE: analysis-report.md content was empty"
         return 1
     fi
     result=$(strip_llm_preamble "$result" "# ")
     if [[ -z "${result//[[:space:]]/}" ]]; then
         echo "Error: Analyze phase returned blank content after preamble removal" >&2
+        # Emit structured validation errors for downstream fallback consumption (FR-001)
+        _emit_validation_errors "5" "analyze" "MISSING_FILE: analysis-report.md content was blank after preamble removal"
         return 1
     fi
     result=$(ensure_heading_start "$result" "# Analysis Report")

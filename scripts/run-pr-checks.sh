@@ -27,6 +27,10 @@ echo "── 3/8: Workflow integration tests ──"
 pytest tests/workflows/ -v --override-ini="addopts=" || { echo "FAIL: workflow integration tests"; FAILURES=$((FAILURES+1)); }
 
 echo ""
+echo "── 3b/8: Speckit agent fallback JS tests ──"
+node .github/scripts/speckit-trigger/tests/test_agent_fallback.js || { echo "FAIL: speckit agent fallback JS tests"; FAILURES=$((FAILURES+1)); }
+
+echo ""
 echo "── 4/8: E2E smoke tests ──"
 pytest tests/e2e_smoke/ -v --no-cov || { echo "FAIL: e2e smoke tests"; FAILURES=$((FAILURES+1)); }
 

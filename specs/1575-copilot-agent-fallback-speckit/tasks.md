@@ -20,10 +20,13 @@
 
 ## Phase 2: Foundational — Upstream Signal Emission
 
-- [ ] T004 Modify `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` to emit `validation_errors` to `$GITHUB_OUTPUT` on structural validation failure (FR-001). Output format:
+- [x] T004 Modify `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` to emit `validation_errors` to `$GITHUB_OUTPUT` on structural validation failure (FR-001). Output format:
   semicolon-delimited `CATEGORY: detail` pairs. Ensure non-structural failures (auth, network, import errors) do NOT emit these markers (FR-002)
-- [ ] T005 [P] Modify `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` to write `validation-errors.json` workspace file as fallback signal alongside `$GITHUB_OUTPUT` (FR-001)
-- [ ] T006 Add `id: generate` (or equivalent step id) to the orchestrator step in both workflow files to enable `steps.generate.outputs.validation_errors` access
+- [x] T005 [P] Modify `.github/scripts/speckit-trigger/generate-spec-from-issue.sh` to write `validation-errors.json` workspace file as fallback signal alongside `$GITHUB_OUTPUT` (FR-001)
+- [x] T006 Add `id: generate` (or equivalent step id) to the phase-progression workflow to enable
+  `steps.generate.outputs.validation_errors` access; in the phase-1 issue-trigger workflow, rely on workspace
+  `validation-errors.json` because the Python orchestrator does not propagate script-emitted outputs to the step
+  `$GITHUB_OUTPUT`
 
 ## Phase 3: User Story 1 — Automatic Agent Fallback (P1)
 
@@ -43,32 +46,32 @@
 
 ### Implementation — Shared Module
 
-- [ ] T012 [US1] Create `.github/scripts/speckit-trigger/agent-fallback.js` with exported `run()` function and `STRUCTURAL_ERROR_SIGNATURES` constants co-located with `spec-validation.sh` categories
+- [x] T012 [US1] Create `.github/scripts/speckit-trigger/agent-fallback.js` with exported `run()` function and `STRUCTURAL_ERROR_SIGNATURES` constants co-located with `spec-validation.sh` categories
   (FR-001, FR-002)
-- [ ] T013 [US1] Implement `detectStructuralFailure(stepOutputs, workspaceFile)` — reads `validation_errors` from step outputs or falls back to `validation-errors.json`; returns structured error array
+- [x] T013 [US1] Implement `detectStructuralFailure(stepOutputs, workspaceFile)` — reads `validation_errors` from step outputs or falls back to `validation-errors.json`; returns structured error array
   or null for non-structural failures (FR-001, FR-002)
-- [ ] T014 [US1] Implement `buildProblemStatement(issueTitle, issueBody, phase, validationErrors, referenceSpecPath)` — constructs agent prompt with 48KB UTF-8 truncation on issue body portion only,
+- [x] T014 [US1] Implement `buildProblemStatement(issueTitle, issueBody, phase, validationErrors, referenceSpecPath)` — constructs agent prompt with 48KB UTF-8 truncation on issue body portion only,
   appends `[truncated]` marker within 49,152 byte budget (FR-003)
-- [ ] T015 [US1] Implement `triggerCodingAgent(octokit, owner, repo, problemStatement, token)` — calls
+- [x] T015 [US1] Implement `triggerCodingAgent(octokit, owner, repo, problemStatement, token)` — calls
   `POST /repos/{owner}/{repo}/copilot/coding-agent/tasks`, ensures the response includes `id` and `url` fields (FR-004)
-- [ ] T016 [US1] Implement kill-switch check: read `SPECKIT_AGENT_FALLBACK` variable, skip fallback when `"false"` (FR-009)
-- [ ] T017 [US1] Implement phase parameter acceptance so module handles all 5 phases with appropriate context (FR-010)
+- [x] T016 [US1] Implement kill-switch check: read `SPECKIT_AGENT_FALLBACK` variable, skip fallback when `"false"` (FR-009)
+- [x] T017 [US1] Implement phase parameter acceptance so module handles all 5 phases with appropriate context (FR-010)
 
 ### Workflow Integration
 
-- [ ] T018 [US1] Add "Agent Fallback" step to `.github/workflows/speckit-issue-trigger.yml` with `id: agent-fallback` and `if: failure()`, loading `agent-fallback.js` via `actions/github-script@v7`,
-  passing phase=1, and setting step output `triggered` to `'true'` when fallback is started or `'false'` otherwise so downstream conditions can read
-  `steps.agent-fallback.outputs.triggered` (FR-010)
-- [ ] T019 [US1] [P] Add "Agent Fallback" step to `.github/workflows/speckit-phase-progression.yml` with `id: agent-fallback` and `if: failure()`, loading `agent-fallback.js` via
-  `actions/github-script@v7`, passing dynamic phase, and setting step output `triggered` to `'true'` when fallback is started or `'false'` otherwise so downstream
-  conditions can read `steps.agent-fallback.outputs.triggered` (FR-010)
-- [ ] T020 [US1] Modify existing "Handle Failure" step condition in both workflows to `if: failure() && steps.agent-fallback.outputs.triggered != 'true'` so standard failure only runs when fallback
-  did NOT trigger
+- [x] T018 [US1] Add "Agent Fallback" step to `.github/workflows/speckit-issue-trigger.yml` with `id: agent-fallback` and `if: failure()`, loading `agent-fallback.js` via `actions/github-script@v7`,
+  passing phase=1, and setting outputs where `triggered` indicates whether fallback started and `handled` controls downstream failure gating via
+  `steps.agent-fallback.outputs.handled` (FR-010)
+- [x] T019 [US1] [P] Add "Agent Fallback" step to `.github/workflows/speckit-phase-progression.yml` with `id: agent-fallback` and `if: failure()`, loading `agent-fallback.js` via
+  `actions/github-script@v7`, passing dynamic phase, and setting outputs where `triggered` indicates whether fallback started and `handled` controls downstream failure
+  gating via `steps.agent-fallback.outputs.handled` (FR-010)
+- [x] T020 [US1] Modify existing "Handle Failure" step condition in both workflows to `if: failure() && steps.agent-fallback.outputs.handled != 'true'` so standard failure only runs when fallback
+  did NOT handle the failure
 
 ### Graceful Degradation
 
 - [ ] T021 [US1] [P] Write unit tests for graceful degradation: verify non-2xx API response, missing `id`/`url` fields, and network timeout all fall through to standard failure handling (FR-011)
-- [ ] T022 [US1] Implement graceful degradation in `triggerCodingAgent()`: on non-2xx response, missing `id`/`url`, or network error, set `outputs.triggered = 'false'` and log enhanced error details
+- [x] T022 [US1] Implement graceful degradation in `triggerCodingAgent()`: on non-2xx response, missing `id`/`url`, or network error, set `outputs.triggered = 'false'` and log enhanced error details
   for the failure comment (FR-011)
 
 ## Phase 4: User Story 2 — Observability via Labels and Comments (P2)
@@ -82,15 +85,15 @@
 
 ### Implementation
 
-- [ ] T026 [US2] Implement `applyLabelsAndComment(octokit, owner, repo, issueNumber, taskId, taskUrl, phase, validationErrors)` — adds `speckit:agent-fallback` label (FR-005), posts comment with task
+- [x] T026 [US2] Implement `applyLabelsAndComment(octokit, owner, repo, issueNumber, taskId, taskUrl, phase, validationErrors)` — adds `speckit:agent-fallback` label (FR-005), posts comment with task
   URL and machine-readable marker (FR-006), removes `speckit:failed` if present (FR-007)
-- [ ] T027 [US2] Ensure fallback step does NOT remove `speckit:processing` label — label persists for async agent duration (FR-012)
+- [x] T027 [US2] Ensure fallback step does NOT remove `speckit:processing` label — label persists for async agent duration (FR-012)
 
 ### Follow-up Cleanup Workflow (FR-012)
 
-- [ ] T028 [US2] Create `.github/workflows/speckit-agent-fallback-cleanup.yml` — Job 1: trigger on `pull_request [opened]`, ensure head branch matches `speckit/*/phase-*` pattern, find linked issue,
+- [x] T028 [US2] Create `.github/workflows/speckit-agent-fallback-cleanup.yml` — Job 1: trigger on `pull_request [opened]`, ensure head branch matches `speckit/*/phase-*` pattern, find linked issue,
   remove `speckit:processing` (FR-012)
-- [ ] T029 [US2] Add Job 2 to cleanup workflow: `schedule` (every 15 min) + `workflow_dispatch` trigger, scan issues with `speckit:agent-fallback` label, parse marker comments for task IDs, query
+- [x] T029 [US2] Add Job 2 to cleanup workflow: `schedule` (every 15 min) + `workflow_dispatch` trigger, scan issues with `speckit:agent-fallback` label, parse marker comments for task IDs, query
   Coding Agent API for terminal status, remove `speckit:processing` on terminal failure (FR-012)
 - [ ] T030 [US2] [P] Write tests for cleanup workflow logic: verify PR branch pattern matching, marker comment parsing, and label removal on terminal outcomes
 
@@ -104,9 +107,9 @@
 
 ### Implementation
 
-- [ ] T034 [US3] Implement `checkIdempotency(octokit, owner, repo, issueNumber, expectedBranch, phase)` — check for existing open PR on expected `speckit/{issue}/phase-{N}-{name}` branch (FR-008)
-- [ ] T035 [US3] Extend `checkIdempotency()` to parse issue comments for existing marker comment `<!-- speckit:agent-fallback task_id=... issue=<N> phase=<N> -->` (FR-013)
-- [ ] T036 [US3] Post skip comment with link to existing PR/task URL when idempotency guard fires (FR-008, FR-013)
+- [x] T034 [US3] Implement `checkIdempotency(octokit, owner, repo, issueNumber, expectedBranch, phase)` — check for existing open PR on expected `speckit/{issue}/phase-{N}-{name}` branch (FR-008)
+- [x] T035 [US3] Extend `checkIdempotency()` to parse issue comments for existing marker comment `<!-- speckit:agent-fallback task_id=... issue=<N> phase=<N> -->` (FR-013)
+- [x] T036 [US3] Post skip comment with link to existing PR/task URL when idempotency guard fires (FR-008, FR-013)
 
 ## Phase 6: User Story 4 — Graceful Degradation (P3)
 
