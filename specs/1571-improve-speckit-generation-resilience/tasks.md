@@ -84,11 +84,11 @@ Phases in this `tasks.md` are 1:1 aligned with the phases defined in `plan.md`.
 
 ## Phase 9: Polish & Cross-Cutting
 
-- [ ] T042 Run full test suite: `bash .github/scripts/speckit-trigger/test_spec_validation.sh && bash .github/scripts/speckit-trigger/test_specify_retry.sh`
-- [ ] T043 Run `bash scripts/run-pr-checks.sh` to validate no regressions
-- [ ] T044 Verify NFR-001 compliance: confirm retry exponential backoff (2s, 4s) is maintained in `run_specify_phase_with_validation_retries()`
-- [ ] T045 Verify NFR-003 compliance: all new log output uses emoji prefixes and existing formatting conventions
-- [ ] T046 Verify NFR-006 compliance: run existing `test_spec_validation.sh` to confirm backward compatibility with current validation contract
+- [ ] T042 [US6] Run full test suite: `bash .github/scripts/speckit-trigger/test_spec_validation.sh && bash .github/scripts/speckit-trigger/test_specify_retry.sh`
+- [ ] T043 [US6] Run `bash scripts/run-pr-checks.sh` to validate no regressions
+- [ ] T044 [US6] Verify NFR-001 compliance: confirm retry exponential backoff (2s, 4s) is maintained in `run_specify_phase_with_validation_retries()`
+- [ ] T045 [US6] Verify NFR-003 compliance: all new log output uses emoji prefixes and existing formatting conventions
+- [ ] T046 [US6] Verify NFR-006 compliance: run existing `test_spec_validation.sh` to confirm backward compatibility with current validation contract
 - [ ] T047 Update `generate-spec-from-issue.sh` header documentation to list new env vars and functions
 
 ## Dependencies
