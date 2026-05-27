@@ -9,9 +9,9 @@
 | Phase 3: US4 | Plan Phase 2 | Rewrite Principle I (Scoped Tool Availability) |
 | Phase 4: US1 | Plan Phase 3 | Rewrite Principle II (Dual-Layer State) |
 | Phase 5: US2 | Plan Phases 4, 8 | Update Principle IV + Quality Gates coverage |
-| Phase 6: US3 | Plan Phases 6 (XI), 7, 9 | Add Principle XI + update Dev Workflow + Governance |
-| Phase 7: US5 | Plan Phase 6 (IX) | Add Principle IX (Graph Orchestration) |
-| Phase 8: US6 | Plan Phase 6 (X) | Add Principle X (Dual-Engine) |
+| Phase 6: US5 | Plan Phase 6 (IX) | Add Principle IX (Graph Orchestration) |
+| Phase 7: US6 | Plan Phase 6 (X) | Add Principle X (Dual-Engine) |
+| Phase 8: US3 | Plan Phases 6 (XI), 7, 9 | Add Principle XI + update Dev Workflow + Governance |
 | Phase 9: US7 | Plan Phase 1 (verify) | Verify Sync Impact Report completeness |
 | Phase 10: US8 | Plan Phase 5 | Update Principle VI (remove version bump) |
 | Phase 11: Version Footer | Plan Phase 10 | Update version footer |

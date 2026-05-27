@@ -131,7 +131,7 @@
       "is_covered": true,
       "has_happy_path": false,
       "test_task_ids": [
-        "T023"
+        "T025"
       ],
       "test_types": []
     },
