@@ -88,6 +88,8 @@ that the repair agent is about to overwrite.
 
 **Independent Test**: Can be tested by simulating a repair dispatch event and verifying that subsequent `request_review` evaluations return SKIP with a "repair active" reason.
 
+**Mapped FRs**: FR-001, FR-002, FR-002a, FR-010.
+
 **Acceptance Scenarios**:
 
 1. **Given** a PR where the orchestrator has just dispatched a repair (exit code = EXIT_REPAIR_DISPATCHED), **When** the review request logic is evaluated, **Then** no Copilot review request is sent
@@ -110,6 +112,8 @@ reviews.
 **Why this priority**: Requesting a new review while prior feedback is unresolved defeats the safety gate model — reviewers expect all prior comments to be addressed before re-review.
 
 **Independent Test**: Can be tested by configuring a PR snapshot with unresolved review threads or actionable inline comments and verifying `RequestReviewAction` returns SKIP.
+
+**Mapped FRs**: FR-003, FR-004.
 
 **Acceptance Scenarios**:
 
@@ -135,6 +139,8 @@ an optimization of an existing functional path rather than a correctness fix.
 **Independent Test**: Can be tested by setting up a multi-commit PR snapshot where CI passes and no session is active, verifying that squash executes before request_review, and that request_review
 only fires as a fallback if squash did not invalidate the snapshot.
 
+**Mapped FRs**: FR-006, FR-007.
+
 **Acceptance Scenarios**:
 
 1. **Given** a PR with 3 commits above merge-base and CI passing, **When** the pipeline action sequence runs, **Then** `SquashAction` executes first and `RequestReviewAction` is skipped because the
@@ -157,6 +163,8 @@ HEAD). Only active coding sessions are disrupted by squash.
 
 **Independent Test**: Can be tested by configuring a snapshot with `copilot_review_pending=True` and `active_session=False` and verifying `SquashAction.evaluate()` returns EXECUTE.
 
+**Mapped FRs**: FR-005.
+
 **Acceptance Scenarios**:
 
 1. **Given** a PR with >1 commit, a pending Copilot review, and no active Copilot coding session, **When** `SquashAction.evaluate()` is called, **Then** it returns `ActionDecision.EXECUTE` (squash
@@ -178,6 +186,8 @@ As a repository maintainer, I want the merge action to use squash merge strategy
 
 **Independent Test**: Can be tested by configuring a PR snapshot with `commit_count > 1` at the merge step and verifying `MergeAction.execute()` calls
 `provider.merge_pr()` with method `"squash"` and a deterministic commit message.
+
+**Mapped FRs**: FR-008, FR-009.
 
 **Acceptance Scenarios**:
 

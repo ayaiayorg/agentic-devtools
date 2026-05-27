@@ -70,7 +70,7 @@
   `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-003)
 - [ ] T026 [P] [US2] Write test: `RequestReviewAction` returns EXECUTE when `total_unresolved_threads == 0` (no blocking) —
   `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-003)
-- [ ] T027 [P] [US2] Write test: `build_pr_state_snapshot` populates `total_unresolved_threads` from provider — `tests/unit/cli/ci/pipeline/snapshot/test_prstatesnapshot.py` (FR-003)
+- [ ] T027 [P] [US2] Write unit test: snapshot creation populates `total_unresolved_threads` from provider count — `tests/unit/cli/ci/pipeline/snapshot/test_prstatesnapshot.py` (FR-003)
 - [ ] T028 [P] [US2] Write test: `count_total_unresolved_threads` returns count from provider — `tests/unit/cli/ci/pipeline/snapshot/test_count_total_unresolved_threads.py` (FR-003)
 
 ### Implementation (GREEN)
@@ -150,7 +150,7 @@
 - [ ] T056 Run `ruff check` and `ruff format` on all modified files
 - [ ] T057 Run `bash scripts/run-pr-checks.sh` to validate all CI checks pass (FR-010)
 - [ ] T058 Verify 100% branch coverage for all new guard logic (SC-007) (FR-010)
-- [ ] T059 Verify action ordering in pipeline summary output matches design (`DispatchRepair` → `Squash` → `RequestReview`) (FR-006, FR-007)
+- [ ] T059 Confirm pipeline summary output action ordering matches expected sequence (`DispatchRepair` → `Squash` → `RequestReview`) (FR-006, FR-007)
 
 ## Dependency Graph
 
