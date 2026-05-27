@@ -343,6 +343,95 @@ console.log('=== Testing kill-switch ===');
   }
 
   // ---------------------------------------------------------------------------
+  // Tests for empty/undefined token guard in run()
+  // ---------------------------------------------------------------------------
+  console.log('=== Testing run() token guard ===');
+
+  {
+    const outputsNoToken = {};
+    const warningsNoToken = [];
+    let codingAgentApiCalls = 0;
+    const mockCoreNoToken = {
+      info: () => {},
+      warning: (msg) => { warningsNoToken.push(msg); },
+      setOutput: (key, val) => { outputsNoToken[key] = val; },
+    };
+    const mockGithubNoToken = {
+      paginate: async () => [],
+      rest: {
+        pulls: { list: async () => ({ data: [] }) },
+        issues: { listComments: async () => ({ data: [] }) },
+      },
+      request: async (url) => {
+        // Only count Coding Agent task creation (POST endpoint)
+        if (url && url.includes('coding-agent/tasks')) codingAgentApiCalls += 1;
+        return { data: { id: 'x', url: 'https://example.com' } };
+      },
+    };
+    const mockContextNoToken = { repo: { owner: 'test', repo: 'repo' } };
+    process.env.SPECKIT_COMMENT_ON_ISSUE = 'false';
+    await fallback.run({
+      github: mockGithubNoToken,
+      context: mockContextNoToken,
+      core: mockCoreNoToken,
+      phase: 1,
+      validationErrors: 'MISSING_SECTIONS: ## Foo',
+      workspaceFile: null,
+      issueNumber: 123,
+      issueTitle: 'Test',
+      issueBody: 'Body',
+      token: '',
+      killSwitch: 'true',
+      referenceSpecPath: '',
+    });
+    assertEqual('empty token sets triggered to false', 'false', outputsNoToken.triggered);
+    assertEqual('empty token does not call Coding Agent API', 0, codingAgentApiCalls);
+    assertTruthy('empty token emits warning', warningsNoToken.some(w => w.includes('COPILOT_GITHUB_TOKEN')));
+  }
+
+  {
+    // Verify undefined token is also rejected
+    const outputsUndefinedToken = {};
+    const warningsUndefinedToken = [];
+    let codingAgentCallsUndefined = 0;
+    const mockCoreUndefinedToken = {
+      info: () => {},
+      warning: (msg) => { warningsUndefinedToken.push(msg); },
+      setOutput: (key, val) => { outputsUndefinedToken[key] = val; },
+    };
+    const mockGithubUndefinedToken = {
+      paginate: async () => [],
+      rest: {
+        pulls: { list: async () => ({ data: [] }) },
+        issues: { listComments: async () => ({ data: [] }) },
+      },
+      request: async (url) => {
+        if (url && url.includes('coding-agent/tasks')) codingAgentCallsUndefined += 1;
+        return { data: { id: 'x', url: 'https://example.com' } };
+      },
+    };
+    const mockContextUndefinedToken = { repo: { owner: 'test', repo: 'repo' } };
+    process.env.SPECKIT_COMMENT_ON_ISSUE = 'false';
+    await fallback.run({
+      github: mockGithubUndefinedToken,
+      context: mockContextUndefinedToken,
+      core: mockCoreUndefinedToken,
+      phase: 1,
+      validationErrors: 'MISSING_SECTIONS: ## Foo',
+      workspaceFile: null,
+      issueNumber: 123,
+      issueTitle: 'Test',
+      issueBody: 'Body',
+      token: undefined,
+      killSwitch: 'true',
+      referenceSpecPath: '',
+    });
+    assertEqual('undefined token sets triggered to false', 'false', outputsUndefinedToken.triggered);
+    assertEqual('undefined token does not call Coding Agent API', 0, codingAgentCallsUndefined);
+    assertTruthy('undefined token emits warning', warningsUndefinedToken.some(w => w.includes('COPILOT_GITHUB_TOKEN')));
+  }
+
+  // ---------------------------------------------------------------------------
   // Tests for STRUCTURAL_ERROR_SIGNATURES constant
   // ---------------------------------------------------------------------------
   console.log('=== Testing STRUCTURAL_ERROR_SIGNATURES ===');

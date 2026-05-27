@@ -103,12 +103,16 @@ jobs:
               const markerRegex = /<!-- speckit:agent-fallback task_id=([^ ]+) task_url=([^ ]+)/;
               let taskId = null;
               let taskUrl = null;
+              let latestMarkerCreatedAt = null;
               for (const comment of comments) {
                 const match = comment.body && comment.body.match(markerRegex);
                 if (match) {
-                  taskId = match[1];
-                  taskUrl = match[2];
-                  break;
+                  // Keep the most recent marker to avoid acting on stale tasks
+                  if (!latestMarkerCreatedAt || new Date(comment.created_at) > new Date(latestMarkerCreatedAt)) {
+                    taskId = match[1];
+                    taskUrl = match[2];
+                    latestMarkerCreatedAt = comment.created_at;
+                  }
                 }
               }
 
@@ -181,10 +185,9 @@ jobs:
                 continue;
               }
 
-              // Fallback: check task age — if marker comment is older than 2 hours, consider it failed
-              const markerComment = comments.find(c => c.body && markerRegex.test(c.body));
-              if (markerComment) {
-                const createdAt = new Date(markerComment.created_at);
+              // Fallback: check task age — if the most recent marker comment is older than 2 hours, consider it failed
+              if (latestMarkerCreatedAt) {
+                const createdAt = new Date(latestMarkerCreatedAt);
                 const now = new Date();
                 const ageMs = now - createdAt;
                 const twoHours = 2 * 60 * 60 * 1000;

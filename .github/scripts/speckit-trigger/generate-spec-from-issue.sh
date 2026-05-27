@@ -2817,6 +2817,8 @@ Do NOT include any conversational preamble before the heading."
         # --- Safe write with validation for existing checklist ---
         if ! safe_write_with_validation "$checklist_file" "$result" --type checklist; then
             echo "Error: Checklist phase output failed structural validation. Original checklist preserved." >&2
+            # Emit structured validation errors for downstream fallback consumption (FR-001)
+            _emit_validation_errors "2" "checklist" "MISSING_SECTIONS: checklist output failed structural validation"
             return 1
         fi
     else
@@ -3051,6 +3053,8 @@ $line"
     # Verify plan.md was produced and is non-empty (required artifact)
     if [[ ! -s "$SPEC_DIR/plan.md" ]]; then
         echo "Error: Plan phase did not produce a non-empty plan.md" >&2
+        # Emit structured validation errors for downstream fallback consumption (FR-001)
+        _emit_validation_errors "3" "plan" "MISSING_FILE: plan.md was not produced"
         return 1
     fi
 }
@@ -3176,11 +3180,15 @@ You MUST address ALL findings listed above. Failure to do so will cause the CRIT
     result=$(call_llm "$prompt") || return 1
     if [[ -z "$result" ]]; then
         echo "Error: Tasks phase returned empty content" >&2
+        # Emit structured validation errors for downstream fallback consumption (FR-001)
+        _emit_validation_errors "4" "tasks" "MISSING_FILE: tasks.md content was empty"
         return 1
     fi
     result=$(strip_llm_preamble "$result" "# ")
     if [[ -z "${result//[[:space:]]/}" ]]; then
         echo "Error: Tasks phase returned blank content after sanitization" >&2
+        # Emit structured validation errors for downstream fallback consumption (FR-001)
+        _emit_validation_errors "4" "tasks" "MISSING_FILE: tasks.md content was blank after sanitization"
         return 1
     fi
     result=$(ensure_heading_start "$result" "# Task List")
@@ -3528,11 +3536,15 @@ Do NOT include any conversational preamble before the heading."
     result=$(call_llm "$prompt") || return 1
     if [[ -z "$result" ]]; then
         echo "Error: Analyze phase returned empty content" >&2
+        # Emit structured validation errors for downstream fallback consumption (FR-001)
+        _emit_validation_errors "5" "analyze" "MISSING_FILE: analysis-report.md content was empty"
         return 1
     fi
     result=$(strip_llm_preamble "$result" "# ")
     if [[ -z "${result//[[:space:]]/}" ]]; then
         echo "Error: Analyze phase returned blank content after preamble removal" >&2
+        # Emit structured validation errors for downstream fallback consumption (FR-001)
+        _emit_validation_errors "5" "analyze" "MISSING_FILE: analysis-report.md content was blank after preamble removal"
         return 1
     fi
     result=$(ensure_heading_start "$result" "# Analysis Report")

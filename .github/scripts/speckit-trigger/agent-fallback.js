@@ -407,6 +407,13 @@ async function run(params) {
     referenceSpecPath
   );
 
+  // Guard: token required to call the Coding Agent API (FR-011)
+  if (!token) {
+    core.warning('COPILOT_GITHUB_TOKEN is not set — skipping agent fallback. Configure the secret to enable this feature.');
+    core.setOutput('triggered', 'false');
+    return;
+  }
+
   // Trigger Copilot Coding Agent (FR-004, FR-011)
   let taskResult;
   try {
