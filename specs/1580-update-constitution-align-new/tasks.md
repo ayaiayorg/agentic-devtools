@@ -9,9 +9,9 @@
 | Phase 3: US4 | Plan Phase 2 | Rewrite Principle I (Scoped Tool Availability) |
 | Phase 4: US1 | Plan Phase 3 | Rewrite Principle II (Dual-Layer State) |
 | Phase 5: US2 | Plan Phases 4, 8 | Update Principle IV + Quality Gates coverage |
-| Phase 6: US3 | Plan Phases 6 (XI), 7, 9 | Add Principle XI + update Dev Workflow + Governance |
-| Phase 7: US5 | Plan Phase 6 (IX) | Add Principle IX (Graph Orchestration) |
-| Phase 8: US6 | Plan Phase 6 (X) | Add Principle X (Dual-Engine) |
+| Phase 6: US5 | Plan Phase 6 (IX) | Add Principle IX (Graph Orchestration) |
+| Phase 7: US6 | Plan Phase 6 (X) | Add Principle X (Dual-Engine) |
+| Phase 8: US3 | Plan Phases 6 (XI), 7, 9 | Add Principle XI + update Dev Workflow + Governance |
 | Phase 9: US8 | Plan Phase 5 | Update Principle VI (remove version bump) |
 | Phase 10: US7 | Plan Phase 1 (verify) | Verify Sync Impact Report completeness |
 | Phase 11: Version Footer | Plan Phase 10 | Update version footer |
@@ -48,7 +48,21 @@
 - [ ] T027 [US2] (FR-004) Verify happy-path: confirm Principle IV states "100% code coverage" and references ADR-011, and zero occurrences of "95%" exist in `.specify/memory/constitution.md`
 - [ ] T028 [US2] (FR-011) Verify happy-path: confirm Quality Gates → Pre-Commit states "Code coverage = 100% for changed files (per Principle IV and ADR-011)" in `.specify/memory/constitution.md`
 
-## Phase 6: User Story 3 — Pre-1.0 Flexibility (P1)
+## Phase 6: User Story 5 — Graph-Based Orchestration (P2)
+
+- [ ] T010 [US5] (FR-006) Add new Principle IX "Graph-Based Workflow Orchestration" after Principle VIII describing graph-based orchestration with LangGraph as current implementation, checkpoint state
+  recovery, and human-in-the-loop interrupts in `.specify/memory/constitution.md`
+- [ ] T032 [US5] (FR-006) Verify: confirm Principle IX titled "Graph-Based Workflow Orchestration" exists, names LangGraph as current implementation, and mentions checkpoint recovery and
+  human-in-the-loop interrupts in `.specify/memory/constitution.md`
+
+## Phase 7: User Story 6 — Dual-Engine Compatibility (P2)
+
+- [ ] T011 [US6] (FR-007) Add new Principle X "Dual-Engine Compatibility" after Principle IX describing opt-in routing (`--engine` flag) and fault isolation between engines in
+  `.specify/memory/constitution.md`
+- [ ] T033 [US6] (FR-007) Verify: confirm Principle X titled "Dual-Engine Compatibility" exists, requires opt-in routing for engine selection, and states failures in one engine must not affect the
+  other in `.specify/memory/constitution.md`
+
+## Phase 8: User Story 3 — Pre-1.0 Flexibility (P1)
 
 - [ ] T007 [US3] (FR-008) Add new Principle XI "Pre-1.0 Flexibility" after Principle X codifying that breaking changes are allowed pre-1.0, no migration plans required, active removal of dead code in
   `.specify/memory/constitution.md`
@@ -60,20 +74,6 @@
 - [ ] T030 [US3] (FR-009) Verify happy-path: confirm Development Workflow → Code Changes states "Breaking changes are permitted per Principle XI (Pre-1.0 Flexibility)" in
   `.specify/memory/constitution.md`
 - [ ] T031 [US3] (FR-010) Verify happy-path: confirm "Migration plan for affected code" does not appear in Governance → Amendments in `.specify/memory/constitution.md`
-
-## Phase 7: User Story 5 — Graph-Based Orchestration (P2)
-
-- [ ] T010 [US5] (FR-006) Add new Principle IX "Graph-Based Workflow Orchestration" after Principle VIII describing graph-based orchestration with LangGraph as current implementation, checkpoint state
-  recovery, and human-in-the-loop interrupts in `.specify/memory/constitution.md`
-- [ ] T032 [US5] (FR-006) Verify: confirm Principle IX titled "Graph-Based Workflow Orchestration" exists, names LangGraph as current implementation, and mentions checkpoint recovery and
-  human-in-the-loop interrupts in `.specify/memory/constitution.md`
-
-## Phase 8: User Story 6 — Dual-Engine Compatibility (P2)
-
-- [ ] T011 [US6] (FR-007) Add new Principle X "Dual-Engine Compatibility" after Principle IX describing opt-in routing (`--engine` flag) and fault isolation between engines in
-  `.specify/memory/constitution.md`
-- [ ] T033 [US6] (FR-007) Verify: confirm Principle X titled "Dual-Engine Compatibility" exists, requires opt-in routing for engine selection, and states failures in one engine must not affect the
-  other in `.specify/memory/constitution.md`
 
 ## Phase 9: User Story 8 — UX Consistency Update (P3)
 
