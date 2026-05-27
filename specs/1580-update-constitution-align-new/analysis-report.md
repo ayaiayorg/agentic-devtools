@@ -4,7 +4,7 @@
 
 | ID | Category | Severity | Location(s) | Summary | Recommendation |
 |----|----------|----------|-------------|---------|----------------|
-| F-01 | G | HIGH | tasks.md T011, T017, T019 | T011 adds Principle XI "after Principle VIII", T017 adds Principle IX "after Principle VIII", T019 adds Principle X "after Principle IX" — all target the same insertion point region. Ordering dependency exists (T017→T019) but T011 has no ordering constraint relative to T017/T019 despite all inserting after VIII. | Clarify insertion order: IX, X, XI must be sequential. Add explicit dependency T017→T011 or restructure so IX is inserted first, then X, then XI. |
+| F-01 | G | HIGH | tasks.md T011, T017, T019 | T011 adds Principle XI "after Principle VIII", T017 adds Principle IX "after Principle VIII", T019 adds Principle X "after Principle IX" — all target the same insertion point region. Ordering dependency exists (T017→T019) but T011 has no ordering constraint relative to T017/T019 despite all inserting after VIII. | Clarify insertion order: IX, X, XI must be sequential. Add explicit dependency T019→T011 (so XI is inserted after X) or restructure so IX is inserted first, then X, then XI. |
 | F-02 | F | MEDIUM | spec FR-008 vs tasks.md T011 | FR-008 says Principle XI is added "after Principle VIII" but the plan and tasks also add IX and X after VIII. The final order must be IX, X, XI — T011 (XI) should be inserted after X, not directly after VIII. | T011 description should say "after Principle X" (once IX and X exist) or add dependency T019→T011. |
 | F-03 | B | LOW | plan.md Phase 2, Phase 3 | Plan references specific line numbers ("Replace lines 26–35", "Replace lines 37–46") which will shift after Phase 1 edits. Line references are fragile. | Use semantic anchors (heading text) rather than line numbers, or note that line numbers are approximate pre-edit references. |
 | F-04 | F | MEDIUM | tasks.md Phase 6 vs plan.md Phase 6 | Plan Phase 6 adds IX, X, XI together in one phase. Tasks split them across Phase 6 (XI only), Phase 7 (IX), Phase 8 (X). This reorders the principles — plan inserts IX first, tasks insert XI first. | Align task ordering with plan: insert IX first (Phase 7 before Phase 6 content), or reorder task phases to match plan's IX→X→XI sequence. |
@@ -13,6 +13,7 @@
 
 ### Category G Structured Findings
 
+<!-- markdownlint-disable MD013 -->
 [
   {
     "id": "F-01",
@@ -23,6 +24,7 @@
     "rationale": "All three tasks insert new principles into the same file at the same location (after Principle VIII in .specify/memory/constitution.md). Single dimension match (file_path at same insertion region). Dependencies partially defined (T017→T019) but T011 lacks ordering relative to T017/T019, risking merge conflicts if executed out of intended order."
   }
 ]
+<!-- markdownlint-enable MD013 -->
 
 ## Coverage Summary Table
 
