@@ -38,8 +38,8 @@ all supported CI providers.
   (in `commands.py`) immediately after event parsing and before the v1/v2 routing decision. This ensures the preflight runs before any network calls — including `provider.get_pr_metadata(pr_number)`
   (the first network call in the legacy flow) and `build_snapshot()` — regardless of whether the pipeline routes to `run_ai_pr_loop()` or `run_ai_pr_loop_v2()`.
 
-- Q: The spec says the guard exits with code 0 when skipping — should this use `EXIT_SUCCESS` (0) or a new dedicated exit code (e.g., `EXIT_EDIT_SKIPPED = 6`) so CI workflows can distinguish "nothing
-  to do" from "intentionally skipped due to irrelevant edit"? → A: Use `EXIT_SUCCESS` (0). The edit-relevance skip is a normal, expected outcome — not an error or special condition. The INFO log
+- Q: The spec says the guard exits with code 0 when skipping — should this use a dedicated exit code (e.g., `EXIT_EDIT_SKIPPED = 6`) so CI workflows can distinguish "nothing
+  to do" from "intentionally skipped due to irrelevant edit"? → A: Use exit code 0. The edit-relevance skip is a normal, expected outcome — not an error or special condition. The INFO log
   message provides sufficient observability for distinguishing skips from other exit-0 cases. Adding a new exit code would complicate workflow YAML for no practical benefit.
 
 - Q: For non-title/body edits present in the `changes` dict of a PR `edited` event (e.g., a `base` ref change), should `edit_changes_known` be `True` even when neither
@@ -169,26 +169,29 @@ without specifying what fields changed), the system must fail open — both `tit
 edit-relevance guard passes through rather than blocking. This ensures that incomplete metadata never causes a legitimate PR to be
 ignored.
 
-When the event action is `edited` but the `changes` dict contains only a `base` ref change (no `title` or `body` keys), the system must skip
-the pipeline run since no guard-relevant fields changed. Note: GitHub's `pull_request` `edited` event fires only for title, body, and
-base-ref changes; milestones and assignees are delivered via their own dedicated actions. The guard should log this case at INFO level for
-observability.
+When the event action is `edited` but the `changes` dict contains only a `base` ref change (no `title` or `body` keys), the system must
+proceed with the pipeline run. Although no guard-relevant title/body fields changed, a base-branch change can alter the PR diff and
+affect downstream guard/action behavior (e.g., file-based guards, mergeability). The `edit_changes_known` flag remains `True` and
+`title_changed` remains `False`, but the guard treats base-ref changes as potentially relevant and does not skip. Note: GitHub's
+`pull_request` `edited` event fires only for title, body, and base-ref changes; milestones and assignees are delivered via their own
+dedicated actions. The guard should log this case at INFO level for observability.
 
 ## Requirements
 
 ### Functional Requirements
 
-**FR-001**: The `EventPayload` dataclass MUST be extended with three new fields: `title_changed` (default `False`),
-`body_changed` (default `False`), and `edit_changes_known` (default `False`).
+**FR-001**: The `EventPayload` dataclass MUST be extended with four new fields: `title_changed` (default `False`),
+`body_changed` (default `False`), `base_changed` (default `False`), and `edit_changes_known` (default `False`).
 `edit_changes_known` indicates whether the provider had reliable per-field change metadata for an `edited` event. The fields must be
 immutable (consistent with the frozen dataclass pattern) and must not break any existing code that constructs `EventPayload` instances
 without these fields (backward compatibility via defaults).
 
 **FR-002**: The `GitHubActionsProvider.parse_event()` method MUST set `edit_changes_known=True` when the raw GitHub webhook payload
 contains a `changes` key for an `edited` action (including when `changes` is present but empty). It MUST populate `title_changed=True`
-when the payload contains a `changes.title` key and `body_changed=True` when the payload contains a `changes.body` key. When the event
+when the payload contains a `changes.title` key, `body_changed=True` when the payload contains a `changes.body` key, and
+`base_changed=True` when the payload contains a `changes.base` key. When the event
 action is not `edited`, or when the `changes` key is absent from the payload, `edit_changes_known` MUST remain `False` and
-`title_changed`/`body_changed` MUST remain at their default value of `False`.
+`title_changed`/`body_changed`/`base_changed` MUST remain at their default value of `False`.
 
 **FR-003**: The `AzureDevOpsProvider.parse_event()` method MUST populate the
 `title_changed` and `body_changed` fields based on the Azure DevOps service hook
@@ -213,9 +216,10 @@ is the pipeline v2 equivalent — both occur downstream of routing and are thus 
 by the preflight.) The preflight MUST be implemented as a standalone
 function `check_edit_relevance(event: EventPayload) -> tuple[bool, str]` in
 `agentic_devtools/cli/ci/guards.py`. When the event action is `edited` AND `edit_changes_known`
-is `True` AND `title_changed` is `False`, the command MUST log an INFO message
-and exit successfully with code 0 (`EXIT_SUCCESS`) without evaluating any downstream guards or
-actions. For all other events (including `edited` events where
+is `True` AND `title_changed` is `False` AND `base_changed` is `False`, the command MUST log an INFO message
+and exit successfully with code 0 without evaluating any downstream guards or
+actions. When `base_changed` is `True`, the command MUST proceed with normal processing because
+base-branch changes can alter the PR diff and affect downstream guard/action behavior. For all other events (including `edited` events where
 `edit_changes_known` is `False`), the command MUST continue with normal
 processing unconditionally.
 

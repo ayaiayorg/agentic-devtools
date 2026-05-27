@@ -25,12 +25,12 @@
   tests, CI suite)
 - [ ] CHK009 Scope boundaries are clear: the edit-relevance preflight runs in the shared `ai_pr_loop_command()` entry point (before v1/v2 routing) so it is enforced for both paths; pipeline v2
   internal snapshot logic (`run_ai_pr_loop_v2` internals) is explicitly out of scope; label handling via `labeled` action is explicitly excluded
-- [ ] CHK010 Dependencies on existing entities (`EventPayload` frozen dataclass, `GitHubActionsProvider.parse_event()`, `AzureDevOpsProvider.parse_event()`, `orchestrator.py` entry point, `guards.py`
+- [ ] CHK010 Dependencies on existing entities (`EventPayload` frozen dataclass, `GitHubActionsProvider.parse_event()`, `AzureDevOpsProvider.parse_event()`, `commands.py` entry point (`ai_pr_loop_command()`), `guards.py`
   module) are identified with their current behavior documented
 
 ## Feature Readiness
 
-- [ ] CHK011 Every functional requirement (FR-001 through FR-009) has at least one corresponding acceptance scenario or success criterion that validates it (e.g., FR-004 maps to SC-004, FR-006 maps to
+- [ ] CHK011 Every functional requirement (FR-001 through FR-009) has at least one corresponding acceptance scenario or success criterion that validates it (e.g., FR-004 maps to command-level preflight validation in `ai_pr_loop_command()`, FR-006 maps to
   User Story 2 scenario 3)
 - [ ] CHK012 User scenarios cover the four primary interaction patterns: title change triggers pipeline (US1), body-only edit skips pipeline (US2), non-edited events pass through (US3), and
   cross-provider portability (US4)
