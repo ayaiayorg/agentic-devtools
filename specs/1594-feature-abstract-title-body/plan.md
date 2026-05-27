@@ -130,7 +130,7 @@ The four new `EventPayload` fields (`title_changed`, `body_changed`, `base_chang
 
 **Tasks**:
 
-1. Import `check_edit_relevance` from `guards`
+1. Import `logging` and `check_edit_relevance` from `guards`
 2. After line 94 (`event_payload = provider.parse_event(...)`) and before line 100 (`if _pipeline_v2_enabled():`), insert:
 
    ```python
@@ -155,8 +155,7 @@ The four new `EventPayload` fields (`title_changed`, `body_changed`, `base_chang
 1. Treat this phase as a post-release follow-up, not part of the same implementation merge train
 2. Gate this change on a published PyPI release that contains Phases 1-5 and is installable by `ai-pr-loop`
 3. Change line 5 from `types: [opened, reopened]` to `types: [opened, reopened, edited]`
-4. Add `synchronize` if not already present (verify current state — it's not present, but this is out of scope; only add `edited` per spec)
-5. No `if:` conditions for title/body — filtering is in Python
+4. No `if:` conditions for title/body — filtering is in Python
 
 ### Phase 7: Documentation
 
