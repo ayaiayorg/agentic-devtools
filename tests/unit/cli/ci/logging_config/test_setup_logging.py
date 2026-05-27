@@ -67,13 +67,19 @@ class TestSetupLogging:
 
     def test_skips_when_handlers_already_present(self) -> None:
         """When root logger already has handlers, setup_logging is a no-op."""
+        self._clear_root_handlers()
         root = logging.getLogger()
+        handler = logging.StreamHandler()
+        root.addHandler(handler)
         existing_count = len(root.handlers)
-        # Don't clear — call setup_logging with pre-existing handlers
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("AGDT_LOG_LEVEL", None)
-            setup_logging()
-        assert len(root.handlers) == existing_count
+        try:
+            with patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("AGDT_LOG_LEVEL", None)
+                setup_logging()
+            assert len(root.handlers) == existing_count
+        finally:
+            root.removeHandler(handler)
+            handler.close()
 
     def test_respects_agdt_log_level_debug(self) -> None:
         self._clear_root_handlers()
