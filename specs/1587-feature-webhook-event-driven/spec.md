@@ -63,6 +63,7 @@ loop workflow starting. The test passes if the workflow starts within 120 second
 
 1. **Given** a PR where Copilot is actively working, **When** the agent session completes successfully and a `copilot_work_finished` event is recorded on the PR, **Then** the AI PR loop workflow is
    triggered for that specific PR number within 120 seconds of the event timestamp via:
+
    ```bash
    gh workflow run ai-pr-loop.yml --repo <owner/repo> --field pr_number="<N>" --field trigger_reason=agent_session_finished
    ```
