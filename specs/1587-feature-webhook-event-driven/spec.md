@@ -19,7 +19,7 @@
   lightweight per-run budget (under 2 minutes), this avoids overlapping runs.
 - Q: What persistence mechanism should be used for event ID deduplication across monitor cycles — workflow artifacts, GitHub Actions cache, issue comment markers, or a state file committed to the
   repo? → A: Use GitHub Actions cache (`actions/cache`) with restore-keys prefix `agent-monitor-seen-events-` and per-run save key
-  `agent-monitor-seen-events-{github.run_id}` storing a JSON array of processed integer event IDs. Cache entries expire naturally after 7 days. This is lightweight, requires no repo writes, is fast
+  `agent-monitor-seen-events-{github.run_id}` storing a JSON array of processed integer event IDs. Cache retention is best-effort (typically up to ~7 days of inactivity) and entries may be evicted earlier. This is lightweight, requires no repo writes, is fast
   to read/write, and survives across workflow runs without polluting issues or artifacts.
 - Q: Should the monitor only trigger for PRs that have the `ai-auto-merge-allowed` label (as mentioned in User Story 1), or should it trigger for all open PRs regardless of label? → A: The monitor
   should trigger for ALL open PRs that have a `copilot_work_finished` event, regardless of label. The `ai-auto-merge-allowed` label is checked by the orchestrator during execution, not by the trigger
@@ -183,8 +183,8 @@ were found, and what dispatch actions were taken.
 - **NFR-003**: The system MUST be resilient to transient GitHub API failures (rate limits, 5xx errors). A single failed API call must not prevent the monitor from processing other PRs in the same
   cycle, and failed PRs should be retried on the next cycle. The monitor MUST isolate per-PR failures so processing continues for other PRs in the same cycle, with structured error logging.
 
-- **NFR-004**: The system MUST produce structured, parseable log output (one JSON-like line per action) that enables operators to audit which events were processed, which dispatches were issued, and
-  which PRs were skipped (with reasons). Log format should be consistent with existing orchestrator logging patterns (key=value structured fields).
+- **NFR-004**: The system MUST produce structured, parseable log output (one line per action, emitted as key=value structured fields) that enables operators to audit which events were processed, which dispatches were issued, and
+  which PRs were skipped (with reasons).
 
 ### Key Entities
 
@@ -192,7 +192,7 @@ were found, and what dispatch actions were taken.
   ID, associated with a PR number, and timestamped with `created_at`.
 - **Event Dispatch Record**: A JSON entry in the GitHub Actions cache (restored with prefix `agent-monitor-seen-events-`, saved with key
   `agent-monitor-seen-events-{github.run_id}`) recording that a specific event ID has already been dispatched to the AI PR loop. The cache contains a JSON array of integer event IDs. Entries
-  expire naturally with the cache TTL (7 days).
+  are retained on a best-effort basis (typically up to ~7 days of inactivity) and may be evicted earlier.
 - **Monitor Cycle**: A single execution of the `agent-session-monitor.yml` scheduled workflow. Scans all eligible open PRs, checks for unprocessed terminal events against the cached seen-events set,
   and dispatches `workflow_dispatch` triggers as needed.
 

@@ -29,9 +29,9 @@
 
 ## Feature Readiness
 
-- [ ] CHK011 All seven functional requirements (FR-001 through FR-007) have corresponding
-  acceptance scenarios in User Stories 1–4 that validate their behavior (FR-001→US1.1,
-  FR-002→US2.1/US2.2, FR-003→US1.1, FR-004→(missing acceptance scenario for guard checks), FR-005→US4.1,
+- [ ] CHK011 Functional requirements FR-001 through FR-007 are mapped to corresponding
+  acceptance scenarios in User Stories 1–4 that validate their behavior; FR-004 currently lacks an explicit acceptance scenario for guard checks and should be added before proceeding (FR-001→US1.1,
+  FR-002→US2.1/US2.2, FR-003→US1.1, FR-004→(missing), FR-005→US4.1,
   FR-006→US3.2, FR-007→US1.3)
 - [ ] CHK012 User scenarios cover the primary flow (US1: agent finishes → loop triggers), safety path
   (US2: deduplication), integration path (US3: coexistence with existing triggers), and operational
