@@ -24,6 +24,12 @@ class EventPayload:
         trigger_label: Label name that triggered the event (empty if not a label event).
         repository_full_name: Full repository name (e.g., "owner/repo").
         sender_login: Login of the event sender/actor, when available.
+        title_changed: Whether the PR title was changed in an edit event.
+        body_changed: Whether the PR body/description was changed in an edit event.
+        base_changed: Whether the base/target branch was changed in an edit event.
+        edit_changes_known: Whether the provider had reliable per-field change
+            metadata for an edited event. When False, the edit-relevance guard
+            fails open (does not skip).
     """
 
     pr_number: int = 0
@@ -34,6 +40,10 @@ class EventPayload:
     trigger_label: str = ""
     repository_full_name: str = ""
     sender_login: str = ""
+    title_changed: bool = False
+    body_changed: bool = False
+    base_changed: bool = False
+    edit_changes_known: bool = False
 
 
 @dataclass(frozen=True)

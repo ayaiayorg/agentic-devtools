@@ -8,6 +8,7 @@ appropriate orchestrator functions.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import sys
@@ -15,6 +16,7 @@ import tempfile
 
 from agentic_devtools.cli.ci.exceptions import MalformedEventError
 from agentic_devtools.cli.ci.github_provider import GitHubActionsProvider
+from agentic_devtools.cli.ci.guards import check_edit_relevance
 from agentic_devtools.cli.ci.logging_config import setup_logging
 from agentic_devtools.cli.ci.models import EventPayload
 from agentic_devtools.cli.ci.orchestrator import run_ai_pr_loop
@@ -99,6 +101,13 @@ def ai_pr_loop_command() -> None:
         json.dump({"error": "malformed_event", "event_name": exc.event_name, "reason": exc.reason}, sys.stderr)
         sys.stderr.write("\n")
         sys.exit(2)
+
+    # Edit-relevance preflight — skip body-only edits before orchestrator calls
+    should_skip, skip_reason = check_edit_relevance(event_payload)
+    if should_skip:
+        logger = logging.getLogger(__name__)
+        logger.info("PR #%d: %s", event_payload.pr_number, skip_reason)
+        sys.exit(0)
 
     if _pipeline_v2_enabled():
         exit_code = run_ai_pr_loop_v2(provider, event_payload)

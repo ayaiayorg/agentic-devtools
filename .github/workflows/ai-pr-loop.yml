@@ -2,7 +2,9 @@ name: AI PR Loop
 
 on:
   pull_request:
-    types: [opened, reopened]
+    # PR edit filtering (title vs body-only) is handled in Python orchestrator code,
+    # not in workflow-level `if:` conditions. See check_edit_relevance() in guards.py.
+    types: [opened, reopened, edited]
   pull_request_review:
     types: [submitted]
   issue_comment:

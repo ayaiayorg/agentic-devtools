@@ -35,7 +35,7 @@ class TestAzureDevOpsProvider:
         assert result.head_branch == "feature/test"
         assert result.base_branch == "main"
         assert result.head_sha == "abc123def456"
-        assert result.action == "git.pullrequest.updated"
+        assert result.action == "edited"
         assert result.repository_full_name == "my-project/my-repo"
 
     def test_parse_event_empty_payload(self) -> None:
@@ -136,3 +136,141 @@ class TestAzureDevOpsProvider:
         raw = {"resource": None}  # type: ignore[dict-item]
         with pytest.raises(MalformedEventError):
             provider.parse_event(raw, "git.pullrequest.updated")
+
+    def test_parse_event_pr_updated_with_title_change(self) -> None:
+        """PR updated event with changedFields.title sets title_changed."""
+        provider = AzureDevOpsProvider()
+        raw = {
+            "resource": {
+                "pullRequestId": 42,
+                "sourceRefName": "refs/heads/feature/test",
+                "targetRefName": "refs/heads/main",
+                "lastMergeSourceCommit": {"commitId": "abc123"},
+                "repository": {"name": "my-repo"},
+            },
+            "resourceContainers": {"project": {"id": "my-project"}},
+            "changedFields": {"title": {"oldValue": "Old", "newValue": "New"}},
+        }
+        result = provider.parse_event(raw, "git.pullrequest.updated")
+        assert result.action == "edited"
+        assert result.edit_changes_known is True
+        assert result.title_changed is True
+        assert result.body_changed is False
+        assert result.base_changed is False
+
+    def test_parse_event_pr_updated_description_only(self) -> None:
+        """PR updated event with only description change sets body_changed."""
+        provider = AzureDevOpsProvider()
+        raw = {
+            "resource": {
+                "pullRequestId": 42,
+                "sourceRefName": "refs/heads/feature/test",
+                "targetRefName": "refs/heads/main",
+                "lastMergeSourceCommit": {"commitId": "abc123"},
+                "repository": {"name": "my-repo"},
+            },
+            "resourceContainers": {"project": {"id": "my-project"}},
+            "changedFields": {"description": {"oldValue": "old", "newValue": "new"}},
+        }
+        result = provider.parse_event(raw, "git.pullrequest.updated")
+        assert result.edit_changes_known is True
+        assert result.title_changed is False
+        assert result.body_changed is True
+
+    def test_parse_event_pr_updated_target_ref_change(self) -> None:
+        """PR updated event with targetRefName change sets base_changed."""
+        provider = AzureDevOpsProvider()
+        raw = {
+            "resource": {
+                "pullRequestId": 42,
+                "sourceRefName": "refs/heads/feature/test",
+                "targetRefName": "refs/heads/main",
+                "lastMergeSourceCommit": {"commitId": "abc123"},
+                "repository": {"name": "my-repo"},
+            },
+            "resourceContainers": {"project": {"id": "my-project"}},
+            "changedFields": {"targetRefName": {"oldValue": "refs/heads/develop", "newValue": "refs/heads/main"}},
+        }
+        result = provider.parse_event(raw, "git.pullrequest.updated")
+        assert result.edit_changes_known is True
+        assert result.base_changed is True
+
+    def test_parse_event_pr_updated_no_changed_fields(self) -> None:
+        """PR updated event without changedFields keeps defaults (fail-open)."""
+        provider = AzureDevOpsProvider()
+        raw = {
+            "resource": {
+                "pullRequestId": 42,
+                "sourceRefName": "refs/heads/feature/test",
+                "targetRefName": "refs/heads/main",
+                "lastMergeSourceCommit": {"commitId": "abc123"},
+                "repository": {"name": "my-repo"},
+            },
+            "resourceContainers": {"project": {"id": "my-project"}},
+        }
+        result = provider.parse_event(raw, "git.pullrequest.updated")
+        assert result.action == "edited"
+        assert result.edit_changes_known is False
+        assert result.title_changed is False
+        assert result.body_changed is False
+        assert result.base_changed is False
+
+    def test_parse_event_pr_updated_empty_changed_fields_marks_known(self) -> None:
+        """PR updated event with empty changedFields is known but irrelevant."""
+        provider = AzureDevOpsProvider()
+        raw = {
+            "resource": {
+                "pullRequestId": 42,
+                "sourceRefName": "refs/heads/feature/test",
+                "targetRefName": "refs/heads/main",
+                "lastMergeSourceCommit": {"commitId": "abc123"},
+                "repository": {"name": "my-repo"},
+            },
+            "resourceContainers": {"project": {"id": "my-project"}},
+            "changedFields": {},
+        }
+        result = provider.parse_event(raw, "git.pullrequest.updated")
+        assert result.action == "edited"
+        assert result.edit_changes_known is True
+        assert result.title_changed is False
+        assert result.body_changed is False
+        assert result.base_changed is False
+
+    @pytest.mark.parametrize("changed_fields", [None, []])
+    def test_parse_event_pr_updated_non_dict_changed_fields_keeps_unknown(self, changed_fields: object) -> None:
+        """Non-dict changedFields keeps edit metadata unknown for fail-open handling."""
+        provider = AzureDevOpsProvider()
+        raw = {
+            "resource": {
+                "pullRequestId": 42,
+                "sourceRefName": "refs/heads/feature/test",
+                "targetRefName": "refs/heads/main",
+                "lastMergeSourceCommit": {"commitId": "abc123"},
+                "repository": {"name": "my-repo"},
+            },
+            "resourceContainers": {"project": {"id": "my-project"}},
+            "changedFields": changed_fields,
+        }
+        result = provider.parse_event(raw, "git.pullrequest.updated")
+        assert result.edit_changes_known is False
+        assert result.title_changed is False
+        assert result.body_changed is False
+        assert result.base_changed is False
+
+    def test_parse_event_non_update_event_keeps_defaults(self) -> None:
+        """Non-update events keep all edit fields at defaults."""
+        provider = AzureDevOpsProvider()
+        raw = {
+            "resource": {
+                "pullRequestId": 10,
+                "sourceRefName": "refs/heads/feature/x",
+                "targetRefName": "refs/heads/main",
+                "lastMergeSourceCommit": {"commitId": "def456"},
+                "repository": {"name": "my-repo"},
+            },
+            "resourceContainers": {"project": {"id": "proj"}},
+        }
+        result = provider.parse_event(raw, "git.pullrequest.created")
+        assert result.action == "git.pullrequest.created"
+        assert result.edit_changes_known is False
+        assert result.title_changed is False

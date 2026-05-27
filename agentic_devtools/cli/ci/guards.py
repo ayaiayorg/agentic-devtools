@@ -12,6 +12,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 
+from agentic_devtools.cli.ci.models import EventPayload
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
 
 logger = logging.getLogger(__name__)
@@ -451,3 +452,36 @@ def delete_squash_wait_marker(
     now = datetime.now(timezone.utc).isoformat()
     completed_body = f"<!-- squash-wait-completed -->\nSquash-wait completed for PR #{pr_number} at {now}"
     provider.update_comment(existing[0], completed_body)
+
+
+def check_edit_relevance(event: EventPayload) -> tuple[bool, str]:
+    """Check whether an edited PR event is relevant for pipeline processing.
+
+    This guard implements the edit-relevance preflight: for ``edited`` events
+    where the provider reliably reports which fields changed, the pipeline
+    should only proceed if the title or base branch was modified.  Body-only
+    edits (or edits to other non-title/non-base fields) are irrelevant and
+    should be skipped.
+
+    The guard fails open: if the event is not ``edited``, or if the provider
+    could not determine what changed (``edit_changes_known=False``), the
+    pipeline proceeds normally.
+
+    Args:
+        event: Normalized event payload from a CI provider.
+
+    Returns:
+        Tuple of ``(should_skip, reason)``.  When ``should_skip`` is True,
+        the caller should exit early with an INFO log containing the reason.
+        When False, ``reason`` is an empty string and the pipeline continues.
+    """
+    if event.action != "edited":
+        return (False, "")
+
+    if not event.edit_changes_known:
+        return (False, "")
+
+    if event.title_changed or event.base_changed:
+        return (False, "")
+
+    return (True, "edited event with no title or base change")
