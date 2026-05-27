@@ -88,7 +88,7 @@
 
 ### Follow-up Cleanup Workflow (FR-012)
 
-- [ ] T028 [US2] Create `.github/workflows/speckit-agent-fallback-cleanup.yml` — Job 1: trigger on `pull_request [opened]`, validate head branch matches `speckit/*/phase-*` pattern, find linked issue,
+- [ ] T028 [US2] Create `.github/workflows/speckit-agent-fallback-cleanup.yml` — Job 1: trigger on `pull_request [opened]`, ensure head branch matches `speckit/*/phase-*` pattern, find linked issue,
   remove `speckit:processing` (FR-012)
 - [ ] T029 [US2] Add Job 2 to cleanup workflow: `schedule` (every 15 min) + `workflow_dispatch` trigger, scan issues with `speckit:agent-fallback` label, parse marker comments for task IDs, query
   Coding Agent API for terminal status, remove `speckit:processing` on terminal failure (FR-012)
