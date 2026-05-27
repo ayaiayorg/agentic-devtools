@@ -30,7 +30,7 @@
 
 ## Feature Readiness
 
-- [ ] CHK011 All functional requirements FR-001 through FR-010 have corresponding acceptance scenarios in at least one user story
+- [ ] CHK011 All functional requirements FR-001 through FR-011 have corresponding acceptance scenarios in at least one user story
   (FR-001→US-1-S1, FR-002→US-1-S2, FR-011→US-1-S3,
   FR-003→US-2-S1/S3, FR-005→US-4, FR-006→US-3-S1,
   FR-007→US-3-S2, FR-008→US-5-S1/S2, FR-009→US-5-S1/S3)
