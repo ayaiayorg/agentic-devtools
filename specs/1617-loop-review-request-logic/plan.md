@@ -25,13 +25,12 @@ No separate `research.md` artifact was generated for this feature. Key decisions
 1. **Repair-dispatch marker format**: Use a distinct marker comment `<!-- repair-dispatched-sha:{sha} -->` with constant prefix
    `REPAIR_DISPATCH_MARKER_PREFIX = "<!-- repair-dispatched-sha:"` (separate from the existing dedup marker) to avoid ambiguity when reading back markers; parsing extracts the SHA between the prefix and the closing `-->`.
 2. **`total_unresolved_threads` fetching strategy**: Add `count_total_unresolved_threads` as an optional capability on
-   `CIPlatformProvider` (default implementation returns `0` for providers that don't support review threads). The GitHub implementation reuses the existing `list_review_thread_states` GraphQL call, adding one GraphQL round-trip during snapshot build (budgeted against NFR-001).
+   `CIPlatformProvider` (default implementation returns `0` for providers that don't support review threads). The GitHub implementation can reuse the existing `list_review_thread_states` GraphQL query; note this may paginate (1+ GraphQL requests) on PRs with many threads, so it should be accounted for in the NFR-001 latency budget.
 3. **`DerivedState` flag initialization**: Both `repair_dispatched` and `snapshot_invalidated` are initialized to `False` at the
    start of `run_pipeline` so downstream actions always find a defined value.
 4. **`CommitMessageGenerator` protocol design**: A `CommitMessageGenerator` protocol with a `DeterministicCommitMessageGenerator`
    implementation reuses the existing `_build_squash_commit_message` logic for consistency.
-5. **Pipeline action ordering**: `DispatchRepairAction` and `SquashAction` are moved before `RequestReviewAction` so their derived-state flags are visible when `RequestReviewAction.evaluate()` runs.
-
+5. **Pipeline action ordering**: `DispatchRepairAction` and `SquashAction` will be moved before `RequestReviewAction` (currently `RequestReviewAction` runs earlier in `pipeline/command.py`) so their derived-state flags are visible when `RequestReviewAction.evaluate()` runs.
 ## Design Overview
 
 ```text
@@ -65,8 +64,8 @@ Key design choices:
 
 **Deliverables:**
 
-1. Add `total_unresolved_threads: int = 0` field to `PRStateSnapshot`
-2. Add `count_total_unresolved_threads` helper in `snapshot.py` that calls `provider.count_total_unresolved_threads(...)`
+1. Add `total_unresolved_threads: int = 0` field to `PRStateSnapshot` (keep existing `unresolved_threads` semantics unchanged: prior-commit Copilot-only count)
+2. Add `count_total_unresolved_threads` helper in `snapshot.py` that calls `provider.count_total_unresolved_threads(...)` (or returns 0 when unsupported)
 3. Call the new helper in `build_pr_state_snapshot` to populate the field
 4. Add `REPAIR_DISPATCH_MARKER_PREFIX = "<!-- repair-dispatched-sha:"` constant in `guards.py`
 5. Initialize `derived.set("repair_dispatched", False)` and `derived.set("snapshot_invalidated", False)` at the start of `run_pipeline`
