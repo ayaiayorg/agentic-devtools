@@ -29,9 +29,12 @@
 
 ## Feature Readiness
 
-- [ ] CHK011 All seven functional requirements (FR-001 through FR-007) have corresponding acceptance scenarios in User Stories 1–3 that validate their behavior (FR-001→US1.1, FR-002→US2.1/US2.3,
-  FR-003→US1.1, FR-004→US1.1 guard checks, FR-005→US4.1, FR-006→US3.2, FR-007→US1.3)
-- [ ] CHK012 User scenarios cover the primary flow (US1: agent finishes → loop triggers), safety path (US2: deduplication), integration path (US3: coexistence with existing triggers), and operational
+- [ ] CHK011 All seven functional requirements (FR-001 through FR-007) have corresponding
+  acceptance scenarios in User Stories 1–3 that validate their behavior (FR-001→US1.1,
+  FR-002→US2.1/US2.3, FR-003→US1.1, FR-004→US1.1 guard checks, FR-005→US4.1,
+  FR-006→US3.2, FR-007→US1.3)
+- [ ] CHK012 User scenarios cover the primary flow (US1: agent finishes → loop triggers), safety path
+  (US2: deduplication), integration path (US3: coexistence with existing triggers), and operational
   path (US4: observability)
 - [ ] CHK013 Success criteria SC-001 specifies measurement methodology ("at least 20 agent session completions over a 14-day period") and SC-004 specifies baseline comparison window ("14 days prior to
   deployment")

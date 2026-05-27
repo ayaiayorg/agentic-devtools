@@ -11,15 +11,15 @@
 ### Session 2026-05-27
 
 - Q: Should the event-driven monitor use `workflow_dispatch` (matching the existing squash-wait-scheduler pattern with `pr_number` and `trigger_reason` fields) or `repository_dispatch` (which would
-  require adding a new trigger type to `ai-pr-loop.yml`)? → A: Use `workflow_dispatch` via `gh workflow run ai-pr-loop.yml --field pr_number=<N> --field trigger_reason=agent_session_finished`,
+  require adding a new trigger type to `ai-pr-loop.yml`)? → A: Use `workflow_dispatch` via `gh workflow run ai-pr-loop.yml --repo <owner/repo> --field pr_number="<N>" --field trigger_reason=agent_session_finished`,
   matching the proven squash-wait-scheduler pattern. This avoids modifying the existing `ai-pr-loop.yml` trigger configuration (satisfying FR-006) and reuses the existing concurrency group expression
   that already handles `github.event.inputs.pr_number`.
 - Q: What cron schedule frequency should the monitor workflow use to achieve the 120-second latency target, given that the squash-wait-scheduler uses `*/5`? → A: Use `*/2 * * * *` (every 2 minutes).
   This provides a worst-case latency of ~120 seconds (event recorded just after a cycle completes → detected on next cycle) while keeping GitHub Actions consumption reasonable. Combined with the
   lightweight per-run budget (under 2 minutes), this avoids overlapping runs.
 - Q: What persistence mechanism should be used for event ID deduplication across monitor cycles — workflow artifacts, GitHub Actions cache, issue comment markers, or a state file committed to the
-  repo? → A: Use GitHub Actions cache (`actions/cache`) with restore prefix `agent-monitor-seen-events-{YYYY-MM-DD}-` and per-run save key
-  `agent-monitor-seen-events-{YYYY-MM-DD}-{github.run_id}` storing a JSON set of processed event IDs. Cache entries expire naturally after 7 days. This is lightweight, requires no repo writes, is fast
+  repo? → A: Use GitHub Actions cache (`actions/cache`) with restore-keys prefix `agent-monitor-seen-events-` and per-run save key
+  `agent-monitor-seen-events-{github.run_id}` storing a JSON array of processed integer event IDs. Cache entries expire naturally after 7 days. This is lightweight, requires no repo writes, is fast
   to read/write, and survives across workflow runs without polluting issues or artifacts.
 - Q: Should the monitor only trigger for PRs that have the `ai-auto-merge-allowed` label (as mentioned in User Story 1), or should it trigger for all open PRs regardless of label? → A: The monitor
   should trigger for ALL open PRs that have a `copilot_work_finished` event, regardless of label. The `ai-auto-merge-allowed` label is checked by the orchestrator during execution, not by the trigger
@@ -61,7 +61,7 @@ loop workflow starting. The test passes if the workflow starts within 120 second
 **Acceptance Scenarios**:
 
 1. **Given** a PR where Copilot is actively working, **When** the agent session completes successfully and a `copilot_work_finished` event is recorded on the PR, **Then** the AI PR loop workflow is
-   triggered for that specific PR number within 120 seconds of the event timestamp via `gh workflow run ai-pr-loop.yml --field pr_number=<N> --field trigger_reason=agent_session_finished`.
+   triggered for that specific PR number within 120 seconds of the event timestamp via `gh workflow run ai-pr-loop.yml --repo <owner/repo> --field pr_number="<N>" --field trigger_reason=agent_session_finished`.
 2. **Given** a PR where the AI PR loop is already running for the same PR number, **When** a `copilot_work_finished` event fires and would trigger a second run, **Then** the concurrency group
    `ai-pr-loop-{pr_number}` ensures only one runs at a time and the second is queued (since `cancel-in-progress: false`).
 3. **Given** a PR where the agent session completes with a failure (`copilot_work_finished_failure`), **When** the event-driven trigger detects this terminal event, **Then** the AI PR loop is still
@@ -83,9 +83,8 @@ exactly one workflow run (or the second should be cancelled by concurrency contr
 **Acceptance Scenarios**:
 
 1. **Given** the event-driven monitor has already dispatched the AI PR loop for a `copilot_work_finished` event with a specific event ID, **When** a subsequent monitor cycle detects the same event ID
-   in its Issues Events API response, **Then** no additional `workflow_dispatch` is issued because the event ID is found in the restored GitHub Actions cache set (prefix
-   `agent-monitor-seen-events-{YYYY-MM-DD}-`).
-2. **Given** a PR that has already been merged by the AI PR loop, **When** a late-arriving event-driven trigger fires for the same PR, **Then** the orchestrator's existing guards (dedup markers, state
+   in its Issues Events API response, **Then** no additional `workflow_dispatch` is issued because the event ID is found in the restored GitHub Actions cache list (prefix
+   `agent-monitor-seen-events-`).
    checks) cause the run to exit early without side effects.
 3. **Given** duplicate deliveries of the same `copilot_work_finished` event ID for a PR (e.g., API retry/read overlap), **When** the monitor processes both deliveries, **Then** only one
    `workflow_dispatch` is emitted, deduplicated by event ID in the cache.
@@ -151,8 +150,8 @@ were found, and what dispatch actions were taken.
 ### Functional Requirements
 
 - **FR-001**: The system MUST provide a scheduled GitHub Actions workflow (`agent-session-monitor.yml`) running on a `*/2 * * * *` cron schedule that detects `copilot_work_finished` and
-  `copilot_work_finished_failure` events on open pull requests and triggers the AI PR loop workflow via `gh workflow run ai-pr-loop.yml --field pr_number=<N> --field
-  trigger_reason=agent_session_finished` within 120 seconds of the event being recorded in the GitHub Issues Events API.
+  `copilot_work_finished_failure` events on open pull requests and triggers the AI PR loop workflow within 120 seconds of the event being recorded in the GitHub Issues Events API.
+  Dispatch MUST be performed via `gh workflow run ai-pr-loop.yml --repo <owner/repo> --field pr_number="<N>" --field trigger_reason=agent_session_finished`.
 
 - **FR-002**: The system MUST deduplicate event-driven triggers so that a single `copilot_work_finished` event (identified by its unique event ID) results in at most one dispatched AI PR loop workflow
   run. The deduplication mechanism MUST use GitHub Actions cache (`actions/cache`) by restoring the latest cache via prefix `agent-monitor-seen-events-{YYYY-MM-DD}-`, then saving the updated JSON set
