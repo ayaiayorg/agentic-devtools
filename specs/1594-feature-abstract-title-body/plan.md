@@ -26,13 +26,12 @@ normal CI evaluation across GitHub and Azure DevOps providers.
 specs/1594-feature-abstract-title-body/
 ├── plan.md
 ├── spec.md
+├── research.md
+├── data-model.md
+├── quickstart.md
 └── contracts/
     └── .gitkeep
 ```
-
-Artifact scope for this PR is intentionally limited to `plan.md` and `spec.md` (plus
-`contracts/.gitkeep`). `research.md`, `data-model.md`, `quickstart.md`, and populated contracts are
-not generated in this branch and should not be treated as available inputs for subsequent phases.
 
 ### Source Code (repository root)
 
@@ -61,7 +60,7 @@ No constitution violations or complexity exemptions identified for this plan.
 
 ## Technical Context
 
-- **Stack**: Python 3.x, frozen dataclasses, `logging` module, `gh` CLI for GitHub API
+- **Stack**: Python >=3.10, frozen dataclasses, `logging` module, `gh` CLI for GitHub API
 - **Key Files**:
   - `agentic_devtools/cli/ci/models.py` — `EventPayload` dataclass (frozen, all fields have defaults)
   - `agentic_devtools/cli/ci/guards.py` — Guard functions (`check_*` pattern, returns tuples)
