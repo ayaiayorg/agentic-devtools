@@ -156,7 +156,8 @@ and a Copilot-generated commit message.
 
 - **FR-002**: The `RequestReviewAction` MUST skip when an active Copilot coding session is detected (via `snapshot.active_session == True`).
 
-- **FR-002a**: The `RequestReviewAction` MUST skip on cross-run re-triggers when a repair was dispatched in a prior run and the HEAD SHA has not changed since that dispatch (i.e., the repair agent has not yet pushed new code). Suppression is keyed on the HEAD SHA recorded at repair dispatch time.
+- **FR-002a**: The `RequestReviewAction` MUST skip on cross-run re-triggers when a repair was dispatched in a prior run and the HEAD SHA has not changed since
+  that dispatch (i.e., the repair agent has not yet pushed new code). Suppression is keyed on the HEAD SHA recorded at repair dispatch time.
 
 - **FR-003**: The `RequestReviewAction` MUST skip when unresolved review comment threads exist on the PR (thread count > 0 as reported by the provider).
 
@@ -170,7 +171,8 @@ and a Copilot-generated commit message.
 
 - **FR-007**: `RequestReviewAction` MUST fire as a fallback if `SquashAction` was skipped (e.g., only 1 commit) or failed.
 
-- **FR-008**: `MergeAction.execute()` MUST select merge strategy based on commit count: use `"squash"` when `snapshot.commit_count > 1`, use `"rebase"` when `snapshot.commit_count == 1`. When `commit_count` is unavailable (e.g., provider does not support it or returns `None`), the system MUST fall back to `"rebase"` to preserve existing behavior.
+- **FR-008**: `MergeAction.execute()` MUST select merge strategy based on commit count: use `"squash"` when `snapshot.commit_count > 1`, use `"rebase"` when
+  `snapshot.commit_count == 1`. When `commit_count` is unavailable (e.g., provider does not support it or returns `None`), the system MUST fall back to `"rebase"` to preserve existing behavior.
 
 - **FR-009**: When using squash merge, the system MUST attempt to generate a commit message via the Copilot SDK, falling back to a deterministic message built from commit subjects if the SDK is
   unavailable or returns an error.
@@ -213,7 +215,8 @@ and a Copilot-generated commit message.
 
 - **SC-006**: 100% of pre-existing orchestrator and pipeline unit tests pass without modification after changes are applied (0 regressions introduced).
 
-- **SC-007**: New guard logic achieves 100% branch coverage in unit tests (matching the repository's `--cov-fail-under=100` CI gate), with a minimum of 2 test cases (1 positive, 1 negative) per new precondition check.
+- **SC-007**: New guard logic achieves 100% branch coverage in unit tests (matching the repository's `--cov-fail-under=100` CI gate), with a minimum of 2 test
+  cases (1 positive, 1 negative) per new precondition check.
 
 - **SC-008**: The Copilot SDK commit message generation path succeeds in ≥80% of squash-merge invocations (remaining ≤20% use the deterministic fallback) — measured over the first 30 days
   post-deployment.
