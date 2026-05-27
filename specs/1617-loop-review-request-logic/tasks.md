@@ -44,7 +44,8 @@
   `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-002)
 - [ ] T015 [P] [US1] Write happy path test: `RequestReviewAction` returns SKIP with reason `"repair_dispatched_prior_run"` when repair marker SHA matches HEAD —
   `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-002, FR-011)
-- [ ] T016 [P] [US1] Write happy path test: `RequestReviewAction` returns EXECUTE when no repair active and all guards pass — `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-010)
+- [ ] T016 [P] [US1] Write happy path test: `RequestReviewAction` returns EXECUTE when no repair active and all guards pass —
+  `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py` (FR-010)
 - [ ] T017 [P] [US1] Write happy path test: `DispatchRepairAction.execute()` sets `derived.repair_dispatched = True` after successful dispatch —
   `tests/unit/cli/ci/pipeline/actions/dispatch_repair/test_dispatchrepairaction.py` (FR-001)
 - [ ] T018 [P] [US1] Write happy path test: `DispatchRepairAction.execute()` writes repair-dispatch marker with HEAD SHA — `tests/unit/cli/ci/pipeline/actions/dispatch_repair/test_dispatchrepairaction.py`
