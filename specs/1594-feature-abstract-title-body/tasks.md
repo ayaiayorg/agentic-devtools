@@ -26,9 +26,9 @@ user story/provider and add setup plus final cross-cutting validation work.
 
 ## Phase 1: Setup
 
-- [ ] T001 Create the new CI guard package directory and add `__init__.py`
+- [ ] T001 Extend the existing CI guard module in `agentic_devtools/cli/ci/guards.py` for this feature; do not create a new `agentic_devtools/cli/ci/guards/` package directory
 
-- [ ] T002 Ensure the existing CI model, GitHub provider, Azure DevOps provider, and command package directories have `__init__.py` files
+- [ ] T002 Audit existing `agentic_devtools/cli/ci/` package directories and add missing `__init__.py` files only where an actual package directory lacks one; do not treat single-module files such as `models.py`, `github_provider.py`, `azure_devops_provider.py`, or `commands.py` as package directories
 
 ---
 
@@ -51,7 +51,7 @@ user story/provider and add setup plus final cross-cutting validation work.
 - [ ] T010 [US1] [US2] Implement `check_edit_relevance(event: EventPayload) -> tuple[bool, str]` in `agentic_devtools/cli/ci/guards.py` — returns `(True, reason)` to skip when `action=="edited"` AND
   `edit_changes_known=True` AND `title_changed=False` AND `base_changed=False`; returns `(False, "")` otherwise (FR-004, FR-005, FR-008)
 - [ ] T011 [US2] Ensure `check_edit_relevance` reason string matches format "edited event with no title or base change" for body-only/non-title edits (FR-005)
-- [ ] T012 [US1] [US2] Verify all test branches pass for `check_edit_relevance` — confirm 100% line and branch coverage
+- [ ] T012 [US1] [US2] Verify all test branches pass for `check_edit_relevance` — confirm 100% line and branch coverage (FR-004, FR-005, FR-008)
 
 ---
 
@@ -65,7 +65,7 @@ user story/provider and add setup plus final cross-cutting validation work.
 - [ ] T016 [US2] Set `body_changed = "body" in changes_dict` when conditions from T014 are met (FR-002)
 - [ ] T017 [US1] Set `base_changed = "base" in changes_dict` when conditions from T014 are met (FR-002)
 - [ ] T018 [US1] Pass new fields to `EventPayload` constructor in `_parse_pull_request_event()` (FR-002)
-- [ ] T019 [US1] Verify all GitHub provider tests pass — confirm edited event metadata is correctly extracted
+- [ ] T019 [US1] Verify all GitHub provider tests pass — confirm edited event metadata is correctly extracted (FR-002)
 
 ---
 
@@ -84,8 +84,8 @@ user story/provider and add setup plus final cross-cutting validation work.
 ## Phase 6: User Story 3 — Non-Edited Events Pass Through (P2)
 
 - [ ] T025 [P] [US3] Write tests verifying `check_edit_relevance` returns `(False, "")` for `action=opened`, `action=synchronize`, `action=labeled`, `action=ready_for_review` regardless of field
-  values in `tests/unit/cli/ci/guards/test_check_edit_relevance.py`
-- [ ] T026 [P] [US3] Write command-level test verifying non-edited events reach v1/v2 routing without guard interference in `tests/unit/cli/ci/commands/test_ai_pr_loop_command.py`
+  values in `tests/unit/cli/ci/guards/test_check_edit_relevance.py` (FR-005)
+- [ ] T026 [P] [US3] Write command-level test verifying non-edited events reach v1/v2 routing without guard interference in `tests/unit/cli/ci/commands/test_ai_pr_loop_command.py` (FR-005)
 
 ---
 
@@ -97,7 +97,7 @@ user story/provider and add setup plus final cross-cutting validation work.
 - [ ] T029 [US4] Set `edit_changes_known=True` when ADO payload structure reliably conveys field-level change metadata (FR-003)
 - [ ] T030 [US4] Set `title_changed`, `body_changed`, `base_changed` based on ADO-specific resource fields (FR-003)
 - [ ] T031 [US4] Ensure fail-open behavior: when metadata unavailable, keep all new fields at `False` defaults (FR-003)
-- [ ] T032 [US4] Verify all ADO provider tests pass with 100% branch coverage on new logic
+- [ ] T032 [US4] Verify all ADO provider tests pass with 100% branch coverage on new logic (FR-003)
 
 ---
 
@@ -111,9 +111,9 @@ user story/provider and add setup plus final cross-cutting validation work.
 ## Final Phase: Polish & Cross-Cutting
 
 - [ ] T035 Add inline docstring to `check_edit_relevance` explaining guard purpose, return semantics, and relationship to FR-004/FR-005/FR-008 (FR-009)
-- [ ] T036 Run full test suite (`agdt-test`) and verify zero regressions in existing tests (SC-005, SC-006)
+- [ ] T036 [FR-002] [FR-003] [FR-004] [FR-005] [FR-006] [FR-008] Run full test suite (`agdt-test`) and verify zero regressions in existing tests (SC-005, SC-006)
 - [ ] T037 [FR-007] [FR-009] Run `bash scripts/run-pr-checks.sh` to validate all CI-blocking checks pass
-- [ ] T038 Verify backward compatibility: all existing `EventPayload` construction sites still work without new fields (NFR-002, SC-006)
+- [ ] T038 [FR-001] Verify backward compatibility: all existing `EventPayload` construction sites still work without new fields (NFR-002, SC-006)
 
 ---
 
