@@ -1,6 +1,6 @@
 # Feature Specification: Improve SpecKit Generation Resilience
 
-**Feature Branch**: `1571-speckit-generation-resilience`
+**Feature Branch**: `speckit/1571/phase-1-specify`
 **Created**: 2026-05-26
 **Status**: Draft
 **Input**: User description: "Improve SpecKit generation resilience to reduce frequent structural validation failures"
@@ -29,6 +29,8 @@ generated spec should contain all mandatory sections populated with meaningful c
 **Why this priority**: This is the primary happy path. If first-attempt generation succeeds reliably, all downstream retry and fallback mechanisms become rarely needed. Fixing this addresses the
 majority of current failures and directly unblocks PRs.
 
+**Mapped Functional Requirements**: FR-001, FR-007, FR-008
+
 **Independent Test**: Trigger spec generation on 20 representative issues of varying detail levels. Verify that at least 18 of 20 produce a structurally valid spec on the first attempt without any
 retry or fallback activation.
 
@@ -53,6 +55,8 @@ LLM prompt with targeted guidance, examples, and explicit instructions about wha
 
 **Why this priority**: Even with an improved first-attempt success rate, some generations will still fail. The retry mechanism is the second line of defense and must be intelligent rather than simply
 repeating the same prompt. This directly reduces the number of cases that reach the fallback.
+
+**Mapped Functional Requirements**: FR-002, FR-009, FR-010
 
 **Independent Test**: Deliberately craft an issue that produces a spec missing the Requirements section. Verify that the retry prompt includes explicit instructions about the missing section and that
 the second attempt produces a valid spec.
@@ -80,6 +84,8 @@ manual enrichment.
 **Why this priority**: This is the safety net that prevents complete workflow blockage. While it should rarely activate if the first two stories are implemented well, its presence ensures that no PR
 is permanently blocked by transient LLM output quality issues.
 
+**Mapped Functional Requirements**: FR-003, FR-011
+
 **Independent Test**: Force all retry attempts to fail (e.g., by using a mock LLM that returns empty output). Verify that the fallback skeleton is written, passes structural validation, and contains
 markers indicating it needs manual review.
 
@@ -103,6 +109,8 @@ rather than applying the same minimum byte count that would be appropriate for a
 
 **Why this priority**: Static thresholds cause impossible-to-satisfy validation for simple issues. Adapting thresholds reduces false failures without compromising quality for complex issues.
 
+**Mapped Functional Requirements**: FR-004
+
 **Independent Test**: Trigger spec generation on a one-sentence issue. Verify that the minimum byte threshold is reduced proportionally and that a well-structured but shorter spec passes validation.
 
 **Acceptance Scenarios**:
@@ -123,6 +131,8 @@ failure reason should include a suggested remediation step.
 **Why this priority**: While not directly preventing failures, better error messages reduce time-to-resolution when manual intervention is needed and help developers understand what the system
 expects.
 
+**Mapped Functional Requirements**: FR-005
+
 **Independent Test**: Trigger validation on a deliberately malformed spec. Verify that each failure message includes both the specific problem and a concrete suggestion for fixing it.
 
 **Acceptance Scenarios**:
@@ -142,6 +152,8 @@ incorrectly modifying valid specs or emitting spurious warnings.
 
 **Why this priority**: False-positive sanitizer triggers cause unnecessary noise in logs and can occasionally corrupt valid output. Improving precision reduces confusion and prevents subtle content
 loss.
+
+**Mapped Functional Requirements**: FR-006
 
 **Independent Test**: Feed the sanitizer 10 valid specs that begin with proper markdown headings (some with leading whitespace, some with BOM markers). Verify that none trigger the "no proper heading
 detected" fallback.
