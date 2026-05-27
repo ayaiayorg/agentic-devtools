@@ -20,13 +20,13 @@
 
 ## Research Summary
 
-See [research.md](research.md) for detailed decisions on:
+No separate `research.md` artifact was generated for this feature. Key decisions are inlined here:
 
-1. Repair-dispatch marker format (separate from dedup marker)
-2. `total_unresolved_threads` fetching strategy (reuse GraphQL `list_review_thread_states`)
-3. `DerivedState` flag initialization approach
-4. `CommitMessageGenerator` protocol design
-5. Pipeline action ordering change
+1. **Repair-dispatch marker format**: Use a distinct `REPAIR_DISPATCH_MARKER_PREFIX = "<!-- repair-dispatched-sha:"` constant (separate from the existing dedup marker) to avoid ambiguity when reading back markers.
+2. **`total_unresolved_threads` fetching strategy**: Add `count_total_unresolved_threads` as an abstract/optional method on `CIPlatformProvider`; the GitHub implementation reuses the existing `list_review_thread_states` GraphQL call. This introduces one additional provider call during snapshot build, which is budgeted against NFR-001 by keeping it as a single GraphQL round-trip.
+3. **`DerivedState` flag initialization**: Both `repair_dispatched` and `snapshot_invalidated` are initialized to `False` at the start of `run_pipeline` so downstream actions always find a defined value.
+4. **`CommitMessageGenerator` protocol design**: A `CommitMessageGenerator` protocol with a `DeterministicCommitMessageGenerator` implementation reuses the existing `_build_squash_commit_message` logic for consistency.
+5. **Pipeline action ordering**: `DispatchRepairAction` and `SquashAction` are moved before `RequestReviewAction` so their derived-state flags are visible when `RequestReviewAction.evaluate()` runs.
 
 ## Design Overview
 
