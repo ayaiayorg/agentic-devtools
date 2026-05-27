@@ -26,9 +26,7 @@ normal CI evaluation across GitHub and Azure DevOps providers.
 specs/1594-feature-abstract-title-body/
 ├── plan.md
 ├── spec.md
-├── research.md
-├── data-model.md
-├── quickstart.md
+├── checklists/
 └── contracts/
     └── .gitkeep
 ```
@@ -73,13 +71,12 @@ No constitution violations or complexity exemptions identified for this plan.
 
 ## Research Summary
 
-Research decisions are documented in `research.md`. Key choices: place the edit-relevance guard
-before downstream routing/guards, keep the guard return signature consistent with the existing
-`check_*` tuple pattern, and have providers populate the new change-tracking fields from their
-platform-specific payloads, including the ADO event mapping.
+Key choices: place the edit-relevance guard before downstream routing/guards, keep the guard
+return signature consistent with the existing `check_*` tuple pattern, and have providers
+populate the new change-tracking fields from their platform-specific payloads, including the
+ADO event mapping.
 
-Design artifacts: `data-model.md` (entity/field definitions), `quickstart.md` (implementation
-steps), and `contracts/.gitkeep` (no external API contracts for this internal guard).
+No external API contracts apply to this internal guard (`contracts/.gitkeep` retained as placeholder).
 
 ## Design Overview
 
