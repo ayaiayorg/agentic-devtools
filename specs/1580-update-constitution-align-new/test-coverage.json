@@ -8,7 +8,7 @@
       "is_covered": true,
       "has_happy_path": false,
       "test_task_ids": [
-        "T032"
+        "T012"
       ],
       "test_types": []
     },
@@ -19,9 +19,9 @@
       "is_covered": true,
       "has_happy_path": true,
       "test_task_ids": [
-        "T029",
-        "T030",
-        "T031"
+        "T018",
+        "T019",
+        "T020"
       ],
       "test_types": [
         "happy-path"
@@ -34,7 +34,7 @@
       "is_covered": true,
       "has_happy_path": true,
       "test_task_ids": [
-        "T026"
+        "T006"
       ],
       "test_types": [
         "happy-path"
@@ -47,8 +47,8 @@
       "is_covered": true,
       "has_happy_path": true,
       "test_task_ids": [
-        "T027",
-        "T028"
+        "T009",
+        "T010"
       ],
       "test_types": [
         "happy-path"
@@ -61,8 +61,8 @@
       "is_covered": true,
       "has_happy_path": true,
       "test_task_ids": [
-        "T027",
-        "T028"
+        "T009",
+        "T010"
       ],
       "test_types": [
         "happy-path"
@@ -75,9 +75,9 @@
       "is_covered": true,
       "has_happy_path": true,
       "test_task_ids": [
-        "T029",
-        "T030",
-        "T031"
+        "T018",
+        "T019",
+        "T020"
       ],
       "test_types": [
         "happy-path"
@@ -90,9 +90,9 @@
       "is_covered": true,
       "has_happy_path": true,
       "test_task_ids": [
-        "T029",
-        "T030",
-        "T031"
+        "T018",
+        "T019",
+        "T020"
       ],
       "test_types": [
         "happy-path"
@@ -105,7 +105,7 @@
       "is_covered": true,
       "has_happy_path": true,
       "test_task_ids": [
-        "T025"
+        "T004"
       ],
       "test_types": [
         "happy-path"
@@ -118,7 +118,7 @@
       "is_covered": true,
       "has_happy_path": false,
       "test_task_ids": [
-        "T033"
+        "T014"
       ],
       "test_types": [
         "negative"
@@ -131,7 +131,7 @@
       "is_covered": true,
       "has_happy_path": false,
       "test_task_ids": [
-        "T015"
+        "T025"
       ],
       "test_types": []
     },
@@ -142,7 +142,7 @@
       "is_covered": true,
       "has_happy_path": false,
       "test_task_ids": [
-        "T013"
+        "T023"
       ],
       "test_types": []
     },
@@ -153,12 +153,12 @@
       "is_covered": true,
       "has_happy_path": false,
       "test_task_ids": [
-        "T034"
+        "T022"
       ],
       "test_types": []
     }
   },
-  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-006 | US5 | T032 | None | \u2705 Covered |\n| FR-009 | US3 | T029, T030, T031 | happy-path | \u2705 Covered |\n| FR-003 | US1 | T026 | happy-path | \u2705 Covered |\n| FR-004 | US2 | T027, T028 | happy-path | \u2705 Covered |\n| FR-011 | US2 | T027, T028 | happy-path | \u2705 Covered |\n| FR-008 | US3 | T029, T030, T031 | happy-path | \u2705 Covered |\n| FR-010 | US3 | T029, T030, T031 | happy-path | \u2705 Covered |\n| FR-002 | US4 | T025 | happy-path | \u2705 Covered |\n| FR-007 | US6 | T033 | negative | \u2705 Covered |\n| FR-001 | US7 | T015 | None | \u2705 Covered |\n| FR-012 | US7 | T013 | None | \u2705 Covered |\n| FR-005 | US8 | T034 | None | \u2705 Covered |\n",
+  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-006 | US5 | T012 | None | \u2705 Covered |\n| FR-009 | US3 | T018, T019, T020 | happy-path | \u2705 Covered |\n| FR-003 | US1 | T006 | happy-path | \u2705 Covered |\n| FR-004 | US2 | T009, T010 | happy-path | \u2705 Covered |\n| FR-011 | US2 | T009, T010 | happy-path | \u2705 Covered |\n| FR-008 | US3 | T018, T019, T020 | happy-path | \u2705 Covered |\n| FR-010 | US3 | T018, T019, T020 | happy-path | \u2705 Covered |\n| FR-002 | US4 | T004 | happy-path | \u2705 Covered |\n| FR-007 | US6 | T014 | negative | \u2705 Covered |\n| FR-001 | US7 | T025 | None | \u2705 Covered |\n| FR-012 | US7 | T023 | None | \u2705 Covered |\n| FR-005 | US8 | T022 | None | \u2705 Covered |\n",
   "summary": {
     "total_frs": 12,
     "covered_frs": 12,
