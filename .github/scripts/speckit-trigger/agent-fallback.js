@@ -295,17 +295,17 @@ async function applyLabelsAndComment(octokit, owner, repo, issueNumber, taskId, 
     core.info('Skipping issue comment: SPECKIT_COMMENT_ON_ISSUE=false');
   }
 
-  // Add speckit:agent-fallback label (FR-005)
+  // Add speckit:agent-fallback label (FR-005) and ensure speckit:processing remains present (FR-012)
   try {
     await octokit.rest.issues.addLabels({
       owner,
       repo,
       issue_number: issueNumber,
-      labels: ['speckit:agent-fallback'],
+      labels: ['speckit:agent-fallback', 'speckit:processing'],
     });
   } catch (e) {
     // Label may not exist — log but don't fail
-    console.log(`Warning: Could not add speckit:agent-fallback label: ${e.message}`);
+    console.log(`Warning: Could not add speckit labels: ${e.message}`);
   }
 
   // Remove speckit:failed if present (FR-007)

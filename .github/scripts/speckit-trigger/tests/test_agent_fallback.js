@@ -236,8 +236,11 @@ console.log('=== Testing kill-switch ===');
   });
   assertEqual('kill-switch sets triggered to false', 'false', outputs.triggered);
 
-  process.env.SPECKIT_COMMENT_ON_ISSUE = origEnv;
-
+  if (origEnv === undefined) {
+    delete process.env.SPECKIT_COMMENT_ON_ISSUE;
+  } else {
+    process.env.SPECKIT_COMMENT_ON_ISSUE = origEnv;
+  }
   // ---------------------------------------------------------------------------
   // Tests for checkIdempotency pagination
   // ---------------------------------------------------------------------------
