@@ -172,3 +172,135 @@ class TestParseEvent:
         result = provider.parse_event(payload, "workflow_dispatch")
         assert result.pr_number == 0
         assert result.action == "completed"
+
+    def test_pull_request_edited_title_change(self) -> None:
+        """Edited event with changes.title populates title_changed."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "action": "edited",
+            "changes": {"title": {"from": "[WIP] Old Title"}},
+            "pull_request": {
+                "number": 42,
+                "head": {"ref": "feature/test", "sha": "abc123"},
+                "base": {"ref": "main"},
+            },
+            "repository": {"full_name": "owner/repo"},
+            "sender": {"login": "contributor"},
+        }
+        result = provider.parse_event(payload, "pull_request")
+        assert result.action == "edited"
+        assert result.edit_changes_known is True
+        assert result.title_changed is True
+        assert result.body_changed is False
+        assert result.base_changed is False
+
+    def test_pull_request_edited_body_only(self) -> None:
+        """Edited event with only changes.body populates body_changed."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "action": "edited",
+            "changes": {"body": {"from": "old body text"}},
+            "pull_request": {
+                "number": 42,
+                "head": {"ref": "feature/test", "sha": "abc123"},
+                "base": {"ref": "main"},
+            },
+            "repository": {"full_name": "owner/repo"},
+            "sender": {"login": "contributor"},
+        }
+        result = provider.parse_event(payload, "pull_request")
+        assert result.edit_changes_known is True
+        assert result.title_changed is False
+        assert result.body_changed is True
+        assert result.base_changed is False
+
+    def test_pull_request_edited_base_change(self) -> None:
+        """Edited event with changes.base populates base_changed."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "action": "edited",
+            "changes": {"base": {"ref": {"from": "develop"}}},
+            "pull_request": {
+                "number": 42,
+                "head": {"ref": "feature/test", "sha": "abc123"},
+                "base": {"ref": "main"},
+            },
+            "repository": {"full_name": "owner/repo"},
+            "sender": {"login": "contributor"},
+        }
+        result = provider.parse_event(payload, "pull_request")
+        assert result.edit_changes_known is True
+        assert result.base_changed is True
+
+    def test_pull_request_edited_empty_changes(self) -> None:
+        """Edited event with empty changes dict sets edit_changes_known=True."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "action": "edited",
+            "changes": {},
+            "pull_request": {
+                "number": 42,
+                "head": {"ref": "feature/test", "sha": "abc123"},
+                "base": {"ref": "main"},
+            },
+            "repository": {"full_name": "owner/repo"},
+        }
+        result = provider.parse_event(payload, "pull_request")
+        assert result.edit_changes_known is True
+        assert result.title_changed is False
+        assert result.body_changed is False
+        assert result.base_changed is False
+
+    def test_pull_request_edited_no_changes_key(self) -> None:
+        """Edited event without changes key keeps edit_changes_known=False."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "action": "edited",
+            "pull_request": {
+                "number": 42,
+                "head": {"ref": "feature/test", "sha": "abc123"},
+                "base": {"ref": "main"},
+            },
+            "repository": {"full_name": "owner/repo"},
+        }
+        result = provider.parse_event(payload, "pull_request")
+        assert result.edit_changes_known is False
+        assert result.title_changed is False
+
+    @pytest.mark.parametrize("changes", [None, "body"])
+    def test_pull_request_edited_non_dict_changes_keeps_unknown(self, changes: object) -> None:
+        """Edited event with non-dict changes fails open instead of raising."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "action": "edited",
+            "changes": changes,
+            "pull_request": {
+                "number": 42,
+                "head": {"ref": "feature/test", "sha": "abc123"},
+                "base": {"ref": "main"},
+            },
+            "repository": {"full_name": "owner/repo"},
+        }
+        result = provider.parse_event(payload, "pull_request")
+        assert result.edit_changes_known is False
+        assert result.title_changed is False
+        assert result.body_changed is False
+        assert result.base_changed is False
+
+    def test_pull_request_non_edited_has_default_edit_fields(self) -> None:
+        """Non-edited events keep all edit fields at defaults."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "action": "opened",
+            "pull_request": {
+                "number": 42,
+                "head": {"ref": "feature/test", "sha": "abc123"},
+                "base": {"ref": "main"},
+            },
+            "repository": {"full_name": "owner/repo"},
+        }
+        result = provider.parse_event(payload, "pull_request")
+        assert result.edit_changes_known is False
+        assert result.title_changed is False
+        assert result.body_changed is False
+        assert result.base_changed is False
