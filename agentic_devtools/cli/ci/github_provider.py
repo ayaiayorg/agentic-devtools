@@ -384,9 +384,9 @@ class GitHubActionsProvider(CIPlatformProvider):
         body_changed = False
         base_changed = False
         edit_changes_known = False
-        if action == "edited" and "changes" in raw:
+        changes = raw.get("changes")
+        if action == "edited" and isinstance(changes, dict):
             edit_changes_known = True
-            changes = raw["changes"]
             title_changed = "title" in changes
             body_changed = "body" in changes
             base_changed = "base" in changes

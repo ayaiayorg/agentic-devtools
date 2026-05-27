@@ -236,6 +236,27 @@ class TestAzureDevOpsProvider:
         assert result.body_changed is False
         assert result.base_changed is False
 
+    @pytest.mark.parametrize("changed_fields", [None, []])
+    def test_parse_event_pr_updated_non_dict_changed_fields_keeps_unknown(self, changed_fields: object) -> None:
+        """Non-dict changedFields keeps edit metadata unknown for fail-open handling."""
+        provider = AzureDevOpsProvider()
+        raw = {
+            "resource": {
+                "pullRequestId": 42,
+                "sourceRefName": "refs/heads/feature/test",
+                "targetRefName": "refs/heads/main",
+                "lastMergeSourceCommit": {"commitId": "abc123"},
+                "repository": {"name": "my-repo"},
+            },
+            "resourceContainers": {"project": {"id": "my-project"}},
+            "changedFields": changed_fields,
+        }
+        result = provider.parse_event(raw, "git.pullrequest.updated")
+        assert result.edit_changes_known is False
+        assert result.title_changed is False
+        assert result.body_changed is False
+        assert result.base_changed is False
+
     def test_parse_event_non_update_event_keeps_defaults(self) -> None:
         """Non-update events keep all edit fields at defaults."""
         provider = AzureDevOpsProvider()

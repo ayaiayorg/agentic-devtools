@@ -89,9 +89,9 @@ class AzureDevOpsProvider(CIPlatformProvider):
             if event_name == "git.pullrequest.updated":
                 action = "edited"
                 # ADO includes a "changedFields" dict or per-field deltas in resource
-                edit_changes_known = "changedFields" in raw_payload
-                changed_fields = raw_payload.get("changedFields", {})
-                if edit_changes_known and isinstance(changed_fields, dict):
+                changed_fields = raw_payload.get("changedFields")
+                edit_changes_known = isinstance(changed_fields, dict)
+                if edit_changes_known:
                     title_changed = "title" in changed_fields or "Title" in changed_fields
                     body_changed = (
                         "description" in changed_fields or "Description" in changed_fields

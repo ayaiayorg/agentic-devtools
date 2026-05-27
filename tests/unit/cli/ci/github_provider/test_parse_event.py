@@ -267,6 +267,26 @@ class TestParseEvent:
         assert result.edit_changes_known is False
         assert result.title_changed is False
 
+    @pytest.mark.parametrize("changes", [None, "body"])
+    def test_pull_request_edited_non_dict_changes_keeps_unknown(self, changes: object) -> None:
+        """Edited event with non-dict changes fails open instead of raising."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "action": "edited",
+            "changes": changes,
+            "pull_request": {
+                "number": 42,
+                "head": {"ref": "feature/test", "sha": "abc123"},
+                "base": {"ref": "main"},
+            },
+            "repository": {"full_name": "owner/repo"},
+        }
+        result = provider.parse_event(payload, "pull_request")
+        assert result.edit_changes_known is False
+        assert result.title_changed is False
+        assert result.body_changed is False
+        assert result.base_changed is False
+
     def test_pull_request_non_edited_has_default_edit_fields(self) -> None:
         """Non-edited events keep all edit fields at defaults."""
         provider = GitHubActionsProvider(repo="owner/repo")

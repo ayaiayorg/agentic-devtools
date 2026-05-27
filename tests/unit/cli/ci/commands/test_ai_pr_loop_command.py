@@ -178,6 +178,42 @@ class TestAIPRLoopCommand:
             os.unlink(event_path)
 
     @patch("shutil.which", return_value="/usr/bin/gh")
+    def test_body_only_edit_exits_zero_for_pipeline_v2(self, mock_which) -> None:
+        """Body-only edited event exits 0 without calling pipeline v2."""
+        payload = {
+            "action": "edited",
+            "changes": {"body": {"from": "old body"}},
+            "pull_request": {
+                "number": 42,
+                "head": {"ref": "feature/test", "sha": "abc123"},
+                "base": {"ref": "main"},
+            },
+            "repository": {"full_name": "owner/repo"},
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump(payload, f)
+            event_path = f.name
+
+        try:
+            env = {
+                "AGDT_USE_PYTHON_ORCHESTRATOR": "1",
+                "AGDT_USE_PIPELINE_V2": "1",
+                "GITHUB_EVENT_PATH": event_path,
+                "GITHUB_EVENT_NAME": "pull_request",
+                "GITHUB_REPOSITORY": "owner/repo",
+            }
+            with patch.dict(os.environ, env, clear=False):
+                with patch("agentic_devtools.cli.ci.commands.run_ai_pr_loop", return_value=0) as mock_v1:
+                    with patch("agentic_devtools.cli.ci.commands.run_ai_pr_loop_v2", return_value=0) as mock_v2:
+                        with pytest.raises(SystemExit) as exc_info:
+                            ai_pr_loop_command()
+                        assert exc_info.value.code == 0
+                        mock_v2.assert_not_called()
+                        mock_v1.assert_not_called()
+        finally:
+            os.unlink(event_path)
+
+    @patch("shutil.which", return_value="/usr/bin/gh")
     def test_title_edit_proceeds_to_orchestrator(self, mock_which) -> None:
         """Edited event with title change proceeds to orchestrator."""
         payload = {
