@@ -18,7 +18,7 @@
   This provides a worst-case latency of ~120 seconds (event recorded just after a cycle completes → detected on next cycle) while keeping GitHub Actions consumption reasonable. Combined with the
   lightweight per-run budget (under 2 minutes), this avoids overlapping runs.
 - Q: What persistence mechanism should be used for event ID deduplication across monitor cycles — workflow artifacts, GitHub Actions cache, issue comment markers, or a state file committed to the
-  repo? → A: Use GitHub Actions cache (`actions/cache`) with a rolling key pattern (e.g., `agent-monitor-seen-events-{date}`) storing a JSON set of processed event IDs. Cache entries expire naturally
+  repo? → A: Use GitHub Actions cache (`actions/cache`) with a rolling key pattern (e.g., `agent-monitor-seen-events-{YYYY-MM-DD}`) storing a JSON set of processed event IDs. Cache entries expire naturally
   after 7 days. This is lightweight, requires no repo writes, is fast to read/write, and survives across workflow runs without polluting issues or artifacts.
 - Q: Should the monitor only trigger for PRs that have the `ai-auto-merge-allowed` label (as mentioned in User Story 1), or should it trigger for all open PRs regardless of label? → A: The monitor
   should trigger for ALL open PRs that have a `copilot_work_finished` event, regardless of label. The `ai-auto-merge-allowed` label is checked by the orchestrator during execution, not by the trigger
@@ -157,7 +157,7 @@ were found, and what dispatch actions were taken.
   persisting state across monitor cycles to prevent re-processing of already-handled events.
 
 - **FR-003**: The system MUST pass the PR number to the AI PR loop workflow when dispatching via `workflow_dispatch`, using the existing `pr_number` input parameter (as string) and `trigger_reason`
-  input parameter, compatible with the existing concurrency group expression `ai-pr-loop-${{ github.event.inputs.pr_number }}`.
+  input parameter, compatible with the existing `ai-pr-loop.yml` concurrency group expression (which resolves PR number from pull_request/issue/workflow_run/inputs, with `github.run_id` fallback).
 
 - **FR-004**: The system MUST only trigger for PRs that belong to the same repository (not forks), are currently open (not closed or merged), and have not been excluded via the `ai-pr-loop-ignore`
   label, consistent with the existing guard checks in the orchestrator.
@@ -181,7 +181,7 @@ were found, and what dispatch actions were taken.
   reads/writes.
 
 - **NFR-003**: The system MUST be resilient to transient GitHub API failures (rate limits, 5xx errors). A single failed API call must not prevent the monitor from processing other PRs in the same
-  cycle, and failed PRs should be retried on the next cycle. The monitor MUST use try/catch per-PR with structured error logging.
+  cycle, and failed PRs should be retried on the next cycle. The monitor MUST isolate per-PR failures so processing continues for other PRs in the same cycle, with structured error logging.
 
 - **NFR-004**: The system MUST produce structured, parseable log output (one JSON-like line per action) that enables operators to audit which events were processed, which dispatches were issued, and
   which PRs were skipped (with reasons). Log format should be consistent with existing orchestrator logging patterns (key=value structured fields).
