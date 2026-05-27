@@ -19,7 +19,24 @@
 
 ### Category G Structured Findings
 
-[{"id": "G-01", "overlap_type": "overlapping", "severity": "HIGH", "task_ids": ["T021", "T037", "T038", "T039"], "dimensions": ["description"], "rationale": "T021 tests graceful degradation for non-2xx, missing fields, and network timeout in triggerCodingAgent(). T037/T038/T039 individually test the same three degradation scenarios (API 500/503, network timeout, malformed response). Single-dimension overlap on description — same failure modes tested at different abstraction levels (unit vs integration outcome)."}, {"id": "G-02", "overlap_type": "overlapping", "severity": "HIGH", "task_ids": ["T022", "T041"], "dimensions": ["description"], "rationale": "T022 implements graceful degradation in triggerCodingAgent() setting outputs.triggered='false' on failures. T041 ensures outputs.triggered is set to 'false' on all degradation paths — this is a strict subset of T022's implementation scope. Same outcome, same code location, but T041 could be interpreted as a cross-cutting verification across all paths rather than just the API function."}]
+[
+  {
+    "id": "G-01",
+    "overlap_type": "overlapping",
+    "severity": "HIGH",
+    "task_ids": ["T021", "T037", "T038", "T039"],
+    "dimensions": ["description"],
+    "rationale": "T021 covers non-2xx, missing fields, and timeout in triggerCodingAgent(); T037-T039 cover the same failure modes. This overlaps by description, with unit vs integration scope."
+  },
+  {
+    "id": "G-02",
+    "overlap_type": "overlapping",
+    "severity": "HIGH",
+    "task_ids": ["T022", "T041"],
+    "dimensions": ["description"],
+    "rationale": "T022 sets outputs.triggered='false' for triggerCodingAgent() degradation paths; T041 asks for the same outcome. T041 is a subset and should be merged or reframed as verification."
+  }
+]
 
 ## Coverage Summary Table
 
