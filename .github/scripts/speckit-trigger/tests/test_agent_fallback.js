@@ -527,6 +527,94 @@ console.log('=== Testing kill-switch ===');
   }
 
   // ---------------------------------------------------------------------------
+  // Tests for triggerCodingAgent() failure graceful degradation in run()
+  // ---------------------------------------------------------------------------
+  console.log('=== Testing run() triggerCodingAgent failure paths ===');
+
+  {
+    // Test 1: github.request throws — must set triggered=false, handled=false
+    const outputsApiThrows = {};
+    const warningsApiThrows = [];
+    const mockCoreApiThrows = {
+      info: () => {},
+      warning: (msg) => { warningsApiThrows.push(msg); },
+      setOutput: (key, val) => { outputsApiThrows[key] = val; },
+    };
+    const mockGithubApiThrows = {
+      rest: {
+        pulls: { list: async () => ({ data: [] }) },
+        issues: { listComments: async () => ({ data: [] }) },
+      },
+      request: async (route) => {
+        if (route && route.includes('coding-agent/tasks')) {
+          throw new Error('API unreachable');
+        }
+        return { data: {} };
+      },
+    };
+    process.env.SPECKIT_COMMENT_ON_ISSUE = 'false';
+    await fallback.run({
+      github: mockGithubApiThrows,
+      context: mockContext,
+      core: mockCoreApiThrows,
+      phase: 1,
+      validationErrors: 'MISSING_SECTIONS: ## Foo',
+      workspaceFile: null,
+      issueNumber: 123,
+      issueTitle: 'Test',
+      issueBody: 'Body',
+      token: 'fake-token',
+      killSwitch: 'true',
+      referenceSpecPath: '',
+    });
+    assertEqual('API throw sets triggered to false', 'false', outputsApiThrows.triggered);
+    assertEqual('API throw sets handled to false', 'false', outputsApiThrows.handled);
+    assertTruthy('API throw emits warning', warningsApiThrows.some(w => w.includes('Agent fallback API call failed')));
+  }
+
+  {
+    // Test 2: github.request returns {data:{}} (missing id/url) — triggerCodingAgent throws
+    const outputsMissingFields = {};
+    const warningsMissingFields = [];
+    const mockCoreMissingFields = {
+      info: () => {},
+      warning: (msg) => { warningsMissingFields.push(msg); },
+      setOutput: (key, val) => { outputsMissingFields[key] = val; },
+    };
+    const mockGithubMissingFields = {
+      rest: {
+        pulls: { list: async () => ({ data: [] }) },
+        issues: { listComments: async () => ({ data: [] }) },
+      },
+      request: async (route) => {
+        if (route && route.includes('coding-agent/tasks')) {
+          // Return a response missing the required id and url fields
+          return { data: {} };
+        }
+        return { data: {} };
+      },
+    };
+    process.env.SPECKIT_COMMENT_ON_ISSUE = 'false';
+    await fallback.run({
+      github: mockGithubMissingFields,
+      context: mockContext,
+      core: mockCoreMissingFields,
+      phase: 1,
+      validationErrors: 'MISSING_SECTIONS: ## Foo',
+      workspaceFile: null,
+      issueNumber: 123,
+      issueTitle: 'Test',
+      issueBody: 'Body',
+      token: 'fake-token',
+      killSwitch: 'true',
+      referenceSpecPath: '',
+    });
+    assertEqual('missing id/url sets triggered to false', 'false', outputsMissingFields.triggered);
+    assertEqual('missing id/url sets handled to false', 'false', outputsMissingFields.handled);
+    assertTruthy('missing id/url emits warning', warningsMissingFields.some(w => w.includes('Agent fallback API call failed')));
+  }
+
+  // ---------------------------------------------------------------------------
   // Tests for STRUCTURAL_ERROR_SIGNATURES constant
   // ---------------------------------------------------------------------------
   console.log('=== Testing STRUCTURAL_ERROR_SIGNATURES ===');
