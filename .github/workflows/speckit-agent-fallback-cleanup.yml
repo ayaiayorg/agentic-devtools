@@ -108,7 +108,6 @@ jobs:
 
               const markerRegex = /<!--\s*speckit:agent-fallback\s+task_id=([^ ]+)\s+task_url=([^ ]+)\s+issue=(\d+)\s+phase=(\d+)\s*-->/;
               let taskId = null;
-              let taskUrl = null;
               let latestMarkerCreatedAt = null;
               for (const comment of comments) {
                 const match = comment.body && comment.body.match(markerRegex);
@@ -119,7 +118,6 @@ jobs:
                   // Keep the most recent marker to avoid acting on stale tasks
                   if (!latestMarkerCreatedAt || new Date(comment.created_at) > new Date(latestMarkerCreatedAt)) {
                     taskId = match[1];
-                    taskUrl = match[2];
                     latestMarkerCreatedAt = comment.created_at;
                   }
                 }

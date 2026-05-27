@@ -62,8 +62,8 @@
 - [x] T019 [US1] [P] Add "Agent Fallback" step to `.github/workflows/speckit-phase-progression.yml` with `id: agent-fallback` and `if: failure()`, loading `agent-fallback.js` via
   `actions/github-script@v7`, passing dynamic phase, and setting step output `triggered` to `'true'` when fallback is started or `'false'` otherwise so downstream
   conditions can read `steps.agent-fallback.outputs.triggered` (FR-010)
-- [x] T020 [US1] Modify existing "Handle Failure" step condition in both workflows to `if: failure() && steps.agent-fallback.outputs.triggered != 'true'` so standard failure only runs when fallback
-  did NOT trigger
+- [x] T020 [US1] Modify existing "Handle Failure" step condition in both workflows to `if: failure() && steps.agent-fallback.outputs.handled != 'true'` so standard failure only runs when fallback
+  did NOT handle the failure
 
 ### Graceful Degradation
 
