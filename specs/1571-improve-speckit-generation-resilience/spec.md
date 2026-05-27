@@ -13,9 +13,9 @@
 - Q: Where does the mandatory skeleton injection (FR-001) apply — only to the Phase 1 (specify) LLM prompt, or also to retry prompts in the clarify phase? → A: The skeleton injection applies
   exclusively to the Phase 1 (specify) prompt template. The clarify phase already has its own retry logic in `clarify-retry.sh` with structured feedback. FR-001 targets the initial generation prompt
   to ensure the LLM fills in a pre-structured document rather than generating headings from scratch.
-- Q: The spec says "3 retries" for the fallback (FR-003/US3), but the existing `SPECIFY_MAX_RETRIES=3` in `spec-validation.sh` represents 3 total retry attempts (not 3 retries after the initial
-  attempt, so 4 total calls). Which semantics does this feature follow? → A: The existing `SPECIFY_MAX_RETRIES=3` semantics are preserved — this means up to 3 retry attempts after the initial
-  generation (4 total LLM calls maximum). The fallback activates only after all 3 retry attempts have been exhausted. This is consistent with the existing variable name and behavior in
+- Q: The spec says "3 retries" for the fallback (FR-003/US3), but the existing `SPECIFY_MAX_RETRIES=3` in `spec-validation.sh` represents a cap of 3 total validation-consuming attempts. Which
+  semantics does this feature follow? → A: The existing `SPECIFY_MAX_RETRIES=3` semantics are preserved — this means up to 3 total validation-consuming attempts. The fallback activates only after
+  all 3 attempts have been exhausted. This is consistent with the existing variable name and behavior in
   `spec-validation.sh`.
 - Q: FR-009 requires re-validation after phases that modify the spec. Given the pipeline is specify → clarify → checklist → plan → tasks → analyze, which specific phases trigger re-validation of the
   spec structural integrity? → A: Re-validation runs after the specify phase (primary) and after the clarify phase (which modifies spec.md). The checklist, plan, tasks, and analyze phases produce
@@ -115,8 +115,8 @@ markers indicating it needs manual review.
 
 **Acceptance Scenarios**:
 
-1. **Given** that the spec generation has failed all 3 configured retry attempts (totaling 4 LLM calls: 1 initial + 3 retries, controlled by `SPECIFY_MAX_RETRIES`), **When** the final retry produces
-   invalid output, **Then** the system writes a deterministic
+1. **Given** that the spec generation has failed all 3 configured validation attempts (as capped by `SPECIFY_MAX_RETRIES`), **When** the final attempt produces invalid output, **Then** the system
+   writes a deterministic
    skeleton spec that includes all mandatory sections (Problem Statement, User Scenarios & Testing, Requirements, Success Criteria) populated with content derived from the issue title and body text.
 
 2. **Given** that the deterministic fallback skeleton has been written, **When** structural validation runs against it, **Then** it passes all checks including minimum length (via expanded template
@@ -228,8 +228,8 @@ goal of reducing structural validation failures.
   retry prompt. The enrichment must address each distinct failure reason (missing sections, insufficient length, too few requirements, excessive bullets) with specific corrective guidance. This builds
   upon the existing `_build_structured_clarify_feedback` pattern in `clarify-retry.sh`.
 
-- **FR-003**: The system MUST provide a deterministic fallback skeleton generator that activates after all retry attempts are exhausted (after `SPECIFY_MAX_RETRIES` retry attempts, defaulting to 3
-  retries = 4 total LLM calls). The fallback skeleton must pass structural validation, derive
+- **FR-003**: The system MUST provide a deterministic fallback skeleton generator that activates after all retry attempts are exhausted (after `SPECIFY_MAX_RETRIES` total validation attempts, default
+  3 attempts). The fallback skeleton must pass structural validation, derive
   content from the issue title and body, and include a visible banner indicating fallback activation.
 
 - **FR-004**: The system MUST support dynamic validation threshold adaptation based on input issue complexity. For issues with description length below a configurable threshold (default: 200

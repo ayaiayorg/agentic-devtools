@@ -28,7 +28,7 @@
   measurement methodology
 - [ ] CHK009 Scope boundaries are explicit: skeleton injection applies only to Phase 1 specify prompt (not clarify), re-validation runs only after specify and clarify phases (not
   checklist/plan/tasks/analyze), threshold reduction applies only to MIN_SPEC_BYTES (not requirement counts)
-- [ ] CHK010 Dependencies on existing infrastructure are documented: `spec-validation.sh`, `clarify-retry.sh`, `SPECIFY_MAX_RETRIES` variable semantics (3 retries = 4 total calls),
+- [ ] CHK010 Dependencies on existing infrastructure are documented: `spec-validation.sh`, `clarify-retry.sh`, `SPECIFY_MAX_RETRIES` variable semantics (3 total validation attempts),
   `generate-spec-from-issue.sh` architecture, and existing configurable thresholds (`MIN_SPEC_BYTES`, `MAX_BULLET_LINE_PCT`)
 
 ## Feature Readiness
