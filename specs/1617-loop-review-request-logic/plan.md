@@ -49,7 +49,9 @@ Key design choices:
 
 - **Reorder actions**: `DispatchRepairAction` and `SquashAction` BEFORE `RequestReviewAction` so their derived state is visible
 - **`DerivedState` flags**: `repair_dispatched` and `snapshot_invalidated` initialized at run start in `run_pipeline`
-- **`total_unresolved_threads`**: New snapshot field populated from `list_review_thread_states` GraphQL (already exists)
+- **`total_unresolved_threads`**: New snapshot field populated via
+  `provider.count_total_unresolved_threads(...)`, with provider-specific implementation
+  (GitHub can use existing `list_review_thread_states` GraphQL)
 - **`REPAIR_DISPATCH_MARKER_PREFIX`**: Distinct constant `"<!-- repair-dispatched-sha:"` written only on actual dispatch
 - **`CommitMessageGenerator`**: Protocol with `DeterministicCommitMessageGenerator` class
 
@@ -60,7 +62,7 @@ Key design choices:
 **Deliverables:**
 
 1. Add `total_unresolved_threads: int = 0` field to `PRStateSnapshot`
-2. Add `count_total_unresolved_threads` helper in `snapshot.py` using provider's `list_review_thread_states`
+2. Add `count_total_unresolved_threads` helper in `snapshot.py` that calls `provider.count_total_unresolved_threads(...)`
 3. Call the new helper in `build_pr_state_snapshot` to populate the field
 4. Add `REPAIR_DISPATCH_MARKER_PREFIX = "<!-- repair-dispatched-sha:"` constant in `guards.py`
 5. Initialize `derived.set("repair_dispatched", False)` and `derived.set("snapshot_invalidated", False)` at the start of `run_pipeline`
