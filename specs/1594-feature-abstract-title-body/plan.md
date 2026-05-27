@@ -70,6 +70,10 @@ No constitution violations or complexity exemptions identified for this plan.
 
 ## Research Summary
 
+> **Note**: Research for this feature is summarized inline below. No separate `research.md`,
+> `data-model.md`, or `quickstart.md` artifacts are generated for this plan as the scope does not
+> warrant standalone documents.
+
 Research decisions for this change are summarized here: place the edit-relevance guard before
 downstream routing/guards, keep the guard return signature consistent with the existing `check_*`
 tuple pattern, and have providers populate the new change-tracking fields from their
@@ -133,7 +137,7 @@ The four new `EventPayload` fields (`title_changed`, `body_changed`, `base_chang
    - If `event.edit_changes_known is False` → return `(False, "")` (fail-open)
    - If `event.title_changed is True` → return `(False, "")`
    - If `event.base_changed is True` → return `(False, "")`
-   - Otherwise → return `(True, "body-only edit, no guard-relevant changes")`
+   - Otherwise → return `(True, "edited event with no title or base change")`
 3. Keep `check_edit_relevance` side-effect-free (no logging/I/O); only return skip/proceed tuple
 4. Write tests for all branches: non-edited action, edited+unknown metadata, title change, base change, body-only, simultaneous title+body, empty changes dict
 
