@@ -153,8 +153,7 @@ As a repository maintainer, I want the merge action to use squash merge strategy
 
 **Why this priority**: This is a safety net ensuring that multiple commits never result in a polluted main branch history, regardless of whether the pre-merge squash succeeded.
 
-**Independent Test**: Can be tested by configuring a PR snapshot with `commit_count > 1` at the merge step and verifying `MergeAction.execute()` calls `provider.merge_pr()` with strategy `"squash"`
-and a deterministic commit message.
+**Independent Test**: Can be tested by configuring a PR snapshot with `commit_count > 1` at the merge step and verifying `MergeAction.execute()` calls `provider.merge_pr()` with method `"squash"` and a deterministic commit message.
 
 **Acceptance Scenarios**:
 
