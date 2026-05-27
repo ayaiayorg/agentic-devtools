@@ -11,7 +11,8 @@
 ### Session 2026-05-27
 
 - Q: Should the event-driven monitor use `workflow_dispatch` (matching the existing squash-wait-scheduler pattern with `pr_number` and `trigger_reason` fields) or `repository_dispatch` (which would
-  require adding a new trigger type to `ai-pr-loop.yml`)? → A: Use `workflow_dispatch` via `gh workflow run ai-pr-loop.yml --repo <owner/repo> --field pr_number="<N>" --field trigger_reason=agent_session_finished`,
+  require adding a new trigger type to `ai-pr-loop.yml`)? → A: Use `workflow_dispatch` via
+  `gh workflow run ai-pr-loop.yml --repo ${{ github.repository }} --field pr_number="$pr_number" --field trigger_reason=agent_session_finished`,
   matching the proven squash-wait-scheduler pattern. This avoids modifying the existing `ai-pr-loop.yml` trigger configuration (satisfying FR-006) and reuses the existing concurrency group expression
   that already handles `github.event.inputs.pr_number`.
 - Q: What cron schedule frequency should the monitor workflow use to achieve the 120-second latency target, given that the squash-wait-scheduler uses `*/5`? → A: Use `*/2 * * * *` (every 2 minutes).
@@ -65,13 +66,15 @@ loop workflow starting. The test passes if the workflow starts within 120 second
    triggered for that specific PR number within 120 seconds of the event timestamp via:
 
    ```bash
-   gh workflow run ai-pr-loop.yml --repo <owner/repo> --field pr_number="<N>" --field trigger_reason=agent_session_finished
+   gh workflow run ai-pr-loop.yml --repo ${{ github.repository }} --field pr_number="$pr_number" --field trigger_reason=agent_session_finished
    ```
 
 2. **Given** a PR where the AI PR loop is already running for the same PR number, **When** a `copilot_work_finished` event fires and would trigger a second run, **Then** the concurrency group
    `ai-pr-loop-{pr_number}` ensures only one runs at a time and the second is queued (since `cancel-in-progress: false`).
 3. **Given** a PR where the agent session completes with a failure (`copilot_work_finished_failure`), **When** the event-driven trigger detects this terminal event, **Then** the AI PR loop is still
    triggered so the orchestrator can enter its recovery/failure handling path.
+4. **Given** a `copilot_work_finished` event is detected for a PR that is closed or merged, belongs to a fork, or carries the `ai-pr-loop-ignore` label, **When** the monitor evaluates
+   that PR, **Then** no `workflow_dispatch` is issued for that PR (FR-004 guard checks applied before dispatch).
 
 ---
 
@@ -156,7 +159,7 @@ were found, and what dispatch actions were taken.
 
 - **FR-001**: The system MUST provide a scheduled GitHub Actions workflow (`agent-session-monitor.yml`) running on a `*/2 * * * *` cron schedule that detects `copilot_work_finished` and
   `copilot_work_finished_failure` events on open pull requests and triggers the AI PR loop workflow within 120 seconds of the event being recorded in the GitHub Issues Events API.
-  Dispatch MUST be performed via `gh workflow run ai-pr-loop.yml --repo <owner/repo> --field pr_number="<N>" --field trigger_reason=agent_session_finished`.
+  Dispatch MUST be performed via `gh workflow run ai-pr-loop.yml --repo ${{ github.repository }} --field pr_number="$pr_number" --field trigger_reason=agent_session_finished`.
 
 - **FR-002**: The system MUST deduplicate event-driven triggers so that a single `copilot_work_finished` event (identified by its unique event ID) results in at most one dispatched AI PR loop workflow
   run. The deduplication mechanism MUST use GitHub Actions cache (`actions/cache`) by restoring the latest cache via prefix `agent-monitor-seen-events-`, then saving the updated JSON array
