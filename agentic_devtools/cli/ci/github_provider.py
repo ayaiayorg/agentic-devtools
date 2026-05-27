@@ -377,14 +377,32 @@ class GitHubActionsProvider(CIPlatformProvider):
 
     def _parse_pull_request_event(self, raw: dict) -> EventPayload:
         pr = raw["pull_request"]
+        action = raw.get("action", "")
+
+        # Detect edit-change metadata for edited events
+        title_changed = False
+        body_changed = False
+        base_changed = False
+        edit_changes_known = False
+        if action == "edited" and "changes" in raw:
+            edit_changes_known = True
+            changes = raw["changes"]
+            title_changed = "title" in changes
+            body_changed = "body" in changes
+            base_changed = "base" in changes
+
         return EventPayload(
             pr_number=pr["number"],
             head_branch=pr["head"]["ref"],
             head_sha=pr["head"]["sha"],
             base_branch=pr["base"]["ref"],
-            action=raw.get("action", ""),
+            action=action,
             repository_full_name=raw.get("repository", {}).get("full_name", ""),
             sender_login=raw.get("sender", {}).get("login", ""),
+            title_changed=title_changed,
+            body_changed=body_changed,
+            base_changed=base_changed,
+            edit_changes_known=edit_changes_known,
         )
 
     def _parse_pull_request_review_event(self, raw: dict, event_name: str) -> EventPayload:

@@ -80,13 +80,38 @@ class AzureDevOpsProvider(CIPlatformProvider):
             project_name = raw_payload.get("resourceContainers", {}).get("project", {}).get("id", "")
             full_name = f"{project_name}/{repo_name}" if project_name and repo_name else ""
 
+            # Detect edit-change metadata for PR update events
+            action = event_name
+            title_changed = False
+            body_changed = False
+            base_changed = False
+            edit_changes_known = False
+            if event_name == "git.pullrequest.updated":
+                action = "edited"
+                # ADO includes a "changedFields" dict or per-field deltas in resource
+                changed_fields = raw_payload.get("changedFields", {})
+                if changed_fields:
+                    edit_changes_known = True
+                    title_changed = "title" in changed_fields or "Title" in changed_fields
+                    body_changed = (
+                        "description" in changed_fields or "Description" in changed_fields
+                    )
+                    base_changed = (
+                        "targetRefName" in changed_fields
+                        or "TargetRefName" in changed_fields
+                    )
+
             return EventPayload(
                 pr_number=pr_id,
                 head_branch=source_branch,
                 head_sha=head_sha,
                 base_branch=target_branch,
-                action=event_name,
+                action=action,
                 repository_full_name=full_name,
+                title_changed=title_changed,
+                body_changed=body_changed,
+                base_changed=base_changed,
+                edit_changes_known=edit_changes_known,
             )
         except (TypeError, ValueError, AttributeError) as exc:
             raise MalformedEventError(event_name, str(exc)) from exc

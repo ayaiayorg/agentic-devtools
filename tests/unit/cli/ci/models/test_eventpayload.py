@@ -58,3 +58,39 @@ class TestEventPayload:
         p1 = EventPayload(pr_number=1)
         p2 = EventPayload(pr_number=2)
         assert p1 != p2
+
+    def test_edit_fields_defaults(self) -> None:
+        """New edit-related fields default to False."""
+        payload = EventPayload()
+        assert payload.title_changed is False
+        assert payload.body_changed is False
+        assert payload.base_changed is False
+        assert payload.edit_changes_known is False
+
+    def test_edit_fields_set(self) -> None:
+        """New edit-related fields can be set explicitly."""
+        payload = EventPayload(
+            action="edited",
+            title_changed=True,
+            body_changed=True,
+            base_changed=True,
+            edit_changes_known=True,
+        )
+        assert payload.title_changed is True
+        assert payload.body_changed is True
+        assert payload.base_changed is True
+        assert payload.edit_changes_known is True
+
+    def test_backward_compatibility_without_edit_fields(self) -> None:
+        """Existing code constructing EventPayload without new fields still works."""
+        payload = EventPayload(
+            pr_number=42,
+            head_branch="feature/test",
+            head_sha="abc123",
+            base_branch="main",
+            action="opened",
+            repository_full_name="owner/repo",
+        )
+        assert payload.pr_number == 42
+        assert payload.title_changed is False
+        assert payload.edit_changes_known is False
