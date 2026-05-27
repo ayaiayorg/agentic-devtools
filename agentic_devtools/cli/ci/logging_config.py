@@ -16,6 +16,8 @@ from collections.abc import Generator
 _LOG_FORMAT = "%(asctime)s %(levelname)-8s %(name)s: %(message)s"
 _LOG_DATEFMT = "%H:%M:%S"
 
+_logger = logging.getLogger(__name__)
+
 
 def is_github_actions() -> bool:
     """Return True when running inside GitHub Actions."""
@@ -46,7 +48,7 @@ def setup_logging() -> None:
             datefmt=_LOG_DATEFMT,
             stream=sys.stderr,
         )
-        logging.warning(
+        _logger.warning(
             "Invalid AGDT_LOG_LEVEL %r — falling back to INFO",
             level_name,
         )
