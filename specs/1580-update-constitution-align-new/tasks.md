@@ -79,7 +79,8 @@
 
 - [ ] T021 [US8] (FR-005) Update Principle VI: remove "Breaking changes to CLI UX require a major version bump and migration notes" and replace with reference to Principle XI in
   `.specify/memory/constitution.md`
-- [ ] T022 [US8] (FR-005) Validate: confirm Principle VI no longer contains "Breaking changes to CLI UX require a major version bump and migration notes" in `.specify/memory/constitution.md`
+- [ ] T022 [US8] (FR-005) Validate: confirm Principle VI no longer contains "Breaking changes to CLI UX require a major version bump and migration notes" and now includes a reference to Principle XI
+  ("Pre-1.0 Flexibility") in `.specify/memory/constitution.md`
 
 ## Phase 10: User Story 7 — Sync Impact Report (P2)
 
