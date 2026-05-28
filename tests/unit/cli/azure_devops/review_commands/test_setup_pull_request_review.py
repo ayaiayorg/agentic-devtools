@@ -67,7 +67,7 @@ class TestSetupPullRequestReviewFocusAreas:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -161,7 +161,7 @@ class TestSetupPullRequestReviewFocusAreas:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -221,7 +221,7 @@ class TestSetupPullRequestReviewFocusAreas:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -277,7 +277,7 @@ class TestSetupPullRequestReviewFocusAreas:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -374,7 +374,7 @@ class TestSetupPullRequestReview:
                         with patch("pathlib.Path.exists", return_value=True):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                                return_value=(True, None, set(), False),
+                                return_value=(True, None, set(), False, None),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -458,7 +458,7 @@ class TestSetupPullRequestReview:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(False, "Checkout error", set(), False),
+                            return_value=(False, "Checkout error", set(), False, None),
                         ):
                             with patch("agentic_devtools.state.set_bootstrap_state"):
                                 with patch("agentic_devtools.state.set_value"):
@@ -583,7 +583,7 @@ class TestSetupPullRequestReviewPersistence:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -699,7 +699,7 @@ class TestSetupPullRequestReviewPersistence:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -785,7 +785,7 @@ class TestSetupPullRequestReviewPersistence:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -870,7 +870,7 @@ class TestSetupPullRequestReviewPersistence:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -949,7 +949,7 @@ class TestSetupPullRequestReviewPersistence:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -1035,7 +1035,7 @@ class TestSetupPullRequestReviewPersistence:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -1125,7 +1125,7 @@ class TestSetupPullRequestReviewPersistence:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -1224,7 +1224,7 @@ class TestSetupPullRequestReviewPersistence:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -1318,7 +1318,7 @@ class TestSetupPullRequestReviewPersistence:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -1415,7 +1415,7 @@ class TestSetupPullRequestReviewPersistence:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -1508,7 +1508,7 @@ class TestSetupPullRequestReviewPersistence:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -1603,7 +1603,7 @@ class TestSetupPullRequestReviewPersistence:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -1698,7 +1698,7 @@ class TestSetupPullRequestReviewPersistence:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -1797,7 +1797,7 @@ class TestSetupPullRequestReviewPersistence:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -1900,7 +1900,7 @@ class TestSetupPullRequestReviewBootstrapWorktreeKeyPriority:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -2018,7 +2018,7 @@ class TestSetupPullRequestReviewSkippedFiles:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -2088,7 +2088,7 @@ class TestSetupPullRequestReviewSkippedFiles:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -2163,7 +2163,7 @@ class TestSetupPullRequestReviewSkippedFiles:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -2234,7 +2234,7 @@ class TestSetupPullRequestReviewSkippedFiles:
                     with patch("pathlib.Path.exists", return_value=True):
                         with patch(
                             "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                            return_value=(True, None, set(), False),
+                            return_value=(True, None, set(), False, None),
                         ):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
