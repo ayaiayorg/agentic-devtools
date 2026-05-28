@@ -65,7 +65,7 @@ class RequestReviewAction:
                 details="Copilot session active — deferring review request",
             )
 
-        # Guard: block review request when unresolved review comments exist
+        # Guard: block review request when unresolved review threads exist
         unresolved = derived.unresolved_threads
         preconditions["no_unresolved_threads"] = unresolved == 0
         if unresolved > 0:

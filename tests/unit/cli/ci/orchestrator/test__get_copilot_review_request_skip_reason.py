@@ -79,6 +79,6 @@ class TestGetCopilotReviewRequestSkipReason:
         result = _get_copilot_review_request_skip_reason(
             pr_meta,
             None,
-            unresolved_comment_count=2,
+            copilot_review_comment_count=2,
         )
         assert result == "unresolved_comments"
