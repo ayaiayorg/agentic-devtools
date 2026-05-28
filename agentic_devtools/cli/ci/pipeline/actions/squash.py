@@ -40,6 +40,17 @@ class SquashAction:
                 details=f"Only {snapshot.commit_count} commit(s) — nothing to squash",
             )
 
+        # Repair dispatch in this run should keep HEAD stable for the repair cycle.
+        repair_dispatched = getattr(derived, "repair_dispatched", False)
+        preconditions["no_repair_dispatched"] = not repair_dispatched
+        if repair_dispatched:
+            return ActionResult(
+                name=self.name,
+                decision=ActionDecision.SKIP,
+                preconditions=preconditions,
+                details="Repair dispatched — deferring squash",
+            )
+
         # No active Copilot session (coding/repair only — pending review does NOT block squash)
         preconditions["no_active_session"] = not snapshot.active_session
         if snapshot.active_session:

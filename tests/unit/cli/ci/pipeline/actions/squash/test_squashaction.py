@@ -26,6 +26,15 @@ class TestSquashAction:
         assert result.decision == ActionDecision.SKIP
         assert "active" in result.details.lower()
 
+    def test_skip_when_repair_dispatched(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=1, commit_count=3, ci_status="passing")
+        derived = DerivedState(snapshot)
+        derived.set("repair_dispatched", True)
+        action = SquashAction()
+        result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.SKIP
+        assert "repair dispatched" in result.details.lower()
+
     def test_skip_when_ci_not_passing(self) -> None:
         snapshot = PRStateSnapshot(pr_number=1, commit_count=3, ci_status="failing")
         derived = DerivedState(snapshot)
