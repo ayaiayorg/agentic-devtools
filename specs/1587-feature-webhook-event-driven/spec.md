@@ -15,8 +15,8 @@
   `gh workflow run ai-pr-loop.yml --repo "$GITHUB_REPOSITORY" --field pr_number="$pr_number" --field trigger_reason=agent_session_finished`,
   matching the proven squash-wait-scheduler pattern. This avoids modifying the existing `ai-pr-loop.yml` trigger configuration (satisfying FR-006) and reuses the existing concurrency group expression
   that already handles `github.event.inputs.pr_number`.
-- Q: What cron schedule frequency should the monitor workflow use to achieve the 120-second latency target, given that the squash-wait-scheduler uses `*/5`? → A: Use `*/2 * * * *` (every 2 minutes).
-  This provides a worst-case latency of ~120 seconds (event recorded just after a cycle completes → detected on next cycle) while keeping GitHub Actions consumption reasonable. Combined with the
+- Q: What cron schedule frequency should the monitor workflow use given GitHub Actions schedule limits and the squash-wait-scheduler's `*/5` cadence? → A: Use `*/5 * * * *` (every 5 minutes).
+  This provides a worst-case latency of ~300 seconds (event recorded just after a cycle completes → detected on next cycle) while keeping GitHub Actions consumption reasonable. Combined with the
   lightweight per-run budget (under 2 minutes), this avoids overlapping runs.
 - Q: What persistence mechanism should be used for event ID deduplication across monitor cycles — workflow artifacts, GitHub Actions cache, issue comment markers, or a state file committed to the
   repo? → A: Use GitHub Actions cache (`actions/cache`) with restore-keys prefix `agent-monitor-seen-events-` and per-run save key
@@ -41,11 +41,11 @@ Copilot session completing. The `issue_comment` trigger only fires when Copilot 
 only activates after CI workflows complete, not after agent sessions end.
 
 This gap means that after an agent finishes its work (pushing commits, resolving review comments, etc.), the system must wait for the next scheduled poll cycle before the orchestrator can evaluate the
-PR's post-agent state, request reviews, approve, or merge. In practice, this adds 2–5 minutes of unnecessary latency to the feedback loop, degrades developer experience, and creates windows where race
+PR's post-agent state, request reviews, approve, or merge. In practice, this adds up to 5 minutes of unnecessary latency to the feedback loop, degrades developer experience, and creates windows where race
 conditions between concurrent triggers can cause duplicate or conflicting runs.
 
-The desired end state is an event-driven architecture where the `copilot_work_finished` signal immediately triggers the AI PR loop for the affected PR, reducing the detection-to-action latency to
-under 30 seconds while maintaining idempotency guarantees and not introducing duplicate workflow runs.
+The desired end state is an event-driven architecture where the `copilot_work_finished` signal promptly triggers the AI PR loop for the affected PR, reducing detection-to-action latency to within
+5 minutes while maintaining idempotency guarantees and not introducing duplicate workflow runs.
 
 ## User Scenarios & Testing
 
@@ -58,12 +58,12 @@ state and proceed with its orchestration logic (which may include approval/merge
 Without this, the feature delivers no value.
 
 **Independent Test**: Can be tested by having a Copilot agent session complete on a PR and measuring the time between the `copilot_work_finished` event appearing in the Issues Events API and the AI PR
-loop workflow starting. The test passes if the workflow starts within 120 seconds (2 minutes) of the event being recorded.
+loop workflow starting. The test passes if the workflow starts within 300 seconds (5 minutes) of the event being recorded.
 
 **Acceptance Scenarios**:
 
 1. **Given** a PR where Copilot is actively working, **When** the agent session completes successfully and a `copilot_work_finished` event is recorded on the PR, **Then** the AI PR loop workflow is
-   triggered for that specific PR number within 120 seconds of the event timestamp via:
+   triggered for that specific PR number within 300 seconds of the event timestamp via:
 
    ```bash
    gh workflow run ai-pr-loop.yml --repo "$GITHUB_REPOSITORY" --field pr_number="$pr_number" --field trigger_reason=agent_session_finished
@@ -146,7 +146,7 @@ were found, and what dispatch actions were taken.
   execution and exit early if the PR is no longer open.
 - How does the system handle a `copilot_work_started` event that is never followed by a terminal event (orphaned session)? The existing `_DEFAULT_MAX_SESSION_AGE_SECONDS` (3600s) timeout in
   `session_detector.py` provides a staleness boundary; the monitor should respect this and not wait indefinitely.
-- What happens if the GitHub Issues Events API has eventual-consistency delays and the `copilot_work_finished` event is not immediately visible? The monitor should retry on the next scheduled cycle (2
+- What happens if the GitHub Issues Events API has eventual-consistency delays and the `copilot_work_finished` event is not immediately visible? The monitor should retry on the next scheduled cycle (5
   minutes later); the existing orchestrator already handles this via its head-pushed-at timestamp filtering and retry-without-filter fallback.
 - What happens when multiple PRs have concurrent agent sessions finishing at the same time? The monitor must dispatch independent `workflow_dispatch` triggers for each PR, and the per-PR concurrency
   group ensures they do not conflict.
@@ -157,8 +157,8 @@ were found, and what dispatch actions were taken.
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST provide a scheduled GitHub Actions workflow (`agent-session-monitor.yml`) running on a `*/2 * * * *` cron schedule that detects `copilot_work_finished` and
-  `copilot_work_finished_failure` events on open pull requests and triggers the AI PR loop workflow within 120 seconds of the event being recorded in the GitHub Issues Events API.
+- **FR-001**: The system MUST provide a scheduled GitHub Actions workflow (`agent-session-monitor.yml`) running on a `*/5 * * * *` cron schedule that detects `copilot_work_finished` and
+  `copilot_work_finished_failure` events on open pull requests and triggers the AI PR loop workflow within 300 seconds of the event being recorded in the GitHub Issues Events API.
   Dispatch MUST be performed via `gh workflow run ai-pr-loop.yml --repo "$GITHUB_REPOSITORY" --field pr_number="$pr_number" --field trigger_reason=agent_session_finished`.
 
 - **FR-002**: The system MUST deduplicate event-driven triggers so that a single `copilot_work_finished` event (identified by its unique event ID) results in at most one dispatched AI PR loop workflow
@@ -182,7 +182,7 @@ were found, and what dispatch actions were taken.
 
 ### Non-Functional Requirements
 
-- **NFR-001**: The event-driven monitor workflow MUST complete each scheduled run within 2 minutes to avoid overlapping with subsequent scheduled cycles (running every 2 minutes). If scanning all open
+- **NFR-001**: The event-driven monitor workflow MUST complete each scheduled run within 2 minutes to avoid overlapping with subsequent scheduled cycles (running every 5 minutes). If scanning all open
   PRs exceeds this budget, the monitor must prioritize recently-active PRs (sorted by `updated_at` descending) and defer remaining PRs to the next cycle.
 
 - **NFR-002**: The event-driven trigger MUST NOT increase the overall GitHub Actions minutes consumption by more than 15% compared to the current polling-based approach, measured over a 7-day rolling
@@ -210,7 +210,7 @@ were found, and what dispatch actions were taken.
 
 ### Measurable Outcomes
 
-- **SC-001**: The median time between a `copilot_work_finished` event being recorded and the AI PR loop workflow starting for that PR MUST be under 120 seconds, measured across at least 20 agent
+- **SC-001**: The median time between a `copilot_work_finished` event being recorded and the AI PR loop workflow starting for that PR MUST be under 300 seconds, measured across at least 20 agent
   session completions over a 14-day period after deployment.
 
 - **SC-002**: Zero duplicate AI PR loop runs caused by the event-driven trigger (where "duplicate" means two runs processing the same PR for the same terminal event) over a 30-day observation period.

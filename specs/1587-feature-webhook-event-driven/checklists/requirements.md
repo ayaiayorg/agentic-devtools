@@ -15,12 +15,12 @@
 
 ## Requirement Completeness
 
-- [ ] CHK005 Each acceptance scenario in User Stories 1–4 uses Given/When/Then format with concrete, measurable assertions (e.g., "within 120 seconds", "exactly one workflow run", "structured entry
+- [ ] CHK005 Each acceptance scenario in User Stories 1–4 uses Given/When/Then format with concrete, measurable assertions (e.g., "within 300 seconds", "exactly one workflow run", "structured entry
   showing pr_number=42")
 - [ ] CHK006 Edge cases section covers closed/merged PR race condition, orphaned sessions (no terminal event), Issues Events API eventual-consistency delays, concurrent multi-PR agent completions, and
   GitHub Actions cache eviction
 - [ ] CHK007 All acceptance scenarios specify observable system behavior (workflow starts, logs contain entries, cache prevents re-dispatch) rather than internal implementation state
-- [ ] CHK008 Success criteria SC-001 through SC-005 include quantitative thresholds (120s median latency, zero duplicates over 30 days, 95% success rate, 40% reduction in end-to-end time, 100%
+- [ ] CHK008 Success criteria SC-001 through SC-005 include quantitative thresholds (300s median latency, zero duplicates over 30 days, 95% success rate, 40% reduction in end-to-end time, 100%
   pass rate for existing tests)
 - [ ] CHK009 Scope boundaries are defined: new standalone workflow file (`agent-session-monitor.yml`), no modification to existing `ai-pr-loop.yml`, supplements rather than replaces existing triggers
   (FR-006)
