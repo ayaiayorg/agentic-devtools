@@ -1,5 +1,6 @@
 """Tests for run_setup_with_pr_workflow."""
 
+import os
 from subprocess import CompletedProcess
 from unittest.mock import MagicMock, patch
 
@@ -881,3 +882,137 @@ class TestRunSetupWithPrWorkflow:
 
         err = capsys.readouterr().err
         assert "git commit" in err
+
+    # ── Idempotency add failure ────────────────────────────────────────
+
+    def test_idempotency_add_failure_falls_through_to_branch_flow(self, capsys):
+        """When the idempotency 'git add .' fails, skip the tree comparison and proceed to branch creation."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("main\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok(""),  # stash list (after)
+                _ok(),  # checkout origin/main --detach
+                _ok(" M file.txt\n"),  # status --porcelain (has changes)
+                _fail("permission denied"),  # add . (idempotency probe FAILS)
+                _ok(),  # reset HEAD (always called after probe)
+                _fail(),  # rev-parse --verify → branch free
+                _ok(""),  # ls-remote → branch free
+                _ok(),  # checkout -b branch
+                _fail("permission denied"),  # add . (branch flow also fails)
+                _ok(),  # checkout original (finally)
+            ]
+            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        assert result["success"] is True
+        assert result["branch_created"] is None
+        assert result["pr_created"] is False
+        # Must NOT report "already merged"; must have fallen through to branch flow
+        assert "already merged" not in result["message"]
+        assert "Failed to stage" in result["message"]
+
+        err = capsys.readouterr().err
+        assert "git add" in err
+
+    # ── SSL env var propagation ────────────────────────────────────────
+
+    def test_no_verify_ssl_sets_azure_cli_env_var_during_pr_creation(self):
+        """AGDT_NO_VERIFY_SSL=1 sets AZURE_CLI_DISABLE_CONNECTION_VERIFICATION=1 during create_pull_request()."""
+        setup_fn = MagicMock()
+        captured: dict[str, str | None] = {}
+
+        def _capture_env():
+            captured["during"] = os.environ.get("AZURE_CLI_DISABLE_CONNECTION_VERIFICATION")
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("main\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok("stash@{0}\n"),  # stash list (after)
+                _ok(),  # checkout origin/main --detach
+                _ok(" M some-file.txt\n"),  # status --porcelain (has changes)
+                _ok(),  # add . (idempotency staging)
+                _ok("aaa111\n"),  # write-tree
+                _ok("bbb222\n"),  # rev-parse origin/main^{tree} (different)
+                _ok(),  # reset HEAD (unstage)
+                _fail(),  # rev-parse --verify (branch free)
+                _ok(""),  # ls-remote (branch free)
+                _ok(),  # checkout -b branch
+                _ok(),  # add .
+                _ok(),  # commit
+                _ok(),  # push
+                _ok(),  # checkout original branch (finally)
+                _ok(),  # stash pop (finally)
+            ]
+            # Ensure AZURE_CLI_DISABLE_CONNECTION_VERIFICATION is absent before the run,
+            # and AGDT_NO_VERIFY_SSL is set.
+            clean_env = {
+                k: v
+                for k, v in os.environ.items()
+                if k != "AZURE_CLI_DISABLE_CONNECTION_VERIFICATION"
+            }
+            clean_env["AGDT_NO_VERIFY_SSL"] = "1"
+            with patch.dict(os.environ, clean_env, clear=True):
+                with patch(_CREATE_PR, side_effect=_capture_env):
+                    with patch(_SET_VALUE):
+                        with patch(_GET_VALUE, return_value=None):
+                            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+                # After the call, the var must be restored (removed since it was absent).
+                assert "AZURE_CLI_DISABLE_CONNECTION_VERIFICATION" not in os.environ
+
+        assert result["pr_created"] is True
+        assert captured.get("during") == "1"
+
+    def test_no_verify_ssl_restores_prior_azure_cli_env_var(self):
+        """AZURE_CLI_DISABLE_CONNECTION_VERIFICATION is restored to its prior value after PR creation."""
+        setup_fn = MagicMock()
+        captured: dict[str, str | None] = {}
+
+        def _capture_env():
+            captured["during"] = os.environ.get("AZURE_CLI_DISABLE_CONNECTION_VERIFICATION")
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("main\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok("stash@{0}\n"),  # stash list (after)
+                _ok(),  # checkout origin/main --detach
+                _ok(" M some-file.txt\n"),  # status --porcelain (has changes)
+                _ok(),  # add . (idempotency staging)
+                _ok("aaa111\n"),  # write-tree
+                _ok("bbb222\n"),  # rev-parse origin/main^{tree} (different)
+                _ok(),  # reset HEAD (unstage)
+                _fail(),  # rev-parse --verify (branch free)
+                _ok(""),  # ls-remote (branch free)
+                _ok(),  # checkout -b branch
+                _ok(),  # add .
+                _ok(),  # commit
+                _ok(),  # push
+                _ok(),  # checkout original branch (finally)
+                _ok(),  # stash pop (finally)
+            ]
+            env_overrides = {
+                "AGDT_NO_VERIFY_SSL": "1",
+                "AZURE_CLI_DISABLE_CONNECTION_VERIFICATION": "existing-value",
+            }
+            with patch.dict(os.environ, env_overrides):
+                with patch(_CREATE_PR, side_effect=_capture_env):
+                    with patch(_SET_VALUE):
+                        with patch(_GET_VALUE, return_value=None):
+                            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+                # Prior value must be restored after the call.
+                assert os.environ.get("AZURE_CLI_DISABLE_CONNECTION_VERIFICATION") == "existing-value"
+
+        assert result["pr_created"] is True
+        # The var was already set to "existing-value"; AGDT_NO_VERIFY_SSL overwrites it to "1".
+        assert captured.get("during") == "1"
