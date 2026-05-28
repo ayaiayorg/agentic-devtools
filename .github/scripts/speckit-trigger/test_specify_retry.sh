@@ -78,6 +78,21 @@ assert_contains() {
     fi
 }
 
+assert_not_contains() {
+    local description="$1"
+    local needle="$2"
+    local haystack="$3"
+    TOTAL=$((TOTAL + 1))
+
+    if ! printf '%s\n' "$haystack" | grep -qF -- "$needle"; then
+        echo "  ✅ $description"
+        PASS=$((PASS + 1))
+    else
+        echo "  ❌ $description (expected NOT to contain '$needle')"
+        FAIL=$((FAIL + 1))
+    fi
+}
+
 # ---------------------------------------------------------------------------
 # Source only run_specify_phase_with_validation_retries from main script
 # ---------------------------------------------------------------------------
@@ -113,11 +128,30 @@ fi
 source "$_extracted_feedback_file"
 rm -f "$_extracted_feedback_file"
 
+_extracted_metrics_function=$(extract_function_from_script "_report_specify_metrics" "extracted_report_specify_metrics")
+if [[ -z "$_extracted_metrics_function" ]]; then
+    echo "FATAL: Failed to extract _report_specify_metrics() from generate-spec-from-issue.sh" >&2
+    exit 1
+fi
+_extracted_metrics_file=$(mktemp "${TEST_TMPDIR}/specify-metrics-func.sh.XXXXXX")
+printf '%s\n' "$_extracted_metrics_function" >"$_extracted_metrics_file"
+if ! bash -n "$_extracted_metrics_file"; then
+    echo "FATAL: Extracted _report_specify_metrics() is not valid bash syntax" >&2
+    rm -f "$_extracted_metrics_file"
+    exit 1
+fi
+# shellcheck disable=SC1090
+source "$_extracted_metrics_file"
+rm -f "$_extracted_metrics_file"
+
 # ---------------------------------------------------------------------------
 # Shared stubs required by run_specify_phase_with_validation_retries
 # ---------------------------------------------------------------------------
 strip_llm_preamble() { echo "$1"; }
 ensure_heading_start() { echo "$1"; }
+_report_specify_metrics() { :; }
+_compute_dynamic_thresholds() { :; }
+_generate_fallback_skeleton() { printf 'fallback-skeleton-content'; }
 
 # ---------------------------------------------------------------------------
 # TC01: Invalid first attempt triggers feedback, second attempt passes
@@ -365,6 +399,7 @@ ISSUE_TITLE="Test Issue"
 ISSUE_BODY="Retry issue body"
 MIN_FUNCTIONAL_REQUIREMENTS=5
 MIN_USER_STORIES=3
+MAX_BULLET_LINE_PCT=80
 SPECIFY_RETRY_FEEDBACK="retry feedback"
 unset SPECIFY_FAILED_OUTPUT || true
 call_llm() { printf '%s' "$1"; }
@@ -379,7 +414,116 @@ rm -f "$output_file" "$stderr_file"
 assert_eq "Retry prompt builder succeeds when failed output is unset" "0" "$rc"
 assert_contains "Retry prompt includes structured feedback" "retry feedback" "$output"
 assert_contains "Retry prompt still renders previous output heading" "## Your Previous (Invalid) Output" "$output"
+assert_contains "Retry prompt includes FR threshold value" "at least ${MIN_FUNCTIONAL_REQUIREMENTS} functional requirements" "$output"
+assert_contains "Retry prompt includes user-story threshold value" "Include at least ${MIN_USER_STORIES} user stories" "$output"
+assert_contains "Retry prompt includes bullet percentage threshold" "more than ${MAX_BULLET_LINE_PCT}% of content lines" "$output"
 assert_eq "Retry prompt builder emits no nounset error" "" "$stderr_output"
+
+# ---------------------------------------------------------------------------
+# TC06: Retry exhaustion uses fallback and emits fallback_activated metrics
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== TC06: Retry exhaustion activates fallback and metrics ==="
+
+SPECIFY_MAX_RETRIES=1
+SPECIFY_MAX_OPERATIONAL_FAILURES=10
+ISSUE_TITLE="Retry Exhaustion Test"
+ISSUE_BODY="Short body to keep this deterministic."
+ISSUE_NUMBER="1640"
+ISSUE_URL="https://github.com/ayaiayorg/agentic-devtools/pull/1640"
+SPECIFY_RETRY_FEEDBACK=""
+SPECIFY_FAILED_OUTPUT=""
+
+_tc06_counter_file=$(mktemp "${TEST_TMPDIR}/specify-retry-counter-tc06.XXXXXX")
+_tc06_fallback_counter=$(mktemp "${TEST_TMPDIR}/specify-fallback-counter-tc06.XXXXXX")
+printf '0' >"$_tc06_counter_file"
+printf '0' >"$_tc06_fallback_counter"
+
+run_specify_phase_with_feedback() {
+    local call_index
+    call_index=$(cat "$_tc06_counter_file")
+    call_index=$((call_index + 1))
+    printf '%s' "$call_index" >"$_tc06_counter_file"
+    printf '%s\n' "always-invalid-content"
+    return 0
+}
+
+_validate_spec_content() {
+    local spec_content="$1"
+    if [[ "$spec_content" == "always-invalid-content" ]]; then
+        printf 'MISSING_SECTIONS: ## Success Criteria'
+        return 1
+    fi
+    return 0
+}
+
+_generate_fallback_skeleton() {
+    local calls
+    calls=$(cat "$_tc06_fallback_counter")
+    calls=$((calls + 1))
+    printf '%s' "$calls" >"$_tc06_fallback_counter"
+    printf 'fallback-skeleton-content'
+    return 0
+}
+
+_report_specify_metrics() { extracted_report_specify_metrics "$@"; }
+
+GITHUB_OUTPUT=$(mktemp "${TEST_TMPDIR}/specify-metrics-output-tc06.XXXXXX")
+export GITHUB_OUTPUT
+
+rc=0
+output_file=$(mktemp "${TEST_TMPDIR}/specify-retry-tc06.XXXXXX")
+stderr_file=$(mktemp "${TEST_TMPDIR}/specify-retry-tc06.err.XXXXXX")
+run_specify_phase_with_validation_retries >"$output_file" 2>"$stderr_file" || rc=$?
+output=$(cat "$output_file")
+stderr_output=$(cat "$stderr_file")
+metrics_output=$(cat "$GITHUB_OUTPUT")
+rm -f "$output_file" "$stderr_file" "$GITHUB_OUTPUT"
+_tc06_calls=$(cat "$_tc06_counter_file")
+_tc06_fallback_calls=$(cat "$_tc06_fallback_counter")
+rm -f "$_tc06_counter_file" "$_tc06_fallback_counter"
+
+assert_eq "Retry exhaustion path returns success via fallback" "0" "$rc"
+assert_eq "Fallback content is returned after retries exhaust" "fallback-skeleton-content" "$output"
+assert_eq "Specify LLM was called once for max_retries=1" "1" "$_tc06_calls"
+assert_eq "Fallback generator invoked once" "1" "$_tc06_fallback_calls"
+assert_contains "Metrics stderr marks fallback as activated" "\"fallback_activated\":true" "$stderr_output"
+assert_contains "Metrics output contains fallback activation" "\"fallback_activated\":true" "$metrics_output"
+assert_contains "Fallback metrics report actual attempts without +1 overcount" "\"total_attempts\":1" "$stderr_output"
+assert_contains "GITHUB_OUTPUT metrics report actual attempts without +1 overcount" "\"total_attempts\":1" "$metrics_output"
+
+# ---------------------------------------------------------------------------
+# TC07: Retry >= 2 injects example spec section
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== TC07: Example spec injection is gated on retry count >= 2 ==="
+MANDATORY_SECTIONS=("## Problem Statement" "## User Scenarios & Testing" "## Requirements" "## Success Criteria")
+REPO_ROOT="$TEST_TMPDIR"
+ISSUE_NUMBER="1640"
+ISSUE_URL="https://github.com/ayaiayorg/agentic-devtools/pull/1640"
+ISSUE_TITLE="Retry Example Injection"
+ISSUE_BODY="Issue body for retry example injection test."
+MIN_FUNCTIONAL_REQUIREMENTS=5
+MIN_USER_STORIES=3
+MAX_BULLET_LINE_PCT=80
+SPECIFY_RETRY_FEEDBACK="retry feedback"
+SPECIFY_FAILED_OUTPUT="previous invalid output"
+call_llm() { printf '%s' "$1"; }
+
+specify_retry_count=1
+output_retry_1_file=$(mktemp "${TEST_TMPDIR}/specify-feedback-tc07-r1.XXXXXX")
+extracted_run_specify_phase_with_feedback >"$output_retry_1_file"
+output_retry_1=$(cat "$output_retry_1_file")
+rm -f "$output_retry_1_file"
+assert_not_contains "Retry count 1 does not inject example section" "## Reference: Example Valid Specification (truncated)" "$output_retry_1"
+
+specify_retry_count=2
+output_retry_2_file=$(mktemp "${TEST_TMPDIR}/specify-feedback-tc07-r2.XXXXXX")
+extracted_run_specify_phase_with_feedback >"$output_retry_2_file"
+output_retry_2=$(cat "$output_retry_2_file")
+rm -f "$output_retry_2_file"
+assert_contains "Retry count 2 injects example section" "## Reference: Example Valid Specification (truncated)" "$output_retry_2"
+assert_contains "Injected example section includes fenced markdown block" '```markdown' "$output_retry_2"
 
 # ---------------------------------------------------------------------------
 # Summary

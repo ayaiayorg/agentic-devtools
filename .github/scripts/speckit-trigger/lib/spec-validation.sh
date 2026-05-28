@@ -75,6 +75,69 @@ _load_non_negative_int_with_default "MIN_MEASURABLE_CRITERIA_PCT" "50"
 _load_non_negative_int_with_default "MAX_BULLET_LINE_PCT" "80"
 _load_positive_int_with_default "SPECIFY_MAX_RETRIES" "3"
 _load_positive_int_with_default "SPECIFY_MAX_OPERATIONAL_FAILURES" "10"
+MIN_SPEC_BYTES_BASELINE="$MIN_SPEC_BYTES"
+
+# ---------------------------------------------------------------------------
+# AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR (default: 0.6, range: 0.0–1.0)
+#
+# Controls how much MIN_SPEC_BYTES is reduced for short issue descriptions.
+# A value of 0.6 means the threshold can be reduced to 60% of the original
+# (i.e., a 40% reduction). Values outside 0.0–1.0 fall back to the default.
+# ---------------------------------------------------------------------------
+_validate_reduction_factor() {
+    local factor="${AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR:-0.6}"
+
+    # Validate: must be a decimal number between 0.0 and 1.0 (inclusive)
+    if ! printf '%s' "$factor" | grep -qE '^[0-9]*\.?[0-9]+$'; then
+        echo "Warning: AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR='${factor}' is not a valid decimal. Using default (0.6)." >&2
+        factor="0.6"
+    else
+        # Check range using awk (bash doesn't do float comparison)
+        local in_range
+        in_range=$(awk -v f="$factor" 'BEGIN { print (f >= 0.0 && f <= 1.0) ? "1" : "0" }')
+        if [[ "$in_range" != "1" ]]; then
+            echo "Warning: AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR='${factor}' is outside valid range (0.0–1.0). Using default (0.6)." >&2
+            factor="0.6"
+        fi
+    fi
+
+    AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR="$factor"
+}
+_validate_reduction_factor
+
+# ---------------------------------------------------------------------------
+# _compute_dynamic_thresholds [issue_body]
+#
+# Adjusts MIN_SPEC_BYTES based on issue description length. For issues with
+# fewer than 200 characters of description, MIN_SPEC_BYTES is reduced by
+# AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR. MIN_FUNCTIONAL_REQUIREMENTS and
+# MIN_USER_STORIES remain unchanged.
+#
+# Parameters:
+#   issue_body - The issue description text (uses $ISSUE_BODY if not provided)
+#
+# Side effects: May modify MIN_SPEC_BYTES global variable
+# Returns: 0 always
+# ---------------------------------------------------------------------------
+_compute_dynamic_thresholds() {
+    local issue_body="${1:-${ISSUE_BODY:-}}"
+    local body_length=${#issue_body}
+    local baseline_min_spec_bytes="${MIN_SPEC_BYTES_BASELINE:-$MIN_SPEC_BYTES}"
+
+    if [[ "$body_length" -lt 200 ]]; then
+        local reduced
+        reduced=$(awk -v bytes="$baseline_min_spec_bytes" -v factor="$AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR" \
+            'BEGIN { printf "%d", bytes * factor }')
+        # Ensure we don't go below a hard floor of 512 bytes
+        if [[ "$reduced" -lt 512 ]]; then
+            reduced=512
+        fi
+        echo "[Specify] ℹ️  Short issue body (${body_length} chars < 200). Reducing MIN_SPEC_BYTES: ${baseline_min_spec_bytes} → ${reduced}" >&2
+        MIN_SPEC_BYTES="$reduced"
+    else
+        MIN_SPEC_BYTES="$baseline_min_spec_bytes"
+    fi
+}
 
 # ---------------------------------------------------------------------------
 # _check_mandatory_sections <filepath>
@@ -414,7 +477,7 @@ validate_spec_quality() {
     local file_size
     file_size=$(wc -c < "$filepath" | tr -d '[:space:]')
     if [[ "$file_size" -lt "$MIN_SPEC_BYTES" ]]; then
-        failures="${failures}BELOW_SIZE_THRESHOLD: actual=${file_size}, minimum=${MIN_SPEC_BYTES}"$'\n'
+        failures="${failures}BELOW_SIZE_THRESHOLD: actual=${file_size}, minimum=${MIN_SPEC_BYTES} | REMEDIATION: Expand each section with detailed prose paragraphs. Add elaborated acceptance scenarios, comprehensive requirement definitions, and contextual explanations rather than terse summaries."$'\n'
     fi
 
     # --- Check 2: Mandatory sections ---
@@ -422,33 +485,38 @@ validate_spec_quality() {
     if missing_sections=$(_check_mandatory_sections "$filepath"); then
         : # all present
     else
-        failures="${failures}MISSING_SECTIONS: ${missing_sections}"$'\n'
+        local mandatory_sections_csv=""
+        local section
+        for section in "${MANDATORY_SECTIONS[@]}"; do
+            mandatory_sections_csv="${mandatory_sections_csv}${mandatory_sections_csv:+, }${section}"
+        done
+        failures="${failures}MISSING_SECTIONS: ${missing_sections} | REMEDIATION: Add the following level-2 headings exactly as shown: ${mandatory_sections_csv}. Each section must contain substantive content, not just the heading."$'\n'
     fi
 
     # --- Check 3: Functional requirements count ---
     local fr_count
     fr_count=$(_count_functional_requirements "$filepath")
     if [[ "$fr_count" -lt "$MIN_FUNCTIONAL_REQUIREMENTS" ]]; then
-        failures="${failures}INSUFFICIENT_REQUIREMENTS: found=${fr_count}, minimum=${MIN_FUNCTIONAL_REQUIREMENTS}"$'\n'
+        failures="${failures}INSUFFICIENT_REQUIREMENTS: found=${fr_count}, minimum=${MIN_FUNCTIONAL_REQUIREMENTS} | REMEDIATION: Add requirements in the format '- **FR-001**: The system MUST...' within the ## Requirements section. Each requirement must describe one observable system behavior."$'\n'
     fi
 
     # --- Check 4: User stories count ---
     local us_count
     us_count=$(_count_user_stories "$filepath")
     if [[ "$us_count" -lt "$MIN_USER_STORIES" ]]; then
-        failures="${failures}INSUFFICIENT_USER_STORIES: found=${us_count}, minimum=${MIN_USER_STORIES}"$'\n'
+        failures="${failures}INSUFFICIENT_USER_STORIES: found=${us_count}, minimum=${MIN_USER_STORIES} | REMEDIATION: Add user stories with '### User Story N' headings. Each must include Given/When/Then acceptance scenarios describing specific user interactions and expected outcomes."$'\n'
     fi
 
     # --- Check 5: Measurable success criteria ---
     local criteria_result
     if ! criteria_result=$(_check_measurable_criteria "$filepath"); then
         if [[ "$criteria_result" == "MISSING" ]]; then
-            failures="${failures}MISSING_SUCCESS_CRITERIA: found=0, minimum=1"$'\n'
+            failures="${failures}MISSING_SUCCESS_CRITERIA: found=0, minimum=1 | REMEDIATION: Add a '## Success Criteria' section with at least one '- **SC-001**: ...' entry containing a measurable outcome metric (percentage, count, or time bound)."$'\n'
         else
             local actual_pct required_pct
             actual_pct="${criteria_result%/*}"
             required_pct="${criteria_result#*/}"
-            failures="${failures}NON_MEASURABLE_CRITERIA: actual_pct=${actual_pct}%, required_pct=${required_pct}%"$'\n'
+            failures="${failures}NON_MEASURABLE_CRITERIA: actual_pct=${actual_pct}%, required_pct=${required_pct}% | REMEDIATION: Ensure at least ${MIN_MEASURABLE_CRITERIA_PCT}% of SC-### entries contain quantitative targets (e.g., '95% success rate', 'under 30 seconds', 'at least 10 items')."$'\n'
         fi
     fi
 
@@ -458,7 +526,7 @@ validate_spec_quality() {
         local actual_bullet max_bullet
         actual_bullet="${bullet_result%/*}"
         max_bullet="${bullet_result#*/}"
-        failures="${failures}BULLET_SUMMARY_DETECTED: actual_pct=${actual_bullet}%, maximum=${max_bullet}%"$'\n'
+        failures="${failures}BULLET_SUMMARY_DETECTED: actual_pct=${actual_bullet}%, maximum=${max_bullet}% | REMEDIATION: Convert bullet lists in Problem Statement and User Scenarios sections to prose paragraphs with explanatory context. Use bullets only for requirements (FR/NFR) and success criteria (SC) entries."$'\n'
     fi
 
     if [[ -n "$failures" ]]; then
@@ -500,45 +568,79 @@ _build_structured_specify_feedback() {
 
     while IFS= read -r line; do
         [[ -z "$line" ]] && continue
-        local category detail
+        # Parse category and detail, stripping any REMEDIATION suffix for backward compat
+        local category detail remediation
         category="${line%%:*}"
-        detail="${line#*: }"
+        local remainder="${line#*: }"
+        # Extract remediation if present (format: "detail | REMEDIATION: suggestion")
+        if [[ "$remainder" == *" | REMEDIATION: "* ]]; then
+            detail="${remainder%% | REMEDIATION: *}"
+            remediation="${remainder##* | REMEDIATION: }"
+        else
+            detail="$remainder"
+            remediation=""
+        fi
 
         case "$category" in
             MISSING_SECTIONS)
                 feedback+="### Missing Mandatory Sections"$'\n'
                 feedback+="The following sections are REQUIRED but were not found: ${detail}"$'\n'
                 feedback+="You MUST include ALL of these ## headings: ${mandatory_sections_csv}"$'\n'
+                if [[ -n "$remediation" ]]; then
+                    feedback+="**How to fix**: ${remediation}"$'\n'
+                fi
                 feedback+=""$'\n'
                 ;;
             BELOW_SIZE_THRESHOLD)
                 feedback+="### Insufficient Content"$'\n'
                 feedback+="Your output was too short (${detail}). A valid specification requires substantial detail in each section — not just bullet points or stubs."$'\n'
+                if [[ -n "$remediation" ]]; then
+                    feedback+="**How to fix**: ${remediation}"$'\n'
+                fi
                 feedback+=""$'\n'
                 ;;
             INSUFFICIENT_REQUIREMENTS)
                 feedback+="### Insufficient Functional Requirements"$'\n'
                 feedback+="${detail}. You MUST define at least ${MIN_FUNCTIONAL_REQUIREMENTS} unique FR-### or NFR-### requirement entries in the ## Requirements section."$'\n'
+                if [[ -n "$remediation" ]]; then
+                    feedback+="**How to fix**: ${remediation}"$'\n'
+                else
+                    feedback+="**How to fix**: Add requirements in the format '- **FR-001**: The system MUST...' within the ## Requirements section."$'\n'
+                fi
                 feedback+=""$'\n'
                 ;;
             INSUFFICIENT_USER_STORIES)
                 feedback+="### Insufficient User Stories"$'\n'
                 feedback+="${detail}. You MUST include at least ${MIN_USER_STORIES} user stories (### User Story headings) each with Given/When/Then acceptance scenarios."$'\n'
+                if [[ -n "$remediation" ]]; then
+                    feedback+="**How to fix**: ${remediation}"$'\n'
+                else
+                    feedback+="**How to fix**: Add '### User Story N' headings with numbered Given/When/Then acceptance scenarios."$'\n'
+                fi
                 feedback+=""$'\n'
                 ;;
             MISSING_SUCCESS_CRITERIA)
                 feedback+="### Missing Success Criteria"$'\n'
                 feedback+="${detail}. You MUST include at least one **SC-###** entry in the ## Success Criteria section."$'\n'
+                if [[ -n "$remediation" ]]; then
+                    feedback+="**How to fix**: ${remediation}"$'\n'
+                fi
                 feedback+=""$'\n'
                 ;;
             NON_MEASURABLE_CRITERIA)
                 feedback+="### Non-Measurable Success Criteria"$'\n'
                 feedback+="${detail}. At least ${MIN_MEASURABLE_CRITERIA_PCT}% of **SC-###** entries must contain quantitative targets (numbers, percentages, time bounds)."$'\n'
+                if [[ -n "$remediation" ]]; then
+                    feedback+="**How to fix**: ${remediation}"$'\n'
+                fi
                 feedback+=""$'\n'
                 ;;
             BULLET_SUMMARY_DETECTED)
                 feedback+="### Excessive Bullet Points (Summary-Only Detection)"$'\n'
                 feedback+="${detail}. Your output appears to be a summary or outline rather than a detailed specification. Use prose paragraphs, detailed descriptions, and structured requirements — not just bullet lists."$'\n'
+                if [[ -n "$remediation" ]]; then
+                    feedback+="**How to fix**: ${remediation}"$'\n'
+                fi
                 feedback+=""$'\n'
                 ;;
             MISSING_FILE)
@@ -594,4 +696,166 @@ _validate_spec_content() {
     # Output the failures for the caller to use
     printf '%s' "$failures"
     return 1
+}
+
+# ---------------------------------------------------------------------------
+# _generate_fallback_skeleton <issue_title> <issue_body> <issue_number> <issue_url>
+#
+# Generates a deterministic minimal skeleton spec that passes structural
+# validation. Used as a last-resort fallback when all retry attempts are
+# exhausted. Derives content from issue title and body.
+#
+# Parameters:
+#   issue_title  - The issue title
+#   issue_body   - The issue description body
+#   issue_number - The issue number
+#   issue_url    - The issue URL
+#
+# Stdout: Complete spec content that passes validate_spec_quality()
+# Returns: 0 on success, 1 if generated skeleton fails self-validation
+# ---------------------------------------------------------------------------
+_generate_fallback_skeleton() {
+    local issue_title="${1:-Feature}"
+    local issue_body="${2:-}"
+    local issue_number="${3:-0}"
+    local issue_url="${4:-}"
+
+    # Extract keywords from title and body for requirement generation
+    local combined_text="${issue_title} ${issue_body}"
+    # Extract up to 8 significant words (>4 chars, not common stop words)
+    local keywords
+    keywords=$({
+        printf '%s' "$combined_text" | tr '[:upper:]' '[:lower:]' | \
+            grep -oE '[a-z]{5,}' | \
+            grep -vE '^(should|would|could|about|which|their|there|these|those|being|where|after|before|other|under|above|between|through|during|without|within|against|toward|across|behind|beyond|along|among|around|since|until|while|because|although|though|unless|whether|however|therefore|furthermore|moreover|additionally|specifically|currently|already|instead|actually|basically|generally|typically|usually|probably|possible|necessary|important|different|available|following|including|according|described|required|provided|expected|supported|contains|existing|generate|validate|implement|function|feature)' | \
+            sort -u | head -8
+    } || true)
+
+    local keyword_array=()
+    while IFS= read -r kw; do
+        [[ -n "$kw" ]] && keyword_array+=("$kw")
+    done <<< "$keywords"
+
+    # Ensure at least 5 keywords for FR generation
+    local defaults=("validation" "processing" "integration" "configuration" "reporting" "monitoring" "handling" "management")
+    local i=${#keyword_array[@]}
+    local d=0
+    while [[ "$i" -lt 5 ]]; do
+        keyword_array+=("${defaults[$d]}")
+        i=$((i + 1))
+        d=$((d + 1))
+    done
+
+    local skeleton=""
+    skeleton+="# Feature Specification: ${issue_title}"$'\n'
+    skeleton+=""$'\n'
+    skeleton+="> ⚠️ **FALLBACK SKELETON** — This specification was generated via deterministic fallback after all LLM retry attempts were exhausted. It requires manual enrichment. Review each section and replace placeholder content with detailed, issue-specific information."$'\n'
+    skeleton+=""$'\n'
+    skeleton+="**Source Issue**: #${issue_number}"
+    if [[ -n "$issue_url" ]]; then
+        skeleton+=" (${issue_url})"
+    fi
+    skeleton+=$'\n'
+    skeleton+=""$'\n'
+    skeleton+="## Problem Statement"$'\n'
+    skeleton+=""$'\n'
+    if [[ -n "$issue_body" ]]; then
+        # Use issue body as problem statement, truncated to reasonable size
+        local body_excerpt
+        body_excerpt=$(printf '%s' "$issue_body" | head -c 1500 | sed -E 's/^[[:space:]]*[-*+][[:space:]]+//')
+        skeleton+="${body_excerpt}"$'\n'
+    else
+        skeleton+="This feature addresses the need described in issue #${issue_number}: ${issue_title}. The current system lacks this capability, which impacts developer productivity and workflow reliability. Manual intervention is currently required to work around this limitation, adding unnecessary friction to the development process."$'\n'
+    fi
+    skeleton+=""$'\n'
+    skeleton+="The implementation of this feature will improve the overall system reliability and reduce the operational burden on development teams. Without this change, the existing workarounds will continue to consume developer time and introduce potential for human error."$'\n'
+    skeleton+=""$'\n'
+
+    # User Stories
+    skeleton+="## User Scenarios & Testing"$'\n'
+    skeleton+=""$'\n'
+    skeleton+="### User Story 1 - Primary Workflow (Priority: P1)"$'\n'
+    skeleton+=""$'\n'
+    skeleton+="As a developer working with the system, I expect the ${issue_title,,} feature to work correctly on standard inputs without requiring manual intervention."$'\n'
+    skeleton+=""$'\n'
+    skeleton+="**Acceptance Scenarios**:"$'\n'
+    skeleton+=""$'\n'
+    skeleton+="1. **Given** a standard input meeting all preconditions, **When** the system processes it, **Then** the output meets all quality checks and completes within the expected time bounds."$'\n'
+    skeleton+=""$'\n'
+    skeleton+="2. **Given** an input that previously caused failures, **When** processed with the improved logic, **Then** the success rate exceeds 90% over repeated runs."$'\n'
+    skeleton+=""$'\n'
+    skeleton+="### User Story 2 - Error Recovery (Priority: P1)"$'\n'
+    skeleton+=""$'\n'
+    skeleton+="As a developer whose operation encounters a transient failure, I expect the system to recover gracefully and complete the operation without manual intervention."$'\n'
+    skeleton+=""$'\n'
+    skeleton+="**Acceptance Scenarios**:"$'\n'
+    skeleton+=""$'\n'
+    skeleton+="1. **Given** a first attempt that fails due to a transient issue, **When** the retry mechanism activates, **Then** the second attempt succeeds with enriched context."$'\n'
+    skeleton+=""$'\n'
+    skeleton+="2. **Given** a specific validation failure reason, **When** retry feedback is generated, **Then** the feedback addresses the exact failure with actionable guidance."$'\n'
+    skeleton+=""$'\n'
+    skeleton+="### User Story 3 - Graceful Degradation (Priority: P2)"$'\n'
+    skeleton+=""$'\n'
+    skeleton+="As a developer whose operation has exhausted all retry attempts, I expect the system to provide a usable fallback output rather than failing completely."$'\n'
+    skeleton+=""$'\n'
+    skeleton+="**Acceptance Scenarios**:"$'\n'
+    skeleton+=""$'\n'
+    skeleton+="1. **Given** all retry attempts have been exhausted, **When** the fallback mechanism activates, **Then** a structurally valid output is produced that allows the workflow to proceed."$'\n'
+    skeleton+=""$'\n'
+
+    # Requirements
+    skeleton+="## Requirements"$'\n'
+    skeleton+=""$'\n'
+    skeleton+="### Functional Requirements"$'\n'
+    skeleton+=""$'\n'
+
+    local fr_num=1
+    for kw in "${keyword_array[@]:0:5}"; do
+        local fr_padded
+        fr_padded=$(printf '%03d' "$fr_num")
+        skeleton+="- **FR-${fr_padded}**: The system MUST implement ${kw} capability as described in the feature requirements, ensuring correct behavior under normal operating conditions and providing appropriate error handling for edge cases."$'\n'
+        skeleton+=""$'\n'
+        fr_num=$((fr_num + 1))
+    done
+
+    skeleton+="### Non-Functional Requirements"$'\n'
+    skeleton+=""$'\n'
+    skeleton+="- **NFR-001**: The implementation must complete all operations within 120 seconds under normal conditions."$'\n'
+    skeleton+=""$'\n'
+    skeleton+="- **NFR-002**: The implementation must maintain backward compatibility with existing interfaces and contracts."$'\n'
+    skeleton+=""$'\n'
+
+    # Success Criteria
+    skeleton+="## Success Criteria"$'\n'
+    skeleton+=""$'\n'
+    skeleton+="- **SC-001**: The feature achieves at least 90% success rate on standard inputs measured over a representative sample of 20+ test cases."$'\n'
+    skeleton+=""$'\n'
+    skeleton+="- **SC-002**: Zero critical failures occur during the first 2 weeks of deployment, measured by monitoring error rates in CI logs."$'\n'
+    skeleton+=""$'\n'
+    skeleton+="- **SC-003**: Average processing time remains under 30 seconds for standard inputs, with worst-case time under 120 seconds including retries."$'\n'
+    skeleton+=""$'\n'
+    skeleton+="---"$'\n'
+    skeleton+="*Generated via fallback skeleton — manual enrichment required*"$'\n'
+
+    # Self-validate: ensure the fallback actually passes validation
+    local tmp_validate
+    tmp_validate=$(mktemp "/tmp/fallback-validate.XXXXXX") || {
+        echo "[Specify] ⚠️  Failed to create temp file for fallback self-validation" >&2
+        return 1
+    }
+    if ! printf '%s\n' "$skeleton" > "$tmp_validate"; then
+        echo "[Specify] ⚠️  Failed to write fallback self-validation temp file" >&2
+        rm -f "$tmp_validate"
+        return 1
+    fi
+
+    if ! validate_spec_quality "$tmp_validate" >/dev/null 2>&1; then
+        echo "[Specify] ⚠️  Fallback skeleton failed self-validation" >&2
+        rm -f "$tmp_validate"
+        return 1
+    fi
+    rm -f "$tmp_validate"
+
+    printf '%s' "$skeleton"
+    return 0
 }
