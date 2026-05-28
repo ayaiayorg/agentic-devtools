@@ -119,44 +119,96 @@ jobs:
           # applies to the most recently updated PRs rather than an arbitrary subset.
           REPO_OWNER=${GITHUB_REPOSITORY%/*}
           REPO_NAME=${GITHUB_REPOSITORY#*/}
-          PRS_JSON=$(gh api graphql --paginate \
-            -f owner="$REPO_OWNER" \
-            -f name="$REPO_NAME" \
-            -f query='
-              query($owner: String!, $name: String!, $endCursor: String) {
-                repository(owner: $owner, name: $name) {
-                  pullRequests(
-                    states: OPEN
-                    first: 100
-                    after: $endCursor
-                    orderBy: { field: UPDATED_AT, direction: DESC }
-                  ) {
-                    nodes {
-                      number
-                      isCrossRepository
-                      updatedAt
-                      labels(first: 100) {
+          PR_PAGES=""
+          END_CURSOR=""
+          for PAGE in 1 2 3 4 5; do
+            if [ -n "$END_CURSOR" ]; then
+              PAGE_JSON=$(gh api graphql \
+                -f owner="$REPO_OWNER" \
+                -f name="$REPO_NAME" \
+                -f endCursor="$END_CURSOR" \
+                -f query='
+                  query($owner: String!, $name: String!, $endCursor: String) {
+                    repository(owner: $owner, name: $name) {
+                      pullRequests(
+                        states: OPEN
+                        first: 100
+                        after: $endCursor
+                        orderBy: { field: UPDATED_AT, direction: DESC }
+                      ) {
                         nodes {
-                          name
+                          number
+                          isCrossRepository
+                          updatedAt
+                          labels(first: 100) {
+                            nodes {
+                              name
+                            }
+                          }
+                        }
+                        pageInfo {
+                          hasNextPage
+                          endCursor
                         }
                       }
                     }
-                    pageInfo {
-                      hasNextPage
-                      endCursor
+                  }' 2>&1) || {
+                echo "::error::Failed to list PRs: $PAGE_JSON"
+                exit 1
+              }
+            else
+              PAGE_JSON=$(gh api graphql \
+                -f owner="$REPO_OWNER" \
+                -f name="$REPO_NAME" \
+                -f query='
+                  query($owner: String!, $name: String!, $endCursor: String) {
+                    repository(owner: $owner, name: $name) {
+                      pullRequests(
+                        states: OPEN
+                        first: 100
+                        after: $endCursor
+                        orderBy: { field: UPDATED_AT, direction: DESC }
+                      ) {
+                        nodes {
+                          number
+                          isCrossRepository
+                          updatedAt
+                          labels(first: 100) {
+                            nodes {
+                              name
+                            }
+                          }
+                        }
+                        pageInfo {
+                          hasNextPage
+                          endCursor
+                        }
+                      }
                     }
-                  }
-                }
-              }' \
-            --slurp | jq -c '
-              map(.data.repository.pullRequests.nodes) | add | .[:500] |
-              map({
-                number,
-                isCrossRepository,
-                updatedAt,
-                labels: (.labels.nodes // [])
-              })' 2>&1) || {
-            echo "::error::Failed to list PRs: $PRS_JSON"
+                  }' 2>&1) || {
+                echo "::error::Failed to list PRs: $PAGE_JSON"
+                exit 1
+              }
+            fi
+
+            PR_PAGES="${PR_PAGES}${PR_PAGES:+$'\n'}${PAGE_JSON}"
+            HAS_NEXT_PAGE=$(echo "$PAGE_JSON" | jq -r '.data.repository.pullRequests.pageInfo.hasNextPage')
+            END_CURSOR=$(echo "$PAGE_JSON" | jq -r '.data.repository.pullRequests.pageInfo.endCursor // empty')
+
+            if [ "$HAS_NEXT_PAGE" != "true" ] || [ -z "$END_CURSOR" ]; then
+              break
+            fi
+          done
+
+          PRS_JSON=$(printf '%s\n' "$PR_PAGES" | jq -sc '
+            map(.data.repository.pullRequests.nodes) | add | .[:500] |
+            map({
+              number,
+              isCrossRepository,
+              updatedAt,
+              labels: (.labels.nodes // [])
+            })' 2>&1) || {
+            echo "::error::Failed to process PR list: $PRS_JSON"
             exit 1
           }
 
