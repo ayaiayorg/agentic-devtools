@@ -104,12 +104,43 @@ def _get_linked_pull_request_from_jira(issue_key: str) -> int | None:
     return None
 
 
+def _try_force_push_after_rebase(dry_run: bool) -> bool | None:
+    """Attempt force push after a successful rebase.
+
+    Wraps ``force_push()`` so that a push failure is non-blocking: the rebase
+    already succeeded locally and the caller can continue.
+
+    Args:
+        dry_run: If True, delegates to ``force_push(dry_run=True)`` which only
+            prints what would happen.
+
+    Returns:
+        ``True`` if the push succeeded, ``False`` if it failed, or ``None``
+        when running in dry-run mode.
+    """
+    from ..git.operations import force_push
+
+    if dry_run:
+        force_push(dry_run=True)
+        return None
+
+    try:
+        force_push(dry_run=False)
+        return True
+    except SystemExit:
+        print(
+            "Warning: Rebase succeeded but push failed. "
+            "You can manually push with: git push --force-with-lease"
+        )
+        return False
+
+
 def checkout_and_sync_branch(
     source_branch: str,
     pull_request_id: int | None = None,
     save_files_on_branch: bool = False,
     dry_run: bool = False,
-) -> tuple[bool, str | None, set[str], bool]:
+) -> tuple[bool, str | None, set[str], bool, bool | None]:
     """
     Checkout the PR source branch, sync it with origin, and rebase onto main.
 
@@ -119,6 +150,7 @@ def checkout_and_sync_branch(
        so the local copy reflects the author's latest pushed commits
     3. Fetching the latest from origin/main
     4. Rebasing onto main (continues even if conflicts, with warning)
+    5. If rebase rewrote history, force-pushing to update the remote
 
     Args:
         source_branch: The PR source branch name (without refs/heads/)
@@ -129,11 +161,13 @@ def checkout_and_sync_branch(
             based on the current HEAD.
 
     Returns:
-        Tuple of (success, error_message, files_on_branch, had_rebase_conflicts)
+        Tuple of (success, error_message, files_on_branch, had_rebase_conflicts, push_succeeded)
         - success: True if checkout succeeded and we can proceed
         - error_message: If success is False, the message to show the user
         - files_on_branch: Set of file paths changed on this branch vs main
         - had_rebase_conflicts: True if rebase conflicts were detected
+        - push_succeeded: True if auto-push succeeded, False if it failed,
+          None if no push was attempted (no rebase, or dry-run)
     """
     from ..git.operations import (
         checkout_branch,
@@ -161,12 +195,14 @@ def checkout_and_sync_branch(
                 f"{'=' * 60}",
                 set(),
                 False,
+                None,
             )
         return (  # pragma: no cover
             False,
             f"Error checking out branch: {checkout_result.message}",
             set(),
             False,
+            None,
         )
 
     # Step 1b: Fetch source branch from origin to get latest changes
@@ -176,6 +212,7 @@ def checkout_and_sync_branch(
             f"Failed to fetch origin/{source_branch}. Cannot proceed with review on potentially stale code.",
             set(),
             False,
+            None,
         )
 
     # Step 1c: Reset local branch to match origin
@@ -186,10 +223,12 @@ def checkout_and_sync_branch(
             "See the messages above for details and resolution steps.",
             set(),
             False,
+            None,
         )
 
     # Step 2: Fetch latest from main
     had_rebase_conflicts = False
+    push_succeeded: bool | None = None
     fetch_success = fetch_main(dry_run=dry_run)
     if not fetch_success:
         print("Warning: Could not fetch from origin/main, continuing without rebase...")
@@ -200,6 +239,9 @@ def checkout_and_sync_branch(
 
         if rebase_result.is_success:
             print("Branch is synced with main.")
+            # Step 3b: Auto-push if rebase rewrote history
+            if rebase_result.was_rebased:
+                push_succeeded = _try_force_push_after_rebase(dry_run)
         elif rebase_result.needs_manual_resolution:
             had_rebase_conflicts = True
             # Continue with review but warn about conflicts
@@ -232,7 +274,7 @@ def checkout_and_sync_branch(
             json.dump({"files": list(files_set)}, f, indent=2)
         print(f"Saved files on branch to: {files_on_branch_path}")
 
-    return True, None, files_set, had_rebase_conflicts
+    return True, None, files_set, had_rebase_conflicts, push_succeeded
 
 
 def _normalize_path_for_comparison(path: str) -> str:
@@ -869,7 +911,9 @@ def setup_pull_request_review() -> None:
     had_rebase_conflicts = False
     if source_branch:
         print(f"\nChecking out source branch '{source_branch}' and syncing with main...")
-        checkout_success, checkout_error, files_on_branch, had_rebase_conflicts = checkout_and_sync_branch(
+        (
+            checkout_success, checkout_error, files_on_branch, had_rebase_conflicts, _push_succeeded,
+        ) = checkout_and_sync_branch(
             source_branch, pull_request_id, save_files_on_branch=True, dry_run=is_dry_run()
         )
 

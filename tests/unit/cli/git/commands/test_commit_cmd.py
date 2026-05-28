@@ -92,6 +92,35 @@ class TestCommitCommand:
         captured = capsys.readouterr()
         assert "Skipping push" in captured.out
 
+    def test_commit_cmd_dry_run_reports_force_push_intent(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, capsys
+    ):
+        """Test dry-run mode reports force push intent when rebase occurred."""
+        state.set_value("commit_message", "Test commit")
+        state.set_value("dry_run", True)
+
+        with patch("agentic_devtools.cli.git.commands._sync_with_main", return_value=True):
+            commands.commit_cmd()
+
+        mock_run_safe.assert_not_called()
+        captured = capsys.readouterr()
+        assert "[DRY RUN]" in captured.out
+        assert "Would force push" in captured.out
+
+    def test_commit_cmd_dry_run_reports_publish_intent(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test dry-run mode reports publish intent when no rebase occurred."""
+        state.set_value("commit_message", "Test commit")
+        state.set_value("dry_run", True)
+
+        commands.commit_cmd()
+
+        mock_run_safe.assert_not_called()
+        captured = capsys.readouterr()
+        assert "[DRY RUN]" in captured.out
+        assert "Would publish branch" in captured.out
+
     def test_commit_cmd_force_push_after_rebase(
         self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, capsys
     ):

@@ -488,19 +488,20 @@ class TestCheckoutAndSyncBranch:
                     with patch("agentic_devtools.cli.git.operations.fetch_main") as mock_fetch:
                         with patch("agentic_devtools.cli.git.operations.rebase_onto_main") as mock_rebase:
                             with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
-                                mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
-                                mock_fetch_branch.return_value = True
-                                mock_reset.return_value = True
-                                mock_fetch.return_value = True
-                                mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
-                                mock_files.return_value = ["file1.ts", "file2.ts"]
+                                with patch("agentic_devtools.cli.git.operations.force_push"):
+                                    mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
+                                    mock_fetch_branch.return_value = True
+                                    mock_reset.return_value = True
+                                    mock_fetch.return_value = True
+                                    mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
+                                    mock_files.return_value = ["file1.ts", "file2.ts"]
 
-                                success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
+                                    success, error, files, had_conflicts, _push = checkout_and_sync_branch("feature/test")
 
-                                assert success is True
-                                assert error is None
-                                assert files == {"file1.ts", "file2.ts"}
-                                assert had_conflicts is False
+                                    assert success is True
+                                    assert error is None
+                                    assert files == {"file1.ts", "file2.ts"}
+                                    assert had_conflicts is False
 
     def test_checkout_failure_returns_error(self):
         """Test checkout failure returns error message."""
@@ -515,7 +516,7 @@ class TestCheckoutAndSyncBranch:
                 "You have uncommitted changes",
             )
 
-            success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
+            success, error, files, had_conflicts, _push = checkout_and_sync_branch("feature/test")
 
             assert success is False
             assert error is not None
@@ -547,7 +548,7 @@ class TestCheckoutAndSyncBranch:
                                 )
                                 mock_files.return_value = ["file1.ts"]
 
-                                success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
+                                success, error, files, had_conflicts, _push = checkout_and_sync_branch("feature/test")
 
                                 # Success because we can still continue with review
                                 assert success is True
@@ -574,7 +575,7 @@ class TestCheckoutAndSyncBranch:
                             mock_fetch.return_value = False
                             mock_files.return_value = ["file.ts"]
 
-                            success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
+                            success, error, files, had_conflicts, _push = checkout_and_sync_branch("feature/test")
 
                             # Should still succeed
                             assert success is True
@@ -1245,7 +1246,7 @@ class TestCheckoutAndSyncBranchEdgeCases:
                                 checkout_and_sync_branch,
                             )
 
-                            success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
+                            success, error, files, had_conflicts, _push = checkout_and_sync_branch("feature/test")
                             assert success is True
                             assert error is None
                             assert had_conflicts is False
@@ -1291,7 +1292,7 @@ class TestCheckoutAndSyncBranchEdgeCases:
                                     checkout_and_sync_branch,
                                 )
 
-                                success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
+                                success, error, files, had_conflicts, _push = checkout_and_sync_branch("feature/test")
                                 assert success is True
                                 assert error is None
                                 assert had_conflicts is True
@@ -1338,7 +1339,7 @@ class TestCheckoutAndSyncBranchEdgeCases:
                                     checkout_and_sync_branch,
                                 )
 
-                                success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
+                                success, error, files, had_conflicts, _push = checkout_and_sync_branch("feature/test")
                                 assert success is True
                                 assert had_conflicts is False
                                 captured = capsys.readouterr()
@@ -1353,6 +1354,7 @@ class TestCheckoutAndSyncBranchEdgeCases:
 
         mock_rebase_result = MagicMock()
         mock_rebase_result.is_success = True
+        mock_rebase_result.was_rebased = False
 
         commit_hash_short = "abc12345"
 
@@ -1394,7 +1396,7 @@ class TestCheckoutAndSyncBranchEdgeCases:
                                             checkout_and_sync_branch,
                                         )
 
-                                        success, error, files, had_conflicts = checkout_and_sync_branch(
+                                        success, error, files, had_conflicts, _push = checkout_and_sync_branch(
                                             "feature/test",
                                             pull_request_id=123,
                                             save_files_on_branch=True,
@@ -1419,6 +1421,7 @@ class TestCheckoutAndSyncBranchEdgeCases:
 
         mock_rebase_result = MagicMock()
         mock_rebase_result.is_success = True
+        mock_rebase_result.was_rebased = False
 
         with patch(
             "agentic_devtools.cli.git.operations.checkout_branch",
@@ -1456,7 +1459,7 @@ class TestCheckoutAndSyncBranchEdgeCases:
                                             checkout_and_sync_branch,
                                         )
 
-                                        success, error, files, had_conflicts = checkout_and_sync_branch(
+                                        success, error, files, had_conflicts, _push = checkout_and_sync_branch(
                                             "feature/test",
                                             pull_request_id=456,
                                             save_files_on_branch=True,
@@ -1479,6 +1482,7 @@ class TestCheckoutAndSyncBranchEdgeCases:
 
         mock_rebase_result = MagicMock()
         mock_rebase_result.is_success = True
+        mock_rebase_result.was_rebased = False
 
         with patch(
             "agentic_devtools.cli.git.operations.checkout_branch",
@@ -1518,7 +1522,7 @@ class TestCheckoutAndSyncBranchEdgeCases:
                                             checkout_and_sync_branch,
                                         )
 
-                                        success, error, files, had_conflicts = checkout_and_sync_branch(
+                                        success, error, files, had_conflicts, _push = checkout_and_sync_branch(
                                             "feature/test",
                                             pull_request_id=789,
                                             save_files_on_branch=True,
@@ -1599,7 +1603,7 @@ class TestSetupPullRequestReview:
                         with patch("pathlib.Path.exists", return_value=True):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                                return_value=(True, None, set(), False),
+                                return_value=(True, None, set(), False, None),
                             ):
                                 with patch(
                                     "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
@@ -1684,7 +1688,7 @@ class TestSetupPullRequestReview:
                         with patch("agentic_devtools.state.delete_value"):
                             with patch(
                                 "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
-                                return_value=(False, "Checkout error", set(), False),
+                                return_value=(False, "Checkout error", set(), False, None),
                             ):
                                 from agentic_devtools.cli.azure_devops.review_commands import (
                                     setup_pull_request_review,

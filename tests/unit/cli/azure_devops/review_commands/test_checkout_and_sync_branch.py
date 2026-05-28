@@ -17,19 +17,21 @@ class TestCheckoutAndSyncBranch:
                     with patch("agentic_devtools.cli.git.operations.fetch_main") as mock_fetch:
                         with patch("agentic_devtools.cli.git.operations.rebase_onto_main") as mock_rebase:
                             with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
-                                mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
-                                mock_fetch_branch.return_value = True
-                                mock_reset.return_value = True
-                                mock_fetch.return_value = True
-                                mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
-                                mock_files.return_value = ["file1.ts", "file2.ts"]
+                                with patch("agentic_devtools.cli.git.operations.force_push"):
+                                    mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
+                                    mock_fetch_branch.return_value = True
+                                    mock_reset.return_value = True
+                                    mock_fetch.return_value = True
+                                    mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
+                                    mock_files.return_value = ["file1.ts", "file2.ts"]
 
-                                success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
+                                    success, error, files, had_conflicts, push_succeeded = checkout_and_sync_branch("feature/test")
 
-                                assert success is True
-                                assert error is None
-                                assert files == {"file1.ts", "file2.ts"}
-                                assert had_conflicts is False
+                                    assert success is True
+                                    assert error is None
+                                    assert files == {"file1.ts", "file2.ts"}
+                                    assert had_conflicts is False
+                                    assert push_succeeded is True
 
     def test_checkout_failure_returns_error(self):
         """Test checkout failure returns error message."""
@@ -44,7 +46,7 @@ class TestCheckoutAndSyncBranch:
                 "You have uncommitted changes",
             )
 
-            success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
+            success, error, files, had_conflicts, _push = checkout_and_sync_branch("feature/test")
 
             assert success is False
             assert error is not None
@@ -76,7 +78,7 @@ class TestCheckoutAndSyncBranch:
                                 )
                                 mock_files.return_value = ["file1.ts"]
 
-                                success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
+                                success, error, files, had_conflicts, _push = checkout_and_sync_branch("feature/test")
 
                                 # Success because we can still continue with review
                                 assert success is True
@@ -103,7 +105,7 @@ class TestCheckoutAndSyncBranch:
                             mock_fetch.return_value = False
                             mock_files.return_value = ["file.ts"]
 
-                            success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
+                            success, error, files, had_conflicts, _push = checkout_and_sync_branch("feature/test")
 
                             # Should still succeed
                             assert success is True
@@ -122,7 +124,7 @@ class TestCheckoutAndSyncBranch:
                 mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
                 mock_fetch_branch.return_value = False
 
-                success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
+                success, error, files, had_conflicts, _push = checkout_and_sync_branch("feature/test")
 
                 assert success is False
                 assert error is not None
@@ -145,7 +147,7 @@ class TestCheckoutAndSyncBranch:
                     mock_fetch_branch.return_value = True
                     mock_reset.return_value = False
 
-                    success, error, files, had_conflicts = checkout_and_sync_branch("feature/test")
+                    success, error, files, had_conflicts, _push = checkout_and_sync_branch("feature/test")
 
                     assert success is False
                     assert error is not None
@@ -181,13 +183,14 @@ class TestCheckoutAndSyncBranch:
                     with patch("agentic_devtools.cli.git.operations.fetch_main", side_effect=track_fetch_main):
                         with patch("agentic_devtools.cli.git.operations.rebase_onto_main") as mock_rebase:
                             with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
-                                mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
-                                mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
-                                mock_files.return_value = []
+                                with patch("agentic_devtools.cli.git.operations.force_push"):
+                                    mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
+                                    mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
+                                    mock_files.return_value = []
 
-                                checkout_and_sync_branch("feature/test")
+                                    checkout_and_sync_branch("feature/test")
 
-                                assert call_order == ["fetch_branch", "reset_branch_to_origin", "fetch_main"]
+                                    assert call_order == ["fetch_branch", "reset_branch_to_origin", "fetch_main"]
 
     def test_dry_run_passes_flag_to_all_operations(self):
         """Test dry_run flag is threaded through to all git operations."""
@@ -202,20 +205,82 @@ class TestCheckoutAndSyncBranch:
                     with patch("agentic_devtools.cli.git.operations.fetch_main") as mock_fetch_main:
                         with patch("agentic_devtools.cli.git.operations.rebase_onto_main") as mock_rebase:
                             with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
-                                mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
-                                mock_fetch_branch.return_value = True
-                                mock_reset.return_value = True
-                                mock_fetch_main.return_value = True
-                                mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
-                                mock_files.return_value = ["file.ts"]
+                                with patch("agentic_devtools.cli.git.operations.force_push") as mock_force_push:
+                                    mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
+                                    mock_fetch_branch.return_value = True
+                                    mock_reset.return_value = True
+                                    mock_fetch_main.return_value = True
+                                    mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
+                                    mock_files.return_value = ["file.ts"]
 
-                                success, error, files, had_conflicts = checkout_and_sync_branch(
-                                    "feature/test", dry_run=True
-                                )
+                                    success, error, files, had_conflicts, push_succeeded = checkout_and_sync_branch(
+                                        "feature/test", dry_run=True
+                                    )
 
-                                assert success is True
-                                mock_checkout.assert_called_once_with("feature/test", dry_run=True)
-                                mock_fetch_branch.assert_called_once_with("feature/test", dry_run=True)
-                                mock_reset.assert_called_once_with("feature/test", dry_run=True)
-                                mock_fetch_main.assert_called_once_with(dry_run=True)
-                                mock_rebase.assert_called_once_with(dry_run=True)
+                                    assert success is True
+                                    assert push_succeeded is None  # dry-run returns None
+                                    mock_checkout.assert_called_once_with("feature/test", dry_run=True)
+                                    mock_fetch_branch.assert_called_once_with("feature/test", dry_run=True)
+                                    mock_reset.assert_called_once_with("feature/test", dry_run=True)
+                                    mock_fetch_main.assert_called_once_with(dry_run=True)
+                                    mock_rebase.assert_called_once_with(dry_run=True)
+                                    mock_force_push.assert_called_once_with(dry_run=True)
+
+    def test_no_push_when_no_rebase_needed(self):
+        """Test no push occurs when already up-to-date (was_rebased=False)."""
+        from unittest.mock import patch
+
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult, RebaseResult
+
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
+            with patch("agentic_devtools.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agentic_devtools.cli.git.operations.reset_branch_to_origin") as mock_reset:
+                    with patch("agentic_devtools.cli.git.operations.fetch_main") as mock_fetch:
+                        with patch("agentic_devtools.cli.git.operations.rebase_onto_main") as mock_rebase:
+                            with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
+                                with patch("agentic_devtools.cli.git.operations.force_push") as mock_force_push:
+                                    mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
+                                    mock_fetch_branch.return_value = True
+                                    mock_reset.return_value = True
+                                    mock_fetch.return_value = True
+                                    mock_rebase.return_value = RebaseResult(RebaseResult.NO_REBASE_NEEDED)
+                                    mock_files.return_value = ["file.ts"]
+
+                                    success, error, files, had_conflicts, push_succeeded = checkout_and_sync_branch("feature/test")
+
+                                    assert success is True
+                                    assert push_succeeded is None
+                                    mock_force_push.assert_not_called()
+
+    def test_push_failure_returns_false_and_continues(self, capsys):
+        """Test force push failure is non-blocking and returns push_succeeded=False."""
+        from unittest.mock import patch
+
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult, RebaseResult
+
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
+            with patch("agentic_devtools.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agentic_devtools.cli.git.operations.reset_branch_to_origin") as mock_reset:
+                    with patch("agentic_devtools.cli.git.operations.fetch_main") as mock_fetch:
+                        with patch("agentic_devtools.cli.git.operations.rebase_onto_main") as mock_rebase:
+                            with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
+                                with patch(
+                                    "agentic_devtools.cli.git.operations.force_push",
+                                    side_effect=SystemExit(1),
+                                ):
+                                    mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
+                                    mock_fetch_branch.return_value = True
+                                    mock_reset.return_value = True
+                                    mock_fetch.return_value = True
+                                    mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
+                                    mock_files.return_value = ["file.ts"]
+
+                                    success, error, files, had_conflicts, push_succeeded = checkout_and_sync_branch("feature/test")
+
+                                    assert success is True
+                                    assert push_succeeded is False
+                                    captured = capsys.readouterr()
+                                    assert "push failed" in captured.out.lower()
+                                    assert "git push --force-with-lease" in captured.out

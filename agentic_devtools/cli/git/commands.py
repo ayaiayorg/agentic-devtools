@@ -269,6 +269,12 @@ def commit_cmd() -> None:
             force_push(dry_run=False)
         else:
             publish_branch(dry_run=False)
+    else:
+        # Dry-run: report the push that would occur
+        if needs_force_push:
+            force_push(dry_run=True)
+        else:
+            publish_branch(dry_run=True)
 
     # Mark checklist items if specified
     if completed_items and not dry_run:
