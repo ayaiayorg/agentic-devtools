@@ -19,6 +19,10 @@ class RequestReviewAction:
 
     Preconditions:
     - PR is not draft (uses DerivedState)
+    - Repair was not dispatched in this pipeline run
+    - No active Copilot coding session
+    - No unresolved review threads
+    - CI is passing
     - No effective Copilot review on HEAD
     - Copilot not already requested as reviewer
 
