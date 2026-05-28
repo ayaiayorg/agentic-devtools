@@ -27,6 +27,34 @@ from agentic_devtools.cli.subprocess_utils import run_safe
 _CERTS_DIR = Path.home() / ".agdt" / "certs"
 
 
+def normalize_pem(pem_content: str) -> str:
+    """Remove blank lines within PEM certificate bodies.
+
+    Some corporate proxies and openssl builds insert empty lines between
+    base64 data lines in PEM certificates.  Python's ``ssl`` module rejects
+    such malformed PEM with ``[X509] PEM lib``.  This function strips those
+    blank lines while preserving the ``BEGIN``/``END`` markers.
+
+    Args:
+        pem_content: Raw PEM string (may contain multiple certificates).
+
+    Returns:
+        Normalized PEM string with blank lines removed from certificate bodies.
+    """
+    cert_pattern = r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----"
+    certs = re.findall(cert_pattern, pem_content, re.DOTALL)
+    if not certs:
+        return pem_content
+
+    result = pem_content
+    for cert in certs:
+        lines = cert.split("\n")
+        clean_lines = [l for l in lines if l.strip()]
+        if len(clean_lines) < len(lines):
+            result = result.replace(cert, "\n".join(clean_lines))
+    return result
+
+
 def fetch_certificate_chain_openssl(hostname: str, port: int = 443) -> str | None:
     """Fetch the SSL certificate chain from *hostname* using ``openssl s_client``.
 
@@ -60,7 +88,17 @@ def fetch_certificate_chain_openssl(hostname: str, port: int = 443) -> str | Non
         cert_pattern = r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----"
         certs = re.findall(cert_pattern, output, re.DOTALL)
         if certs:
-            return "\n".join(certs)
+            # Normalize each PEM block: remove blank lines within the base64
+            # body.  Some corporate proxies or openssl builds insert empty
+            # lines between base64 data lines, which produces malformed PEM
+            # that Python's ssl module rejects with "[X509] PEM lib".
+            normalized = []
+            for cert in certs:
+                lines = cert.split("\n")
+                # Keep BEGIN/END markers and non-empty body lines
+                clean_lines = [l for l in lines if l.strip()]
+                normalized.append("\n".join(clean_lines))
+            return "\n".join(normalized)
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError, subprocess.SubprocessError):
         pass
     except Exception:  # noqa: BLE001 — cert fetch must not crash setup
@@ -173,6 +211,14 @@ def ensure_ca_bundle(
             # Treat unreadable or undecodable cache as missing and refetch.
             existing = ""
         if count_certificates_in_pem(existing) >= 2:
+            # Normalize in-place: remove blank lines within cert bodies that
+            # cause Python's ssl module to reject the file.
+            normalized = normalize_pem(existing)
+            if normalized != existing:
+                try:
+                    cache_file.write_text(normalized, encoding="utf-8")
+                except OSError:
+                    pass  # Best-effort; file is still usable by openssl
             return str(cache_file)
         # Stale/leaf-only cache — remove it before refetching so it doesn't
         # linger on disk and get picked up by external configs (e.g. npmrc cafile).
@@ -307,11 +353,13 @@ def ssl_request_with_retry(
         requests.RequestException: On network errors after all retries.
     """
     import requests
+    import urllib3
 
     # --no-verify-ssl override via environment variable.
     # The user has explicitly opted in by setting AGDT_NO_VERIFY_SSL (via agdt-setup --no-verify-ssl)
     # and is aware of the security implications (printed warning during setup).
     if os.environ.get("AGDT_NO_VERIFY_SSL"):
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         print(
             "  ⚠  SSL verification disabled (AGDT_NO_VERIFY_SSL). Use only on trusted networks.",
             file=sys.stderr,
