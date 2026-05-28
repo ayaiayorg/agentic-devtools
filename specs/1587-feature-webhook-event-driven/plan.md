@@ -26,7 +26,7 @@ All decisions align with the proven `squash-wait-scheduler.yml` pattern.
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│    agent-session-monitor.yml (*/2 cron + workflow_dispatch)    │
+│    agent-session-monitor.yml (*/5 cron + workflow_dispatch)    │
 ├─────────────────────────────────────────────────────────────┤
 │  1. Restore seen-events cache (prefix restore)               │
 │  2. List open PRs (non-fork, no ignore label)                │
@@ -63,7 +63,7 @@ All decisions align with the proven `squash-wait-scheduler.yml` pattern.
 
 1. **Create workflow file** with:
    - Triggers:
-     - `schedule: - cron: '*/2 * * * *'` (meets the 120-second latency target from FR-001)
+     - `schedule: - cron: '*/5 * * * *'` (meets the 300-second latency target from FR-001)
      - `workflow_dispatch` (manual trigger)
    - Permissions: `contents: read`, `pull-requests: read`, `actions: write`, `issues: read`
    - Single job `monitor-agent-sessions`, `runs-on: ubuntu-latest`, `timeout-minutes: 2`
@@ -100,7 +100,7 @@ All decisions align with the proven `squash-wait-scheduler.yml` pattern.
    cache save, checks the recorded scan-error flag/output, and exits non-zero if any PR scan
    errors prevented full completion of the cycle.
 
-6. **No additional trigger-emitter integration** — monitor relies on `*/2` schedule + manual
+6. **No additional trigger-emitter integration** — monitor relies on `*/5` schedule + manual
    `workflow_dispatch`; no `repository_dispatch` emitter or external trigger plumbing is required.
 
 7. **Per-PR error isolation with surfaced failure** — isolate each PR scan so one failure does

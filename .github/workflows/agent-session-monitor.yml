@@ -1,0 +1,308 @@
+# Agent Session Monitor
+#
+# Detects when a Copilot (or similar AI agent) session finishes on an open PR
+# and triggers the AI PR loop workflow for immediate post-session processing.
+#
+# Design:
+#   - Polls the GitHub Issues Events API every 5 minutes for terminal session
+#     events (copilot_work_finished, copilot_work_finished_failure).
+#   - Deduplicates using a cached JSON array of processed event IDs persisted
+#     via actions/cache with prefix-based restore.
+#   - Dispatches ai-pr-loop.yml via workflow_dispatch (same pattern as
+#     squash-wait-scheduler.yml) with pr_number and trigger_reason fields.
+#   - Coexists with all existing ai-pr-loop.yml triggers (FR-006). The
+#     ai-pr-loop concurrency group (ai-pr-loop-{pr_number}) serializes
+#     any concurrent runs for the same PR.
+#
+# Related:
+#   - squash-wait-scheduler.yml — complementary scheduler for squash-wait markers
+#   - ai-pr-loop.yml — target workflow (unchanged by this feature)
+#   - Issue #1587: Feature: Add webhook or event-driven trigger for ai-pr-loop
+#
+# FR Traceability:
+#   FR-001: Scheduled monitor (*/5 cron) triggers AI PR loop within 300s
+#   FR-002: Deduplication via actions/cache seen-events JSON
+#   FR-003: Passes pr_number input to ai-pr-loop.yml
+#   FR-004: Only open, non-fork PRs without ai-pr-loop-ignore label
+#   FR-005: Sets trigger_reason=agent_session_finished
+#   FR-006: Supplements existing triggers, no modification to ai-pr-loop.yml
+#   FR-007: Handles both copilot_work_finished and copilot_work_finished_failure
+
+name: Agent Session Monitor
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Every 5 minutes (FR-001: ≤300s detection latency)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: write
+  issues: read
+
+jobs:
+  monitor-agent-sessions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    concurrency:
+      group: agent-session-monitor
+      cancel-in-progress: false
+
+    steps:
+      - name: Restore seen-events cache
+        uses: actions/cache/restore@v4
+        with:
+          key: agent-monitor-seen-events-${{ github.run_id }}
+          restore-keys: agent-monitor-seen-events-
+          path: .cache/seen-events.json
+
+      - name: Scan and dispatch
+        id: scan
+        env:
+          GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
+          DRY_RUN: ${{ vars.AGENT_MONITOR_DRY_RUN || '' }}
+        run: |
+          set -uo pipefail
+
+          # --- Initialization ---
+          START_EPOCH=$(date +%s)
+          # Reserve ~30s of the 2-minute job timeout for cache save/final steps.
+          SCAN_BUDGET_SECONDS=90
+          DISPATCHES=0
+          EVENTS_FOUND=0
+          PRS_SCANNED=0
+          SCAN_ERRORS=0
+          TERMINAL_EVENTS="copilot_work_finished copilot_work_finished_failure"
+
+          mkdir -p .cache
+          if [ ! -f .cache/seen-events.json ]; then
+            echo '[]' > .cache/seen-events.json
+          fi
+
+          # Load seen events into a bash-friendly lookup
+          SEEN_EVENTS=$(cat .cache/seen-events.json)
+
+          # Helper: check if event ID is already seen
+          is_seen() {
+            echo "$SEEN_EVENTS" | jq -e --argjson id "$1" 'index($id) != null' > /dev/null 2>&1
+          }
+
+          # Helper: structured log
+          log_action() {
+            local ts
+            ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            echo "ts=$ts $*"
+          }
+
+          # Helper: parse explicit truthy values for DRY_RUN
+          is_truthy() {
+            case "${1:-}" in
+              1|true|TRUE|True)
+                return 0
+                ;;
+              *)
+                return 1
+                ;;
+            esac
+          }
+
+          # Helper: check scan budget
+          budget_exceeded() {
+            local now
+            now=$(date +%s)
+            [ $((now - START_EPOCH)) -ge $SCAN_BUDGET_SECONDS ]
+          }
+
+          # --- List eligible open PRs (FR-004) ---
+          # Request open PRs from GitHub already sorted by updatedAt desc so the 500-item cap
+          # applies to the most recently updated PRs rather than an arbitrary subset.
+          REPO_OWNER=${GITHUB_REPOSITORY%/*}
+          REPO_NAME=${GITHUB_REPOSITORY#*/}
+          PRS_JSON=$(gh api graphql --paginate \
+            -f owner="$REPO_OWNER" \
+            -f name="$REPO_NAME" \
+            -f query='
+              query($owner: String!, $name: String!, $endCursor: String) {
+                repository(owner: $owner, name: $name) {
+                  pullRequests(
+                    states: OPEN
+                    first: 100
+                    after: $endCursor
+                    orderBy: { field: UPDATED_AT, direction: DESC }
+                  ) {
+                    nodes {
+                      number
+                      isCrossRepository
+                      updatedAt
+                      labels(first: 100) {
+                        nodes {
+                          name
+                        }
+                      }
+                    }
+                    pageInfo {
+                      hasNextPage
+                      endCursor
+                    }
+                  }
+                }
+              }' \
+            --slurp | jq -c '
+              map(.data.repository.pullRequests.nodes) | add | .[:500] |
+              map({
+                number,
+                isCrossRepository,
+                updatedAt,
+                labels: (.labels.nodes // [])
+              })' 2>&1) || {
+            echo "::error::Failed to list PRs: $PRS_JSON"
+            exit 1
+          }
+
+          # Sort by updatedAt desc and evaluate eligibility inside the loop
+          PR_ROWS=$(echo "$PRS_JSON" | jq -c 'sort_by(.updatedAt) | reverse | .[]')
+
+          if [ -z "$PR_ROWS" ]; then
+            log_action "action=complete reason=no_open_prs"
+            echo "No open PRs found."
+            # Write summary
+            {
+              echo "## Agent Session Monitor"
+              echo ""
+              echo "| Metric | Value |"
+              echo "| --- | --- |"
+              echo "| PRs scanned | 0 |"
+              echo "| Events found | 0 |"
+              echo "| Dispatches issued | 0 |"
+              echo "| Errors | 0 |"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # --- Scan each PR for terminal events ---
+          OWNER="${GITHUB_REPOSITORY%/*}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+
+          while IFS= read -r pr_row; do
+            [ -z "$pr_row" ] && continue
+
+            # Check scan budget (NFR-001)
+            if budget_exceeded; then
+              log_action "action=budget_exceeded prs_remaining=deferred"
+              break
+            fi
+
+            pr=$(echo "$pr_row" | jq -r '.number')
+            is_fork=$(echo "$pr_row" | jq -r '.isCrossRepository')
+            has_ignore_label=$(echo "$pr_row" | jq -r '[.labels[].name] | index("ai-pr-loop-ignore") != null')
+
+            PRS_SCANNED=$((PRS_SCANNED + 1))
+
+            if [ "$is_fork" = "true" ]; then
+              log_action "pr_number=$pr action=skipped reason=fork_pr"
+              continue
+            fi
+
+            if [ "$has_ignore_label" = "true" ]; then
+              log_action "pr_number=$pr action=skipped reason=ai_pr_loop_ignore_label"
+              continue
+            fi
+
+            # Per-PR error isolation (Phase 3, T027)
+            {
+              # Fetch issue events for this PR (FR-007)
+              EVENTS_JSON=$(gh api "/repos/$OWNER/$REPO/issues/$pr/events" \
+                --paginate \
+                --jq "[.[] | select(.event == \"copilot_work_finished\" or .event == \"copilot_work_finished_failure\")]" \
+                2>&1) || {
+                log_action "pr_number=$pr action=error reason=events_api_failed error=\"$EVENTS_JSON\""
+                echo "::warning::Failed to fetch events for PR #$pr"
+                SCAN_ERRORS=$((SCAN_ERRORS + 1))
+                continue
+              }
+
+              # Process each terminal event
+              while IFS= read -r row; do
+                EVENT_ID=$(echo "$row" | jq '.id')
+                EVENT_TYPE=$(echo "$row" | jq -r '.event')
+                EVENTS_FOUND=$((EVENTS_FOUND + 1))
+
+                # Deduplication check (FR-002)
+                if is_seen "$EVENT_ID"; then
+                  log_action "pr_number=$pr event_id=$EVENT_ID event_type=$EVENT_TYPE action=skipped reason=already_seen"
+                  continue
+                fi
+
+                # Dispatch ai-pr-loop (FR-001, FR-003, FR-005)
+                if is_truthy "${DRY_RUN:-}"; then
+                  log_action "pr_number=$pr event_id=$EVENT_ID event_type=$EVENT_TYPE action=dispatched mode=dry_run"
+                  echo "[DRY_RUN] Would dispatch: gh workflow run ai-pr-loop.yml --repo $GITHUB_REPOSITORY --field pr_number=$pr --field trigger_reason=agent_session_finished"
+                  DISPATCHES=$((DISPATCHES + 1))
+                else
+                  if gh workflow run ai-pr-loop.yml \
+                    --repo "$GITHUB_REPOSITORY" \
+                    --field pr_number="$pr" \
+                    --field trigger_reason=agent_session_finished; then
+                    log_action "pr_number=$pr event_id=$EVENT_ID event_type=$EVENT_TYPE action=dispatched"
+                    DISPATCHES=$((DISPATCHES + 1))
+                    # Add to seen events (FR-002)
+                    SEEN_EVENTS=$(echo "$SEEN_EVENTS" | jq --argjson id "$EVENT_ID" '. + [$id]')
+                  else
+                    log_action "pr_number=$pr event_id=$EVENT_ID event_type=$EVENT_TYPE action=error reason=dispatch_failed"
+                    echo "::error::Failed to dispatch ai-pr-loop for PR #$pr (event $EVENT_ID)"
+                    SCAN_ERRORS=$((SCAN_ERRORS + 1))
+                    # Continue processing other events/PRs
+                  fi
+                fi
+              done < <(echo "$EVENTS_JSON" | jq -c '.[]')
+            } || {
+              SCAN_ERRORS=$((SCAN_ERRORS + 1))
+              log_action "pr_number=$pr action=error reason=unexpected_failure"
+              echo "::warning::Unexpected error scanning PR #$pr"
+            }
+          done <<< "$PR_ROWS"
+
+          if is_truthy "${DRY_RUN:-}"; then
+            echo "save_cache=false" >> "${GITHUB_OUTPUT:-/dev/null}"
+          else
+            # Prune seen events to last 500 entries (FR-002: bounded cache)
+            SEEN_EVENTS=$(echo "$SEEN_EVENTS" | jq '.[-500:]')
+            echo "$SEEN_EVENTS" > .cache/seen-events.json
+            echo "save_cache=true" >> "${GITHUB_OUTPUT:-/dev/null}"
+          fi
+
+          # --- Summary output (NFR-004) ---
+          log_action "action=complete prs_scanned=$PRS_SCANNED events_found=$EVENTS_FOUND dispatches=$DISPATCHES errors=$SCAN_ERRORS"
+
+          {
+            echo "## Agent Session Monitor"
+            echo ""
+            echo "| Metric | Value |"
+            echo "| --- | --- |"
+            echo "| PRs scanned | $PRS_SCANNED |"
+            echo "| Events found | $EVENTS_FOUND |"
+            echo "| Dispatches issued | $DISPATCHES |"
+            echo "| Errors | $SCAN_ERRORS |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Record scan errors for final step (do not exit non-zero here
+          # so cache save can proceed)
+          if [ "$SCAN_ERRORS" -gt 0 ]; then
+            echo "SCAN_ERRORS=$SCAN_ERRORS" >> "$GITHUB_ENV"
+          fi
+
+      - name: Save seen-events cache
+        if: always() && steps.scan.outputs.save_cache == 'true'
+        uses: actions/cache/save@v4
+        with:
+          key: agent-monitor-seen-events-${{ github.run_id }}
+          path: .cache/seen-events.json
+
+      - name: Check for scan errors
+        if: always()
+        run: |
+          if [ "${SCAN_ERRORS:-0}" -gt 0 ]; then
+            echo "::error::Agent session monitor completed with $SCAN_ERRORS scan error(s). See logs above for details."
+            exit 1
+          fi
