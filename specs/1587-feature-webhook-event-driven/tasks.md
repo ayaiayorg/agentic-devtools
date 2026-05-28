@@ -73,7 +73,8 @@
 
 ## Phase 5: User Story 3 — Graceful Coexistence with Existing Triggers (P2)
 
-- [ ] T023 [US3] Validate coexistence by exercising an existing `ai-pr-loop.yml` trigger path alongside monitor-issued dispatch and verifying shared `ai-pr-loop-{pr_number}` concurrency serializes runs without conflict (FR-006)
+- [ ] T023 [US3] Validate coexistence by exercising an existing `ai-pr-loop.yml` trigger path alongside monitor-issued dispatch and verifying shared
+  `ai-pr-loop-{pr_number}` concurrency serializes runs without conflict (FR-006)
 - [ ] T024 [US3] Document in workflow comments that the monitor supplements existing triggers and relies on `ai-pr-loop-{pr_number}` concurrency group in `ai-pr-loop.yml` to serialize concurrent runs
   (FR-006)
 
