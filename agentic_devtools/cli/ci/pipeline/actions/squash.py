@@ -16,7 +16,8 @@ class SquashAction:
 
     Preconditions:
     - Commits above merge-base > 1
-    - No active Copilot session (coding or review)
+    - No repair dispatched in this run (keeps HEAD stable for the repair cycle)
+    - No active Copilot coding session (pending review does NOT block squash)
     - CI passing
 
     Idempotency: Already 1 commit → skip.
