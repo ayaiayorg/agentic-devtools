@@ -15,14 +15,26 @@
 | F-09 | D | LOW | Spec | No explicit "Out of Scope" section documenting what this feature intentionally does NOT cover (e.g., webhook-based real-time triggers, changes to orchestrator.py) | Add an "Out of Scope" section to the spec for clarity |
 | F-10 | A | LOW | FR-001, FR-003, FR-005 | FR-001, FR-003, and FR-005 all specify aspects of the same `gh workflow run` dispatch command — FR-001 specifies the full command, FR-003 specifies `pr_number` parameter, FR-005 specifies `trigger_reason` parameter | Acceptable decomposition for traceability but note that FR-003 and FR-005 are subsumed by FR-001's full command specification |
 
-## Category G Structured Findings
+### Category G Structured Findings
 
-[{"id": "F-06", "overlap_type": "overlapping", "severity": "HIGH", "task_ids": ["T008", "T009", "T010", "T011"], "dimensions": ["file_path", "code_section"], "rationale": "All four tasks validate
-different fields of the same gh workflow run dispatch command output in the same workflow file scan step. They share the same file (.github/workflows/agent-session-monitor.yml) and the same code
-section (dispatch command generation). However, their descriptions target distinct validation outcomes (event triggering, pr_number field, trigger_reason field, both event types), so this is
-overlapping rather than duplicate."}, {"id": "F-07", "overlap_type": "overlapping", "severity": "HIGH", "task_ids": ["T025", "T013"], "dimensions": ["file_path", "code_section"], "rationale": "T013
-creates the scan step bash skeleton and T025 implements structured log output within that same scan step. Both target the same file and same bash step code section. T025 is an enhancement of T013's
-output but they modify the same code block, creating overlap risk during implementation."}]
+[
+  {
+    "id": "F-06",
+    "overlap_type": "overlapping",
+    "severity": "HIGH",
+    "task_ids": ["T008", "T009", "T010", "T011"],
+    "dimensions": ["file_path", "code_section"],
+    "rationale": "All four tasks validate different fields of the same gh workflow run dispatch command output in the same workflow file scan step. They share the same file (.github/workflows/agent-session-monitor.yml) and the same code section (dispatch command generation). However, their descriptions target distinct validation outcomes (event triggering, pr_number field, trigger_reason field, both event types), so this is overlapping rather than duplicate."
+  },
+  {
+    "id": "F-07",
+    "overlap_type": "overlapping",
+    "severity": "HIGH",
+    "task_ids": ["T025", "T013"],
+    "dimensions": ["file_path", "code_section"],
+    "rationale": "T013 creates the scan step bash skeleton and T025 implements structured log output within that same scan step. Both target the same file and same bash step code section. T025 is an enhancement of T013's output but they modify the same code block, creating overlap risk during implementation."
+  }
+]
 
 ## Coverage Summary Table
 
