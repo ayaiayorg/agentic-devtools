@@ -47,6 +47,16 @@
 #                                       remediation before failing.
 #   SPECKIT_CRITICAL_GATE_MAX_RETRIES - Max retries for Layer 1 (standard LLM
 #                                       remediation) of CRITICAL gate (default: 2).
+#   AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR - Factor for dynamic MIN_SPEC_BYTES
+#                                           reduction on short issues (default: 0.6,
+#                                           range: 0.0–1.0). A value of 0.6 means
+#                                           the threshold floor is 60% of original.
+#   SPECIFY_MAX_RETRIES - Maximum validation-consuming retry attempts for Phase 1
+#                         specify (default: 3).
+#   MIN_SPEC_BYTES      - Minimum spec size in bytes (default: 2048).
+#   MIN_FUNCTIONAL_REQUIREMENTS - Minimum unique FR/NFR entries (default: 5).
+#   MIN_USER_STORIES    - Minimum user stories with Given/When/Then (default: 3).
+#   MAX_BULLET_LINE_PCT - Maximum bullet-point percentage (default: 80).
 #
 # Outputs:
 #   GITHUB_OUTPUT: branch_name, spec_file, issue_number, spec_dir
@@ -552,7 +562,10 @@ compute_violation_fingerprint() {
 _is_valid_md_start() {
     local line="$1"
     [[ -z "$line" ]] && return 1
-    [[ "$line" =~ ^#{1,6}[[:space:]]+ ]] && return 0
+    # Headings may be indented by up to 3 spaces (CommonMark). 4+ spaces are code blocks.
+    local leading_spaces="${line%%[! ]*}"
+    local trimmed="${line#"$leading_spaces"}"
+    [[ "$trimmed" =~ ^#{1,6}[[:space:]]+ && "${#leading_spaces}" -le 3 ]] && return 0
     [[ "$line" =~ ^\> ]] && return 0
     [[ "$line" =~ ^-[[:space:]]+ ]] && return 0
     [[ "$line" =~ ^\*[[:space:]]+ ]] && return 0
@@ -587,6 +600,13 @@ strip_llm_preamble() {
     local _fl line
 
     [[ -z "$llm_output" ]] && return 0
+
+    # Strip BOM marker (UTF-8 BOM: EF BB BF) if present at the start (FR-006)
+    # The BOM is a single Unicode character U+FEFF encoded as 3 bytes in UTF-8
+    local bom=$'\xEF\xBB\xBF'
+    if [[ "${llm_output}" == "${bom}"* ]]; then
+        llm_output="${llm_output#"${bom}"}"
+    fi
 
     # Skip leading blank/whitespace-only lines to find the first non-empty line.
     # A blank first line should not be treated as a valid markdown start.
@@ -626,6 +646,38 @@ strip_llm_preamble() {
             printf '%s' "$llm_output"
         fi
         return 0
+    fi
+
+    # Multi-line preamble detection (FR-006): if lines 1–3 are conversational
+    # but a subsequent line (within first 5 lines) is a heading, strip only
+    # the preamble lines.
+    local line_num=0
+    local found_heading_in_early_lines=false
+    while IFS= read -r line; do
+        line_num=$((line_num + 1))
+        [[ "$line_num" -gt 5 ]] && break
+        if [[ "$line_num" -gt 1 ]] && [[ "$line" =~ ^#{1,6}[[:space:]]+ ]]; then
+            found_heading_in_early_lines=true
+            break
+        fi
+    done <<< "$llm_output"
+
+    if [[ "$found_heading_in_early_lines" == true ]]; then
+        # Strip preamble lines before the heading
+        local result=""
+        local found_md=false
+        while IFS= read -r line; do
+            if [[ "$found_md" == true ]]; then
+                result+="$line"$'\n'
+            elif [[ "$line" =~ ^#{1,6}[[:space:]]+ ]]; then
+                found_md=true
+                result+="$line"$'\n'
+            fi
+        done <<< "$llm_output"
+        if [[ "$found_md" == true && -n "$result" ]]; then
+            printf '%s' "${result%$'\n'}"
+            return 0
+        fi
     fi
 
     # Preamble detected — log a warning
@@ -691,7 +743,9 @@ ensure_heading_start() {
     while IFS= read -r _fl; do
         if [[ "$_fl" =~ [^[:space:]] ]]; then first_line="$_fl"; break; fi
     done <<< "$content"
-    if [[ "$first_line" =~ ^#{1,6}[[:space:]]+ ]]; then
+    # Check for heading with optional up to 3 leading spaces (CommonMark)
+    local trimmed_first="${first_line#"${first_line%%[! ]*}"}"
+    if [[ "$first_line" =~ ^#{1,6}[[:space:]]+ ]] || [[ "$trimmed_first" =~ ^#{1,6}[[:space:]]+ && "${#first_line}" -le "$((${#trimmed_first} + 3))" ]]; then
         # Strip leading blank/whitespace-only lines so the output truly starts with the heading
         local trimmed_h=""
         local found_h=false
@@ -1983,6 +2037,13 @@ run_specify_phase() {
         spec_template=$(cat "$template_file")
     fi
 
+    # Load the mandatory skeleton block (FR-001)
+    local skeleton_file="$SCRIPT_DIR/templates/specify-skeleton.md"
+    local skeleton_block=""
+    if [[ -f "$skeleton_file" ]]; then
+        skeleton_block=$(cat "$skeleton_file")
+    fi
+
     local mandatory_heading_lines=""
     local section
     for section in "${MANDATORY_SECTIONS[@]}"; do
@@ -2011,6 +2072,13 @@ $ISSUE_BODY
 8. Limit [NEEDS CLARIFICATION] markers to maximum 3 critical items
 9. Include ALL mandatory section headings as level-2 markdown headings (##), exactly as shown below:
 ${mandatory_heading_lines}
+10. Write detailed prose paragraphs — do NOT use bullet points for more than ${MAX_BULLET_LINE_PCT}% of content lines. Sections like Problem Statement and User Scenarios should use prose descriptions, not just bullet lists.
+
+## Mandatory Document Structure
+
+Your output MUST contain all of the following sections. Use this skeleton as your structural foundation and fill in each section with substantive, detailed content:
+
+${skeleton_block}
 
 ## Template Reference
 $spec_template
@@ -2032,7 +2100,8 @@ Do NOT include any conversational preamble before the heading."
 #
 # Variant of run_specify_phase that includes structured feedback from a
 # previous failed validation attempt. Uses SPECIFY_RETRY_FEEDBACK and
-# SPECIFY_FAILED_OUTPUT global variables when set.
+# SPECIFY_FAILED_OUTPUT global variables when set. On retry >= 2, injects
+# an example valid spec for reference (FR-010).
 # ---------------------------------------------------------------------------
 run_specify_phase_with_feedback() {
     if [[ -z "${SPECIFY_RETRY_FEEDBACK:-}" ]]; then
@@ -2045,6 +2114,33 @@ run_specify_phase_with_feedback() {
     local spec_template=""
     if [[ -f "$template_file" ]]; then
         spec_template=$(cat "$template_file")
+    fi
+
+    # Load the mandatory skeleton block (FR-001)
+    local skeleton_file="$SCRIPT_DIR/templates/specify-skeleton.md"
+    local skeleton_block=""
+    if [[ -f "$skeleton_file" ]]; then
+        skeleton_block=$(cat "$skeleton_file")
+    fi
+
+    # Load example spec for injection on retry >= 2 (FR-010)
+    local example_section=""
+    if [[ "${specify_retry_count:-0}" -ge 2 ]]; then
+        local example_file="$SCRIPT_DIR/templates/example-valid-spec.md"
+        if [[ -f "$example_file" ]]; then
+            local example_content
+            example_content=$(head -c 1500 "$example_file")
+            example_section="
+## Reference: Example Valid Specification (truncated)
+
+The following is an example of a specification that passes ALL validation checks. Use it as a structural reference:
+
+\`\`\`markdown
+${example_content}
+\`\`\`
+
+"
+        fi
     fi
 
     local mandatory_heading_lines=""
@@ -2065,9 +2161,15 @@ run_specify_phase_with_feedback() {
 $ISSUE_BODY
 
 ${SPECIFY_RETRY_FEEDBACK}
-
+${example_section}
 ## Your Previous (Invalid) Output
 ${SPECIFY_FAILED_OUTPUT:-}
+
+## Mandatory Document Structure
+
+Your output MUST contain all of the following sections:
+
+${skeleton_block}
 
 ## Instructions
 1. Create a COMPLETE feature specification — not a summary or outline
@@ -2075,7 +2177,7 @@ ${SPECIFY_FAILED_OUTPUT:-}
 3. Define at least ${MIN_FUNCTIONAL_REQUIREMENTS} functional requirements (FR-### format)
 4. Include at least ${MIN_USER_STORIES} user stories (### User Story headings)
 5. Success criteria (SC-### format) must contain measurable targets (numbers, percentages)
-6. Write detailed prose — do NOT use bullet points for everything
+6. Write detailed prose — do NOT use bullet points for more than ${MAX_BULLET_LINE_PCT}% of content lines
 7. Add a \"Source Issue\" field at the top with: #$ISSUE_NUMBER ($ISSUE_URL)
 8. Keep the specification focused on WHAT and WHY, not HOW
 9. Include ALL mandatory section headings as level-2 markdown headings (##), exactly as shown below:
@@ -2101,10 +2203,13 @@ _emit_validation_errors() {
     local phase_number="$1"
     local phase_name="$2"
     local failures_text="$3"
+    local compatibility_failures_text
+
+    compatibility_failures_text=$(printf '%s' "$failures_text" | sed 's/ | REMEDIATION: .*//')
 
     # Emit semicolon-delimited validation_errors to GITHUB_OUTPUT
     local output_line
-    output_line=$(printf '%s' "$failures_text" | tr '\n' ';' | sed 's/;$//')
+    output_line=$(printf '%s' "$compatibility_failures_text" | tr '\n' ';' | sed 's/;$//')
     echo "validation_errors=${output_line}" >> "${GITHUB_OUTPUT:-/dev/null}"
 
     # Write validation-errors.json workspace file
@@ -2123,7 +2228,7 @@ _emit_validation_errors() {
         # Escape JSON special characters in detail
         detail=$(printf '%s' "$detail" | sed 's/\\/\\\\/g; s/"/\\"/g')
         json_errors+="{\"category\":\"${category}\",\"detail\":\"${detail}\"}"
-    done <<< "$failures_text"
+    done <<< "$compatibility_failures_text"
     json_errors+="]"
 
     local json_file="${GITHUB_WORKSPACE:-${RUNNER_TEMP:-/tmp}}/validation-errors.json"
@@ -2138,7 +2243,8 @@ JSONEOF
 #
 # Runs Phase 1 specify with structural validation retries and structured
 # feedback. Validation failures consume retry budget; operational failures do
-# not consume retry budget.
+# not consume retry budget. Includes dynamic threshold adaptation (FR-004),
+# deterministic fallback on exhaustion (FR-003), and metrics reporting (FR-007).
 #
 # Stdout: Valid specification content
 # Returns:
@@ -2151,6 +2257,12 @@ run_specify_phase_with_validation_retries() {
     local specify_last_failures=""
     local last_operational_reason=""
     local validation_rc=0
+    local specify_first_attempt_pass=false
+    local specify_fallback_used=false
+    local specify_failure_reasons=""
+
+    # Dynamic threshold adaptation (FR-004)
+    _compute_dynamic_thresholds "${ISSUE_BODY:-}"
 
     while [[ "$specify_retry_count" -lt "$SPECIFY_MAX_RETRIES" ]]; do
         SPEC_CONTENT=$(run_specify_phase_with_feedback) || {
@@ -2186,6 +2298,10 @@ run_specify_phase_with_validation_retries() {
         # Validate structural quality
         if specify_last_failures=$(_validate_spec_content "$SPEC_CONTENT"); then
             unset SPECIFY_RETRY_FEEDBACK SPECIFY_FAILED_OUTPUT 2>/dev/null || true
+            if [[ "$specify_retry_count" -eq 0 ]]; then
+                specify_first_attempt_pass=true
+            fi
+            _report_specify_metrics "$specify_first_attempt_pass" "$specify_retry_count" "$specify_fallback_used" "$specify_failure_reasons" "$((specify_retry_count + 1))"
             printf '%s' "$SPEC_CONTENT"
             return 0
         else
@@ -2200,6 +2316,9 @@ run_specify_phase_with_validation_retries() {
                 continue
             fi
         fi
+
+        # Track failure reasons for metrics
+        specify_failure_reasons="${specify_last_failures}"
 
         # Reset only after a non-operational iteration so consecutive rc=2
         # validation failures can still reach the operational-failure cap.
@@ -2218,6 +2337,23 @@ run_specify_phase_with_validation_retries() {
     done
 
     unset SPECIFY_RETRY_FEEDBACK SPECIFY_FAILED_OUTPUT 2>/dev/null || true
+
+    # Deterministic fallback (FR-003)
+    if [[ "$specify_operational_failures" -lt "$SPECIFY_MAX_OPERATIONAL_FAILURES" ]]; then
+        echo "[Specify] ⚠️  Activating deterministic fallback skeleton..." >&2
+        local fallback_content
+        if fallback_content=$(_generate_fallback_skeleton "${ISSUE_TITLE:-}" "${ISSUE_BODY:-}" "${ISSUE_NUMBER:-0}" "${ISSUE_URL:-}"); then
+            if [[ -n "$fallback_content" ]]; then
+                specify_fallback_used=true
+                _report_specify_metrics "$specify_first_attempt_pass" "$specify_retry_count" "$specify_fallback_used" "$specify_failure_reasons" "$specify_retry_count"
+                printf '%s' "$fallback_content"
+                return 0
+            fi
+        fi
+        echo "[Specify] ⚠️  Fallback skeleton generation failed" >&2
+    fi
+
+    # Complete failure path
     if [[ "$specify_operational_failures" -ge "$SPECIFY_MAX_OPERATIONAL_FAILURES" ]]; then
         echo "Error: Specify phase encountered ${specify_operational_failures} consecutive operational failures (limit: ${SPECIFY_MAX_OPERATIONAL_FAILURES})." >&2
         echo "Last operational failure: ${last_operational_reason}" >&2
@@ -2228,7 +2364,54 @@ run_specify_phase_with_validation_retries() {
         # Emit structured validation errors for downstream fallback consumption (FR-001)
         _emit_validation_errors "1" "specify" "$specify_last_failures"
     fi
+    _report_specify_metrics "$specify_first_attempt_pass" "$specify_retry_count" "$specify_fallback_used" "$specify_failure_reasons" "$specify_retry_count"
     return 1
+}
+
+# ---------------------------------------------------------------------------
+# _report_specify_metrics <first_attempt_pass> <total_retries> <fallback_used> <failure_reasons> [total_attempts]
+#
+# Emits JSON metrics to stderr and GITHUB_OUTPUT for CI visibility (FR-007).
+#
+# Parameters:
+#   first_attempt_pass - "true" or "false"
+#   total_retries      - Integer count of validation-consuming attempts
+#   fallback_used      - "true" or "false"
+#   failure_reasons    - Raw failure text (may be empty)
+#   total_attempts     - Optional explicit total attempts value
+# ---------------------------------------------------------------------------
+_report_specify_metrics() {
+    local first_attempt_pass="${1:-false}"
+    local total_retries="${2:-0}"
+    local fallback_used="${3:-false}"
+    local failure_reasons="${4:-}"
+    local total_attempts="${5:-$((total_retries + 1))}"
+
+    # Build failure reasons array
+    local reasons_json="[]"
+    if [[ -n "$failure_reasons" ]]; then
+        reasons_json="["
+        local first=true
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            local cat="${line%%:*}"
+            if [[ "$first" == "true" ]]; then
+                first=false
+            else
+                reasons_json+=","
+            fi
+            reasons_json+="\"${cat}\""
+        done <<< "$failure_reasons"
+        reasons_json+="]"
+    fi
+
+    local metrics_json
+    metrics_json="{\"first_attempt_success\":${first_attempt_pass},\"total_attempts\":${total_attempts},\"fallback_activated\":${fallback_used},\"failure_reasons\":${reasons_json}}"
+
+    echo "[Specify] 📊 Metrics: ${metrics_json}" >&2
+
+    # Output to GITHUB_OUTPUT for CI visibility
+    echo "specify_metrics=${metrics_json}" >> "${GITHUB_OUTPUT:-/dev/null}"
 }
 
 # ---------------------------------------------------------------------------
@@ -3624,6 +3807,14 @@ run_single_phase() {
             echo ""
             echo "=== Phase 2: Clarify + Checklist ==="
             run_clarify_phase || { echo "Error: Clarify phase failed after retries" >&2; exit 1; }
+            # Post-clarify re-validation (FR-009): warn if spec no longer passes quality checks
+            if [[ -f "$SPEC_DIR/spec.md" ]]; then
+                _post_clarify_failures=""
+                if ! _post_clarify_failures=$(validate_spec_quality "$SPEC_DIR/spec.md"); then
+                    echo "[Specify] ⚠️  Post-clarify re-validation warning: spec.md no longer passes structural checks" >&2
+                    echo "[Specify]    Failures: $(printf '%s' "$_post_clarify_failures" | tr '\n' '; ')" >&2
+                fi
+            fi
             log_file_header "Phase 2" "$SPEC_DIR/spec.md"
             echo "✓ Clarify complete: spec.md updated"
             run_checklist_phase || { echo "Error: Checklist phase failed after retries" >&2; exit 1; }
@@ -3754,6 +3945,14 @@ else
     echo ""
     echo "=== Phase 2/7: Clarify ==="
     run_clarify_phase || { echo "Error: Clarify phase failed after retries" >&2; exit 1; }
+    # Post-clarify re-validation (FR-009): warn if spec no longer passes quality checks
+    if [[ -f "$SPEC_DIR/spec.md" ]]; then
+        _post_clarify_failures=""
+        if ! _post_clarify_failures=$(validate_spec_quality "$SPEC_DIR/spec.md"); then
+            echo "[Specify] ⚠️  Post-clarify re-validation warning: spec.md no longer passes structural checks" >&2
+            echo "[Specify]    Failures: $(printf '%s' "$_post_clarify_failures" | tr '\n' '; ')" >&2
+        fi
+    fi
     log_file_header "Phase 2" "$SPEC_DIR/spec.md"
     echo "✓ Phase 2 complete: spec.md updated with clarifications"
 

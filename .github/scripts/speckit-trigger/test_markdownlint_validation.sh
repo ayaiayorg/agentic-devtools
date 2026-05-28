@@ -549,6 +549,17 @@ Content."
 result=$(strip_llm_preamble "$input_h3" "### Sub Heading" 2>/dev/null)
 assert_eq "h3 heading is valid md start" "$input_h3" "$result"
 
+# T-preamble-11b: 4-space-indented heading is code block, not a valid heading start
+input_indented_code="    # Not A Heading
+# Real Heading
+
+Content."
+expected_indented_code="# Real Heading
+
+Content."
+result=$(strip_llm_preamble "$input_indented_code" "# Real Heading" 2>/dev/null)
+assert_eq "4-space indented heading is not treated as markdown heading" "$expected_indented_code" "$result"
+
 # T-preamble-12: HTML comment start is valid markdown (no preamble — no-op)
 input_comment="<!-- markdownlint-disable MD013 -->
 # My Heading

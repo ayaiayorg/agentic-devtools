@@ -829,6 +829,8 @@ assert_contains "Feedback contains missing sections guidance" "Missing Mandatory
 for mandatory_section in "${MANDATORY_SECTIONS[@]}"; do
     assert_contains "Feedback includes mandatory heading: ${mandatory_section}" "$mandatory_section" "$feedback"
 done
+expected_mandatory_csv="${MANDATORY_SECTIONS[0]}, ${MANDATORY_SECTIONS[1]}, ${MANDATORY_SECTIONS[2]}, ${MANDATORY_SECTIONS[3]}"
+assert_contains "Feedback preserves full multi-word section headings in remediation list" "$expected_mandatory_csv" "$feedback"
 assert_contains "Feedback lists headings as a comma-separated sequence" ", ##" "$feedback"
 assert_contains "Feedback contains requirements guidance" "Insufficient Functional Requirements" "$feedback"
 assert_contains "Feedback mentions minimum FR count" "${MIN_FUNCTIONAL_REQUIREMENTS}" "$feedback"
@@ -1097,6 +1099,77 @@ output=$(_check_bullet_ratio "$TC25_FILE" 2>/dev/null) || rc=$?
 assert_eq "Longer closing fence allows post-fence bullets to be counted" "1" "$rc"
 assert_contains "Bullet ratio failure still reports configured threshold" "/80" "$output"
 rm -f "$TC25_FILE"
+
+# ---------------------------------------------------------------------------
+# TC26: Fallback skeleton normalizes bullet-marked issue body lines
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== TC26: Fallback skeleton strips markdown bullet markers from issue body ==="
+TC26_ISSUE_BODY=$'- unique-bullet-alpha\n- unique-bullet-beta\n- unique-bullet-gamma\n- unique-bullet-delta\n- unique-bullet-epsilon\n- unique-bullet-zeta\n- unique-bullet-eta\n- unique-bullet-theta\n- unique-bullet-iota\n- unique-bullet-kappa\n- unique-bullet-lambda\n- unique-bullet-mu'
+rc=0
+output=$(_generate_fallback_skeleton "Fallback Bullet Normalization" "$TC26_ISSUE_BODY" "1640" "https://github.com/ayaiayorg/agentic-devtools/pull/1640" 2>/dev/null) || rc=$?
+assert_eq "Fallback skeleton generation succeeds for bullet-heavy issue body" "0" "$rc"
+assert_contains "Fallback keeps issue body content text" "unique-bullet-alpha" "$output"
+assert_not_contains "Fallback removes markdown bullet marker from issue body line" "- unique-bullet-alpha" "$output"
+
+# ---------------------------------------------------------------------------
+# TC27: Dynamic thresholds handle short/long/empty/200-char boundaries
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== TC27: _compute_dynamic_thresholds boundary behavior ==="
+OLD_MIN_SPEC_BYTES_TC27="$MIN_SPEC_BYTES"
+OLD_MIN_SPEC_BYTES_BASELINE_TC27="${MIN_SPEC_BYTES_BASELINE:-$MIN_SPEC_BYTES}"
+OLD_REDUCTION_FACTOR_TC27="$AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR"
+MIN_SPEC_BYTES=2048
+MIN_SPEC_BYTES_BASELINE=2048
+AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR="0.6"
+
+_compute_dynamic_thresholds "short body"
+assert_eq "Short body (<200 chars) reduces MIN_SPEC_BYTES" "1228" "$MIN_SPEC_BYTES"
+
+body_200=$(printf 'a%.0s' {1..200})
+_compute_dynamic_thresholds "$body_200"
+assert_eq "Exactly 200 chars keeps baseline MIN_SPEC_BYTES" "2048" "$MIN_SPEC_BYTES"
+
+body_long=$(printf 'a%.0s' {1..2001})
+MIN_SPEC_BYTES=1228
+_compute_dynamic_thresholds "$body_long"
+assert_eq "Long body (>200 chars) resets MIN_SPEC_BYTES to baseline" "2048" "$MIN_SPEC_BYTES"
+
+_compute_dynamic_thresholds ""
+assert_eq "Empty body reduces MIN_SPEC_BYTES" "1228" "$MIN_SPEC_BYTES"
+
+MIN_SPEC_BYTES="$OLD_MIN_SPEC_BYTES_TC27"
+MIN_SPEC_BYTES_BASELINE="$OLD_MIN_SPEC_BYTES_BASELINE_TC27"
+AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR="$OLD_REDUCTION_FACTOR_TC27"
+
+# ---------------------------------------------------------------------------
+# TC28: Reduction-factor validation falls back to default for invalid values
+# ---------------------------------------------------------------------------
+echo ""
+echo "=== TC28: AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR invalid handling ==="
+TC28_INVALID_OUTPUT=$(AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR="not-a-number" bash -c '
+set -euo pipefail
+SCRIPT_DIR="$1"
+source "$SCRIPT_DIR/lib/spec-validation.sh"
+printf "AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR=%s\n" "$AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR"
+MIN_SPEC_BYTES=2048
+MIN_SPEC_BYTES_BASELINE=2048
+_compute_dynamic_thresholds "short body"
+printf "MIN_SPEC_BYTES=%s\n" "$MIN_SPEC_BYTES"
+' -- "$SCRIPT_DIR" 2>&1)
+assert_contains "Warns on non-decimal reduction factor" "not a valid decimal. Using default (0.6)." "$TC28_INVALID_OUTPUT"
+assert_contains "Invalid reduction factor falls back to 0.6" "AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR=0.6" "$TC28_INVALID_OUTPUT"
+assert_contains "Fallback factor is applied to short-body reduction" "MIN_SPEC_BYTES=1228" "$TC28_INVALID_OUTPUT"
+
+TC28_RANGE_OUTPUT=$(AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR="1.5" bash -c '
+set -euo pipefail
+SCRIPT_DIR="$1"
+source "$SCRIPT_DIR/lib/spec-validation.sh"
+printf "AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR=%s\n" "$AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR"
+' -- "$SCRIPT_DIR" 2>&1)
+assert_contains "Warns on out-of-range reduction factor" "outside valid range (0.0–1.0). Using default (0.6)." "$TC28_RANGE_OUTPUT"
+assert_contains "Out-of-range reduction factor falls back to 0.6" "AGDT_MIN_SPEC_BYTES_REDUCTION_FACTOR=0.6" "$TC28_RANGE_OUTPUT"
 
 # ---------------------------------------------------------------------------
 # Summary
