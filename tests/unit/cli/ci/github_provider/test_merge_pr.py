@@ -41,3 +41,20 @@ class TestMergePR:
 
         args = mock_run_safe.call_args[0][0]
         assert "PUT" in args
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_merge_pr_sets_commit_title_for_squash(self, mock_run_safe) -> None:
+        class _Result:
+            returncode = 0
+            stdout = "{}"
+            stderr = ""
+
+        mock_run_safe.return_value = _Result()
+
+        provider = GitHubActionsProvider(repo="owner/repo")
+        provider.merge_pr(7, "deadbeef", "squash", commit_message="feat: squash title")
+
+        kwargs = mock_run_safe.call_args[1]
+        body = json.loads(kwargs["input"])
+        assert body["merge_method"] == "squash"
+        assert body["commit_title"] == "feat: squash title"

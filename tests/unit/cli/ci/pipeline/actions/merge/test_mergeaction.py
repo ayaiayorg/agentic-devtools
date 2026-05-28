@@ -246,6 +246,16 @@ class TestMergeAction:
             42, "sha123", "squash", commit_message="Fix bug (#42)"
         )
 
+    def test_execute_uses_clean_fallback_title_for_squash(self) -> None:
+        """Fallback squash title does not duplicate PR number when PR title is missing."""
+        snapshot = PRStateSnapshot(pr_number=42, head_sha="sha123", commit_count=3, title="")
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        action = MergeAction()
+        result = action.execute(provider, snapshot, derived)
+        assert result.decision == ActionDecision.EXECUTE
+        provider.merge_pr.assert_called_once_with(42, "sha123", "squash", commit_message="PR #42")
+
     def test_execute_uses_rebase_when_single_commit(self) -> None:
         """MergeAction uses rebase merge when commit_count == 1."""
         snapshot = PRStateSnapshot(pr_number=42, head_sha="sha123", commit_count=1)

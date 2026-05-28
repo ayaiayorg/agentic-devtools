@@ -506,29 +506,8 @@ def _request_copilot_review_if_needed(
     copilot_review: ReviewInfo | None,
     *,
     failure_context: str,
-    repair_dispatched: bool = False,
-    unresolved_comment_count: int = 0,
 ) -> str | None:
-    """Request Copilot review unless it is already pending or already exhausted.
-
-    Additional guards:
-    - Skip if repair was just dispatched (avoids premature review during fix cycle).
-    - Skip if unresolved review comments exist (avoids defeating approval gates).
-    """
-    if repair_dispatched:
-        logger.info(
-            "PR #%d skipping Copilot review request (reason=repair_dispatched)",
-            pr_number,
-        )
-        return "repair_dispatched"
-
-    if unresolved_comment_count > 0:
-        logger.info(
-            "PR #%d skipping Copilot review request (reason=unresolved_comments, count=%d)",
-            pr_number,
-            unresolved_comment_count,
-        )
-        return "unresolved_comments"
+    """Request Copilot review unless it is already pending or already exhausted."""
 
     skip_reason = _get_copilot_review_request_skip_reason(pr_meta, copilot_review)
     if skip_reason:

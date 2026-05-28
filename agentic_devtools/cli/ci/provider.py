@@ -130,7 +130,7 @@ class CIPlatformProvider(ABC):
             pr_number: Pull request number.
             head_sha: Expected HEAD SHA (for safety check).
             method: Merge method (e.g., "squash", "merge", "rebase").
-            commit_message: Optional commit message for squash merges.
+            commit_message: Optional squash commit title (subject line only).
         """
 
     @abstractmethod

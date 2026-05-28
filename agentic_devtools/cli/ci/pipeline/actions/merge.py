@@ -21,8 +21,9 @@ def _build_squash_commit_message(snapshot: PRStateSnapshot) -> str:
 
     Uses the PR title as the commit subject line with the PR number appended.
     """
-    title = snapshot.title or f"PR #{snapshot.pr_number}"
-    return f"{title} (#{snapshot.pr_number})"
+    if snapshot.title:
+        return f"{snapshot.title} (#{snapshot.pr_number})"
+    return f"PR #{snapshot.pr_number}"
 
 
 def _is_review_clean(snapshot: PRStateSnapshot) -> bool:
