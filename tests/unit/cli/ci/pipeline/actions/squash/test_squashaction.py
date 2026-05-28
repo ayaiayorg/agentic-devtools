@@ -26,6 +26,15 @@ class TestSquashAction:
         assert result.decision == ActionDecision.SKIP
         assert "active" in result.details.lower()
 
+    def test_skip_when_repair_dispatched(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=1, commit_count=3, ci_status="passing")
+        derived = DerivedState(snapshot)
+        derived.set("repair_dispatched", True)
+        action = SquashAction()
+        result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.SKIP
+        assert "repair dispatched" in result.details.lower()
+
     def test_skip_when_ci_not_passing(self) -> None:
         snapshot = PRStateSnapshot(pr_number=1, commit_count=3, ci_status="failing")
         derived = DerivedState(snapshot)
@@ -47,7 +56,8 @@ class TestSquashAction:
         result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.EXECUTE
 
-    def test_skip_when_derived_pending_review_is_true(self) -> None:
+    def test_execute_when_derived_pending_review_is_true(self) -> None:
+        """Pending review does NOT block squash — only active session does."""
         snapshot = PRStateSnapshot(
             pr_number=1,
             commit_count=3,
@@ -58,8 +68,7 @@ class TestSquashAction:
         derived.set("copilot_review_pending", True)
         action = SquashAction()
         result = action.evaluate(snapshot, derived)
-        assert result.decision == ActionDecision.SKIP
-        assert "pending" in result.details.lower()
+        assert result.decision == ActionDecision.EXECUTE
 
     def test_execute_calls_squash(self) -> None:
         snapshot = PRStateSnapshot(

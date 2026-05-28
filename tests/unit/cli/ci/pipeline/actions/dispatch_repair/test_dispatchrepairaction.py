@@ -181,3 +181,31 @@ class TestDispatchRepairAction:
         check_names = [cr.name for cr in passed_checks]
         assert "Tests ✅" in check_names
         assert "flaky-optional" not in check_names
+
+    def test_execute_sets_repair_dispatched_on_derived(self) -> None:
+        """execute() must set derived.repair_dispatched after successful dispatch."""
+        snapshot = PRStateSnapshot(
+            pr_number=42,
+            ci_status="failing",
+            head_sha="abc123",
+            copilot_review_id=0,
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.dispatch_repair.return_value = 999
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+                return_value=(False, 0),
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_cycle_limit",
+                return_value=(False, 1),
+            ),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+            assert result.decision == ActionDecision.EXECUTE
+            assert derived.repair_dispatched is True

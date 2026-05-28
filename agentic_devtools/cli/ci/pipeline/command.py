@@ -45,6 +45,12 @@ def run_ai_pr_loop_v2(
     of 8 action evaluators. Every run evaluates all actions regardless of
     trigger type.
 
+    Pipeline ordering:
+        Guards → Publish → DispatchRepair → Squash → ResolveThreads → RequestReview → Approve → Merge
+
+    ResolveThreads runs before RequestReview so that resolved threads are reflected in
+    derived state before the review-request guard evaluates unresolved_threads.
+
     Args:
         provider: CI platform provider for API interactions.
         event_payload: Normalized event payload from the trigger.
@@ -87,10 +93,10 @@ def run_ai_pr_loop_v2(
         actions: list[Action] = [
             GuardsAction(),
             PublishAction(),
-            RequestReviewAction(),
-            ResolveThreadsAction(),
             DispatchRepairAction(),
             SquashAction(),
+            ResolveThreadsAction(),
+            RequestReviewAction(),
             ApproveAction(),
             MergeAction(),
         ]

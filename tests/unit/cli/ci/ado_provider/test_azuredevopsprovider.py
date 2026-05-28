@@ -80,6 +80,8 @@ class TestAzureDevOpsProvider:
         with pytest.raises(NotImplementedError):
             provider.merge_pr(1, "sha", "squash")
         with pytest.raises(NotImplementedError):
+            provider.merge_pr(1, "sha", "squash", commit_title="Title (#1)")
+        with pytest.raises(NotImplementedError):
             provider.request_reviewer(1, "user")
         with pytest.raises(NotImplementedError):
             provider.publish_pr(1)

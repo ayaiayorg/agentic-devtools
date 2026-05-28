@@ -112,3 +112,37 @@ class TestRunAiPrLoopV2:
         ):
             result = run_ai_pr_loop_v2(provider, event)
             assert result == EXIT_GUARD_BLOCKED
+
+    def test_pipeline_runs_resolve_threads_before_request_review(self) -> None:
+        """Thread resolution must run before review requests in the same pipeline pass."""
+        provider = MagicMock()
+        event = EventPayload(pr_number=1)
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.command.acquire_lock",
+                return_value="token-123",
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.command.release_lock",
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.command.build_pr_state_snapshot",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.command.run_pipeline",
+            ) as mock_run_pipeline,
+            patch(
+                "agentic_devtools.cli.ci.pipeline.command.post_summary_comment",
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.command._determine_exit_code",
+                return_value=EXIT_SUCCESS,
+            ),
+        ):
+            run_ai_pr_loop_v2(provider, event)
+
+        actions = mock_run_pipeline.call_args.args[2]
+        action_names = [action.name for action in actions]
+        assert action_names.index("resolve_threads") < action_names.index("request_review")

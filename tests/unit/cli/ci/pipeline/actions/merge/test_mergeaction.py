@@ -225,6 +225,50 @@ class TestMergeAction:
         assert result.decision == ActionDecision.EXECUTE
 
     def test_execute_calls_provider(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=42, head_sha="sha123", commit_count=1)
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        action = MergeAction()
+        result = action.execute(provider, snapshot, derived)
+        assert result.decision == ActionDecision.EXECUTE
+        provider.merge_pr.assert_called_once_with(42, "sha123", "rebase")
+
+    def test_execute_uses_squash_when_multi_commit(self) -> None:
+        """MergeAction uses squash merge when commit_count > 1."""
+        snapshot = PRStateSnapshot(pr_number=42, head_sha="sha123", commit_count=3, title="Fix bug")
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        action = MergeAction()
+        result = action.execute(provider, snapshot, derived)
+        assert result.decision == ActionDecision.EXECUTE
+        assert "squash" in result.details.lower()
+        provider.merge_pr.assert_called_once_with(
+            42, "sha123", "squash", commit_title="Fix bug (#42)"
+        )
+
+    def test_execute_uses_clean_fallback_title_for_squash(self) -> None:
+        """Fallback squash title does not duplicate PR number when PR title is missing."""
+        snapshot = PRStateSnapshot(pr_number=42, head_sha="sha123", commit_count=3, title="")
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        action = MergeAction()
+        result = action.execute(provider, snapshot, derived)
+        assert result.decision == ActionDecision.EXECUTE
+        provider.merge_pr.assert_called_once_with(42, "sha123", "squash", commit_title="PR #42")
+
+    def test_execute_uses_rebase_when_single_commit(self) -> None:
+        """MergeAction uses rebase merge when commit_count == 1."""
+        snapshot = PRStateSnapshot(pr_number=42, head_sha="sha123", commit_count=1)
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        action = MergeAction()
+        result = action.execute(provider, snapshot, derived)
+        assert result.decision == ActionDecision.EXECUTE
+        assert "rebase" in result.details.lower()
+        provider.merge_pr.assert_called_once_with(42, "sha123", "rebase")
+
+    def test_execute_uses_rebase_when_commit_count_default(self) -> None:
+        """MergeAction falls back to rebase when commit_count is default (1)."""
         snapshot = PRStateSnapshot(pr_number=42, head_sha="sha123")
         derived = DerivedState(snapshot)
         provider = MagicMock()

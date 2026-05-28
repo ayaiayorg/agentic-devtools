@@ -16,7 +16,8 @@ class SquashAction:
 
     Preconditions:
     - Commits above merge-base > 1
-    - No active Copilot session (coding or review)
+    - No repair dispatched in this run (keeps HEAD stable for the repair cycle)
+    - No active Copilot coding session (pending review does NOT block squash)
     - CI passing
 
     Idempotency: Already 1 commit → skip.
@@ -40,7 +41,18 @@ class SquashAction:
                 details=f"Only {snapshot.commit_count} commit(s) — nothing to squash",
             )
 
-        # No active Copilot session
+        # Repair dispatch in this run should keep HEAD stable for the repair cycle.
+        repair_dispatched = getattr(derived, "repair_dispatched", False)
+        preconditions["no_repair_dispatched"] = not repair_dispatched
+        if repair_dispatched:
+            return ActionResult(
+                name=self.name,
+                decision=ActionDecision.SKIP,
+                preconditions=preconditions,
+                details="Repair dispatched — deferring squash",
+            )
+
+        # No active Copilot session (coding/repair only — pending review does NOT block squash)
         preconditions["no_active_session"] = not snapshot.active_session
         if snapshot.active_session:
             return ActionResult(
@@ -48,17 +60,6 @@ class SquashAction:
                 decision=ActionDecision.SKIP,
                 preconditions=preconditions,
                 details="Copilot session active — deferring squash",
-            )
-
-        # No pending Copilot review (review in progress = session-like)
-        pending_review = derived.copilot_review_pending
-        preconditions["no_pending_review"] = not pending_review
-        if pending_review:
-            return ActionResult(
-                name=self.name,
-                decision=ActionDecision.SKIP,
-                preconditions=preconditions,
-                details="Copilot review pending — deferring squash",
             )
 
         # CI must be passing

@@ -16,6 +16,16 @@ from agentic_devtools.cli.ci.provider import CIPlatformProvider
 logger = logging.getLogger(__name__)
 
 
+def _build_squash_commit_title(snapshot: PRStateSnapshot) -> str:
+    """Build a descriptive commit title for squash merges.
+
+    Uses the PR title as the commit subject line with the PR number appended.
+    """
+    if snapshot.title:
+        return f"{snapshot.title} (#{snapshot.pr_number})"
+    return f"PR #{snapshot.pr_number}"
+
+
 def _is_review_clean(snapshot: PRStateSnapshot) -> bool:
     """Return True if the Copilot review on HEAD is clean (not actionable).
 
@@ -179,8 +189,20 @@ class MergeAction:
         derived: DerivedState,
     ) -> ActionResult:
         """Execute the merge."""
+        # Use squash merge for multi-commit PRs to maintain clean history
+        commit_count = getattr(derived, "commit_count", snapshot.commit_count)
+        if commit_count > 1:
+            method = "squash"
+            commit_title = _build_squash_commit_title(snapshot)
+        else:
+            method = "rebase"
+            commit_title = None
+
         try:
-            provider.merge_pr(snapshot.pr_number, snapshot.head_sha, "rebase")
+            if method == "squash" and commit_title:
+                provider.merge_pr(snapshot.pr_number, snapshot.head_sha, method, commit_title=commit_title)
+            else:
+                provider.merge_pr(snapshot.pr_number, snapshot.head_sha, method)
         except Exception as exc:
             logger.error("PR #%d: Merge failed: %s", snapshot.pr_number, exc)
             return ActionResult(
@@ -190,9 +212,9 @@ class MergeAction:
                 details="merge_pr call failed",
             )
 
-        logger.info("PR #%d: Merged successfully", snapshot.pr_number)
+        logger.info("PR #%d: Merged successfully (method=%s)", snapshot.pr_number, method)
         return ActionResult(
             name=self.name,
             decision=ActionDecision.EXECUTE,
-            details="PR merged via rebase",
+            details=f"PR merged via {method}",
         )

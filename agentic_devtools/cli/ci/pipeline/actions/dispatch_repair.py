@@ -195,6 +195,8 @@ class DispatchRepairAction:
             comment_id,
         )
 
+        derived.set("repair_dispatched", True)
+
         return ActionResult(
             name=self.name,
             decision=ActionDecision.EXECUTE,

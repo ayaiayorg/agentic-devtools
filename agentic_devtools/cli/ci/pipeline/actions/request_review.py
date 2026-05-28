@@ -19,6 +19,10 @@ class RequestReviewAction:
 
     Preconditions:
     - PR is not draft (uses DerivedState)
+    - Repair was not dispatched in this pipeline run
+    - No active Copilot coding session
+    - No unresolved review threads
+    - CI is passing
     - No effective Copilot review on HEAD
     - Copilot not already requested as reviewer
 
@@ -42,6 +46,38 @@ class RequestReviewAction:
                 decision=ActionDecision.SKIP,
                 preconditions=preconditions,
                 details="PR is a draft",
+            )
+
+        # Guard: never request review when repair was just dispatched
+        repair_dispatched = getattr(derived, "repair_dispatched", False)
+        preconditions["no_repair_dispatched"] = not repair_dispatched
+        if repair_dispatched:
+            return ActionResult(
+                name=self.name,
+                decision=ActionDecision.SKIP,
+                preconditions=preconditions,
+                details="Repair dispatched — deferring review request",
+            )
+
+        # Guard: never request review when active coding session is in progress
+        preconditions["no_active_session"] = not snapshot.active_session
+        if snapshot.active_session:
+            return ActionResult(
+                name=self.name,
+                decision=ActionDecision.SKIP,
+                preconditions=preconditions,
+                details="Copilot session active — deferring review request",
+            )
+
+        # Guard: block review request when unresolved review threads exist
+        unresolved = derived.unresolved_threads
+        preconditions["no_unresolved_threads"] = unresolved == 0
+        if unresolved > 0:
+            return ActionResult(
+                name=self.name,
+                decision=ActionDecision.SKIP,
+                preconditions=preconditions,
+                details=f"{unresolved} unresolved thread(s) — deferring review request",
             )
 
         # CI must be passing before requesting review

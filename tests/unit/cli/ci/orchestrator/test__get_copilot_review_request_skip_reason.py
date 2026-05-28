@@ -62,3 +62,23 @@ class TestGetCopilotReviewRequestSkipReason:
         )
         result = _get_copilot_review_request_skip_reason(pr_meta, review)
         assert result is None
+
+    def test_returns_repair_dispatched(self):
+        """Returns reason when a repair was already dispatched in this run."""
+        pr_meta = _PRMetadata(requested_reviewers=[])
+        result = _get_copilot_review_request_skip_reason(
+            pr_meta,
+            None,
+            repair_dispatched=True,
+        )
+        assert result == "repair_dispatched"
+
+    def test_returns_unresolved_comments(self):
+        """Returns reason when unresolved comments exist."""
+        pr_meta = _PRMetadata(requested_reviewers=[])
+        result = _get_copilot_review_request_skip_reason(
+            pr_meta,
+            None,
+            copilot_review_comment_count=2,
+        )
+        assert result == "unresolved_comments"

@@ -52,7 +52,7 @@ class _StubAdoProvider(CIPlatformProvider):
     def approve_pr(self, pr_number: int, head_sha: str, body: str) -> bool:
         raise NotImplementedError("ADO provider stub")
 
-    def merge_pr(self, pr_number: int, head_sha: str, method: str) -> None:
+    def merge_pr(self, pr_number: int, head_sha: str, method: str, *, commit_title: str | None = None) -> None:
         raise NotImplementedError("ADO provider stub")
 
     def request_reviewer(self, pr_number: int, reviewer: str) -> None:
