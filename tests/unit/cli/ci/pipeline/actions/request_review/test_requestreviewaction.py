@@ -104,23 +104,6 @@ class TestRequestReviewAction:
         assert result.decision == ActionDecision.SKIP
         assert "session active" in result.details.lower()
 
-    def test_skip_when_snapshot_invalidated(self) -> None:
-        """Review request is blocked when snapshot was invalidated by squash."""
-        snapshot = PRStateSnapshot(
-            pr_number=1,
-            is_draft=False,
-            ci_status="passing",
-            review_state="",
-            copilot_review_id=0,
-            copilot_review_pending=False,
-        )
-        derived = DerivedState(snapshot)
-        derived.set("snapshot_invalidated", True)
-        action = RequestReviewAction()
-        result = action.evaluate(snapshot, derived)
-        assert result.decision == ActionDecision.SKIP
-        assert "snapshot invalidated" in result.details.lower()
-
     def test_skip_when_unresolved_comments(self) -> None:
         """Review request is blocked when unresolved comments exist."""
         snapshot = PRStateSnapshot(
@@ -137,6 +120,23 @@ class TestRequestReviewAction:
         result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.SKIP
         assert "unresolved" in result.details.lower()
+
+    def test_execute_when_derived_clears_unresolved_comments(self) -> None:
+        """Review request can proceed after ResolveThreadsAction updates derived state."""
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            is_draft=False,
+            ci_status="passing",
+            review_state="",
+            copilot_review_id=0,
+            copilot_review_pending=False,
+            unresolved_threads=3,
+        )
+        derived = DerivedState(snapshot)
+        derived.set("unresolved_threads", 0)
+        action = RequestReviewAction()
+        result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.EXECUTE
 
     def test_execute_when_no_review(self) -> None:
         snapshot = PRStateSnapshot(

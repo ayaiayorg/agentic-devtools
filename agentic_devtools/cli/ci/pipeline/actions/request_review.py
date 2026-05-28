@@ -65,19 +65,8 @@ class RequestReviewAction:
                 details="Copilot session active — deferring review request",
             )
 
-        # Guard: skip if snapshot was invalidated (e.g., squash changed HEAD)
-        snapshot_invalidated = getattr(derived, "snapshot_invalidated", False)
-        preconditions["no_snapshot_invalidated"] = not snapshot_invalidated
-        if snapshot_invalidated:
-            return ActionResult(
-                name=self.name,
-                decision=ActionDecision.SKIP,
-                preconditions=preconditions,
-                details="Snapshot invalidated — squash triggered review automatically",
-            )
-
         # Guard: block review request when unresolved review comments exist
-        unresolved = snapshot.unresolved_threads
+        unresolved = derived.unresolved_threads
         preconditions["no_unresolved_comments"] = unresolved == 0
         if unresolved > 0:
             return ActionResult(

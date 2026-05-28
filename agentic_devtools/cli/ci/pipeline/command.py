@@ -89,8 +89,8 @@ def run_ai_pr_loop_v2(
             PublishAction(),
             DispatchRepairAction(),
             SquashAction(),
-            RequestReviewAction(),
             ResolveThreadsAction(),
+            RequestReviewAction(),
             ApproveAction(),
             MergeAction(),
         ]
