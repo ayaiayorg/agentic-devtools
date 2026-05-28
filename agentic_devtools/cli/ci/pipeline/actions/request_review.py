@@ -44,6 +44,49 @@ class RequestReviewAction:
                 details="PR is a draft",
             )
 
+        # Guard: never request review when repair was just dispatched
+        repair_dispatched = getattr(derived, "repair_dispatched", False)
+        preconditions["no_repair_dispatched"] = not repair_dispatched
+        if repair_dispatched:
+            return ActionResult(
+                name=self.name,
+                decision=ActionDecision.SKIP,
+                preconditions=preconditions,
+                details="Repair dispatched — deferring review request",
+            )
+
+        # Guard: never request review when active coding session is in progress
+        preconditions["no_active_session"] = not snapshot.active_session
+        if snapshot.active_session:
+            return ActionResult(
+                name=self.name,
+                decision=ActionDecision.SKIP,
+                preconditions=preconditions,
+                details="Copilot session active — deferring review request",
+            )
+
+        # Guard: skip if snapshot was invalidated (e.g., squash changed HEAD)
+        snapshot_invalidated = getattr(derived, "snapshot_invalidated", False)
+        preconditions["no_snapshot_invalidated"] = not snapshot_invalidated
+        if snapshot_invalidated:
+            return ActionResult(
+                name=self.name,
+                decision=ActionDecision.SKIP,
+                preconditions=preconditions,
+                details="Snapshot invalidated — squash triggered review automatically",
+            )
+
+        # Guard: block review request when unresolved review comments exist
+        unresolved = snapshot.unresolved_threads
+        preconditions["no_unresolved_comments"] = unresolved == 0
+        if unresolved > 0:
+            return ActionResult(
+                name=self.name,
+                decision=ActionDecision.SKIP,
+                preconditions=preconditions,
+                details=f"{unresolved} unresolved comment(s) — deferring review request",
+            )
+
         # CI must be passing before requesting review
         ci_passing = snapshot.ci_status == "passing"
         preconditions["ci_passing"] = ci_passing

@@ -16,6 +16,15 @@ from agentic_devtools.cli.ci.provider import CIPlatformProvider
 logger = logging.getLogger(__name__)
 
 
+def _build_squash_commit_message(snapshot: PRStateSnapshot) -> str:
+    """Build a descriptive commit message for squash merges.
+
+    Uses the PR title as the commit subject line with the PR number appended.
+    """
+    title = snapshot.title or f"PR #{snapshot.pr_number}"
+    return f"{title} (#{snapshot.pr_number})"
+
+
 def _is_review_clean(snapshot: PRStateSnapshot) -> bool:
     """Return True if the Copilot review on HEAD is clean (not actionable).
 
@@ -179,8 +188,20 @@ class MergeAction:
         derived: DerivedState,
     ) -> ActionResult:
         """Execute the merge."""
+        # Use squash merge for multi-commit PRs to maintain clean history
+        commit_count = getattr(derived, "commit_count", snapshot.commit_count)
+        if commit_count > 1:
+            method = "squash"
+            commit_message = _build_squash_commit_message(snapshot)
+        else:
+            method = "rebase"
+            commit_message = None
+
         try:
-            provider.merge_pr(snapshot.pr_number, snapshot.head_sha, "rebase")
+            if method == "squash" and commit_message:
+                provider.merge_pr(snapshot.pr_number, snapshot.head_sha, method, commit_message=commit_message)
+            else:
+                provider.merge_pr(snapshot.pr_number, snapshot.head_sha, method)
         except Exception as exc:
             logger.error("PR #%d: Merge failed: %s", snapshot.pr_number, exc)
             return ActionResult(
@@ -190,9 +211,9 @@ class MergeAction:
                 details="merge_pr call failed",
             )
 
-        logger.info("PR #%d: Merged successfully", snapshot.pr_number)
+        logger.info("PR #%d: Merged successfully (method=%s)", snapshot.pr_number, method)
         return ActionResult(
             name=self.name,
             decision=ActionDecision.EXECUTE,
-            details="PR merged via rebase",
+            details=f"PR merged via {method}",
         )

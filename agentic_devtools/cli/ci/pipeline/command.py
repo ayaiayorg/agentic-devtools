@@ -87,10 +87,10 @@ def run_ai_pr_loop_v2(
         actions: list[Action] = [
             GuardsAction(),
             PublishAction(),
-            RequestReviewAction(),
-            ResolveThreadsAction(),
             DispatchRepairAction(),
             SquashAction(),
+            RequestReviewAction(),
+            ResolveThreadsAction(),
             ApproveAction(),
             MergeAction(),
         ]

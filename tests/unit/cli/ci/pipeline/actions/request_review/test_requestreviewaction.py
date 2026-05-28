@@ -70,6 +70,74 @@ class TestRequestReviewAction:
         assert result.decision == ActionDecision.SKIP
         assert "already requested" in result.details.lower()
 
+    def test_skip_when_repair_dispatched(self) -> None:
+        """Review request is blocked when repair was just dispatched."""
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            is_draft=False,
+            ci_status="passing",
+            review_state="",
+            copilot_review_id=0,
+            copilot_review_pending=False,
+        )
+        derived = DerivedState(snapshot)
+        derived.set("repair_dispatched", True)
+        action = RequestReviewAction()
+        result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.SKIP
+        assert "repair dispatched" in result.details.lower()
+
+    def test_skip_when_active_session(self) -> None:
+        """Review request is blocked when Copilot coding session is active."""
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            is_draft=False,
+            ci_status="passing",
+            review_state="",
+            copilot_review_id=0,
+            copilot_review_pending=False,
+            active_session=True,
+        )
+        derived = DerivedState(snapshot)
+        action = RequestReviewAction()
+        result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.SKIP
+        assert "session active" in result.details.lower()
+
+    def test_skip_when_snapshot_invalidated(self) -> None:
+        """Review request is blocked when snapshot was invalidated by squash."""
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            is_draft=False,
+            ci_status="passing",
+            review_state="",
+            copilot_review_id=0,
+            copilot_review_pending=False,
+        )
+        derived = DerivedState(snapshot)
+        derived.set("snapshot_invalidated", True)
+        action = RequestReviewAction()
+        result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.SKIP
+        assert "snapshot invalidated" in result.details.lower()
+
+    def test_skip_when_unresolved_comments(self) -> None:
+        """Review request is blocked when unresolved comments exist."""
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            is_draft=False,
+            ci_status="passing",
+            review_state="",
+            copilot_review_id=0,
+            copilot_review_pending=False,
+            unresolved_threads=3,
+        )
+        derived = DerivedState(snapshot)
+        action = RequestReviewAction()
+        result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.SKIP
+        assert "unresolved" in result.details.lower()
+
     def test_execute_when_no_review(self) -> None:
         snapshot = PRStateSnapshot(
             pr_number=1,

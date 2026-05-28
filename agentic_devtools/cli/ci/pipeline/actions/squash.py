@@ -40,7 +40,7 @@ class SquashAction:
                 details=f"Only {snapshot.commit_count} commit(s) — nothing to squash",
             )
 
-        # No active Copilot session
+        # No active Copilot session (coding/repair only — pending review does NOT block squash)
         preconditions["no_active_session"] = not snapshot.active_session
         if snapshot.active_session:
             return ActionResult(
@@ -48,17 +48,6 @@ class SquashAction:
                 decision=ActionDecision.SKIP,
                 preconditions=preconditions,
                 details="Copilot session active — deferring squash",
-            )
-
-        # No pending Copilot review (review in progress = session-like)
-        pending_review = derived.copilot_review_pending
-        preconditions["no_pending_review"] = not pending_review
-        if pending_review:
-            return ActionResult(
-                name=self.name,
-                decision=ActionDecision.SKIP,
-                preconditions=preconditions,
-                details="Copilot review pending — deferring squash",
             )
 
         # CI must be passing

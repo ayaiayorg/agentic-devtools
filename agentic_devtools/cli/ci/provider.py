@@ -123,13 +123,14 @@ class CIPlatformProvider(ABC):
         """
 
     @abstractmethod
-    def merge_pr(self, pr_number: int, head_sha: str, method: str) -> None:
+    def merge_pr(self, pr_number: int, head_sha: str, method: str, *, commit_message: str | None = None) -> None:
         """Merge a pull request.
 
         Args:
             pr_number: Pull request number.
             head_sha: Expected HEAD SHA (for safety check).
             method: Merge method (e.g., "squash", "merge", "rebase").
+            commit_message: Optional commit message for squash merges.
         """
 
     @abstractmethod

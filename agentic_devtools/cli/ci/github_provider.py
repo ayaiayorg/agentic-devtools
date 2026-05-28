@@ -663,12 +663,15 @@ class GitHubActionsProvider(CIPlatformProvider):
             raise
 
     @retry_with_backoff()
-    def merge_pr(self, pr_number: int, head_sha: str, method: str) -> None:
+    def merge_pr(self, pr_number: int, head_sha: str, method: str, *, commit_message: str | None = None) -> None:
         """Merge a pull request."""
+        body: dict[str, str] = {"sha": head_sha, "merge_method": method}
+        if commit_message and method == "squash":
+            body["commit_title"] = commit_message
         _gh_api(
             self._repo_api(f"/pulls/{pr_number}/merge"),
             method="PUT",
-            body={"sha": head_sha, "merge_method": method},
+            body=body,
         )
 
     @retry_with_backoff()
