@@ -62,6 +62,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
           DRY_RUN: ${{ vars.AGENT_MONITOR_DRY_RUN || '' }}
+          AGENT_MONITOR_MAX_EVENT_AGE: ${{ vars.AGENT_MONITOR_MAX_EVENT_AGE || '' }}
         run: |
           set -uo pipefail
 
@@ -69,8 +70,18 @@ jobs:
           START_EPOCH=$(date +%s)
           # Reserve ~30s of the 2-minute job timeout for cache save/final steps.
           SCAN_BUDGET_SECONDS=90
+          # Recency boundary: ignore events older than this many seconds.
+          # Default 600s (10 min = 2× the 5-min poll interval) prevents cold-start
+          # storms on first run or cache eviction (only recent events are dispatched).
+          MAX_EVENT_AGE_SECONDS="${AGENT_MONITOR_MAX_EVENT_AGE:-600}"
+          # Validate MAX_EVENT_AGE_SECONDS is numeric; fall back to default if not
+          if ! [[ "$MAX_EVENT_AGE_SECONDS" =~ ^[0-9]+$ ]]; then
+            echo "::warning::AGENT_MONITOR_MAX_EVENT_AGE='$MAX_EVENT_AGE_SECONDS' is not numeric; defaulting to 600"
+            MAX_EVENT_AGE_SECONDS=600
+          fi
           DISPATCHES=0
           EVENTS_FOUND=0
+          EVENTS_SKIPPED_STALE=0
           PRS_SCANNED=0
           SCAN_ERRORS=0
           TERMINAL_EVENTS="copilot_work_finished copilot_work_finished_failure"
@@ -121,6 +132,7 @@ jobs:
           REPO_NAME=${GITHUB_REPOSITORY#*/}
           PR_PAGES=""
           END_CURSOR=""
+          NL=$'\n'
           for PAGE in 1 2 3 4 5; do
             if [ -n "$END_CURSOR" ]; then
               PAGE_JSON=$(gh api graphql \
@@ -191,7 +203,7 @@ jobs:
               }
             fi
 
-            PR_PAGES="${PR_PAGES}${PR_PAGES:+$'\n'}${PAGE_JSON}"
+            PR_PAGES="${PR_PAGES}${PR_PAGES:+${NL}}${PAGE_JSON}"
             HAS_NEXT_PAGE=$(echo "$PAGE_JSON" | jq -r '.data.repository.pullRequests.pageInfo.hasNextPage')
             END_CURSOR=$(echo "$PAGE_JSON" | jq -r '.data.repository.pullRequests.pageInfo.endCursor // empty')
 
@@ -280,6 +292,23 @@ jobs:
                 EVENT_TYPE=$(echo "$row" | jq -r '.event')
                 EVENTS_FOUND=$((EVENTS_FOUND + 1))
 
+                # Recency boundary: skip events older than MAX_EVENT_AGE_SECONDS.
+                # Prevents cold-start storms on first run or cache eviction.
+                EVENT_CREATED=$(echo "$row" | jq -r '.created_at // empty')
+                if [ -n "$EVENT_CREATED" ]; then
+                  EVENT_EPOCH=$(date -d "$EVENT_CREATED" +%s 2>/dev/null || echo "0")
+                  EVENT_AGE=$(( $(date +%s) - EVENT_EPOCH ))
+                  if [ "$EVENT_AGE" -gt "$MAX_EVENT_AGE_SECONDS" ]; then
+                    log_action "pr_number=$pr event_id=$EVENT_ID event_type=$EVENT_TYPE action=skipped reason=stale_event age=${EVENT_AGE}s max=${MAX_EVENT_AGE_SECONDS}s"
+                    EVENTS_SKIPPED_STALE=$((EVENTS_SKIPPED_STALE + 1))
+                    # Still mark as seen so future runs don't re-evaluate (only if not already present)
+                    if ! is_seen "$EVENT_ID"; then
+                      SEEN_EVENTS=$(echo "$SEEN_EVENTS" | jq --argjson id "$EVENT_ID" '. + [$id]')
+                    fi
+                    continue
+                  fi
+                fi
+
                 # Deduplication check (FR-002)
                 if is_seen "$EVENT_ID"; then
                   log_action "pr_number=$pr event_id=$EVENT_ID event_type=$EVENT_TYPE action=skipped reason=already_seen"
@@ -318,14 +347,14 @@ jobs:
           if is_truthy "${DRY_RUN:-}"; then
             echo "save_cache=false" >> "${GITHUB_OUTPUT:-/dev/null}"
           else
-            # Prune seen events to last 500 entries (FR-002: bounded cache)
-            SEEN_EVENTS=$(echo "$SEEN_EVENTS" | jq '.[-500:]')
+            # Deduplicate and prune seen events to last 500 entries (FR-002: bounded cache)
+            SEEN_EVENTS=$(echo "$SEEN_EVENTS" | jq 'unique | .[-500:]')
             echo "$SEEN_EVENTS" > .cache/seen-events.json
             echo "save_cache=true" >> "${GITHUB_OUTPUT:-/dev/null}"
           fi
 
           # --- Summary output (NFR-004) ---
-          log_action "action=complete prs_scanned=$PRS_SCANNED events_found=$EVENTS_FOUND dispatches=$DISPATCHES errors=$SCAN_ERRORS"
+          log_action "action=complete prs_scanned=$PRS_SCANNED events_found=$EVENTS_FOUND events_skipped_stale=$EVENTS_SKIPPED_STALE dispatches=$DISPATCHES errors=$SCAN_ERRORS"
 
           {
             echo "## Agent Session Monitor"
@@ -334,6 +363,7 @@ jobs:
             echo "| --- | --- |"
             echo "| PRs scanned | $PRS_SCANNED |"
             echo "| Events found | $EVENTS_FOUND |"
+            echo "| Events skipped (stale) | $EVENTS_SKIPPED_STALE |"
             echo "| Dispatches issued | $DISPATCHES |"
             echo "| Errors | $SCAN_ERRORS |"
           } >> "$GITHUB_STEP_SUMMARY"

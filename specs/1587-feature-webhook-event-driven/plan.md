@@ -85,7 +85,7 @@ All decisions align with the proven `squash-wait-scheduler.yml` pattern.
    - Deduplicates against seen-events set
    - Dispatches via `gh workflow run ai-pr-loop.yml --repo "$GITHUB_REPOSITORY" --field pr_number="$pr" --field trigger_reason=agent_session_finished`
    - Appends processed event IDs to seen-events JSON and prunes the array to the last N IDs (e.g., 500)
-   - Enforces a scan budget (e.g., stop at ~110 seconds) so runtime stays within 2 minutes; remaining PRs are handled in subsequent runs
+   - Enforces a scan budget (stop at 90 seconds) so runtime stays within 2 minutes; remaining PRs are handled in subsequent runs
    - Emits structured logs: `event_id=X pr_number=Y action=dispatched|skipped reason=...`
    - Isolates per-PR scan failures so one PR does not block others, records whether any PR scan
      errors occurred (for example via a step output or error flag file), and completes the step
@@ -155,7 +155,7 @@ All decisions align with the proven `squash-wait-scheduler.yml` pattern.
 | Risk | Likelihood | Impact | Mitigation |
 | --- | --- | --- | --- |
 | Cache eviction causes re-dispatch | Medium | Low | Concurrency group (added in Phase 1) serializes runs and reduces overlap; retained seen-event cache reduces duplicate dispatches within the cache window, with occasional re-dispatch after eviction accepted as low impact |
-| API rate limiting with many open PRs | Low | Medium | Process PRs by `updatedAt` descending, cap each run to ~110s within `timeout-minutes: 2`, and keep per-PR error isolation so one failing PR does not abort the run |
+| API rate limiting with many open PRs | Low | Medium | Process PRs by `updatedAt` descending, cap each run to 90s within `timeout-minutes: 2`, and keep per-PR error isolation so one failing PR does not abort the run |
 | Monitor overlapping with itself | Low | Low | Concurrency group `agent-session-monitor` with `cancel-in-progress: false` (defined in Phase 1) serializes scheduled runs; `timeout-minutes: 2` as a secondary safeguard |
 | `gh workflow run` fails silently | Low | Medium | Check exit code; log failures as `::error::` |
 | Cache grows unbounded | Low | Low | Retain only the last N event IDs (e.g., 500) in `.cache/seen-events.json`; use the Phase 1 per-run cache key `agent-monitor-seen-events-${{ github.run_id }}` with restore prefix matching so the restored payload stays bounded without introducing an undefined bucket variable |

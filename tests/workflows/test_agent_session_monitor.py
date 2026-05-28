@@ -116,6 +116,13 @@ class TestAgentSessionMonitor:
         content = AGENT_SESSION_MONITOR.read_text(encoding="utf-8")
         assert ".[-500:]" in content
 
+    def test_has_recency_boundary(self) -> None:
+        content = AGENT_SESSION_MONITOR.read_text(encoding="utf-8")
+        assert "MAX_EVENT_AGE_SECONDS" in content
+        assert "AGENT_MONITOR_MAX_EVENT_AGE" in content
+        assert "reason=stale_event" in content
+        assert "EVENTS_SKIPPED_STALE" in content
+
     def test_valid_yaml(self) -> None:
         content = AGENT_SESSION_MONITOR.read_text(encoding="utf-8")
         parsed = yaml.safe_load(content)
@@ -149,7 +156,7 @@ class TestAgentSessionMonitor:
                 set -euo pipefail
                 if [ "$1" = "api" ] && [ "$2" = "graphql" ]; then
                   cat <<'JSON'
-                [{"data":{"repository":{"pullRequests":{"nodes":[{"number":42,"isCrossRepository":false,"updatedAt":"2026-05-28T00:00:00Z","labels":{"nodes":[]}}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}]
+                {"data":{"repository":{"pullRequests":{"nodes":[{"number":42,"isCrossRepository":false,"updatedAt":"2026-05-28T00:00:00Z","labels":{"nodes":[]}}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}
                 JSON
                   exit 0
                 fi
