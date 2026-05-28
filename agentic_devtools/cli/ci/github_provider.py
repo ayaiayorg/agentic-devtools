@@ -663,15 +663,15 @@ class GitHubActionsProvider(CIPlatformProvider):
             raise
 
     @retry_with_backoff()
-    def merge_pr(self, pr_number: int, head_sha: str, method: str, *, commit_message: str | None = None) -> None:
+    def merge_pr(self, pr_number: int, head_sha: str, method: str, *, commit_title: str | None = None) -> None:
         """Merge a pull request.
 
-        ``commit_message`` maps to GitHub's ``commit_title`` field, so it only
+        ``commit_title`` maps to GitHub's ``commit_title`` field, so it only
         controls the squash commit subject line.
         """
         body: dict[str, str] = {"sha": head_sha, "merge_method": method}
-        if commit_message and method == "squash":
-            body["commit_title"] = commit_message
+        if commit_title and method == "squash":
+            body["commit_title"] = commit_title
         _gh_api(
             self._repo_api(f"/pulls/{pr_number}/merge"),
             method="PUT",

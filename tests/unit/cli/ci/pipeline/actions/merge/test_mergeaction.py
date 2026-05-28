@@ -243,7 +243,7 @@ class TestMergeAction:
         assert result.decision == ActionDecision.EXECUTE
         assert "squash" in result.details.lower()
         provider.merge_pr.assert_called_once_with(
-            42, "sha123", "squash", commit_message="Fix bug (#42)"
+            42, "sha123", "squash", commit_title="Fix bug (#42)"
         )
 
     def test_execute_uses_clean_fallback_title_for_squash(self) -> None:
@@ -254,7 +254,7 @@ class TestMergeAction:
         action = MergeAction()
         result = action.execute(provider, snapshot, derived)
         assert result.decision == ActionDecision.EXECUTE
-        provider.merge_pr.assert_called_once_with(42, "sha123", "squash", commit_message="PR #42")
+        provider.merge_pr.assert_called_once_with(42, "sha123", "squash", commit_title="PR #42")
 
     def test_execute_uses_rebase_when_single_commit(self) -> None:
         """MergeAction uses rebase merge when commit_count == 1."""

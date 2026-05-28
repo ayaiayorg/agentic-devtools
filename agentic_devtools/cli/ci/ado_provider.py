@@ -144,7 +144,7 @@ class AzureDevOpsProvider(CIPlatformProvider):
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.approve_pr() not yet implemented")
 
-    def merge_pr(self, pr_number: int, head_sha: str, method: str, *, commit_message: str | None = None) -> None:
+    def merge_pr(self, pr_number: int, head_sha: str, method: str, *, commit_title: str | None = None) -> None:
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.merge_pr() not yet implemented")
 

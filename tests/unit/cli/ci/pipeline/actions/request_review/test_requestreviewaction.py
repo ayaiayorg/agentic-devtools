@@ -104,8 +104,8 @@ class TestRequestReviewAction:
         assert result.decision == ActionDecision.SKIP
         assert "session active" in result.details.lower()
 
-    def test_skip_when_unresolved_comments(self) -> None:
-        """Review request is blocked when unresolved comments exist."""
+    def test_skip_when_unresolved_threads(self) -> None:
+        """Review request is blocked when unresolved threads exist."""
         snapshot = PRStateSnapshot(
             pr_number=1,
             is_draft=False,
@@ -119,9 +119,10 @@ class TestRequestReviewAction:
         action = RequestReviewAction()
         result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.SKIP
-        assert "unresolved" in result.details.lower()
+        assert result.preconditions["no_unresolved_threads"] is False
+        assert "unresolved thread" in result.details.lower()
 
-    def test_execute_when_derived_clears_unresolved_comments(self) -> None:
+    def test_execute_when_derived_clears_unresolved_threads(self) -> None:
         """Review request can proceed after ResolveThreadsAction updates derived state."""
         snapshot = PRStateSnapshot(
             pr_number=1,

@@ -16,8 +16,8 @@ from agentic_devtools.cli.ci.provider import CIPlatformProvider
 logger = logging.getLogger(__name__)
 
 
-def _build_squash_commit_message(snapshot: PRStateSnapshot) -> str:
-    """Build a descriptive commit message for squash merges.
+def _build_squash_commit_title(snapshot: PRStateSnapshot) -> str:
+    """Build a descriptive commit title for squash merges.
 
     Uses the PR title as the commit subject line with the PR number appended.
     """
@@ -193,14 +193,14 @@ class MergeAction:
         commit_count = getattr(derived, "commit_count", snapshot.commit_count)
         if commit_count > 1:
             method = "squash"
-            commit_message = _build_squash_commit_message(snapshot)
+            commit_title = _build_squash_commit_title(snapshot)
         else:
             method = "rebase"
-            commit_message = None
+            commit_title = None
 
         try:
-            if method == "squash" and commit_message:
-                provider.merge_pr(snapshot.pr_number, snapshot.head_sha, method, commit_message=commit_message)
+            if method == "squash" and commit_title:
+                provider.merge_pr(snapshot.pr_number, snapshot.head_sha, method, commit_title=commit_title)
             else:
                 provider.merge_pr(snapshot.pr_number, snapshot.head_sha, method)
         except Exception as exc:

@@ -67,13 +67,13 @@ class RequestReviewAction:
 
         # Guard: block review request when unresolved review comments exist
         unresolved = derived.unresolved_threads
-        preconditions["no_unresolved_comments"] = unresolved == 0
+        preconditions["no_unresolved_threads"] = unresolved == 0
         if unresolved > 0:
             return ActionResult(
                 name=self.name,
                 decision=ActionDecision.SKIP,
                 preconditions=preconditions,
-                details=f"{unresolved} unresolved comment(s) — deferring review request",
+                details=f"{unresolved} unresolved thread(s) — deferring review request",
             )
 
         # CI must be passing before requesting review

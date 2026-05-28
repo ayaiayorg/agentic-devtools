@@ -52,7 +52,7 @@ class TestMergePR:
         mock_run_safe.return_value = _Result()
 
         provider = GitHubActionsProvider(repo="owner/repo")
-        provider.merge_pr(7, "deadbeef", "squash", commit_message="feat: squash title")
+        provider.merge_pr(7, "deadbeef", "squash", commit_title="feat: squash title")
 
         kwargs = mock_run_safe.call_args[1]
         body = json.loads(kwargs["input"])

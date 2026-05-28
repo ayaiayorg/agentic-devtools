@@ -40,7 +40,7 @@ class _ConcreteProvider(CIPlatformProvider):
     def approve_pr(self, pr_number: int, head_sha: str, body: str) -> bool:
         return True
 
-    def merge_pr(self, pr_number: int, head_sha: str, method: str) -> None:
+    def merge_pr(self, pr_number: int, head_sha: str, method: str, *, commit_title: str | None = None) -> None:
         pass
 
     def request_reviewer(self, pr_number: int, reviewer: str) -> None:
