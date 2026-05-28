@@ -278,6 +278,10 @@ echo "Spec Directory: $SPEC_DIR"
 mkdir -p "$SPEC_DIR"
 mkdir -p "$SPEC_DIR/checklists"
 mkdir -p "$SPEC_DIR/contracts"
+# Add .gitkeep files so empty directories are tracked by git and appear in the
+# PR artifact list.  Later phases will populate these directories with real files.
+touch "$SPEC_DIR/checklists/.gitkeep"
+touch "$SPEC_DIR/contracts/.gitkeep"
 
 # Copy spec-directory markdownlint config override (stricter than root —
 # enforces MD041 without the front_matter_title exemption since specs
