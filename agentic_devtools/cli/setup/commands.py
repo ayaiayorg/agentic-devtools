@@ -104,6 +104,11 @@ def _build_unified_ca_bundle(per_host_pem_paths: list[str]) -> Path | None:
         chain = re.findall(cert_pattern, content, re.DOTALL)
         # Skip index 0 (leaf/server cert); only add intermediates and roots
         for cert in chain[1:]:
+            # Normalize: remove blank lines within the base64 body.
+            # Some corporate proxies produce PEM with empty lines between
+            # base64 data lines, which Python's ssl module rejects.
+            lines = cert.split("\n")
+            cert = "\n".join(l for l in lines if l.strip())
             if cert not in system_certs:
                 system_certs.add(cert)
                 extra_certs.append(cert)

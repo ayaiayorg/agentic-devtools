@@ -39,6 +39,10 @@ class TestRunSetupWithPrWorkflow:
                 _ok("stash@{0}\n"),  # stash list (after)
                 _ok(),  # checkout origin/main --detach
                 _ok(" M some-file.txt\n"),  # status --porcelain (has changes)
+                _ok(),  # add . (idempotency staging)
+                _ok("aaa111\n"),  # write-tree
+                _ok("bbb222\n"),  # rev-parse origin/main^{tree} (different)
+                _ok(),  # reset HEAD (unstage)
                 _fail(),  # rev-parse --verify (branch not taken locally)
                 _ok(""),  # ls-remote (branch not taken remotely)
                 _ok(),  # checkout -b branch
@@ -91,6 +95,35 @@ class TestRunSetupWithPrWorkflow:
         assert result["branch_created"] is None
         assert result["pr_created"] is False
         assert "No file changes" in result["message"]
+        setup_fn.assert_called_once()
+
+    # ── Idempotency: tree matches origin/main ──────────────────────────
+
+    def test_idempotent_run_skips_branch_when_tree_matches_main(self):
+        """When staged tree matches origin/main tree, skip branch creation."""
+        setup_fn = MagicMock()
+
+        with patch(_RUN_GIT) as mock_git:
+            mock_git.side_effect = [
+                _ok(),  # fetch origin main
+                _ok("main\n"),  # rev-parse --abbrev-ref HEAD
+                _ok(""),  # stash list (before)
+                _ok(),  # stash push
+                _ok(""),  # stash list (after)
+                _ok(),  # checkout origin/main --detach
+                _ok(" M file.txt\n"),  # status --porcelain (has changes)
+                _ok(),  # add . (idempotency staging)
+                _ok("same_tree_hash\n"),  # write-tree
+                _ok("same_tree_hash\n"),  # rev-parse origin/main^{tree} (SAME)
+                _ok(),  # reset HEAD (unstage)
+                _ok(),  # checkout original branch (finally)
+            ]
+            result = run_setup_with_pr_workflow(setup_fn, "1.0.0")
+
+        assert result["success"] is True
+        assert result["branch_created"] is None
+        assert result["pr_created"] is False
+        assert "already merged" in result["message"]
         setup_fn.assert_called_once()
 
     # ── Fetch failure → fallback ───────────────────────────────────────
@@ -198,6 +231,10 @@ class TestRunSetupWithPrWorkflow:
                 _ok(""),  # stash list (after)
                 _ok(),  # checkout origin/main --detach
                 _ok(" M file.txt\n"),  # status --porcelain (has changes)
+                _ok(),  # add . (idempotency staging)
+                _ok("aaa111\n"),  # write-tree
+                _ok("bbb222\n"),  # rev-parse origin/main^{tree} (different)
+                _ok(),  # reset HEAD (unstage)
                 _ok(),  # rev-parse --verify base → taken
                 _fail(),  # rev-parse --verify -2 → free
                 _ok(""),  # ls-remote -2 → free
@@ -229,6 +266,10 @@ class TestRunSetupWithPrWorkflow:
                 _ok("stash@{0}\n"),  # stash list (after)
                 _ok(),  # checkout origin/main --detach
                 _ok(" M file.txt\n"),  # status --porcelain
+                _ok(),  # add . (idempotency staging)
+                _ok("aaa111\n"),  # write-tree
+                _ok("bbb222\n"),  # rev-parse origin/main^{tree} (different)
+                _ok(),  # reset HEAD (unstage)
                 _fail(),  # rev-parse --verify → free
                 _ok(""),  # ls-remote → free
                 _ok(),  # checkout -b
@@ -267,6 +308,10 @@ class TestRunSetupWithPrWorkflow:
                 _ok("stash@{0}\n"),  # stash list (after)
                 _ok(),  # checkout origin/main --detach
                 _ok(" M file.txt\n"),  # status --porcelain
+                _ok(),  # add . (idempotency staging)
+                _ok("aaa111\n"),  # write-tree
+                _ok("bbb222\n"),  # rev-parse origin/main^{tree} (different)
+                _ok(),  # reset HEAD (unstage)
                 _fail(),  # rev-parse --verify → free
                 _ok(""),  # ls-remote → free
                 _ok(),  # checkout -b
@@ -311,6 +356,10 @@ class TestRunSetupWithPrWorkflow:
                 _ok("stash@{0}\n"),  # stash list (after)
                 _ok(),  # checkout origin/main --detach
                 _ok(" M file.txt\n"),  # status --porcelain
+                _ok(),  # add . (idempotency staging)
+                _ok("aaa111\n"),  # write-tree
+                _ok("bbb222\n"),  # rev-parse origin/main^{tree} (different)
+                _ok(),  # reset HEAD (unstage)
                 _fail(),  # rev-parse --verify → free
                 _ok(""),  # ls-remote → free
                 _ok(),  # checkout -b
@@ -345,6 +394,10 @@ class TestRunSetupWithPrWorkflow:
                 _ok("stash@{0}\n"),  # stash list (after)
                 _ok(),  # checkout origin/main --detach
                 _ok(" M file.txt\n"),  # status --porcelain
+                _ok(),  # add . (idempotency staging)
+                _ok("aaa111\n"),  # write-tree
+                _ok("bbb222\n"),  # rev-parse origin/main^{tree} (different)
+                _ok(),  # reset HEAD (unstage)
                 _fail(),  # rev-parse --verify → free
                 _ok(""),  # ls-remote → free
                 _ok(),  # checkout -b
@@ -384,6 +437,10 @@ class TestRunSetupWithPrWorkflow:
                 _ok("stash@{0}\n"),  # stash list (after)
                 _ok(),  # checkout origin/main --detach
                 _ok(" M file.txt\n"),  # status --porcelain
+                _ok(),  # add . (idempotency staging)
+                _ok("aaa111\n"),  # write-tree
+                _ok("bbb222\n"),  # rev-parse origin/main^{tree} (different)
+                _ok(),  # reset HEAD (unstage)
                 _fail(),  # rev-parse --verify → free
                 _ok(""),  # ls-remote → free
                 _ok(),  # checkout -b
@@ -737,6 +794,10 @@ class TestRunSetupWithPrWorkflow:
                 _ok(""),  # stash list (after)
                 _ok(),  # checkout origin/main --detach
                 _ok(" M file.txt\n"),  # status --porcelain (has changes)
+                _ok(),  # add . (idempotency staging)
+                _ok("aaa111\n"),  # write-tree
+                _ok("bbb222\n"),  # rev-parse origin/main^{tree} (different)
+                _ok(),  # reset HEAD (unstage)
                 _fail(),  # rev-parse --verify → free
                 _ok(""),  # ls-remote → free
                 _fail("already exists"),  # checkout -b FAILS
@@ -767,6 +828,10 @@ class TestRunSetupWithPrWorkflow:
                 _ok(""),  # stash list (after)
                 _ok(),  # checkout origin/main --detach
                 _ok(" M file.txt\n"),  # status --porcelain (has changes)
+                _ok(),  # add . (idempotency staging)
+                _ok("aaa111\n"),  # write-tree
+                _ok("bbb222\n"),  # rev-parse origin/main^{tree} (different)
+                _ok(),  # reset HEAD (unstage)
                 _fail(),  # rev-parse --verify → free
                 _ok(""),  # ls-remote → free
                 _ok(),  # checkout -b
@@ -797,6 +862,10 @@ class TestRunSetupWithPrWorkflow:
                 _ok(""),  # stash list (after)
                 _ok(),  # checkout origin/main --detach
                 _ok(" M file.txt\n"),  # status --porcelain (has changes)
+                _ok(),  # add . (idempotency staging)
+                _ok("aaa111\n"),  # write-tree
+                _ok("bbb222\n"),  # rev-parse origin/main^{tree} (different)
+                _ok(),  # reset HEAD (unstage)
                 _fail(),  # rev-parse --verify → free
                 _ok(""),  # ls-remote → free
                 _ok(),  # checkout -b
