@@ -198,20 +198,23 @@ def run_setup_with_pr_workflow(
             # the resulting tree against origin/main.  If the tree is
             # identical, the setup produced the same content that is
             # already in main (e.g. a previous setup PR was merged).
-            run_git("add", ".", check=False)
-            staged_tree = run_git("write-tree", check=False)
-            main_tree = run_git("rev-parse", "origin/main^{tree}", check=False)
-            if (
-                staged_tree.returncode == 0
-                and main_tree.returncode == 0
-                and staged_tree.stdout.strip() == main_tree.stdout.strip()
-            ):
-                # Trees are identical — no meaningful changes.
-                run_git("reset", "HEAD", check=False)
+            idempotent = False
+            add_result = run_git("add", ".", check=False)
+            if add_result.returncode == 0:
+                staged_tree = run_git("write-tree", check=False)
+                main_tree = run_git("rev-parse", "origin/main^{tree}", check=False)
+                if (
+                    staged_tree.returncode == 0
+                    and main_tree.returncode == 0
+                    and staged_tree.stdout.strip() == main_tree.stdout.strip()
+                ):
+                    idempotent = True
+            # Always reset the index after the idempotency probe so the
+            # branch creation flow can re-stage cleanly.
+            run_git("reset", "HEAD", check=False)
+            if idempotent:
                 message = "No new changes — setup output matches origin/main (already merged)."
             else:
-                # Reset staging so the branch creation flow re-stages cleanly.
-                run_git("reset", "HEAD", check=False)
 
                 # Step 7 — create branch, commit, push
                 # All git operations use check=False because the PR workflow is
@@ -280,15 +283,18 @@ def run_setup_with_pr_workflow(
                                         pr_created = True
                                         message = f"PR created from branch '{branch_name}'."
                                     finally:
-                                        # Restore prior values (None when previously unset)
-                                        set_value("source_branch", prev_source_branch)
-                                        set_value("title", prev_title)
-                                        set_value("draft", prev_draft)
-                                        # Restore az CLI SSL state
+                                        # Restore az CLI SSL state FIRST — before
+                                        # potentially failing state writes so a
+                                        # set_value() I/O error cannot leave SSL
+                                        # verification disabled for the process.
                                         if prev_az_ssl is None:
                                             os.environ.pop("AZURE_CLI_DISABLE_CONNECTION_VERIFICATION", None)
                                         else:
                                             os.environ["AZURE_CLI_DISABLE_CONNECTION_VERIFICATION"] = prev_az_ssl
+                                        # Restore prior state values (None when previously unset)
+                                        set_value("source_branch", prev_source_branch)
+                                        set_value("title", prev_title)
+                                        set_value("draft", prev_draft)
                                 except SystemExit as exc:
                                     # create_pull_request() calls sys.exit() on
                                     # validation/az failures — treat as non-fatal.

@@ -49,7 +49,7 @@ def normalize_pem(pem_content: str) -> str:
     result = pem_content
     for cert in certs:
         lines = cert.split("\n")
-        clean_lines = [l for l in lines if l.strip()]
+        clean_lines = [line for line in lines if line.strip()]
         if len(clean_lines) < len(lines):
             result = result.replace(cert, "\n".join(clean_lines))
     return result
@@ -88,17 +88,7 @@ def fetch_certificate_chain_openssl(hostname: str, port: int = 443) -> str | Non
         cert_pattern = r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----"
         certs = re.findall(cert_pattern, output, re.DOTALL)
         if certs:
-            # Normalize each PEM block: remove blank lines within the base64
-            # body.  Some corporate proxies or openssl builds insert empty
-            # lines between base64 data lines, which produces malformed PEM
-            # that Python's ssl module rejects with "[X509] PEM lib".
-            normalized = []
-            for cert in certs:
-                lines = cert.split("\n")
-                # Keep BEGIN/END markers and non-empty body lines
-                clean_lines = [l for l in lines if l.strip()]
-                normalized.append("\n".join(clean_lines))
-            return "\n".join(normalized)
+            return normalize_pem("\n".join(certs))
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError, subprocess.SubprocessError):
         pass
     except Exception:  # noqa: BLE001 — cert fetch must not crash setup
@@ -218,8 +208,14 @@ def ensure_ca_bundle(
                 try:
                     cache_file.write_text(normalized, encoding="utf-8")
                 except OSError:
-                    pass  # Best-effort; file is still usable by openssl
-            return str(cache_file)
+                    # Write failed — the on-disk PEM is still malformed and
+                    # would be rejected by Python's ssl module.  Fall through
+                    # to refetch rather than returning a known-bad path.
+                    pass
+                else:
+                    return str(cache_file)
+            else:
+                return str(cache_file)
         # Stale/leaf-only cache — remove it before refetching so it doesn't
         # linger on disk and get picked up by external configs (e.g. npmrc cafile).
         try:

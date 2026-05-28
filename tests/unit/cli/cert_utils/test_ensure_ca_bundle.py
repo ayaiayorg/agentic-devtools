@@ -23,6 +23,62 @@ class TestEnsureCaBundle:
 
         assert result == str(cache_file)
 
+    def test_rewrites_cached_file_when_pem_has_blank_lines(self, tmp_path):
+        """Rewrites cached file in-place when PEM bodies contain blank lines."""
+        malformed_chain = (
+            "-----BEGIN CERTIFICATE-----\n\nserver\n\n-----END CERTIFICATE-----\n"
+            "-----BEGIN CERTIFICATE-----\n\nca\n\n-----END CERTIFICATE-----"
+        )
+        cache_file = tmp_path / "example.com.pem"
+        cache_file.write_text(malformed_chain, encoding="utf-8")
+
+        result = cert_utils.ensure_ca_bundle("example.com", cache_file=cache_file)
+
+        assert result == str(cache_file)
+        # File must be rewritten with normalized content (no blank lines in bodies)
+        content = cache_file.read_text(encoding="utf-8")
+        assert "\n\n" not in content
+        assert "-----BEGIN CERTIFICATE-----" in content
+        assert "server" in content
+        assert "ca" in content
+
+    def test_cache_rewrite_oserror_falls_through_to_refetch(self, tmp_path):
+        """Falls through to refetch when the normalize rewrite fails with OSError.
+
+        When the in-place normalization write fails, the on-disk PEM is still
+        malformed.  Rather than returning a known-bad path, the function must
+        fall through to refetch so callers never receive a path to a file that
+        Python's ssl module would reject.
+        """
+        malformed_chain = (
+            "-----BEGIN CERTIFICATE-----\n\nserver\n\n-----END CERTIFICATE-----\n"
+            "-----BEGIN CERTIFICATE-----\n\nca\n\n-----END CERTIFICATE-----"
+        )
+        complete_chain = (
+            "-----BEGIN CERTIFICATE-----\nserver\n-----END CERTIFICATE-----\n"
+            "-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----"
+        )
+        cache_file = tmp_path / "example.com.pem"
+        cache_file.write_text(malformed_chain, encoding="utf-8")
+
+        call_count = {"n": 0}
+        original_write_text = type(cache_file).write_text
+
+        def _fail_first_write(self, *args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise OSError("disk full")
+            return original_write_text(self, *args, **kwargs)
+
+        with patch.object(type(cache_file), "write_text", _fail_first_write):
+            with patch.object(cert_utils, "fetch_certificate_chain_openssl", return_value=complete_chain):
+                result = cert_utils.ensure_ca_bundle("example.com", cache_file=cache_file)
+
+        # The refetch succeeds and writes the clean chain
+        assert result == str(cache_file.resolve())
+        content = cache_file.read_text(encoding="utf-8")
+        assert "\n\n" not in content
+
     def test_fetches_and_saves_when_cache_missing(self, tmp_path):
         """Fetches and saves the cert chain when no cache file exists."""
         complete_chain = (
