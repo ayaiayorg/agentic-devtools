@@ -39,38 +39,35 @@ flagged with lower confidence.
 
 ## Steps to Reproduce
 
-1. Open a PR where Copilot posts a review with ≥1 suppressed comment (marked *"suppressed due to low confidence"*) alongside regular inline comments
-2. Observe that the pipeline dispatches a repair c
+1. Open a PR where Copilot posts a review with ≥1 suppressed comment (marked *"suppressed due to low confidence"*) alongside regular inline comments.
+2. Observe that the pipeline dispatches a repair comment (`@copilot ...`).
+3. Verify that the repair comment lists only the non-suppressed inline comments and omits the suppressed feedback.
 
 The implementation of this feature will improve the overall system reliability and reduce the operational burden on development teams. Without this change, the existing workarounds will continue to
 consume developer time and introduce potential for human error.
 
 ## User Scenarios & Testing
 
-### User Story 1 - Primary Workflow (Priority: P1)
+### User Story 1 - Include Suppressed Review Feedback (Priority: P1)
 
-As a developer working with the system, I expect the dispatch_repair: suppressed copilot review comments not included in repair dispatch comment feature to work correctly on standard inputs without
-requiring manual intervention.
-
-**Acceptance Scenarios**:
-
-1. **Given** a standard input meeting all preconditions, **When** the system processes it, **Then** the output meets all quality checks and completes within the expected time bounds.
-
-2. **Given** an input that previously caused failures, **When** processed with the improved logic, **Then** the success rate exceeds 90% over repeated runs.
-
-### User Story 2 - Error Recovery (Priority: P1)
-
-As a developer whose operation encounters a transient failure, I expect the system to recover gracefully and complete the operation without manual intervention.
+As a maintainer relying on repair dispatch, I need suppressed Copilot review comments to be included in the generated `@copilot` repair comment so the repair agent receives the full review context without manual intervention.
 
 **Acceptance Scenarios**:
 
-1. **Given** a first attempt that fails due to a transient issue, **When** the retry mechanism activates, **Then** the second attempt succeeds with enriched context.
+1. **Given** a Copilot review with regular inline comments and a "suppressed due to low confidence" details block, **When** repair dispatch builds the `@copilot` comment, **Then** both regular and suppressed comments are included.
+2. **Given** a suppressed comment with a file path and body text, **When** it is rendered in the repair dispatch comment, **Then** the entry identifies the affected file and labels the feedback as suppressed.
 
-2. **Given** a specific validation failure reason, **When** retry feedback is generated, **Then** the feedback addresses the exact failure with actionable guidance.
+### User Story 2 - Handle Suppressed-Only Feedback (Priority: P1)
 
-### User Story 3 - Graceful Degradation (Priority: P2)
+As a maintainer reviewing a PR where Copilot only emitted suppressed feedback, I need repair dispatch to still include that feedback so no review finding is silently lost.
 
-As a developer whose operation has exhausted all retry attempts, I expect the system to provide a usable fallback output rather than failing completely.
+**Acceptance Scenarios**:
+
+1. **Given** a Copilot review whose actionable feedback appears only in the suppressed-comments block, **When** repair dispatch runs, **Then** the generated `@copilot` comment includes each suppressed comment with its file context.
+
+### User Story 3 - Preserve Existing Dispatch Behavior (Priority: P2)
+
+As a maintainer of the CI repair loop, I need the suppressed-comment handling to be additive so reviews without suppressed comments continue to dispatch the same regular inline feedback as before.
 
 **Acceptance Scenarios**:
 
@@ -80,20 +77,15 @@ As a developer whose operation has exhausted all retry attempts, I expect the sy
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST implement absent capability as described in the feature requirements, ensuring correct behavior under normal operating conditions and providing appropriate error handling
-  for edge cases.
+- **FR-001**: The system MUST include suppressed Copilot review comments in repair dispatch context in addition to regular inline review comments.
 
-- **FR-002**: The system MUST implement action capability as described in the feature requirements, ensuring correct behavior under normal operating conditions and providing appropriate error handling
-  for edge cases.
+- **FR-002**: The system MUST extract enough information from each suppressed comment to render its affected file and comment body in the `@copilot` repair comment.
 
-- **FR-003**: The system MUST implement actions capability as described in the feature requirements, ensuring correct behavior under normal operating conditions and providing appropriate error
-  handling for edge cases.
+- **FR-003**: The system MUST clearly label suppressed comments as suppressed when rendering them in the repair dispatch comment.
 
-- **FR-004**: The system MUST implement address capability as described in the feature requirements, ensuring correct behavior under normal operating conditions and providing appropriate error
-  handling for edge cases.
+- **FR-004**: The system MUST avoid duplicating the same review feedback when a comment is available from more than one source.
 
-- **FR-005**: The system MUST implement affected capability as described in the feature requirements, ensuring correct behavior under normal operating conditions and providing appropriate error
-  handling for edge cases.
+- **FR-005**: The system MUST preserve existing repair dispatch behavior for reviews that contain no suppressed comments.
 
 ### Non-Functional Requirements
 
@@ -103,11 +95,11 @@ As a developer whose operation has exhausted all retry attempts, I expect the sy
 
 ## Success Criteria
 
-- **SC-001**: The feature achieves at least 90% success rate on standard inputs measured over a representative sample of 20+ test cases.
+- **SC-001**: For a representative Copilot review containing both regular and suppressed comments, the generated repair dispatch comment includes every regular comment and every suppressed comment.
 
-- **SC-002**: Zero critical failures occur during the first 2 weeks of deployment, measured by monitoring error rates in CI logs.
+- **SC-002**: For a Copilot review containing only suppressed comments, repair dispatch still produces an `@copilot` comment containing those suppressed comments.
 
-- **SC-003**: Average processing time remains under 30 seconds for standard inputs, with worst-case time under 120 seconds including retries.
+- **SC-003**: For reviews without suppressed comments, the repair dispatch comment remains unchanged from the current regular-inline-comment behavior.
 
 ---
 *Generated via fallback skeleton — manual enrichment required*
