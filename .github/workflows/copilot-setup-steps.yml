@@ -35,4 +35,4 @@ jobs:
           pytest --version
           markdownlint-cli2 --help > /dev/null 2>&1 && echo "markdownlint-cli2 OK"
           gh copilot --version && echo "gh copilot OK" || echo "gh copilot not available"
-          echo "Setup complete — run 'bash scripts/run-pr-checks.sh' to verify all checks pass"
+          echo "Setup complete — run 'bash scripts/run-pr-checks.sh --full' to verify all checks pass"

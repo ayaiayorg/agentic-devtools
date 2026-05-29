@@ -184,8 +184,8 @@ class TestBuildRepairComment:
     def test_ci_repair_lists_failed_checks(self) -> None:
         """CI failures are listed with ❌ markers."""
         checks = [
-            CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="failure"),
-            CheckRunStatus(id=2, name="Markdown Lint ✅", status="completed", conclusion="failure"),
+            CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="failure"),
+            CheckRunStatus(id=2, name="Smart Module Tests ✅", status="completed", conclusion="failure"),
         ]
         body = _build_repair_comment(
             head_sha="abc123def456",
@@ -195,12 +195,12 @@ class TestBuildRepairComment:
         )
         assert "@copilot" in body
         assert "## CI Failures" in body
-        assert "❌ Tests ✅" in body
-        assert "❌ Markdown Lint ✅" in body
+        assert "❌ Targeted Checks ✅" in body
+        assert "❌ Smart Module Tests ✅" in body
 
     def test_ci_repair_omits_link_when_html_url_missing(self) -> None:
         """CI check without html_url renders as plain text — no constructed /runs/{id} link."""
-        checks = [CheckRunStatus(id=111, name="Tests ✅", status="completed", conclusion="failure")]
+        checks = [CheckRunStatus(id=111, name="Targeted Checks ✅", status="completed", conclusion="failure")]
         body = _build_repair_comment(
             head_sha="abc123def456",
             repair_type="ci",
@@ -211,16 +211,16 @@ class TestBuildRepairComment:
         # No constructed /runs/{id} URL should appear
         assert "https://github.com/owner/repo/runs/111" not in body
         # Plain-text entry is used instead
-        assert "❌ Tests ✅ — `failure`" in body
+        assert "❌ Targeted Checks ✅ — `failure`" in body
         # Must not produce an empty link
-        assert "[Tests ✅]()" not in body
+        assert "[Targeted Checks ✅]()" not in body
 
     def test_ci_repair_prefers_html_url_over_constructed_url(self) -> None:
         """When html_url is set on CheckRunStatus, it is used instead of the constructed /runs/{id} URL."""
         checks = [
             CheckRunStatus(
                 id=111,
-                name="Tests ✅",
+                name="Targeted Checks ✅",
                 status="completed",
                 conclusion="failure",
                 html_url="https://github.com/owner/repo/actions/runs/9999/jobs/111",
@@ -234,7 +234,7 @@ class TestBuildRepairComment:
             repository_full_name="owner/repo",
         )
         assert "https://github.com/owner/repo/actions/runs/9999/jobs/111" in body
-        assert "[Tests ✅](https://github.com/owner/repo/actions/runs/9999/jobs/111)" in body
+        assert "[Targeted Checks ✅](https://github.com/owner/repo/actions/runs/9999/jobs/111)" in body
         # Must NOT fall back to the constructed check-run-ID URL
         assert "https://github.com/owner/repo/runs/111" not in body
 

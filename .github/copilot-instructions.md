@@ -75,23 +75,34 @@ See [Testing](#13-testing) for all test commands.
 
 ### ⚠️ CRITICAL: Run PR Checks Before Pushing
 
-**Before pushing ANY changes (especially before creating a PR), ALWAYS run the full PR check suite:**
+**A `.githooks/pre-push` hook automatically runs targeted checks before each push.** Ensure hooks are configured:
 
 ```bash
-bash scripts/run-pr-checks.sh
+git config core.hooksPath .githooks
 ```
 
-This script runs CI-blocking checks plus ruff formatting (applied by the auto-fix workflow):
+The pre-push hook runs fast, scoped checks on changed files only (~30s):
 
-1. Test structure validation
-2. pytest with coverage
-3. E2E smoke tests
-4. ruff check (lint)
-5. ruff format check
-6. markdownlint
-7. mypy (informational — does not block CI)
+1. ruff format (auto-fix — aborts push if files were reformatted)
+2. ruff check (lint)
+3. markdownlint (on changed `.md` files)
+4. Per-file 100% branch coverage
+5. mypy type checking
+6. Test structure validation (if test files changed)
 
-**If any check fails, fix the issues before pushing.** This prevents CI failures and avoids triggering the auto-fix workflow unnecessarily.
+**If the hook aborts the push**, fix the issues, stage and amend your commit, then push again.
+
+For manual targeted checks without pushing:
+
+```bash
+bash scripts/targeted-checks.sh
+```
+
+For the full test suite (manual pre-merge validation):
+
+```bash
+bash scripts/run-pr-checks.sh --full
+```
 
 For quick auto-fixable lint issues:
 
@@ -100,7 +111,7 @@ ruff check --fix .
 ruff format .
 ```
 
-Then re-run `bash scripts/run-pr-checks.sh` to verify everything passes.
+Then push again — the pre-push hook will re-validate.
 
 ### ⚠️ CRITICAL: Single Commit Per PR
 

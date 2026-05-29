@@ -1,0 +1,66 @@
+name: PR Targeted Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  targeted-checks:
+    name: Run Targeted Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Set up Node.js (for markdownlint)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Compute changed files
+        id: changed
+        run: |
+          git fetch origin main
+          git diff --name-only origin/main...HEAD > /tmp/changed-files.txt
+          echo "count=$(wc -l < /tmp/changed-files.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+          cat /tmp/changed-files.txt
+
+      - name: Run targeted checks
+        if: steps.changed.outputs.count != '0'
+        run: |
+          bash scripts/targeted-checks.sh --files /tmp/changed-files.txt
+
+      - name: No changes detected
+        if: steps.changed.outputs.count == '0'
+        run: echo "No changed files detected — skipping checks."
+
+  targeted-checks-gate:
+    name: Targeted Checks ✅
+    needs: [targeted-checks]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check result
+        run: |
+          if [[ "${{ needs.targeted-checks.result }}" == "failure" ]]; then
+            echo "Targeted checks failed"
+            exit 1
+          fi
+          echo "Targeted checks passed"

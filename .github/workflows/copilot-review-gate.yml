@@ -23,6 +23,11 @@ jobs:
     if: github.event.pull_request.base.ref == 'main'
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Check Copilot review
         id: check
         uses: actions/github-script@v7
@@ -50,20 +55,129 @@ jobs:
               per_page: 100,
             });
 
-            // 3. Filter to Copilot reviews on the latest commit.
+            // 3. Filter to Copilot reviews (on any commit).
             //    Also accept synthetic reviews from trusted users (fallback for
             //    when CCR completes but fails to post a review).
             const copilotLogin = 'copilot-pull-request-reviewer[bot]';
             const TRUSTED_SYNTHETIC_USERS = ['acmarsnik'];
             const SYNTHETIC_MARKER = '<!-- synthetic-copilot-review -->';
-            const copilotReviews = allReviews.filter(
-              r => r.commit_id === headSha && r.user && (
-                r.user.login === copilotLogin ||
-                (TRUSTED_SYNTHETIC_USERS.includes(r.user.login) && (r.body || '').includes(SYNTHETIC_MARKER))
-              )
+
+            const isCopilotReview = r => r.user && (
+              r.user.login === copilotLogin ||
+              (TRUSTED_SYNTHETIC_USERS.includes(r.user.login) && (r.body || '').includes(SYNTHETIC_MARKER))
             );
 
-            // 4. If no Copilot review found on the latest commit, fail.
+            // 3a. First try: reviews on HEAD SHA directly (trivially fresh).
+            let copilotReviews = allReviews.filter(
+              r => r.commit_id === headSha && isCopilotReview(r)
+            );
+
+            // 3b. Content-hash freshness: if no reviews on HEAD, look for clean
+            //     reviews on prior commits and verify the diff hasn't changed.
+            if (copilotReviews.length === 0) {
+              const priorReviews = allReviews.filter(
+                r => r.commit_id !== headSha && isCopilotReview(r)
+              );
+
+              if (priorReviews.length === 0) {
+                // No Copilot review exists at all — fail.
+                core.setFailed(
+                  `❌ No Copilot code review found for this PR.\n` +
+                  `Request a review from Copilot or wait for the automatic review to complete.`
+                );
+                return;
+              }
+
+              // Sort to find the most recent prior review.
+              priorReviews.sort((a, b) =>
+                new Date(b.submitted_at) - new Date(a.submitted_at)
+              );
+              const candidate = priorReviews[0];
+              const approvedSha = candidate.commit_id;
+              if (!/^[0-9a-f]{40}$/.test(approvedSha)) {
+                core.setFailed(
+                  `❌ Unable to verify review freshness — invalid reviewed commit SHA: ${approvedSha}.\n` +
+                  `Request a new Copilot review.`
+                );
+                return;
+              }
+              core.info(`No review on HEAD. Checking content-hash freshness against review on ${approvedSha}...`);
+
+              // Compute content hashes to determine if code actually changed.
+              const { execFileSync } = require('child_process');
+              const crypto = require('crypto');
+
+              execFileSync('git', ['fetch', 'origin', 'main'], { stdio: 'pipe' });
+
+              // Rebased/force-pushed commits reviewed earlier may not be reachable
+              // from fetched refs. Ensure the reviewed SHA exists locally first.
+              try {
+                execFileSync('git', ['cat-file', '-e', approvedSha + '^{commit}'], { stdio: 'pipe' });
+              } catch (e) {
+                core.info(`Reviewed SHA ${approvedSha} not found locally; attempting targeted fetch...`);
+                core.debug(`Original cat-file error: ${e.message}`);
+                try {
+                  execFileSync('git', ['fetch', '--no-tags', 'origin', approvedSha], { stdio: 'pipe' });
+                } catch (e) {
+                  core.warning(`Could not fetch reviewed SHA ${approvedSha}: ${e.message}`);
+                  core.setFailed(
+                    `❌ Unable to verify review freshness — reviewed commit ${approvedSha} is unavailable locally.\n` +
+                    `Request a new Copilot review.`
+                  );
+                  return;
+                }
+              }
+
+              let approvedDiff, headDiff;
+              try {
+                approvedDiff = execFileSync('git', ['diff', `origin/main...${approvedSha}`], {
+                  encoding: 'utf-8',
+                  maxBuffer: 50 * 1024 * 1024
+                });
+              } catch (e) {
+                core.warning(`Could not compute diff at reviewed SHA ${approvedSha}: ${e.message}`);
+                core.setFailed(
+                  `❌ Unable to verify review freshness — could not compute diff at reviewed commit ${approvedSha}.\n` +
+                  `Request a new Copilot review.`
+                );
+                return;
+              }
+
+              try {
+                headDiff = execFileSync('git', ['diff', `origin/main...${headSha}`], {
+                  encoding: 'utf-8',
+                  maxBuffer: 50 * 1024 * 1024
+                });
+              } catch (e) {
+                core.warning(`Could not compute diff at HEAD ${headSha}: ${e.message}`);
+                core.setFailed(
+                  `❌ Unable to verify review freshness — could not compute diff at HEAD ${headSha}.\n` +
+                  `Request a new Copilot review.`
+                );
+                return;
+              }
+
+              const approvedHash = crypto.createHash('sha256').update(approvedDiff).digest('hex');
+              const headHash = crypto.createHash('sha256').update(headDiff).digest('hex');
+
+              core.info(`Reviewed diff hash: ${approvedHash}`);
+              core.info(`HEAD diff hash:     ${headHash}`);
+
+              if (approvedHash !== headHash) {
+                core.setFailed(
+                  `❌ PR diff content has changed since Copilot's review on ${approvedSha}.\n` +
+                  `Current HEAD: ${headSha}\n` +
+                  `The code has been modified since the last review — please request a new Copilot review.`
+                );
+                return;
+              }
+
+              core.info('✅ Content hash matches — review on prior commit is still valid (rebase-only change).');
+              // Use the prior review as the effective review set for comment analysis.
+              copilotReviews = [candidate];
+            }
+
+            // 4. If somehow we still have no reviews, fail (defensive).
             if (copilotReviews.length === 0) {
               core.setFailed(
                 `❌ No Copilot code review found for the latest commit (${headSha}).\n` +

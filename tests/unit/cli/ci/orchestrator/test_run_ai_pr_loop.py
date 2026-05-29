@@ -53,7 +53,7 @@ def _make_provider(
     provider.list_check_runs.return_value = (
         check_runs
         if check_runs is not None
-        else [CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="success")]
+        else [CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="success")]
     )
     provider.list_reviews.return_value = (
         reviews
@@ -168,7 +168,7 @@ class TestRunAIPRLoop:
         provider.merge_pr.assert_not_called()
 
     def test_pending_checks_waits(self) -> None:
-        provider = _make_provider(check_runs=[CheckRunStatus(id=1, name="Tests ✅", status="in_progress")])
+        provider = _make_provider(check_runs=[CheckRunStatus(id=1, name="Targeted Checks ✅", status="in_progress")])
         payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
@@ -379,7 +379,7 @@ class TestRunAIPRLoop:
 
         provider = _make_provider(
             check_runs=[
-                CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="cancelled"),
+                CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="cancelled"),
             ]
         )
         payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
@@ -1655,7 +1655,7 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["exit_code"] == EXIT_GUARD_BLOCKED
 
     def test_pending_checks_emits_wait_summary(self) -> None:
-        provider = _make_provider(check_runs=[CheckRunStatus(id=1, name="Tests ✅", status="in_progress")])
+        provider = _make_provider(check_runs=[CheckRunStatus(id=1, name="Targeted Checks ✅", status="in_progress")])
         payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
@@ -1666,7 +1666,7 @@ class TestRunAIPRLoopDecisionSummary:
     def test_repair_dispatched_emits_summary(self) -> None:
         provider = _make_provider(
             check_runs=[
-                CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="success"),
+                CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="success"),
                 CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure"),
             ],
             reviews=[],
@@ -1686,7 +1686,7 @@ class TestRunAIPRLoopDecisionSummary:
         """Repair dispatch still succeeds when cycle tracking update fails."""
         provider = _make_provider(
             check_runs=[
-                CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="success"),
+                CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="success"),
                 CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure"),
             ],
             reviews=[],
@@ -2001,9 +2001,9 @@ class TestCountCommitsAboveMergeBase:
     def test_summary_includes_ci_failed_check_names(self) -> None:
         provider = _make_provider(
             check_runs=[
-                CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="failure"),
-                CheckRunStatus(id=2, name="Markdown Lint ✅", status="completed", conclusion="success"),
-                CheckRunStatus(id=3, name="Copilot Review ✅", status="completed", conclusion="failure"),
+                CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="failure"),
+                CheckRunStatus(id=2, name="Smart Module Tests ✅", status="completed", conclusion="success"),
+                CheckRunStatus(id=3, name="copilot-pull-request-reviewer", status="completed", conclusion="failure"),
             ],
             reviews=[],
         )
@@ -2011,15 +2011,15 @@ class TestCountCommitsAboveMergeBase:
         payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
-        assert "Tests ✅" in summary["ci"]["failed"]
-        assert "Markdown Lint ✅" not in summary["ci"]["failed"]
-        assert "Copilot Review ✅" not in summary["ci"]["failed"]
+        assert "Targeted Checks ✅" in summary["ci"]["failed"]
+        assert "Smart Module Tests ✅" not in summary["ci"]["failed"]
+        assert "copilot-pull-request-reviewer" not in summary["ci"]["failed"]
         assert summary["ci"]["ignored"] == 1
 
     def test_unknown_check_conclusion_emits_blocked_summary(self) -> None:
         provider = _make_provider(
             check_runs=[
-                CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="cancelled"),
+                CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="cancelled"),
             ]
         )
         payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
@@ -2311,7 +2311,7 @@ class TestCountCommitsAboveMergeBase:
                 labels=["ai-auto-merge-allowed"],
                 requested_reviewers=[COPILOT_REVIEWER_LOGIN],
             ),
-            check_runs=[CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="failure")],
+            check_runs=[CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="failure")],
             reviews=[],
         )
         # The pre-dedup list_reviews call (line 630) throws
@@ -2337,7 +2337,7 @@ class TestCountCommitsAboveMergeBase:
                 labels=["ai-auto-merge-allowed"],
                 requested_reviewers=[COPILOT_REVIEWER_LOGIN],
             ),
-            check_runs=[CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="failure")],
+            check_runs=[CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="failure")],
             reviews=[],
         )
         provider.list_reviews.side_effect = [

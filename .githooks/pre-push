@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Pre-push hook — runs targeted checks before allowing a push.
+# Install: git config core.hooksPath .githooks
+#
+# If ruff format modifies files, the push is aborted with a message
+# asking the developer to stage and amend their commit.
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+echo "Running pre-push targeted checks..."
+echo ""
+
+# Run targeted checks with --format-fix to auto-fix formatting
+# (aborts if files were modified)
+exec bash "$REPO_ROOT/scripts/targeted-checks.sh" --format-fix

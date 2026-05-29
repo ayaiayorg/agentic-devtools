@@ -46,13 +46,13 @@ class TestActionableCheckNames:
         """A check outside actionable_check_names should not block merge."""
         ignored = CheckRunStatus(
             id=10,
-            name="Copilot Review ✅",
+            name="copilot-pull-request-reviewer",
             status="completed",
             conclusion="failure",
         )
         passing = CheckRunStatus(
             id=11,
-            name="Tests ✅",
+            name="Targeted Checks ✅",
             status="completed",
             conclusion="success",
         )
@@ -73,7 +73,7 @@ class TestActionableCheckNames:
         """
         non_actionable_only = CheckRunStatus(
             id=20,
-            name="Copilot Review ✅",
+            name="copilot-pull-request-reviewer",
             status="completed",
             conclusion="success",
         )
@@ -106,7 +106,7 @@ class TestActionableCheckNames:
                     conclusion="failure",
                     html_url="https://github.com/ayaiayorg/agentic-devtools/runs/123",
                 ),
-                CheckRunStatus(id=11, name="Tests ✅", status="completed", conclusion="success"),
+                CheckRunStatus(id=11, name="Targeted Checks ✅", status="completed", conclusion="success"),
             ]
         )
         provider.dispatch_repair.return_value = 200
