@@ -1,10 +1,32 @@
 # Feature Specification: Robust Multi-Tiered Thread Resolution System for the AI PR Loop
 
-**Feature Branch**: `speckit/1642/phase-1-specify`  
+**Feature Branch**: `speckit/1642/phase-2-clarify`  
 **Created**: 2026-05-28  
 **Status**: Draft  
 **Input**: GitHub Issue #1642: Robust Multi-Tiered Thread Resolution System for the AI PR Loop
 **Source Issue**: #1642 (<https://github.com/ayaiayorg/agentic-devtools/issues/1642>)
+
+---
+
+## Clarifications
+
+### Session 2026-05-28
+
+- Q: Should the automation marker patterns (FR-006) be hardcoded or configurable via `.github/agdt-config.json`? → A: Hardcoded in source for the initial implementation with an explicit extension
+  point (a module-level constant list). A future iteration can load overrides from `.github/agdt-config.json` under a `"resolution"` key, but this is out of scope for Phase 1. The hardcoded list is:
+  `["autofix applied", "suggestion applied", "fix applied"]` (case-insensitive substring match against the most recent comment body).
+- Q: What is the TTL for tentatively-marked threads before the system gives up re-evaluation? → A: 5 pipeline iterations OR 24 hours wall-clock time, whichever comes first. After expiry, the tentative
+  marker reply is updated to indicate "resolution abandoned — manual review required" and the thread is no longer re-evaluated.
+- Q: Which model and prompt template should the CLI fallback agent (FR-009) use? → A: Use `claude-sonnet-4.6` (standard tier, cost-effective for binary decisions) with a dedicated prompt template at
+  `agentic_devtools/prompts/default-thread-resolution-fallback-prompt.md`. Use this exact repo-relative path consistently throughout the spec; do not shorten it to
+  `default-thread-resolution-fallback-prompt.md`. The prompt is optimized for a single binary output (`RESOLVE` or `UNRESOLVE`) given the comment body, diff context, and file path.
+- Q: How should the diff heuristic tier handle multi-line review comments that span a range (e.g., lines 10–25) where only part of the range was modified? → A: Any overlap between the modified lines
+  and the comment's line range (`startLine` to `line`) constitutes a positive match. The tier resolves the thread if at least one line within the range was modified, since the reviewer's concern was
+  about code that has now changed.
+- Q: Should the "new commit since review" precondition (FR-003) compare against the specific review that created each thread, or against the most recent Copilot review on the PR? → A: Per-thread
+  comparison against the specific review commit that originated the thread (the `commit_id` field on the review containing the
+  thread's first comment). This allows threads from different review cycles to
+  be independently evaluated — a thread from review cycle 1 can be resolved even while review cycle 2 is in progress.
 
 ---
 
@@ -58,8 +80,9 @@ without any SDK invocation and posts a structured reply explaining the programma
    invoking the Copilot SDK, and a structured reply is posted explaining that the commented code was modified (citing the `isOutdated` signal).
 2. **Given** a PR with an unresolved review thread where `isOutdated` is `false`, **When** the thread resolution action executes, **Then** the system does not resolve based on this signal alone and
    proceeds to the next evaluation tier.
-3. **Given** a PR where the GraphQL query fails to return the `isOutdated` field for a thread (API degradation), **When** the thread resolution action executes, **Then** the system falls through to
-   the next tier gracefully without erroring.
+3. **Given** a PR where the GraphQL query fails to return the `isOutdated` field for a thread (API degradation or `isOutdated: null`), **When** the thread resolution action executes, **Then** the
+   system falls through to
+   the next tier gracefully without erroring, treating the value as "unknown".
 
 ---
 
@@ -81,8 +104,9 @@ thread is still evaluated and resolved.
    to execute (does not skip due to CI status).
 2. **Given** a PR where a Copilot review is pending on the current HEAD and an unresolved review thread exists from a prior commit, **When** the thread resolution action evaluates preconditions,
    **Then** the action proceeds to execute (does not skip due to pending review).
-3. **Given** a PR where no new commit exists since the review comment (same HEAD SHA as the review commit), **When** the thread resolution action evaluates preconditions, **Then** the action is
-   skipped (the "new commit since review" precondition is the only valid gate).
+3. **Given** a PR where no new commit exists since the review comment (same HEAD SHA as the review commit that originated the thread), **When** the thread resolution action evaluates preconditions,
+   **Then** the action is
+   skipped (the "new commit since review" precondition is the only valid gate, evaluated per-thread using commit OIDs).
 
 ---
 
@@ -99,9 +123,11 @@ autofix tool).
 
 **Acceptance Scenarios**:
 
-1. **Given** a PR thread where the most recent comment body contains the text "autofix applied" (case-insensitive), **When** the thread resolution action executes, **Then** the thread is resolved
+1. **Given** a PR thread where the most recent comment body contains the text "autofix applied" (case-insensitive substring match), **When** the thread resolution action executes, **Then** the thread
+   is resolved
    without SDK invocation, with a reply citing the automation marker.
-2. **Given** a PR thread where no comment body matches any known automation pattern, **When** the thread resolution action executes, **Then** the system does not resolve on this tier and proceeds to
+2. **Given** a PR thread where the most recent comment body does not match any known automation pattern from the hardcoded list (`["autofix applied", "suggestion applied", "fix applied"]`) (older
+   comments are ignored for this tier), **When** the thread resolution action executes, **Then** the system does not resolve on this tier and proceeds to
    the diff heuristic tier.
 
 ---
@@ -125,6 +151,8 @@ invocation.
    does not resolve on this tier and proceeds to SDK evaluation.
 3. **Given** a PR-level comment with no file/line anchor, **When** the diff heuristic tier evaluates, **Then** it skips this comment (cannot determine line-level relevance) and proceeds to SDK
    evaluation.
+4. **Given** a multi-line review comment spanning lines 10–25, and the diff shows only line 18 was modified, **When** the diff heuristic tier evaluates, **Then** the thread is resolved because at
+   least one line within the comment's range was modified (any overlap constitutes a match).
 
 ---
 
@@ -145,7 +173,8 @@ if all retries fail, the fallback agent is invoked).
    is included in the posted reply.
 2. **Given** a thread that reaches SDK evaluation, **When** the SDK returns a malformed response (no VERDICT line or unrecognized verdict value), **Then** the system retries once with a reformulated
    prompt that emphasizes the required format.
-3. **Given** a thread where both SDK attempts return malformed responses, **When** retries are exhausted, **Then** the system invokes a dedicated CLI fallback agent for evaluation, and if that also
+3. **Given** a thread where both SDK attempts return malformed responses, **When** retries are exhausted, **Then** the system invokes a dedicated CLI fallback agent (`claude-sonnet-4.6` with the
+   `agentic_devtools/prompts/default-thread-resolution-fallback-prompt.md` template) for evaluation, and if that also
    fails, leaves the thread unresolved with a tentative marker reply.
 
 ---
@@ -180,6 +209,9 @@ cases are not permanently dismissed or permanently blocked.
 **Why this priority**: This is an advanced reliability feature. The core system works without it (threads are either resolved or left open), but tentative markers improve the experience for threads in
 ambiguous states.
 
+**Tentative TTL**: Tentatively-marked threads are re-evaluated for a maximum of 5 pipeline iterations OR 24 hours wall-clock time (whichever comes first). After expiry, the tentative marker reply is
+updated to "resolution abandoned — manual review required" and the thread is no longer re-evaluated.
+
 **Independent Test**: Can be tested by creating a scenario where the SDK returns "ambiguous" and verifying the thread receives a tentative marker reply but is NOT resolved via GraphQL mutation, and on
 the next iteration is re-evaluated.
 
@@ -189,6 +221,8 @@ the next iteration is re-evaluated.
    is posted, and the thread is flagged for re-evaluation in the resolution state.
 2. **Given** a tentatively-marked thread on a subsequent pipeline iteration where new evidence is available (e.g., the line is now modified), **When** the resolution action runs, **Then** the
    programmatic tier resolves the thread normally, updating the tentative reply to a confirmed resolution reply.
+3. **Given** a tentatively-marked thread that has been re-evaluated for 5 iterations without resolution, **When** the resolution action runs, **Then** the tentative marker reply is updated to
+   "resolution abandoned — manual review required" and the thread is excluded from further re-evaluation.
 
 ---
 
@@ -213,15 +247,19 @@ full resolution pipeline.
 
 ### Edge Cases
 
-- What happens when the GraphQL API returns a thread with `isOutdated: null` (field not available on older GitHub Enterprise Server versions)? The system must treat this as "unknown" and fall through
+- What happens when the GraphQL API returns a thread with `isOutdated: null` (field not available on older GitHub Enterprise Server versions)? The system MUST treat this as "unknown" and fall through
   to subsequent tiers, never erroring.
-- How does the system handle a thread with zero comments (edge case in GitHub API)? It must be skipped entirely as there is no content to evaluate.
-- What happens when the diff between review commit and HEAD is empty (force-push that re-bases without code changes)? All line-level heuristics must return "not modified" and the system must fall
+- How does the system handle a thread with zero comments (edge case in GitHub API)? It MUST be skipped entirely as there is no content to evaluate.
+- What happens when the diff between review commit and HEAD is empty (force-push that re-bases without code changes)? All line-level heuristics MUST return "not modified" and the system MUST fall
   through to SDK evaluation.
-- How does the system behave when the SDK token budget is exhausted mid-batch? Remaining comments in the batch must be left unresolved (not tentative), logged with the budget-exhaustion reason, and
+- How does the system behave when the SDK token budget is exhausted mid-batch? Remaining comments in the batch MUST be left unresolved (not tentative), logged with the budget-exhaustion reason, and
   retried on the next iteration.
-- What happens when a thread has been resolved by a human between the snapshot fetch and the resolution attempt? The GraphQL mutation will return a no-op; the system must detect this gracefully and
+- What happens when a thread has been resolved by a human between the snapshot fetch and the resolution attempt? The GraphQL mutation will return a no-op; the system MUST detect this gracefully and
   not count it as a failure.
+- How does the diff heuristic handle multi-line comments where only part of the range was modified? Any overlap (at least one line modified within the `startLine` to `line` range) constitutes a
+  positive match and triggers resolution.
+- What happens when a tentatively-marked thread exceeds the re-evaluation TTL (5 iterations or 24 hours)? The system updates the reply to "resolution abandoned — manual review required" and stops
+  re-evaluating.
 
 ---
 
@@ -243,23 +281,27 @@ full resolution pipeline.
 - **FR-004**: The system MUST expand the `_REVIEW_THREADS_QUERY` GraphQL query to fetch `isOutdated`, `path`, `line`, `startLine`, and for each comment node: `body`, `createdAt`, `author { login }`,
   in addition to the existing `isResolved` and `databaseId` fields.
 
-- **FR-005**: The system MUST resolve any thread where `isOutdated` is `true` without invoking the SDK, posting a structured reply that cites the `isOutdated` signal as the resolution rationale.
+- **FR-005**: The system MUST resolve any thread where `isOutdated` is `true` without invoking the SDK, posting a structured reply that cites the `isOutdated` signal as the resolution rationale. When
+  `isOutdated` is `null` or absent, the system MUST treat this as "unknown" and fall through to subsequent tiers.
 
-- **FR-006**: The system MUST detect and resolve threads whose most recent comment body matches a configurable set of automation marker patterns (initially: "autofix applied", "suggestion applied",
-  "fix applied") without invoking the SDK.
+- **FR-006**: The system MUST detect and resolve threads whose most recent comment body matches a hardcoded set of automation marker patterns (initially: `["autofix applied", "suggestion applied",
+  "fix applied"]`, case-insensitive substring match) without invoking the SDK. The pattern list is defined as a module-level constant to enable future externalization to `.github/agdt-config.json`
+  without architectural changes.
 
 - **FR-007**: The system MUST integrate the existing `check_lines_modified` diff heuristic into the resolution pipeline as tier 3, resolving threads where the specific file/line range referenced by
-  the comment was modified in the diff between the review commit and HEAD.
+  the comment was modified in the diff between the review commit and HEAD. Any overlap between the modified lines and the comment's line range (`startLine` to `line`) constitutes a positive match.
 
 - **FR-008**: The SDK evaluation tier MUST enforce a structured response format requiring both a `VERDICT` field (one of `COMMENT_RESOLVE`, `COMMENT_UNRESOLVE`, `AMBIGUOUS`) and an `EXPLANATION`
   field. Responses not matching this format MUST be treated as malformed. These SDK-level response tokens map to the internal `ResolutionVerdict` enum as follows: `COMMENT_RESOLVE` → `RESOLVE`;
   `COMMENT_UNRESOLVE` → `UNRESOLVE`; `AMBIGUOUS` triggers the retry/fallback path and, if all fallbacks are exhausted without a confident verdict, results in `TENTATIVE`.
 
 - **FR-009**: On malformed SDK response, the system MUST retry once with a reformulated prompt that explicitly emphasizes the required response format. If the retry also produces a malformed response,
-  the system MUST invoke a dedicated CLI fallback agent for evaluation.
+  the system MUST invoke a dedicated CLI fallback agent (`claude-sonnet-4.6` model, using the
+  `agentic_devtools/prompts/default-thread-resolution-fallback-prompt.md` template optimized for
+  binary `RESOLVE`/`UNRESOLVE` decisions) for evaluation.
 
 - **FR-010**: If all evaluation tiers (including SDK retry and fallback) fail to produce a confident verdict, the system MUST leave the thread unresolved and post a tentative marker reply indicating
-  the thread will be re-evaluated on the next iteration.
+  the thread will be re-evaluated on the next iteration. Tentative markers expire after 5 pipeline iterations or 24 hours wall-clock time, whichever comes first.
 
 - **FR-011**: The system MUST post a structured reply on every resolution action (whether resolved, left open, or marked tentative). The reply MUST include: the evaluation tier that produced the
   verdict, the evidence or rationale, and a confidence indicator (high/medium/low).
@@ -271,9 +313,11 @@ full resolution pipeline.
   Provider-specific logic (GraphQL queries, mutations, reply formatting) MUST be isolated in adapter classes.
 
 - **FR-014**: Tentatively-marked threads MUST be re-evaluated on subsequent pipeline iterations. If new evidence is available (e.g., the line is now modified, or the thread became `isOutdated`), the
-  system MUST upgrade the tentative marker to a confirmed resolution.
+  system MUST upgrade the tentative marker to a confirmed resolution. After 5 iterations or 24 hours without confident resolution, the tentative marker is updated to "resolution abandoned — manual
+  review required" and re-evaluation ceases.
 
-- **FR-015**: The system MUST maintain per-thread resolution state (tier used, verdict, confidence, timestamp) in a serializable format within the pipeline's state management, enabling audit queries
+- **FR-015**: The system MUST maintain per-thread resolution state (tier used, verdict, confidence, timestamp, iteration count for tentative threads) in a serializable format within the pipeline's
+  state management, enabling audit queries
   and cross-iteration tracking.
 
 ### Non-Functional Requirements
@@ -285,9 +329,10 @@ full resolution pipeline.
   PRs with ≥5 review threads.
 
 - **NFR-003**: All resolution decisions (including intermediate tier evaluations) MUST be logged at DEBUG level with sufficient context for post-hoc debugging, including the thread ID, comment body
-  snippet, tier evaluated, and verdict produced.
+  snippet (first 100 characters), tier evaluated, and verdict produced.
 
-- **NFR-004**: The resolution engine MUST handle GraphQL API rate limiting gracefully, backing off exponentially and resuming without data loss. Partial progress (threads already resolved) MUST be
+- **NFR-004**: The resolution engine MUST handle GraphQL API rate limiting gracefully, backing off exponentially (initial delay 1s, max delay 60s, max retries 5) and resuming without data loss.
+  Partial progress (threads already resolved) MUST be
   preserved across retries.
 
 - **NFR-005**: Reply content posted to threads MUST be human-readable as standalone text (not requiring parsing of HTML markers to understand the resolution rationale). The HTML markers are
@@ -298,18 +343,24 @@ full resolution pipeline.
 
 ### Key Entities
 
-- **ReviewThread**: Platform-agnostic representation of a review comment thread. Contains: thread identifier, file path, line range, `isOutdated` flag, comments (body, author, timestamp), resolution
-  state.
+- **ReviewThread**: Platform-agnostic representation of a review comment thread. Contains: thread identifier, file path, line range (`startLine`, `line`), `isOutdated` flag (tri-state:
+  `True`/`False`/`None` for unknown), comments (body, author, timestamp), resolution
+  state, originating review commit OID.
 
-- **ResolutionVerdict**: The outcome of evaluating a single thread. Contains: verdict enum (`RESOLVE`, `UNRESOLVE`, `TENTATIVE`), tier that produced the verdict, confidence level, explanation text,
+- **ResolutionVerdict**: The outcome of evaluating a single thread. Contains: verdict enum (`RESOLVE`, `UNRESOLVE`, `TENTATIVE`), tier that produced the verdict, confidence level
+  (`high`/`medium`/`low`), explanation text,
   evidence references. Note: these values are the internal representation; the SDK evaluation tier uses raw response tokens (`COMMENT_RESOLVE`, `COMMENT_UNRESOLVE`, `AMBIGUOUS`) that are mapped to
   this enum per FR-008.
 
 - **EvaluationTier**: An ordered evaluation stage in the pipeline. Each tier receives a `ReviewThread` and produces either a `ResolutionVerdict` (short-circuiting further evaluation) or `None`
-  (falling through to the next tier).
+  (falling through to the next tier). Defined as a Python Protocol with a single `evaluate(thread: ReviewThread) -> ResolutionVerdict | None` method.
 
-- **ResolutionReply**: Structured content posted to a thread after evaluation. Contains: human-readable explanation, HTML metadata markers, tier identification, timestamp, and model identifier (for
+- **ResolutionReply**: Structured content posted to a thread after evaluation. Contains: human-readable explanation, HTML metadata markers (e.g., `<!-- agdt:resolution-tier:... -->`), tier
+  identification, timestamp, and model identifier (for
   SDK tier).
+
+- **ThreadResolutionState**: Per-thread state persisted across iterations. Contains: thread ID, current verdict, tier used, confidence, timestamp of last evaluation, iteration count (for tentative TTL
+  tracking), tentative expiry timestamp.
 
 ---
 
@@ -338,16 +389,16 @@ full resolution pipeline.
 
 ---
 
-## NEEDS CLARIFICATION
+## Clarifications (Resolved)
 
-1. **Configurable automation markers**: Should the list of automation marker patterns (FR-006) be hardcoded in source or configurable via a repository-level config file (e.g.,
-   `.github/agdt-config.json`)? The initial implementation assumes hardcoded patterns, but a config-driven approach would allow per-repository customization.
+1. ~~**Configurable automation markers**: Should the list of automation marker patterns (FR-006) be hardcoded in source or configurable via a repository-level config file (e.g.,
+   `.github/agdt-config.json`)?~~ **RESOLVED**: Hardcoded as a module-level constant for Phase 1, with architecture supporting future externalization to `.github/agdt-config.json`.
 
-2. **Tentative resolution TTL**: How many pipeline iterations should a tentatively-marked thread persist before the system gives up re-evaluation and treats it as permanently unresolved? The spec
-   assumes indefinite re-evaluation (until evidence appears or the PR is merged), but a TTL (e.g., 5 iterations or 24 hours) may be more practical.
+2. ~~**Tentative resolution TTL**: How many pipeline iterations should a tentatively-marked thread persist before the system gives up re-evaluation and treats it as permanently unresolved?~~
+   **RESOLVED**: 5 pipeline iterations OR 24 hours wall-clock time, whichever comes first.
 
-3. **CLI fallback agent identity**: Which CLI agent model and prompt template should the fallback agent (FR-009) use? The spec assumes a dedicated prompt template optimized for binary resolution
-   decisions, but the specific model (e.g., `claude-sonnet-4.6` vs `claude-opus-4.6`) and prompt location need to be determined.
+3. ~~**CLI fallback agent identity**: Which CLI agent model and prompt template should the fallback agent (FR-009) use?~~ **RESOLVED**: `claude-sonnet-4.6` with
+   `agentic_devtools/prompts/default-thread-resolution-fallback-prompt.md` template, optimized for binary `RESOLVE`/`UNRESOLVE` decisions.
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
