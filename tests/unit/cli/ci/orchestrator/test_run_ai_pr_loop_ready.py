@@ -29,8 +29,8 @@ class TestRunAIPRLoopReady:
         )
         provider.list_pr_files.return_value = ["src/app.py"]
         provider.list_check_runs.return_value = [
-            CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="success"),
-            CheckRunStatus(id=2, name="Markdown Lint ✅", status="completed", conclusion="success"),
+            CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="success"),
+            CheckRunStatus(id=2, name="Smart Module Tests ✅", status="completed", conclusion="success"),
         ]
         provider.list_reviews.return_value = [
             ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm"),

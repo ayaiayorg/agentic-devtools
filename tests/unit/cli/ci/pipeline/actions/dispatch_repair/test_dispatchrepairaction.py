@@ -152,10 +152,10 @@ class TestDispatchRepairAction:
         snapshot = PRStateSnapshot(
             pr_number=42,
             ci_status="failing",
-            ci_failed_checks=["Tests ✅"],
+            ci_failed_checks=["Targeted Checks ✅"],
             head_sha="abc123",
             check_runs=[
-                CheckRunStatus(id=1, name="Tests ✅", status="completed", conclusion="failure"),
+                CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="failure"),
                 CheckRunStatus(id=2, name="flaky-optional", status="completed", conclusion="failure"),
             ],
         )
@@ -179,7 +179,7 @@ class TestDispatchRepairAction:
         call_kwargs = provider.dispatch_repair.call_args
         passed_checks = call_kwargs.kwargs.get("failed_checks") or call_kwargs.args[3]
         check_names = [cr.name for cr in passed_checks]
-        assert "Tests ✅" in check_names
+        assert "Targeted Checks ✅" in check_names
         assert "flaky-optional" not in check_names
 
     def test_execute_sets_repair_dispatched_on_derived(self) -> None:

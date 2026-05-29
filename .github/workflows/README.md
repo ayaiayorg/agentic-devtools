@@ -133,8 +133,9 @@ Squash wait in progress for PR #<N> — last checked <ISO8601 timestamp>
 **Machine-readable metadata** (included in all synthetic review bodies):
 `<!-- intended_comments=N inline_posted=N parse_failed=true/false [inline_post_failed=true] -->`
 
-Reviews with this marker from trusted users (`acmarsnik`) are recognized by `copilot-review-gate.yml`
-and `ai-pr-loop.yml` as equivalent to official `copilot-pull-request-reviewer[bot]` reviews:
+Reviews with this marker from trusted users (`acmarsnik`) are recognized by
+`copilot-review-gate.yml` and `ai-pr-loop.yml` as equivalent to official
+`copilot-pull-request-reviewer[bot]` reviews:
 
 - Synthetic review with 0 inline comments and `parse_failed=false` → gate passes (clean review)
 - Synthetic review with >0 inline comments → gate fails, triggers review addresser flow
@@ -202,75 +203,78 @@ and `ai-pr-loop.yml` as equivalent to official `copilot-pull-request-reviewer[bo
   (used to satisfy required status checks when workflow-related files are not affected)
 - `workflow-tests-gate`: Gate job (`Workflow Tests ✅`) — always runs, fails if any downstream job failed
 
-### test.yml
+### pr-targeted-checks.yml
 
-**Python Tests and Linting**
+**PR Targeted Checks**
 
-- Runs on: Pull requests and pushes to main
-- Tests Python version: 3.12 (single version)
-- Purpose: Ensures code quality and test coverage
+- Runs on: Pull requests to `main`
+- Purpose: Fast, scoped checks on changed files only (~30s)
+
+**Checks performed** (only on changed files):
+
+- `ruff check` (lint) on changed `.py` files
+- `ruff format --check` on changed `.py` files
+- `markdownlint-cli2` on changed `.md` files
+- Per-file 100% branch coverage for changed `agentic_devtools/**/*.py` files
+- `mypy` on changed `.py` files
+- `validate_test_structure.py` if test files changed
 
 **Jobs**:
 
-#### `detect-changes`
+- `targeted-checks`: Runs `scripts/targeted-checks.sh` with the list of changed files
+- `targeted-checks-gate`: Gate job (`Targeted Checks ✅`) — required status check
 
-Detects which source modules changed using `dorny/paths-filter@v3`. Outputs a flag per module and a
-`has_modules` flag (true if any module changed). Also detects `config` changes
-(`pyproject.toml`, `conftest.py`, etc.).
+### copilot-review-gate.yml
 
-#### `test-smart` (PR only, when modules changed)
+**Copilot Review Gate**
 
-Runs on pull requests when at least one Python module changed. Builds the pytest command dynamically:
+- Runs on: Pull requests to `main` (`opened`, `synchronize`, `reopened`)
+- Purpose: Enforces Copilot review freshness and cleanliness before merge
 
-- Collects test paths for changed modules (only paths that exist on disk)
-- Collects `--cov=<source>` flags for changed modules
-- Runs `pytest` with `--cov-fail-under=100 --override-ini="addopts="` scoped to only the changed modules
-- Also validates the 1:1:1 test structure
+**Logic**:
 
-**Per-module 100% coverage**: If a PR touches `cli/git/`, it must have 100% coverage on `cli/git/` source files.
+- First checks for a trusted Copilot/synthetic review directly on HEAD
+- If none exists on HEAD, finds the latest trusted prior review and compares SHA-256
+  content hashes of `git diff origin/main...<reviewed_sha>` and
+  `git diff origin/main...<head_sha>`
+- If hashes match → review is still fresh (rebase/base-shift only) → passes
+- If hashes differ → code changed since review → fails (needs re-review)
+- If no trusted Copilot review exists yet → fails the gate (`No Copilot review yet`)
 
-#### `test-full` (push to main, or config files changed)
+**Jobs**:
 
-Runs the complete test suite when pushing to `main` or when config files
-(`pyproject.toml`, `tests/conftest.py`, etc.) change:
+- `copilot-review-gate`: Validates review freshness and comment cleanliness
+- Gate job name: `Copilot Review ✅` — required status check
 
-- `pytest --cov=agentic_devtools --cov-report=term-missing --cov-fail-under=100 --ignore=tests/workflows`
+### pr-smart-module-tests.yml
+
+**PR Smart Module Tests**
+
+- Runs on: `pull_request_review` (`submitted`) — filtered to Copilot approval
+- Purpose: Runs scoped pytest with per-module 100% coverage after Copilot review approval
+
+**Jobs**:
+
+- `smart-module-tests`: Detects changed modules via `dorny/paths-filter`, runs scoped pytest
+- `smart-module-tests-gate`: Gate job (`Smart Module Tests ✅`) — required status check
+
+### post-merge-full-suite.yml
+
+**Post-Merge Full Suite**
+
+- Runs on: Push to `main` only
+- Purpose: Integration safety net — runs the complete test suite post-merge
+
+**Checks performed**:
+
+- Full `pytest --cov=agentic_devtools --cov-fail-under=100`
+- Workflow integration tests
 - E2E smoke tests
-- Uploads coverage to Codecov
+- `ruff check .` + `ruff format --check .`
+- `markdownlint-cli2 "**/*.md"`
+- `mypy .` (informational)
 
-#### `test-skipped` (PR only, no Python changes)
-
-Placeholder job that succeeds when no Python files changed (docs-only PRs, etc.).
-Ensures required status checks are satisfied without blocking merges.
-
-#### `lint` (informational, non-blocking)
-
-Runs `black`, `isort`, `mypy`, and `ruff` checks when Python files changed or on push to main.
-Uses `continue-on-error: true` — failures are informational only.
-
-#### `tests-gate` (required status check)
-
-Gate job (`Tests ✅`) that always runs after `test-smart`, `test-full`, and `test-skipped`.
-Fails if any downstream test job failed. This is the single required status check for branch protection.
-
-### lint.yml
-
-**Markdown Linting**
-
-- Runs on:
-  - Pushes to `main` (always lint on merge)
-  - Pull requests (always triggered; internal change detection skips the lint job when irrelevant)
-- Tool: markdownlint-cli2
-- Purpose: Ensures consistent markdown formatting across documentation
-- Scope: All `*.md` files in the repository
-
-**Jobs**:
-
-- `changes`: Detects if markdown files changed using `dorny/paths-filter@v3`
-- `markdownlint`: Runs markdownlint when markdown files changed (or on push to main)
-- `markdownlint-skipped`: Placeholder that succeeds when no markdown files changed
-  (used to satisfy required status checks when no markdown files are affected)
-- `lint-gate`: Gate job (`Markdown Lint ✅`) — always runs, fails if any downstream job failed
+**NOT a merge gate** — runs after merge as a quality signal.
 
 ### release.yml
 

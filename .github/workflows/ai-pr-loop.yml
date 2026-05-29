@@ -10,7 +10,7 @@ on:
   issue_comment:
     types: [created]
   workflow_run:
-    workflows: ["Python Tests and Linting", "Lint", "Workflow Integration Tests"]
+    workflows: ["PR Targeted Checks", "Copilot Review Gate", "PR Smart Module Tests", "Workflow Integration Tests"]
     types: [completed]
   workflow_dispatch:
     inputs:
