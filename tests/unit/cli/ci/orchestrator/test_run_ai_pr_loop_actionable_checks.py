@@ -120,8 +120,17 @@ class TestActionableCheckNames:
         failed_check_names = [cr.name for cr in call_kwargs["failed_checks"]]
         assert "Code scanning results / CodeQL" in failed_check_names
 
-    def test_codeql_is_in_default_actionable_check_names(self) -> None:
+    def test_default_actionable_check_names_match_expected_set(self) -> None:
         from agentic_devtools.cli.ci.orchestrator import _DEFAULT_ACTIONABLE_CHECK_NAMES
 
-        assert "Code scanning results / CodeQL" in _DEFAULT_ACTIONABLE_CHECK_NAMES
+        assert _DEFAULT_ACTIONABLE_CHECK_NAMES == frozenset(
+            {
+                "Targeted Checks ✅",
+                "Smart Module Tests ✅",
+                "Workflow Tests ✅",
+                "Code scanning results / CodeQL",
+                "CodeQL / Analyze (actions) (dynamic)",
+                "CodeQL / Analyze (python) (dynamic)",
+            }
+        )
         assert _DEFAULT_ACTIONABLE_CHECK_NAMES is DEFAULT_ACTIONABLE_CHECK_NAMES

@@ -6,8 +6,9 @@ DEFAULT_ACTIONABLE_CHECK_NAMES = frozenset(
     {
         "Targeted Checks ✅",
         "Smart Module Tests ✅",
-        "Copilot Review ✅",
         "Workflow Tests ✅",
         "Code scanning results / CodeQL",
+        "CodeQL / Analyze (actions) (dynamic)",
+        "CodeQL / Analyze (python) (dynamic)",
     }
 )
