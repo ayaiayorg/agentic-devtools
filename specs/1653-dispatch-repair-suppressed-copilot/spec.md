@@ -194,9 +194,9 @@ synthetic suppressed entries.
 
 ### Non-Functional Requirements
 
-- **NFR-001**: System MUST complete all operations (including the additional review-body fetch) within 120 seconds under normal conditions.
+- **NFR-001**: The system MUST complete all operations (including the additional review-body fetch) within 120 seconds under normal conditions.
 
-- **NFR-002**: System MUST maintain backward compatibility with existing interfaces and contracts — no changes to `ReviewCommentInfo` dataclass fields, `_build_repair_comment` signature,
+- **NFR-002**: The system MUST maintain backward compatibility with existing interfaces and contracts — no changes to `ReviewCommentInfo` dataclass fields, `_build_repair_comment` signature,
   or `dispatch_repair` method signature.
 
 ## Success Criteria
