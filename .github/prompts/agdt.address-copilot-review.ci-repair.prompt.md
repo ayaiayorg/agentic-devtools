@@ -135,7 +135,19 @@ Document a triage table:
 If CI failure context is provided (see the `## CI Failure Context` section at the
 end of this prompt, if present), address those failures:
 
+The CI pipeline gates are:
+
+- `Targeted Checks ✅` — lint, format, type checks on changed files
+- `Smart Module Tests ✅` — targeted test execution for affected modules
+- `Workflow Tests ✅` — workflow integration tests for workflow-related changes
+- `Copilot Review ✅` — automated AI code review
+
 ### For Lint Failures (ruff)
+
+> **Note:** Lint/format failures reaching CI are uncommon — the pre-push hook
+> enforces `ruff format` and `ruff check` locally. If these failures appear in
+> CI, the hook was likely bypassed with `--no-verify` or not enabled
+> (`core.hooksPath` not set to `.githooks`).
 
 1. Read the failure messages to identify specific files and violations
 2. Apply automated fixes using **only pinned trusted tooling**:
