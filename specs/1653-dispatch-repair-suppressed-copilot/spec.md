@@ -25,7 +25,7 @@ The `dispatch_repair` action (and the orchestrator's `_dispatch_repair` function
 GET /repos/{owner}/{repo}/pulls/{pr_number}/reviews/{review_id}/comments
 ```
 
-However, GitHub does **not** surface suppressed comments as API-level review comment objects. Instead, they only appear as structured HTML/markdown inside the review body:
+However, the current REST review-comments endpoint does not provide all suppressed feedback needed by repair dispatch. The implementation should recover suppressed comments from a reliable GitHub review data source (for example, GraphQL minimized comments or the review body when no structured API data is available):
 
 ```html
 <details>
