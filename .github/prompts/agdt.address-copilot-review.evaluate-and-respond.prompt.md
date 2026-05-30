@@ -190,7 +190,7 @@ before making code changes for review comments.
 
 The CI pipeline gates are:
 
-- `Targeted Checks ✅` — lint, format, type checks on changed files
+- `Targeted Checks ✅` — ruff/mypy/test-structure + per-file coverage on changed files (plus markdownlint for changed `.md`)
 - `Smart Module Tests ✅` — targeted test execution for affected modules
 - `Workflow Tests ✅` — workflow integration tests for workflow-related changes
 - `Copilot Review ✅` — automated AI code review

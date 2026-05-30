@@ -563,7 +563,7 @@ mypy .
 agdt-test
 
 # Security check
-bandit -r src/
+bandit -r agentic_devtools/
 ```
 
 ### Pre-Push Hook Automation
@@ -573,13 +573,12 @@ the following before each push:
 
 - `ruff format` — code formatting
 - `ruff check` — linting
-- `markdownlint` — Markdown style
 - Per-file 100% test coverage
 - `mypy` — type checking
 - Test structure validation
 
-If push is rejected by the pre-push hook, fix the reported issues, amend your
-commit, and retry the push.
+If push is rejected by the pre-push hook, fix the reported issues, run `agdt-git-save-work`,
+and retry the push.
 
 ## Communication Style
 
