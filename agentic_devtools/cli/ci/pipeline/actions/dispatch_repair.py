@@ -33,12 +33,11 @@ class DispatchRepairAction:
     """Dispatch a repair when CI fails or actionable Copilot review exists.
 
     Preconditions:
-    - No active Copilot session
     - CI failed OR actionable Copilot review on HEAD
     - Deduplication limit not exceeded
     - Cycle limit not exceeded
 
-    Idempotency: Active session or recent dispatch → skip.
+    Idempotency: Recent dispatch → skip.
     """
 
     @property
@@ -48,16 +47,6 @@ class DispatchRepairAction:
     def evaluate(self, snapshot: PRStateSnapshot, derived: DerivedState) -> ActionResult:
         """Evaluate whether repair dispatch is needed."""
         preconditions: dict[str, bool] = {}
-
-        # No active session
-        preconditions["no_active_session"] = not snapshot.active_session
-        if snapshot.active_session:
-            return ActionResult(
-                name=self.name,
-                decision=ActionDecision.SKIP,
-                preconditions=preconditions,
-                details="Copilot coding session is active",
-            )
 
         # CI failed OR actionable review
         ci_failing = snapshot.ci_status == "failing"

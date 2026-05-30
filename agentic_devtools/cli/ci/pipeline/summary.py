@@ -164,7 +164,7 @@ def _render_state_snapshot(snapshot: PRStateSnapshot) -> str:
     lines = [
         f"- HEAD: `{head_sha_short}`",
         f"- Commits above merge-base: {_sanitize_cell(str(snapshot.commit_count))}",
-        f"- Copilot session active: {_sanitize_cell(str(snapshot.active_session))}",
+        "- Copilot session active: N/A",
         f"- Copilot review on HEAD: {review_state}{inline_suffix}",
         f"- CI: {_sanitize_cell(snapshot.ci_status)}",
         f"- Unresolved threads: {_sanitize_cell(str(snapshot.unresolved_threads))}",

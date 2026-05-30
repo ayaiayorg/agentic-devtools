@@ -1,10 +1,12 @@
 """Tests for RequestReviewAction."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.ci.pipeline.actions.request_review import RequestReviewAction
 from agentic_devtools.cli.ci.pipeline.models import ActionDecision
 from agentic_devtools.cli.ci.pipeline.snapshot import DerivedState, PRStateSnapshot
+
+_PATCH_DETECTOR = "agentic_devtools.cli.ci.pipeline.actions.request_review.is_copilot_session_active_via_agent_task"
 
 
 class TestRequestReviewAction:
@@ -14,14 +16,16 @@ class TestRequestReviewAction:
         snapshot = PRStateSnapshot(pr_number=1, is_draft=True)
         derived = DerivedState(snapshot)
         action = RequestReviewAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(_PATCH_DETECTOR, return_value=False):
+            result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.SKIP
 
     def test_skip_when_ci_not_passing(self) -> None:
         snapshot = PRStateSnapshot(pr_number=1, is_draft=False, ci_status="pending")
         derived = DerivedState(snapshot)
         action = RequestReviewAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(_PATCH_DETECTOR, return_value=False):
+            result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.SKIP
         assert "ci is pending" in result.details.lower()
 
@@ -35,7 +39,8 @@ class TestRequestReviewAction:
         )
         derived = DerivedState(snapshot)
         action = RequestReviewAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(_PATCH_DETECTOR, return_value=False):
+            result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.SKIP
         assert "review exists" in result.details.lower()
 
@@ -50,7 +55,8 @@ class TestRequestReviewAction:
         )
         derived = DerivedState(snapshot)
         action = RequestReviewAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(_PATCH_DETECTOR, return_value=False):
+            result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.SKIP
         assert "already requested" in result.details.lower()
 
@@ -66,7 +72,8 @@ class TestRequestReviewAction:
         derived = DerivedState(snapshot)
         derived.set("copilot_review_pending", True)
         action = RequestReviewAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(_PATCH_DETECTOR, return_value=False):
+            result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.SKIP
         assert "already requested" in result.details.lower()
 
@@ -83,7 +90,8 @@ class TestRequestReviewAction:
         derived = DerivedState(snapshot)
         derived.set("repair_dispatched", True)
         action = RequestReviewAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(_PATCH_DETECTOR, return_value=False):
+            result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.SKIP
         assert "repair dispatched" in result.details.lower()
 
@@ -96,11 +104,13 @@ class TestRequestReviewAction:
             review_state="",
             copilot_review_id=0,
             copilot_review_pending=False,
-            active_session=True,
+            base_repo_full_name="owner/repo",
         )
         derived = DerivedState(snapshot)
         action = RequestReviewAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(_PATCH_DETECTOR, return_value=True) as mock_detector:
+            result = action.evaluate(snapshot, derived)
+            mock_detector.assert_called_once_with("owner/repo", 1)
         assert result.decision == ActionDecision.SKIP
         assert "session active" in result.details.lower()
 
@@ -117,7 +127,8 @@ class TestRequestReviewAction:
         )
         derived = DerivedState(snapshot)
         action = RequestReviewAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(_PATCH_DETECTOR, return_value=False):
+            result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.SKIP
         assert result.preconditions["no_unresolved_threads"] is False
         assert "unresolved thread" in result.details.lower()
@@ -136,7 +147,8 @@ class TestRequestReviewAction:
         derived = DerivedState(snapshot)
         derived.set("unresolved_threads", 0)
         action = RequestReviewAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(_PATCH_DETECTOR, return_value=False):
+            result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.EXECUTE
 
     def test_execute_when_no_review(self) -> None:
@@ -150,7 +162,8 @@ class TestRequestReviewAction:
         )
         derived = DerivedState(snapshot)
         action = RequestReviewAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(_PATCH_DETECTOR, return_value=False):
+            result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.EXECUTE
 
     def test_execute_calls_provider(self) -> None:

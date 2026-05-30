@@ -137,6 +137,34 @@ class TestRenderSummaryComment:
         comment = render_summary_comment(summary)
         assert "all passed" in comment
 
+    def test_format_preconditions_shows_first_failed_key(self) -> None:
+        summary = PipelineRunSummary(
+            results=[
+                ActionResult(
+                    name="approve",
+                    decision=ActionDecision.SKIP,
+                    preconditions={"ci_passing": True, "approved": False},
+                    details="not approved",
+                )
+            ]
+        )
+        comment = render_summary_comment(summary)
+        assert "✗ approved" in comment
+
+    def test_failed_result_includes_error_without_details(self) -> None:
+        summary = PipelineRunSummary(
+            results=[
+                ActionResult(
+                    name="merge",
+                    decision=ActionDecision.FAILED,
+                    details="",
+                    error="boom",
+                )
+            ]
+        )
+        comment = render_summary_comment(summary)
+        assert "error: boom" in comment
+
     def test_render_state_snapshot_inline_suffix_only_for_commented_or_nonzero(self) -> None:
         """'(N inline)' suffix must only appear for COMMENTED state or non-zero count."""
         # COMMENTED with count: should show suffix

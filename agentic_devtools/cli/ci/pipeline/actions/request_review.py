@@ -6,6 +6,7 @@ import logging
 
 from agentic_devtools.cli.ci.models import COPILOT_REVIEWER_LOGIN
 from agentic_devtools.cli.ci.pipeline.models import ActionDecision, ActionResult
+from agentic_devtools.cli.ci.pipeline.session_detector import is_copilot_session_active_via_agent_task
 from agentic_devtools.cli.ci.pipeline.snapshot import DerivedState, PRStateSnapshot
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
 
@@ -20,11 +21,11 @@ class RequestReviewAction:
     Preconditions:
     - PR is not draft (uses DerivedState)
     - Repair was not dispatched in this pipeline run
-    - No active Copilot coding session
     - No unresolved review threads
     - CI is passing
     - No effective Copilot review on HEAD
     - Copilot not already requested as reviewer
+    - No active Copilot coding session
 
     Idempotency: Review exists or pending → skip.
     """
@@ -57,16 +58,6 @@ class RequestReviewAction:
                 decision=ActionDecision.SKIP,
                 preconditions=preconditions,
                 details="Repair dispatched — deferring review request",
-            )
-
-        # Guard: never request review when active coding session is in progress
-        preconditions["no_active_session"] = not snapshot.active_session
-        if snapshot.active_session:
-            return ActionResult(
-                name=self.name,
-                decision=ActionDecision.SKIP,
-                preconditions=preconditions,
-                details="Copilot session active — deferring review request",
             )
 
         # Guard: block review request when unresolved review threads exist
@@ -111,6 +102,17 @@ class RequestReviewAction:
                 decision=ActionDecision.SKIP,
                 preconditions=preconditions,
                 details="Copilot review already requested",
+            )
+
+        # Guard: never request review when active coding session is in progress
+        active_session = is_copilot_session_active_via_agent_task(snapshot.base_repo_full_name, snapshot.pr_number)
+        preconditions["no_active_session"] = not active_session
+        if active_session:
+            return ActionResult(
+                name=self.name,
+                decision=ActionDecision.SKIP,
+                preconditions=preconditions,
+                details="Copilot session active — deferring review request",
             )
 
         return ActionResult(

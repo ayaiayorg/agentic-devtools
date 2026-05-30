@@ -1,6 +1,6 @@
 """Tests for SquashAction."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.ci.pipeline.actions.squash import SquashAction
 from agentic_devtools.cli.ci.pipeline.models import ActionDecision
@@ -14,15 +14,24 @@ class TestSquashAction:
         snapshot = PRStateSnapshot(pr_number=1, commit_count=1, ci_status="passing")
         derived = DerivedState(snapshot)
         action = SquashAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.actions.squash.is_copilot_session_active_via_agent_task",
+            return_value=False,
+        ):
+            result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.SKIP
         assert "1 commit" in result.details
 
     def test_skip_when_active_session(self) -> None:
-        snapshot = PRStateSnapshot(pr_number=1, commit_count=3, active_session=True, ci_status="passing")
+        snapshot = PRStateSnapshot(pr_number=1, commit_count=3, ci_status="passing", base_repo_full_name="owner/repo")
         derived = DerivedState(snapshot)
         action = SquashAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.actions.squash.is_copilot_session_active_via_agent_task",
+            return_value=True,
+        ) as mock_detector:
+            result = action.evaluate(snapshot, derived)
+            mock_detector.assert_called_once_with("owner/repo", 1)
         assert result.decision == ActionDecision.SKIP
         assert "active" in result.details.lower()
 
@@ -31,7 +40,11 @@ class TestSquashAction:
         derived = DerivedState(snapshot)
         derived.set("repair_dispatched", True)
         action = SquashAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.actions.squash.is_copilot_session_active_via_agent_task",
+            return_value=False,
+        ):
+            result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.SKIP
         assert "repair dispatched" in result.details.lower()
 
@@ -39,7 +52,11 @@ class TestSquashAction:
         snapshot = PRStateSnapshot(pr_number=1, commit_count=3, ci_status="failing")
         derived = DerivedState(snapshot)
         action = SquashAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.actions.squash.is_copilot_session_active_via_agent_task",
+            return_value=False,
+        ):
+            result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.SKIP
         assert "failing" in result.details.lower()
 
@@ -48,12 +65,15 @@ class TestSquashAction:
             pr_number=1,
             commit_count=3,
             ci_status="passing",
-            active_session=False,
             copilot_review_pending=False,
         )
         derived = DerivedState(snapshot)
         action = SquashAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.actions.squash.is_copilot_session_active_via_agent_task",
+            return_value=False,
+        ):
+            result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.EXECUTE
 
     def test_execute_when_derived_pending_review_is_true(self) -> None:
@@ -67,7 +87,11 @@ class TestSquashAction:
         derived = DerivedState(snapshot)
         derived.set("copilot_review_pending", True)
         action = SquashAction()
-        result = action.evaluate(snapshot, derived)
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.actions.squash.is_copilot_session_active_via_agent_task",
+            return_value=False,
+        ):
+            result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.EXECUTE
 
     def test_execute_calls_squash(self) -> None:
