@@ -37,7 +37,8 @@
 
 ## Phase 3: Deprecate Old Detector
 
-- [ ] T010 [US2] Add/update a focused test case in `tests/unit/cli/ci/pipeline/session_detector/test_is_copilot_session_active.py` verifying `is_copilot_session_active()` emits `DeprecationWarning` (FR-006)
+- [ ] T010 [US2] Add/update a focused test case in `tests/unit/cli/ci/pipeline/session_detector/test_is_copilot_session_active.py` verifying `is_copilot_session_active()` emits `DeprecationWarning`
+  (FR-006)
 - [ ] T011 [US2] Add `warnings.warn(...)` with `DeprecationWarning` and `stacklevel=2` at top of `is_copilot_session_active()` in `agentic_devtools/cli/ci/pipeline/session_detector.py` (FR-006)
 - [ ] T012 Update existing test `tests/unit/cli/ci/pipeline/session_detector/test_is_copilot_session_active.py` to expect or suppress `DeprecationWarning` (FR-006)
 
@@ -71,8 +72,10 @@
   (FR-008c) in `tests/unit/cli/ci/pipeline/actions/squash/test_squashaction.py`
 - [ ] T025 [P] [US4] Write failing test: `RequestReviewAction.evaluate()` calls `is_copilot_session_active_via_agent_task()` with correct `repo` and `pr_number` instead of reading
   `snapshot.active_session` (FR-008d) in `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py`
-- [ ] T026 [US4] Write failing test: `SquashAction.evaluate()` SKIPs when new detector returns `True`, proceeds when `False` (FR-008c) in `tests/unit/cli/ci/pipeline/actions/squash/test_squashaction.py`
-- [ ] T027 [US4] Write failing test: `RequestReviewAction.evaluate()` SKIPs when new detector returns `True`, proceeds when `False` (FR-008d) in `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py`
+- [ ] T026 [US4] Write failing test: `SquashAction.evaluate()` SKIPs when new detector returns `True`, proceeds when `False` (FR-008c) in
+  `tests/unit/cli/ci/pipeline/actions/squash/test_squashaction.py`
+- [ ] T027 [US4] Write failing test: `RequestReviewAction.evaluate()` SKIPs when new detector returns `True`, proceeds when `False` (FR-008d) in
+  `tests/unit/cli/ci/pipeline/actions/request_review/test_requestreviewaction.py`
 - [ ] T028 [US4] In `agentic_devtools/cli/ci/pipeline/actions/squash.py` — import `is_copilot_session_active_via_agent_task`, replace `snapshot.active_session` with direct detector call using
   `snapshot.base_repo_full_name` and `snapshot.pr_number` (FR-008c)
 - [ ] T029 [US4] In `agentic_devtools/cli/ci/pipeline/actions/request_review.py` — import `is_copilot_session_active_via_agent_task`, replace `snapshot.active_session` with direct detector call using
