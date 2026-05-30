@@ -542,7 +542,7 @@ When reviewing or writing code, prioritize:
 - **ORM**: SQLAlchemy 2.0+, Django ORM, or Tortoise ORM
 - **Testing**: pytest, pytest-asyncio, pytest-cov
 - **Type Checking**: mypy, pyright
-- **Linting**: ruff (or black + flake8 + isort)
+- **Linting & Formatting**: ruff (handles linting, formatting, and import sorting)
 - **Dependency Management**: poetry or pip-tools
 - **API Framework**: FastAPI, Django REST Framework
 - **Async**: asyncio, aiohttp for async operations
@@ -550,22 +550,35 @@ When reviewing or writing code, prioritize:
 ### Code Quality Tools
 
 ```bash
-# Format code
-black .
-isort .
+# Format code (replaces black + isort)
+ruff format .
 
-# Type check
-mypy src/
-
-# Lint
+# Lint (replaces flake8 + isort)
 ruff check .
 
-# Test with coverage
-pytest --cov=src --cov-report=html
+# Type check
+mypy .
+
+# Run tests
+agdt-test
 
 # Security check
-bandit -r src/
+bandit -r agentic_devtools/
 ```
+
+### Pre-Push Hook Automation
+
+When git hooks are enabled (`core.hooksPath=.githooks`), pre-push hooks enforce
+the following before each push:
+
+- `ruff format` — code formatting
+- `ruff check` — linting
+- Per-file 100% test coverage
+- `mypy` — type checking
+- Test structure validation
+
+If push is rejected by the pre-push hook, fix the reported issues, run `agdt-git-save-work`,
+and retry the push.
 
 ## Communication Style
 

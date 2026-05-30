@@ -188,7 +188,19 @@ Assign a confidence level for each suggestion:
 If the `## CI Failures` section is present in the trigger comment, address those failures
 before making code changes for review comments.
 
+The CI pipeline gates are:
+
+- `Targeted Checks ✅` — ruff/mypy/test-structure + per-file coverage on changed files (plus markdownlint for changed `.md`)
+- `Smart Module Tests ✅` — targeted test execution for affected modules
+- `Workflow Tests ✅` — workflow integration tests for workflow-related changes
+- `Copilot Review ✅` — automated AI code review
+
 ### For Lint Failures (ruff)
+
+> **Note:** Lint/format failures reaching CI are uncommon — the pre-push hook
+> enforces `ruff format` and `ruff check` locally. If these failures appear in
+> CI, the hook was likely bypassed with `--no-verify` or not enabled
+> (`core.hooksPath` not set to `.githooks`).
 
 Run Ruff only on Python files already in the PR diff:
 
