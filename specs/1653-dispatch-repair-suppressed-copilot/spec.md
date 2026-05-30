@@ -7,7 +7,10 @@
 
 ## Problem Statement
 
-`dispatch_repair` currently builds repair prompts only from API-visible review comments, so Copilot feedback that is suppressed due to low confidence is omitted from the generated `@copilot` comment. The implementation needs to recover those suppressed findings from the review body and pass them through the existing repair-comment rendering path.
+`dispatch_repair` currently builds repair prompts only from API-visible review comments, so Copilot feedback
+that is suppressed due to low confidence is omitted from the generated `@copilot` comment. The implementation
+needs to recover those suppressed findings from the review body and pass them through the existing repair-comment
+rendering path.
 
 ## Bug Description
 
@@ -45,17 +48,21 @@ flagged with lower confidence.
 2. Observe that the pipeline dispatches a repair comment (`@copilot ...`).
 3. Verify that the repair comment lists only the non-suppressed inline comments and omits the suppressed feedback.
 
-When suppressed review comments are omitted, maintainers must manually inspect the Copilot review details and relay that feedback to the repair agent. Automating inclusion of suppressed feedback reduces missed review context without changing the existing inline-comment dispatch flow.
+When suppressed review comments are omitted, maintainers must manually inspect the Copilot review details and relay
+that feedback to the repair agent. Automating inclusion of suppressed feedback reduces missed review context without
+changing the existing inline-comment dispatch flow.
 
 ## User Scenarios & Testing
 
 ### User Story 1 - Include Suppressed Review Feedback (Priority: P1)
 
-As a maintainer relying on repair dispatch, I need suppressed Copilot review comments to be included in the generated `@copilot` repair comment so the repair agent receives the full review context without manual intervention.
+As a maintainer relying on repair dispatch, I need suppressed Copilot review comments to be included in the generated
+`@copilot` repair comment so the repair agent receives the full review context without manual intervention.
 
 **Acceptance Scenarios**:
 
-1. **Given** a Copilot review with regular inline comments and a "suppressed due to low confidence" details block, **When** repair dispatch builds the `@copilot` comment, **Then** both regular and suppressed comments are included.
+1. **Given** a Copilot review with regular inline comments and a "suppressed due to low confidence" details block,
+   **When** repair dispatch builds the `@copilot` comment, **Then** both regular and suppressed comments are included.
 2. **Given** a suppressed comment with a file path and body text, **When** it is rendered in the repair dispatch comment, **Then** the entry identifies the affected file and labels the feedback as suppressed.
 
 ### User Story 2 - Handle Suppressed-Only Feedback (Priority: P1)
@@ -64,7 +71,9 @@ As a maintainer reviewing a PR where Copilot only emitted suppressed feedback, I
 
 **Acceptance Scenarios**:
 
-1. **Given** a Copilot review whose actionable feedback appears only in the suppressed-comments block, **When** repair dispatch runs, **Then** the generated `@copilot` comment includes each suppressed comment with its file context.
+1. **Given** a Copilot review whose actionable feedback appears only in the suppressed-comments block,
+   **When** repair dispatch runs, **Then** the generated `@copilot` comment includes each suppressed comment with
+   its file context.
 
 ### User Story 3 - Preserve Existing Dispatch Behavior (Priority: P2)
 
@@ -72,7 +81,9 @@ As a maintainer of the CI repair loop, I need the suppressed-comment handling to
 
 **Acceptance Scenarios**:
 
-1. **Given** a Copilot review with no suppressed-comments details block, **When** repair dispatch builds the `@copilot` comment, **Then** the generated comment contains the same regular inline feedback as before and no synthetic suppressed entries.
+1. **Given** a Copilot review with no suppressed-comments details block, **When** repair dispatch builds the
+   `@copilot` comment, **Then** the generated comment contains the same regular inline feedback as before and no
+   synthetic suppressed entries.
 
 ## Requirements
 
