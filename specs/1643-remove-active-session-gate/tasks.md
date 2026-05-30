@@ -91,7 +91,7 @@
 
 ## Phase 8: Polish & Cross-Cutting
 
-- [ ] T036 Run full test suite with `agdt-test` and verify 0 failures across `tests/unit/cli/ci/` (SC-005)
+- [ ] T036 Run full test suite with `agdt-test`, then `agdt-task-wait`; verify 0 failures across the suite (SC-005)
 - [ ] T037 Run `bash scripts/targeted-checks.sh` — verify formatting, linting, 100% branch coverage on modified files (NFR-003)
 - [ ] T038 Run `python scripts/validate_test_structure.py` — verify 1:1:1 test structure compliance
 - [ ] T039 Verify no production code imports or calls `is_copilot_session_active()` (only deprecated body remains) — grep for usage (FR-008)
