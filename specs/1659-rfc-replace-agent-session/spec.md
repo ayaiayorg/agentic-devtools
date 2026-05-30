@@ -6,6 +6,37 @@
 **Input**: GitHub Issue #1659 — RFC: Replace agent session pollers/schedulers with unified, comment-tracking monitor (removes approval hacks, dead code)  
 **Source Issue**: #1659 (<https://github.com/ayaiayorg/agentic-devtools/issues/1659>)
 
+## Clarifications
+
+### Session 2026-05-30
+
+- Q: FR-006 places the tracker module at `agentic_devtools/cli/ci/agent_session_tracker.py`, but the existing `cli/ci/` package uses a sub-package pattern (e.g., `pipeline/session_detector.py`).
+  Should the module be a single file or a sub-package (`agentic_devtools/cli/ci/tracker/`) to align with repository conventions? → A: Create a sub-package `agentic_devtools/cli/ci/tracker/` with
+  `__init__.py`, `models.py` (TrackedSession, TrackerComment, DetectionSource), `parser.py` (comment parsing), `renderer.py` (markdown rendering), and `merger.py` (deduplication/merge logic). This
+  aligns with the established sub-package pattern in `cli/ci/pipeline/` and `cli/ci/evaluator/`. The FR-006 reference path `agent_session_tracker.py` should be read as the logical module name; the
+  implementation is the `tracker` sub-package.
+
+- Q: The spec mentions correlating sessions across sources using "PR number and detection timestamps within a configurable tolerance window" (FR-010), but `gh agent-task list` returns an `id`
+  field. Should correlation primarily use task ID when available (exact match), falling back to timestamp-based correlation only when task IDs are absent or mismatched? → A: Yes. Correlation MUST
+  prefer exact task ID match (the `id` field from `gh agent-task list` matched against the task reference in `copilot_work_finished` event payloads) as the primary strategy. Timestamp-based
+  correlation within the tolerance window is the fallback strategy used only when one source lacks a task ID or the IDs do not match due to format differences. FR-010 is updated to reflect this
+  priority.
+
+- Q: The spec requires deleting `.github/ai-pr-loop-config.json` (FR-005), which currently defines `trusted_bot_accounts`. Is this configuration consumed by the Python orchestrator (e.g., `guards.py`)
+  and if so, should it be migrated elsewhere before deletion? → A: No migration is required by this feature spec. FR-005 only requires deleting
+  `.github/ai-pr-loop-config.json` and removing references to deleted files.
+
+- Q: The polling schedule is currently `*/5` (every 5 minutes). With the addition of Copilot review polling via the Reviews API, will the workflow make significantly more API calls per cycle
+  (potentially hitting secondary rate limits for large repositories)? Should a configurable polling interval or adaptive backoff be specified? → A: The polling schedule remains static at `*/5` in
+  workflow YAML (not configurable via env). The workflow MUST implement request budgeting: if more than 50 open PRs need polling, PRs are batched across consecutive cycles using a repository-level
+  round-robin cursor managed by the monitor (not per-PR tracker comments). The per-cycle batch size is configurable via `AGENT_MONITOR_MAX_PRS_PER_CYCLE` (default `50`). This keeps API calls per
+  cycle bounded by the configured batch size and required per-PR checks, reducing rate-limit risk. NFR-001 is updated to reflect the batching strategy.
+
+- Q: The `ai-pr-loop-config.json` deletion removes `trusted_bot_accounts` — does the `pull_request_review` trigger removal in FR-004 also require changes to the `if:` condition in `ai-pr-loop.yml`
+  that currently filters on `copilot-pull-request-reviewer[bot]` and `Copilot` login names? → A: Yes. When the `pull_request_review` trigger is removed from `ai-pr-loop.yml`, the entire
+  `github.event_name == 'pull_request_review'` branch in the job's `if:` condition MUST also be removed since it becomes dead code. The Copilot bot login names (`Copilot`,
+  `copilot-pull-request-reviewer[bot]`) remain relevant only in the `issue_comment` trigger branch and in the Python orchestrator's bot account detection logic.
+
 ## Problem Statement
 
 The agentic-devtools repository currently relies on three separate GitHub Actions workflows to detect and respond to Copilot agent session completions: `agent-session-monitor.yml`,
@@ -138,13 +169,13 @@ Actions workflow and the Python-based pipeline orchestrator can share identical 
 **Why this priority**: Extracting the tracker logic into a tested library module ensures consistency between the shell-based workflow and the Python orchestrator, prevents drift between
 implementations, and enables unit testing of deduplication logic without requiring live GitHub API calls.
 
-**Independent Test**: Import `agent_session_tracker` in a unit test, construct sample tracker comment bodies, and verify that parsing, merging, and deduplication produce correct results for all
+**Independent Test**: Import the `tracker` sub-package in a unit test, construct sample tracker comment bodies, and verify that parsing, merging, and deduplication produce correct results for all
 documented scenarios without any network calls.
 
 **Acceptance Scenarios**:
 
 1. **Given** a raw tracker comment body string containing the documented HTML comment metadata and markdown table, **When** passed to the tracker module's parse function, **Then** a structured list of
-   `TrackedSession` objects is returned with all fields (session_id, source, status, detected_at, dispatch_link) correctly populated.
+   `TrackedSession` objects is returned with all fields (session_id, sources, status, detected_at, dispatch_link) correctly populated.
 
 2. **Given** two sets of detected sessions (one from `agent-task` source, one from `events-api` source) that share a common task ID, **When** merged using the tracker module's merge function, **Then**
    the output contains a single deduplicated entry with both sources noted, preferring the earlier detection timestamp.
@@ -167,6 +198,8 @@ The following boundary conditions must be handled correctly by the implementatio
 - How does the system handle clock skew between the monitor's `last_checked` timestamp and GitHub's event timestamps? All timestamp comparisons must use a tolerance window of at least 60 seconds.
 - What happens when the tracker comment is accidentally deleted by a human? The next monitor cycle must detect the absence and recreate the comment with sessions detected in that cycle, accepting that
   historical data is lost but ensuring forward progress.
+- What happens when more than 50 open PRs require polling in a single cycle? The monitor uses round-robin batching with a repository-level cursor managed by the monitor (not stored in per-PR tracker
+  comments), processing a subset of PRs per cycle and rotating through all PRs across consecutive cycles to stay within API rate limits.
 
 ## Requirements
 
@@ -181,45 +214,57 @@ The following boundary conditions must be handled correctly by the implementatio
 - **FR-003**: The system MUST dispatch `ai-pr-loop.yml` via `workflow_dispatch` (using a PAT) for each newly detected completed or failed session, ensuring that dispatches never require manual
   approval regardless of the triggering actor.
 
-- **FR-004**: The `pull_request_review` trigger MUST be removed from `ai-pr-loop.yml`, and Copilot review completions MUST be detected exclusively by polling the Pull Request Reviews API
+- **FR-004**: The `pull_request_review` trigger MUST be removed from `ai-pr-loop.yml`, along with the entire `github.event_name == 'pull_request_review'` branch in the job's `if:` condition (which
+  becomes dead code after trigger removal). Copilot review completions MUST be detected exclusively by polling the Pull Request Reviews API
   (`pulls.listReviews` / `gh api /repos/$OWNER/$REPO/pulls/$PR_NUMBER/reviews`) for reviews authored by the Copilot bot on the current head
   commit. The issue events API (`copilot_work_finished`) MUST NOT be relied upon as the
   detection mechanism for review submissions, as it does not reliably surface PR review events.
 
 - **FR-005**: The system MUST delete the following files from the repository: `.github/workflows/workflow-approval-monitor.yml`, `.github/workflows/squash-wait-scheduler.yml`, and
-  `.github/ai-pr-loop-config.json`. No references to these files shall remain in any workflow, script, or configuration.
+  `.github/ai-pr-loop-config.json`. No references to these deleted files shall remain in any workflow, script, or configuration.
 
-- **FR-006**: A new Python module `agentic_devtools/cli/ci/agent_session_tracker.py` MUST be created containing functions for: parsing tracker comment bodies into structured session lists, rendering
-  session lists back to the documented markdown format, merging sessions from multiple detection sources with deduplication by session ID, and determining which sessions are new (requiring dispatch)
+- **FR-006**: A new Python sub-package `agentic_devtools/cli/ci/tracker/` MUST be created containing modules for: parsing tracker comment bodies into structured session lists (`parser.py`), rendering
+  session lists back to the documented markdown format (`renderer.py`), merging sessions from multiple detection sources with deduplication by session ID (`merger.py`), data models (`models.py`), and
+  determining which sessions are new (requiring dispatch)
   versus already processed.
 
 - **FR-007**: The tracker comment format MUST include an HTML comment header containing machine-readable metadata (minimally `last_checked` ISO-8601 timestamp), a human-readable heading identifying
-  the PR, and a markdown table with columns for Session ID, Source, Status, Detected At, and ai-pr-loop Dispatch link.
+  the PR, and a markdown table with columns for Session ID, Source, Status, Detected At, and ai-pr-loop Dispatch link. When a session has multiple sources, the Source cell MUST render them as a
+  comma-separated list in deterministic order (`agent-task, events-api, reviews-api`) so parser/renderer round-trips preserve consistent source attribution.
 
 - **FR-008**: The `agent-session-monitor.yml` workflow MUST request `issues: write` and `pull-requests: write` permissions to support creating and updating tracker comments on PRs.
 
 - **FR-009**: The system MUST handle the case where `gh agent-task list` returns an error or is unavailable by falling back to events-API-only detection for that cycle, logging the failure, and
   continuing to process remaining PRs without aborting the entire workflow run.
 
-- **FR-010**: The system MUST correlate sessions detected by both sources (agent-task and events-api) using a best-effort strategy based on
-  PR number and detection timestamps within a configurable tolerance window (minimum 60 seconds), producing a single logical session entry
-  with both sources noted when a match is found; otherwise the detections MUST be recorded as separate entries.
+- **FR-010**: The system MUST correlate sessions detected by both sources (agent-task and events-api) using a two-tier strategy: (1) primary — exact task ID match between the `id` field from `gh
+  agent-task list` and the task reference in `copilot_work_finished` event payloads; (2) fallback — PR number and detection timestamps within a configurable tolerance window (minimum 60 seconds) when
+  task IDs are absent or format-mismatched. A correlated match produces a single logical session entry
+  with both sources noted; otherwise the detections MUST be recorded as separate entries.
 
-- **FR-011**: The existing test file `tests/workflows/test_minimized_ci_workflows.py` MUST be updated to remove assertions referencing the deleted workflows and to add assertions validating the
-  enhanced monitor's expected trigger configuration and permissions.
+- **FR-011**: The existing test files `tests/workflows/test_minimized_ci_workflows.py` and
+  `tests/workflows/test_agent_session_monitor.py` MUST be updated to remove assertions referencing deleted workflows,
+  cache-based session deduplication, and old read-only monitor permissions, and to add assertions validating the
+  enhanced monitor's expected trigger configuration, comment-based tracking, batching, and write permissions.
 
 - **FR-012**: The tracker module MUST expose a function that determines whether a given session constitutes a "review completion" versus a "coding session completion" based on available metadata,
   enabling the pipeline to distinguish between these event types for downstream routing decisions.
 
 ### Non-Functional Requirements
 
-- **NFR-001**: The enhanced monitor workflow MUST complete a full polling cycle (all open PRs with agent labels) within 5 minutes for repositories with up to 50 concurrent open PRs, ensuring timely
-  detection without hitting GitHub Actions job timeout limits.
+- **NFR-001**: The enhanced monitor workflow MUST complete a full polling cycle (all open PRs with agent labels) within
+  5 minutes for repositories with up to the configured per-cycle batch size. For repositories exceeding that batch size,
+  the monitor MUST use round-robin batching (processing a configurable subset per cycle, default 50) backed by a repository-level cursor that persists across scheduled workflow runs, so each cycle
+  resumes from the previous stopping point and all PRs are polled within ceil(total_prs / AGENT_MONITOR_MAX_PRS_PER_CYCLE) consecutive cycles.
+  The per-cycle batch size MUST be configurable via an `AGENT_MONITOR_MAX_PRS_PER_CYCLE` workflow environment variable
+  (default: `50`); the GitHub Actions cron schedule remains the static default `*/5 * * * *` unless changed in
+  workflow YAML.
 
 - **NFR-002**: The tracker comment update operation MUST be atomic from the perspective of data integrity — if a write fails mid-operation, the comment MUST remain in its previous valid state rather
   than being left in a partially updated condition. This is achieved by computing the complete new body before issuing the single update API call.
 
-- **NFR-003**: The `agent_session_tracker.py` module MUST achieve 100% branch coverage in unit tests, consistent with the repository's existing coverage requirements for all source modules.
+- **NFR-003**: The `agentic_devtools/cli/ci/tracker/` sub-package MUST achieve 100% branch coverage in unit tests, consistent with the repository's existing coverage requirements for all source
+  modules.
 
 - **NFR-004**: The tracker comment MUST NOT exceed 32,000 characters in rendered length. When the session count would cause overflow, the module MUST prune the oldest completed sessions (preserving
   all running sessions and the 20 most recent completed sessions) before rendering.
@@ -233,14 +278,15 @@ The following boundary conditions must be handled correctly by the implementatio
 ### Key Entities
 
 - **TrackedSession**: Represents a single detected agent session. Key attributes: `session_id` (unique identifier from source),
-  `source` (enum: `agent-task` | `events-api`), `status` (string: `completed` | `failed` | `running`),
+  `sources` (list of enum values: `agent-task` | `events-api` | `reviews-api`), `status` (string: `completed` | `failed` | `running`),
   `detected_at` (ISO-8601 timestamp), `dispatch_run_url` (nullable string: link to triggered workflow run),
   `pr_number` (integer), `correlation_id` (nullable: task ID used to correlate across sources).
 
 - **TrackerComment**: Represents the durable per-PR comment containing all session tracking data. Key attributes: `comment_id` (GitHub comment ID for updates), `pr_number` (integer), `last_checked`
   (ISO-8601 timestamp), `sessions` (list of TrackedSession), `raw_body` (rendered markdown string).
 
-- **DetectionSource**: Enum representing the origin of a session detection. Values: `AGENT_TASK` (from `gh agent-task list` polling), `EVENTS_API` (from GitHub issue events endpoint). Used for
+- **DetectionSource**: Enum representing the origin of a session detection. Values: `AGENT_TASK` (from `gh agent-task list` polling), `EVENTS_API` (from GitHub issue events endpoint), `REVIEWS_API`
+  (from Pull Request Reviews API polling for Copilot review completions). Used for
   attribution in the tracker table and for correlation logic.
 
 ## Success Criteria
@@ -259,11 +305,14 @@ The following boundary conditions must be handled correctly by the implementatio
 - **SC-004**: Manual workflow approval interventions required for Copilot-triggered automation drops from the current ~15 per week to zero, measured by the count of "Approve and run" actions in the
   repository's Actions audit log over a 7-day period post-deployment.
 
-- **SC-005**: The `agent_session_tracker.py` module achieves 100% branch coverage with a minimum of 25 unit test cases covering parsing, rendering, merging, deduplication, correlation, and edge cases
+- **SC-005**: The `agentic_devtools/cli/ci/tracker/` sub-package achieves 100% branch coverage with a minimum of 25 unit test cases covering parsing, rendering, merging, deduplication, correlation,
+  and edge cases
   (truncation, missing fields, concurrent updates).
 
-- **SC-006**: End-to-end latency from agent session completion to `ai-pr-loop` dispatch remains under 10 minutes (95th percentile), measured by comparing the `detected_at` timestamp in tracker
-  comments to the `createdAt` timestamp of the corresponding `workflow_dispatch` run over a 7-day window.
+- **SC-006**: End-to-end latency from agent session completion to `ai-pr-loop` dispatch remains under 10 minutes (95th percentile) for repositories where open monitored PRs are at most
+  `2 × AGENT_MONITOR_MAX_PRS_PER_CYCLE`. For repositories above that threshold, the 95th-percentile dispatch latency MUST remain within one full round-robin window (`5 × ceil(total_prs /
+  AGENT_MONITOR_MAX_PRS_PER_CYCLE)` minutes with the default 5-minute schedule), measured over a 7-day window by comparing tracker `detected_at` timestamps to corresponding
+  `workflow_dispatch.createdAt` timestamps.
 
 - **SC-007**: The enhanced monitor workflow completes 95% of its scheduled runs within the 5-minute target, with no run exceeding the GitHub Actions 6-hour job timeout, measured over the first 14 days
   of operation.
