@@ -1,10 +1,31 @@
 # Feature Specification: Remove active_session gate from dispatch_repair and use gh agent-task for reliable session detection
 
-**Feature Branch**: `speckit/1643/phase-1-specify`  
+**Feature Branch**: `speckit/1643/phase-2-clarify`  
 **Created**: 2026-05-28  
 **Status**: Draft  
 **Input**: User description: "Remove active_session gate from dispatch_repair and use gh agent-task for reliable session detection"  
 **Source Issue**: #1643 (<https://github.com/ayaiayorg/agentic-devtools/issues/1643>)
+
+## Clarifications
+
+### Session 2026-05-29
+
+- Q: Where should the new `gh agent-task`-based session detector function be located — should it replace the existing `session_detector.py` module or live in a new module? → A: The new detector
+  function should be added to the existing `agentic_devtools/cli/ci/pipeline/session_detector.py` module as a new public function (e.g., `is_copilot_session_active_via_agent_task()`). The old
+  `is_copilot_session_active()` function remains in the same file but is marked deprecated. This keeps session detection logic co-located and minimizes import path changes for callers.
+- Q: Other actions (`SquashAction`, `RequestReviewAction`) also gate on `snapshot.active_session` — should FR-008's migration scope update these actions to call the new detector directly, or is their
+  migration out of scope for this feature? → A: FR-008 requires migrating ALL production call sites that read `snapshot.active_session`. Since `SquashAction` and `RequestReviewAction` still need
+  session awareness (unlike `dispatch_repair`), they MUST be updated to call the new `gh agent-task`-based detector directly at the point of use rather than reading the snapshot field. This is
+  in-scope for this feature.
+- Q: Should the `PRStateSnapshot` builder in `snapshot.py` stop populating `active_session` entirely (always `False`), or should it call the new detector to populate it for backward compatibility? →
+  A: Per FR-007, the snapshot builder MUST stop calling the old events-based heuristic. The field should default to `False` and NOT be populated by any detector (old or new). Actions that need session
+  state must call the new detector directly. This avoids paying the subprocess cost unconditionally for actions that don't need it.
+- Q: What is the expected function signature of the new detector — should it accept a `CIPlatformProvider` (like the old one) or take explicit parameters (repo, pr_number)? → A: The new detector
+  should accept explicit parameters: `def is_copilot_session_active_via_agent_task(repo: str, pr_number: int, *, timeout_seconds: int = 10) -> bool`. This avoids coupling to the `CIPlatformProvider`
+  abstraction and makes the function easily testable with simple argument mocking. Callers extract `repo` and `pr_number` from their available context.
+- Q: For the fail-open timeout in NFR-001, should the 10-second limit apply to the entire detection flow (including potential retries) or just the single subprocess invocation? → A: The 10-second
+  timeout applies to the single `subprocess.run()` call. There MUST be no retry logic in the detector itself — a single failed attempt returns `False` immediately. Retry responsibility belongs to the
+  caller if needed. This keeps the detector simple and predictable.
 
 ## Problem Statement
 
@@ -21,7 +42,8 @@ in a "needs repair but won't dispatch" state for hours because a single failed A
 
 Furthermore, the session gate on `dispatch_repair` is architecturally unnecessary. The repair mechanism works by posting an `@copilot` comment on the PR. If a Copilot session is already active, that
 comment steers the active session toward the repair work. If no session is active, the comment triggers a new session. Either outcome is desirable and correct — the comment is idempotent with respect
-to session lifecycle. Unlike actions that may still need to consider session state, `dispatch_repair` does not need session awareness because it behaves correctly whether a Copilot session is already
+to session lifecycle. Unlike actions that may still need to consider session state (e.g., `SquashAction` and `RequestReviewAction`, which could interfere with a running session), `dispatch_repair`
+does not need session awareness because it behaves correctly whether a Copilot session is already
 running or must be started by the comment. Therefore, removing the session gate from `dispatch_repair` eliminates a class of false-positive blocks without introducing any harmful behavior.
 
 ## User Scenarios & Testing
@@ -58,7 +80,7 @@ instead of inferring it from timeline events. This ensures session-aware decisio
 produce both false positives and false negatives.
 
 **Why this priority**: While the dispatch_repair gate removal (P1) eliminates the most common failure mode, session-aware checks still require accurate detection. Without replacing the
-detector, these checks continue to suffer from unreliable heuristics. This story provides infrastructure for future session-aware actions.
+detector, these checks continue to suffer from unreliable heuristics. This story provides infrastructure for `SquashAction` and `RequestReviewAction` which still require session awareness.
 
 **Independent Test**: Can be tested by mocking the `gh agent-task list` subprocess call and verifying that the new detector correctly interprets "running" and "stopped" states from the JSON output.
 Also testable by simulating API failures and confirming fail-open behavior.
@@ -99,6 +121,32 @@ verifying that each case returns `False` with appropriate warning logs.
 
 ---
 
+### User Story 4 - Session-Aware Actions Migrate to New Detector (Priority: P2)
+
+As a developer maintaining the CI pipeline, I need `SquashAction` and `RequestReviewAction` to call the new `gh agent-task`-based detector directly instead of reading the stale
+`snapshot.active_session` field, so that their session gates are accurate and benefit from fail-open semantics.
+
+**Why this priority**: These actions still legitimately need session awareness (squashing during an active session could cause conflicts; requesting review while a session is running is wasteful).
+They must migrate to the new detector alongside the snapshot builder changes in FR-007/FR-008.
+
+**Independent Test**: Can be tested by mocking `is_copilot_session_active_via_agent_task()` and verifying that `SquashAction.evaluate()` and `RequestReviewAction.evaluate()` call the new function and
+respect its return value for their session gates.
+
+**Acceptance Scenarios**:
+
+1. **Given** the new detector returns `True` (session active), **When** `SquashAction.evaluate()` is called, **Then** the result decision is `ActionDecision.SKIP` with a `no_active_session: False`
+   precondition.
+2. **Given** the new detector returns `False` (no session), **When** `SquashAction.evaluate()` is called with other preconditions met, **Then** the action proceeds to evaluate remaining preconditions
+   without session blocking.
+3. **Given** the new detector returns `True` (session active), **When** `RequestReviewAction.evaluate()` is called, **Then** the result decision is `ActionDecision.SKIP` with a
+   `no_active_session: False` precondition.
+4. **Given** the new detector returns `False` (no session), **When** `RequestReviewAction.evaluate()` is called with other preconditions met, **Then** the action proceeds to evaluate remaining
+   preconditions without session blocking.
+5. **Given** `pipeline/summary.py` renders a summary for a snapshot where `active_session` is no longer computed (FR-007), **When** the summary is generated, **Then** the session state is displayed as
+   `N/A` and the renderer does not invoke any session detector.
+
+---
+
 ### Edge Cases
 
 - What happens when multiple Copilot sessions are listed by `gh agent-task list` for the same PR? The detector should consider the session active if ANY task has a
@@ -110,6 +158,9 @@ verifying that each case returns `False` with appropriate warning logs.
 - What happens if `gh agent-task list` returns a session with status "running" but the session has been running for an unusually long time (e.g., 6+ hours)? The new detector should still report it as
   active — staleness heuristics should not be applied to authoritative status from `gh agent-task`. If the session is truly stuck, that is a GitHub platform issue, not something the automation should
   second-guess.
+- What happens if `SquashAction` or `RequestReviewAction` call the new detector and the subprocess takes close to 10 seconds? The action evaluation will block for up to 10 seconds. This is acceptable
+  since these actions are not latency-critical and the timeout guarantees bounded execution. No retry is attempted — a timeout returns `False` (fail-open) and the action proceeds as if no session is
+  active.
 
 ## Requirements
 
@@ -123,7 +174,11 @@ verifying that each case returns `False` with appropriate warning logs.
   pending. This requirement applies only to the decision produced by `evaluate()` and does not prohibit intentional `SKIP` outcomes from `execute()` guard logic such as deduplication or cycle-limit
   protection.
 
-- **FR-003**: The system MUST provide a new session detection function that invokes `gh agent-task list` (with appropriate repository context) and parses the JSON output to
+- **FR-003**: The system MUST provide a new session detection function named
+  `is_copilot_session_active_via_agent_task(repo: str, pr_number: int, *, timeout_seconds: int = 10) -> bool`
+  located in `agentic_devtools/cli/ci/pipeline/session_detector.py`. This function invokes
+  `gh agent-task list` (with explicit repository context via `--repo <owner>/<repo>`, where `repo` MUST be the PR
+  base repository full name, e.g. `PRStateSnapshot.base_repo_full_name`) and parses the JSON output to
   determine whether any Copilot coding session is currently in an active/non-terminal state (as defined in FR-005) for the given PR. This function replaces
   `is_copilot_session_active()` for all callers that still need session awareness. The detector
   MUST treat `gh agent-task list` as the authoritative source and MUST invoke it with explicit JSON field selection sufficient for detection, including `--json id,status,pullRequestNumber,createdAt`.
@@ -131,31 +186,43 @@ verifying that each case returns `False` with appropriate warning logs.
   string. A task entry is associated with the target PR if and only if `task.pullRequestNumber == pr_number`. The implementation and tests MUST use this mapping rule explicitly. A follow-up
   `gh agent-task view <id>` call MUST NOT be required for normal detection logic; `gh agent-task list` output alone MUST be sufficient. If a future CLI version omits PR linkage from list output
   and an implementation chooses to attempt `gh agent-task view <id>` as a compatibility fallback, that fallback is optional and any failure in the fallback path MUST still result in `False` in
-  accordance with FR-004.
+  accordance with FR-004. The function accepts explicit `repo` and `pr_number` parameters (not a `CIPlatformProvider`) to simplify testing and reduce coupling.
 
 - **FR-004**: The new session detection function MUST return `False` (no active session) when any error occurs during execution, including but not limited to: subprocess execution failure, non-zero
   exit code from `gh`, JSON parse errors, network timeouts, missing `gh` CLI binary, and unrecognized subcommand errors. Each failure case MUST be logged at WARNING level with sufficient detail to
-  diagnose the issue.
+  diagnose the issue. There MUST be no retry logic within the detector — a single failed attempt returns `False` immediately.
 
 - **FR-005**: The new session detection function MUST return `True` (active session) if and only if the parsed output from `gh agent-task list` contains at least one task entry that both
   (a) is associated with the target PR according to FR-003 and (b) has a `status` value indicating a non-terminal/active state. For this specification, recognized active values are `"queued"`,
   `"requested"`, `"waiting"`, `"in_progress"`, and `"running"`; any other status value MUST be treated as not active unless this spec is updated to name additional values explicitly.
 
-- **FR-006**: The old `is_copilot_session_active()` function in `agentic_devtools/cli/ci/pipeline/session_detector.py` MUST be deprecated or removed. If retained for backward compatibility, it MUST
-  be marked with a deprecation warning directing callers to the new detector. No production code path should invoke the old function after migration is complete.
+- **FR-006**: The old `is_copilot_session_active()` function in `agentic_devtools/cli/ci/pipeline/session_detector.py` MUST be deprecated. It MUST emit a `DeprecationWarning` (for example via
+  `warnings.warn("...", DeprecationWarning, stacklevel=2)`) directing callers to the new `is_copilot_session_active_via_agent_task()` function. The function body may remain for backward compatibility
+  during the transition but no production code path should invoke it after migration is complete.
 
-- **FR-007**: The `PRStateSnapshot` model MAY retain the `active_session` field for backward compatibility, but the field MUST NOT be populated by the events-based heuristic in the production
-  snapshot-building path. In particular, the state-building logic in `pipeline/snapshot.py` used by `DispatchRepairAction` MUST stop computing or assigning `active_session` from
-  `is_copilot_session_active()` or any other events-based heuristic. `DispatchRepairAction` MUST treat `snapshot.active_session` as unused compatibility data and MUST NOT read it.
+- **FR-007**: The `PRStateSnapshot` model MUST retain the `active_session` field for backward compatibility (it defaults to `False`), but the field MUST NOT be populated by the events-based heuristic
+  or any detector in the production snapshot-building path. Specifically, the state-building logic in
+  `pipeline/snapshot.py` MUST remove the call to `is_copilot_session_active()` and MUST NOT replace it
+  with a call to the new detector. The field remains at its default value of `False`.
+  `DispatchRepairAction` MUST treat `snapshot.active_session` as unused compatibility data and MUST NOT read
+  it.
 
-- **FR-008**: The migration scope MUST include all production call sites that currently depend on events-based session detection or on `PRStateSnapshot.active_session`. At minimum, this includes
-  (a) the snapshot builder in `pipeline/snapshot.py`, and (b) any production action/module that currently reads `snapshot.active_session` or calls `is_copilot_session_active()`. Each such
-  caller MUST be updated either to remove session gating entirely (for `DispatchRepairAction`) or to invoke the new `gh agent-task` detector directly at the point of use. The implementation and
-  tests MUST verify that no production path continues to rely on a snapshot-populated `active_session` value derived from the events heuristic.
+- **FR-008**: The migration scope MUST include all production call sites that currently depend on events-based session detection or on `PRStateSnapshot.active_session`. Based on codebase analysis,
+  this includes:
+  (a) the snapshot builder in `pipeline/snapshot.py` (remove `is_copilot_session_active()` call),
+  (b) `DispatchRepairAction` in `pipeline/actions/dispatch_repair.py` (remove session gate entirely),
+  (c) `SquashAction` in `pipeline/actions/squash.py` (replace `snapshot.active_session` read with direct call to `is_copilot_session_active_via_agent_task()`),
+  (d) `RequestReviewAction` in `pipeline/actions/request_review.py` (replace `snapshot.active_session` read with direct call to `is_copilot_session_active_via_agent_task()`),
+  and (e) the summary renderer in `pipeline/summary.py` (update to display `N/A` for session state since
+  the snapshot no longer computes session state and `active_session` is non-authoritative; it MUST NOT
+  call any session detector during summary rendering).
+  Each such caller MUST be updated either to remove session gating entirely (for `DispatchRepairAction`) or to invoke the new `gh agent-task` detector directly at the point of use. The implementation
+  and tests MUST verify that no production path continues to rely on a snapshot-populated `active_session` value derived from the events heuristic.
 
 ### Non-Functional Requirements
 
-- **NFR-001**: The new session detector MUST complete within 10 seconds under normal conditions. If `gh agent-task list` does not return within 10 seconds, the subprocess MUST be terminated and the
+- **NFR-001**: The new session detector MUST complete within 10 seconds under normal conditions. The 10-second timeout applies to the single `subprocess.run()` call with no retry logic. If `gh
+  agent-task list` does not return within 10 seconds, the subprocess MUST be terminated and the
   detector MUST return `False` (fail-open timeout).
 
 - **NFR-002**: The new session detector MUST NOT introduce any new external dependencies beyond the `gh` CLI (which is already a required tool in the environment). It MUST use `subprocess` for
@@ -190,6 +257,9 @@ verifying that each case returns `False` with appropriate warning logs.
 
 - **SC-005**: All existing tests in the CI automation module MUST continue to pass after the changes, with no regressions introduced. Target: 0 test failures in the `tests/unit/cli/ci/` directory
   after implementation.
+
+- **SC-006**: `SquashAction` and `RequestReviewAction` MUST call the new `is_copilot_session_active_via_agent_task()` function instead of reading `snapshot.active_session` — verified by unit tests
+  that mock the new detector and confirm it is invoked with correct `repo` and `pr_number` arguments. Target: Both actions use the new detector with zero reads of `snapshot.active_session`.
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
