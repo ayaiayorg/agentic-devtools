@@ -17,30 +17,13 @@ class TestNormalizePem:
 
     def test_valid_pem_without_blank_lines_is_unchanged(self):
         """A well-formed PEM block with no blank lines is returned unchanged."""
-        pem = (
-            "-----BEGIN CERTIFICATE-----\n"
-            "MIIB1TCCAb2gAwIBAgIJAKl\n"
-            "base64datahere==\n"
-            "-----END CERTIFICATE-----"
-        )
+        pem = "-----BEGIN CERTIFICATE-----\nMIIB1TCCAb2gAwIBAgIJAKl\nbase64datahere==\n-----END CERTIFICATE-----"
         assert cert_utils.normalize_pem(pem) == pem
 
     def test_blank_lines_inside_certificate_body_are_removed(self):
         """Blank lines inside a PEM certificate body are stripped."""
-        pem_with_blanks = (
-            "-----BEGIN CERTIFICATE-----\n"
-            "MIIB1TCCAb2g\n"
-            "\n"
-            "base64datahere==\n"
-            "\n"
-            "-----END CERTIFICATE-----"
-        )
-        expected = (
-            "-----BEGIN CERTIFICATE-----\n"
-            "MIIB1TCCAb2g\n"
-            "base64datahere==\n"
-            "-----END CERTIFICATE-----"
-        )
+        pem_with_blanks = "-----BEGIN CERTIFICATE-----\nMIIB1TCCAb2g\n\nbase64datahere==\n\n-----END CERTIFICATE-----"
+        expected = "-----BEGIN CERTIFICATE-----\nMIIB1TCCAb2g\nbase64datahere==\n-----END CERTIFICATE-----"
         assert cert_utils.normalize_pem(pem_with_blanks) == expected
 
     def test_multiple_certificates_are_each_normalized(self):
@@ -65,17 +48,6 @@ class TestNormalizePem:
 
     def test_whitespace_only_lines_inside_body_are_removed(self):
         """Lines containing only whitespace inside a certificate body are removed."""
-        pem_with_whitespace = (
-            "-----BEGIN CERTIFICATE-----\n"
-            "base64data\n"
-            "   \n"
-            "moredata==\n"
-            "-----END CERTIFICATE-----"
-        )
-        expected = (
-            "-----BEGIN CERTIFICATE-----\n"
-            "base64data\n"
-            "moredata==\n"
-            "-----END CERTIFICATE-----"
-        )
+        pem_with_whitespace = "-----BEGIN CERTIFICATE-----\nbase64data\n   \nmoredata==\n-----END CERTIFICATE-----"
+        expected = "-----BEGIN CERTIFICATE-----\nbase64data\nmoredata==\n-----END CERTIFICATE-----"
         assert cert_utils.normalize_pem(pem_with_whitespace) == expected

@@ -60,6 +60,19 @@ class TestCreatePlaceholderAndSetupWorktree:
         assert success is False
         assert issue_key is None
 
+    @patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_issue")
+    def test_fails_when_success_but_issue_key_is_none(self, mock_create_issue):
+        """Test failure when issue creation succeeds but returns None issue_key."""
+        mock_create_issue.return_value = PlaceholderIssueResult(success=True, issue_key=None)
+
+        success, issue_key = create_placeholder_and_setup_worktree(
+            project_key="PROJECT",
+            issue_type="Task",
+        )
+
+        assert success is False
+        assert issue_key is None
+
     @patch("agentic_devtools.cli.workflows.worktree_setup.get_worktree_continuation_prompt")
     @patch("agentic_devtools.cli.workflows.worktree_setup.open_vscode_workspace")
     @patch("agentic_devtools.cli.workflows.worktree_setup.check_worktree_exists")

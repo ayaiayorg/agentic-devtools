@@ -263,6 +263,58 @@ class TestAdvancePullRequestReviewWorkflow:
         workflow = state.get_workflow_state()
         assert workflow["step"] == "pull-request-overview"
 
+    def test_advance_to_decision_with_in_progress_file_status(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """File with 'in-progress' status is neither approved nor needs-work (loop-back branch)."""
+        state.set_workflow_state(
+            name="pull-request-review",
+            status="in-progress",
+            step="file-review",
+            context={"pull_request_id": "123"},
+        )
+
+        mock_file_approved = MagicMock()
+        mock_file_approved.status = "approved"
+        mock_file_in_progress = MagicMock()
+        mock_file_in_progress.status = "in-progress"
+        mock_review_state = MagicMock()
+        mock_review_state.files = {
+            "/src/a.py": mock_file_approved,
+            "/src/b.py": mock_file_in_progress,
+        }
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+                return_value={
+                    "all_complete": True,
+                    "completed_count": 2,
+                    "pending_count": 0,
+                    "total_count": 2,
+                    "current_file": None,
+                    "prompt_file_path": None,
+                },
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+                return_value=mock_review_state,
+            ),
+        ):
+            workflow_dir = temp_prompts_dir / "pull-request-review"
+            workflow_dir.mkdir()
+            template_file = workflow_dir / "default-decision-prompt.md"
+            template_file.write_text(
+                "Approvals: {{approval_count}}, Changes: {{changes_count}}",
+                encoding="utf-8",
+            )
+
+            commands.advance_pull_request_review_workflow()
+
+        captured = capsys.readouterr()
+        assert "Approvals: 1" in captured.out
+        assert "Changes: 0" in captured.out
+
     def test_advance_from_pull_request_overview_to_file_review(
         self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
     ):

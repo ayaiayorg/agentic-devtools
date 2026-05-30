@@ -25,7 +25,9 @@ class TestCheckoutAndSyncBranch:
                                     mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
                                     mock_files.return_value = ["file1.ts", "file2.ts"]
 
-                                    success, error, files, had_conflicts, push_succeeded = checkout_and_sync_branch("feature/test")
+                                    success, error, files, had_conflicts, push_succeeded = checkout_and_sync_branch(
+                                        "feature/test"
+                                    )
 
                                     assert success is True
                                     assert error is None
@@ -247,7 +249,9 @@ class TestCheckoutAndSyncBranch:
                                     mock_rebase.return_value = RebaseResult(RebaseResult.NO_REBASE_NEEDED)
                                     mock_files.return_value = ["file.ts"]
 
-                                    success, error, files, had_conflicts, push_succeeded = checkout_and_sync_branch("feature/test")
+                                    success, error, files, had_conflicts, push_succeeded = checkout_and_sync_branch(
+                                        "feature/test"
+                                    )
 
                                     assert success is True
                                     assert push_succeeded is None
@@ -277,10 +281,97 @@ class TestCheckoutAndSyncBranch:
                                     mock_rebase.return_value = RebaseResult(RebaseResult.SUCCESS)
                                     mock_files.return_value = ["file.ts"]
 
-                                    success, error, files, had_conflicts, push_succeeded = checkout_and_sync_branch("feature/test")
+                                    success, error, files, had_conflicts, push_succeeded = checkout_and_sync_branch(
+                                        "feature/test"
+                                    )
 
                                     assert success is True
                                     assert push_succeeded is False
                                     captured = capsys.readouterr()
                                     assert "push failed" in captured.out.lower()
                                     assert "git push --force-with-lease" in captured.out
+
+    def test_rebase_error_prints_warning_and_continues(self):
+        """Test rebase with ERROR status prints warning and continues.
+
+        Covers lines 253-254: the else branch (not success, not conflict).
+        """
+        from unittest.mock import patch
+
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult, RebaseResult
+
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
+            with patch("agentic_devtools.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agentic_devtools.cli.git.operations.reset_branch_to_origin") as mock_reset:
+                    with patch("agentic_devtools.cli.git.operations.fetch_main") as mock_fetch:
+                        with patch("agentic_devtools.cli.git.operations.rebase_onto_main") as mock_rebase:
+                            with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
+                                mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
+                                mock_fetch_branch.return_value = True
+                                mock_reset.return_value = True
+                                mock_fetch.return_value = True
+                                mock_rebase.return_value = RebaseResult(
+                                    RebaseResult.ERROR,
+                                    "Unexpected rebase error",
+                                )
+                                mock_files.return_value = ["file1.ts"]
+
+                                success, error, files, had_conflicts, push_succeeded = checkout_and_sync_branch(
+                                    "feature/test"
+                                )
+
+                                assert success is True
+                                assert error is None
+                                assert files == {"file1.ts"}
+                                assert had_conflicts is False
+                                assert push_succeeded is None
+
+    def test_save_files_on_branch_writes_json(self, tmp_path):
+        """Test save_files_on_branch=True writes files-on-branch.json.
+
+        Covers lines 264-272.
+        """
+        import json
+        from unittest.mock import patch
+
+        from agentic_devtools.cli.azure_devops.review_commands import checkout_and_sync_branch
+        from agentic_devtools.cli.git.operations import CheckoutResult, RebaseResult
+
+        with patch("agentic_devtools.cli.git.operations.checkout_branch") as mock_checkout:
+            with patch("agentic_devtools.cli.git.operations.fetch_branch") as mock_fetch_branch:
+                with patch("agentic_devtools.cli.git.operations.reset_branch_to_origin") as mock_reset:
+                    with patch("agentic_devtools.cli.git.operations.fetch_main") as mock_fetch:
+                        with patch("agentic_devtools.cli.git.operations.rebase_onto_main") as mock_rebase:
+                            with patch("agentic_devtools.cli.git.operations.get_files_changed_on_branch") as mock_files:
+                                with patch(
+                                    "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                                    return_value="abc123def456",
+                                ):
+                                    with patch(
+                                        "agentic_devtools.cli.azure_devops.review_commands.get_state_dir",
+                                        return_value=tmp_path,
+                                    ):
+                                        mock_checkout.return_value = CheckoutResult(CheckoutResult.SUCCESS)
+                                        mock_fetch_branch.return_value = True
+                                        mock_reset.return_value = True
+                                        mock_fetch.return_value = True
+                                        mock_rebase.return_value = RebaseResult(RebaseResult.NO_REBASE_NEEDED)
+                                        mock_files.return_value = ["src/a.ts", "src/b.ts"]
+
+                                        success, _error, files, _conflicts, _push = checkout_and_sync_branch(
+                                            "feature/test",
+                                            pull_request_id=123,
+                                            save_files_on_branch=True,
+                                        )
+
+                                        assert success is True
+                                        assert files == {"src/a.ts", "src/b.ts"}
+
+                                        files_json = (
+                                            tmp_path / "pull-request-review" / "abc123def456" / "files-on-branch.json"
+                                        )
+                                        assert files_json.exists()
+                                        with open(files_json) as f:
+                                            data = json.load(f)
+                                        assert set(data["files"]) == {"src/a.ts", "src/b.ts"}

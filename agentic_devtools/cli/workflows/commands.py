@@ -453,6 +453,7 @@ Examples:
             print("  - Azure DevOps PR source branch, title, and description")
             print("\nTo find a completed PR, use:")
             print(f"  agdt-find-pr-by-issue --issue-key {resolved_issue_key} --status all")
+            delete_pin_file()
             sys.exit(1)
 
     # At this point, resolved_pr_id / resolved_issue_key hold the authoritative values.
@@ -460,10 +461,12 @@ Examples:
     # the _unscoped dir (before runtime-bootstrap.json existed) don't leave the active
     # scoped state.json missing these keys for downstream commands.
     #
-    # IMPORTANT: Persist jira.issue_key into the *current* directory before writing
-    # pull_request_id. set_value() saves first and only then updates
-    # runtime-bootstrap.json based on the loaded state. Ensuring the issue key is
-    # present before we write the PR ID prevents a scope flip back to PR scope.
+    # SCOPE-PINNING INVARIANT: When both issue_key and pull_request_id are present,
+    # jira.issue_key MUST be written first. set_value() saves the state dict and then
+    # updates runtime-bootstrap.json based on the loaded state. Writing the issue key
+    # first ensures it is present when pull_request_id triggers the bootstrap update,
+    # preventing a scope flip back to PR scope. This ordering is enforced below and
+    # must be preserved if this block is refactored.
     if resolved_issue_key:
         existing_issue_key = get_value("jira.issue_key")
         if existing_issue_key != resolved_issue_key:
@@ -477,6 +480,7 @@ Examples:
         print("\nUsage:")
         print("  agdt-initiate-pull-request-review-workflow --pull-request-id 12345")
         print("  agdt-initiate-pull-request-review-workflow --issue-key PROJECT-1234")
+        delete_pin_file()
         sys.exit(1)
 
     # For PR review workflows, we need to know the source branch BEFORE creating
@@ -501,6 +505,7 @@ Examples:
         print("  - Azure CLI not authenticated (run 'az login')", file=sys.stderr)
         print("  - Network issues or Azure DevOps API unavailable", file=sys.stderr)
         print(f"  - PR #{resolved_pr_id} does not exist or is not accessible", file=sys.stderr)
+        delete_pin_file()
         sys.exit(1)
 
     # Determine the worktree folder identifier
@@ -1458,8 +1463,7 @@ def initiate_create_jira_issue_workflow(
                 model,
                 "--skip-copilot-session",
             ]
-            if resolved_issue_type:
-                auto_execute_command.extend(["--issue-type", resolved_issue_type])
+            auto_execute_command.extend(["--issue-type", resolved_issue_type])
             if resolved_user_request:
                 auto_execute_command.extend(["--user-request", resolved_user_request])
 
@@ -2487,7 +2491,7 @@ Examples:
             ]
             if resolved_pr_id:
                 auto_execute_command.extend(["--pull-request-id", str(resolved_pr_id)])
-            if resolved_issue_key:
+            if resolved_issue_key:  # pragma: no branch
                 auto_execute_command.extend(["--issue-key", resolved_issue_key])
             auto_execute_command.extend(["--interactive", "true" if interactive else "false"])
             auto_execute_command.extend(["--model", model])
@@ -3171,11 +3175,11 @@ def update_checklist_cmd() -> None:
     if args.revert:
         ids = parse_completed_items_arg(args.revert)
         for item_id in ids:
-            item = checklist.get_item(item_id)
-            if item and item.completed:
-                item.completed = False
+            found = checklist.get_item(item_id)
+            if found and found.completed:
+                found.completed = False
                 print(f"✓ Reverted item {item_id} to incomplete")
-            elif item:
+            elif found:
                 print(f"⚠ Item {item_id} already incomplete")
             else:
                 print(f"⚠ Item {item_id} not found")

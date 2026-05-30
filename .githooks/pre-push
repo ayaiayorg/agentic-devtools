@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
-# Pre-push hook — runs targeted checks before allowing a push.
-# Install: git config core.hooksPath .githooks
+# Pre-push hook for agentic-devtools
+# Delegates to the Python checks module for cross-platform, fast validation.
+# Full coverage runs in CI after Copilot review; full suite runs post-merge.
 #
-# If ruff format modifies files, the push is aborted with a message
-# asking the developer to stage and amend their commit.
+# Exit code 10 from checks = ruff reformatted files (auto-fixable).
+#
+# To enable:  git config core.hooksPath .githooks
+# To disable: git config --unset core.hooksPath
 
-set -euo pipefail
+cd "$(git rev-parse --show-toplevel)" || exit 1
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+# Run checks with format auto-fix (-u = unbuffered so output streams through tee)
+python -u -m agentic_devtools.cli.checks --format-fix 2>&1 | tee .pre-push-output.log
+rc=${PIPESTATUS[0]}
 
-echo "Running pre-push targeted checks..."
-echo ""
+# Exit code 10 = ruff reformatted files — require explicit save-work flow
+if [ "$rc" -eq 10 ]; then
+    echo "❌ Files were reformatted by ruff."
+    echo "Run agdt-git-save-work to stage/commit formatted changes, then push again."
+    exit 1
+fi
 
-# Run targeted checks with --format-fix to auto-fix formatting
-# (aborts if files were modified)
-exec bash "$REPO_ROOT/scripts/targeted-checks.sh" --format-fix
+exit "$rc"

@@ -494,3 +494,124 @@ class TestRunAutoExecuteCommand:
         mock_process.kill.assert_called_once()
         captured = capsys.readouterr()
         assert "timed out" in captured.out
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
+    def test_identity_cache_not_found_reads_bootstrap_only(self, mock_popen, tmp_path):
+        """When identity.json does not exist but bootstrap has identity, uses bootstrap identity."""
+        mock_popen.return_value = _make_mock_process()
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        # No identity.json — identity_cache_path.is_file() returns False
+        (agdt_dir / "runtime-bootstrap.json").write_text('{"identity": "bootstrapped", "worktree_key": "WK1"}')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60)
+
+        call_kwargs = mock_popen.call_args[1]
+        env = call_kwargs["env"]
+        expected = str(worktree / ".agdt" / "workflows" / "bootstrapped" / "WK1")
+        assert env.get("AGENTIC_DEVTOOLS_STATE_DIR") == expected
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
+    def test_unsafe_identity_with_both_values_prints_warning(self, mock_popen, capsys, tmp_path):
+        """When both identity and worktree_key present but identity is unsafe, prints WARNING."""
+        mock_popen.return_value = _make_mock_process()
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        (agdt_dir / "runtime-bootstrap.json").write_text('{"identity": "../escape", "worktree_key": "PR1"}')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60)
+
+        call_kwargs = mock_popen.call_args[1]
+        env = call_kwargs["env"]
+        assert "_unscoped" in env.get("AGENTIC_DEVTOOLS_STATE_DIR", "")
+        captured = capsys.readouterr()
+        assert "unsafe bootstrap" in captured.out
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
+    def test_nonzero_exit_code_prints_warning_and_returns_code(self, mock_popen, capsys):
+        """Non-zero exit code prints WARNING with exit code."""
+        mock_popen.return_value = _make_mock_process(["output\n"], returncode=42)
+
+        result = _run_auto_execute_command(["failing-cmd"], "/some/worktree", 300)
+
+        assert result == 42
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.out
+        assert "42" in captured.out
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
+    def test_timeout_prints_warning_and_returns_minus_one(self, mock_popen, capsys):
+        """Timeout prints WARNING with timeout value and returns -1."""
+        mock_process = _make_mock_process()
+        mock_process.poll.return_value = None
+        mock_popen.return_value = mock_process
+
+        self.mock_timer_cls.side_effect = _invoke_callback_immediately
+
+        result = _run_auto_execute_command(["slow-cmd"], "/some/worktree", 45)
+
+        assert result == -1
+        captured = capsys.readouterr()
+        assert "timed out" in captured.out
+        assert "45" in captured.out
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
+    def test_identity_json_non_dict_falls_back_to_bootstrap(self, mock_popen, tmp_path):
+        """When identity.json contains non-dict JSON, falls back to bootstrap.
+
+        Covers branch 2148->2154.
+        """
+        mock_popen.return_value = _make_mock_process()
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        # identity.json with non-dict content (a list)
+        (agdt_dir / "identity.json").write_text('["not", "a", "dict"]')
+        (agdt_dir / "runtime-bootstrap.json").write_text('{"identity": "user1", "worktree_key": "WK1"}')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60)
+
+        call_kwargs = mock_popen.call_args[1]
+        env = call_kwargs["env"]
+        expected = str(worktree / ".agdt" / "workflows" / "user1" / "WK1")
+        assert env.get("AGENTIC_DEVTOOLS_STATE_DIR") == expected
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
+    def test_bootstrap_non_dict_falls_back_to_unscoped(self, mock_popen, tmp_path):
+        """When runtime-bootstrap.json contains non-dict JSON, falls back to _unscoped.
+
+        Covers branch 2158->2171.
+        """
+        mock_popen.return_value = _make_mock_process()
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        # bootstrap with non-dict content (a string)
+        (agdt_dir / "runtime-bootstrap.json").write_text('"just a string"')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60)
+
+        call_kwargs = mock_popen.call_args[1]
+        env = call_kwargs["env"]
+        assert "_unscoped" in env.get("AGENTIC_DEVTOOLS_STATE_DIR", "")
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
+    def test_handles_process_with_none_stdout(self, mock_popen, capsys):
+        """When process.stdout is None, the function still completes.
+
+        Covers branches 2221->2225 and 2228->2231.
+        """
+        mock_process = _make_mock_process()
+        mock_process.stdout = None
+        mock_process.returncode = 0
+        mock_popen.return_value = mock_process
+
+        result = _run_auto_execute_command(["echo", "hi"], "/some/worktree", 300)
+
+        assert result == 0

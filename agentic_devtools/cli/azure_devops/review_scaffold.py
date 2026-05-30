@@ -1027,6 +1027,27 @@ def scaffold_review_threads(
     # -------------------------------------------------------------------
     # First-time scaffolding (or incomplete state re-scaffold)
     # -------------------------------------------------------------------
+    # Before creating new threads, check if the PR already has agdt-marker
+    # threads (e.g., from a prior review session whose state.json was lost).
+    # If found, recover state from them to avoid creating duplicate threads.
+    if not dry_run:
+        recovered = _try_recover_state_from_pr_threads(
+            pull_request_id=pull_request_id,
+            files=files,
+            config=config,
+            repo_id=repo_id,
+            repo_name=repo_name,
+            latest_iteration_id=latest_iteration_id,
+            requests_module=requests_module,
+            headers=headers,
+            commit_hash=commit_hash,
+            model_id=effective_model,
+            now=now,
+            rebase_conflicts=rebase_conflicts,
+        )
+        if recovered is not None:
+            return recovered
+
     return _fresh_scaffold(
         pull_request_id=pull_request_id,
         files=files,
@@ -1042,6 +1063,193 @@ def scaffold_review_threads(
         now=now,
         rebase_conflicts=rebase_conflicts,
     )
+
+
+# ---------------------------------------------------------------------------
+# Internal: recover state from existing PR threads (duplicate prevention)
+# ---------------------------------------------------------------------------
+
+
+def _try_recover_state_from_pr_threads(
+    pull_request_id: int,
+    files: list[str],
+    config: AzureDevOpsConfig,
+    repo_id: str,
+    repo_name: str,
+    latest_iteration_id: int,
+    requests_module: Any,
+    headers: dict[str, str],
+    commit_hash: str | None,
+    model_id: str,
+    now: datetime | None = None,
+    rebase_conflicts: bool = False,
+) -> ReviewState | None:
+    """Attempt to recover review state from existing agdt-marker threads on the PR.
+
+    When ``review-state.json`` is missing (e.g., different worktree scope or
+    state directory was cleaned), this function fetches all threads from the PR,
+    filters for agdt-review markers, and reconstructs a ReviewState from them.
+    This prevents creating duplicate scaffold threads.
+
+    Args:
+        (same as scaffold_review_threads)
+
+    Returns:
+        Recovered ReviewState if agdt threads were found on the PR, else None.
+    """
+    if now is None:
+        now = datetime.now(timezone.utc)
+
+    from .marker import filter_agdt_threads, parse_marker
+
+    threads_url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads")
+
+    try:
+        response = requests_module.get(threads_url, headers=headers, timeout=30)
+        response.raise_for_status()
+        all_threads = response.json().get("value", [])
+    except Exception as exc:
+        print(f"Warning: Could not fetch PR threads for recovery check: {exc}", file=sys.stderr)
+        return None
+
+    agdt_threads = filter_agdt_threads(all_threads)
+    if not agdt_threads:
+        return None
+
+    # Classify agdt threads by marker type
+    file_threads: dict[str, tuple[int, int]] = {}  # file_path → (thread_id, comment_id)
+    overall_thread_id = 0
+    overall_comment_id = 0
+    activity_log_thread_id = 0
+
+    for thread in agdt_threads:
+        comments = thread.get("comments", [])
+        if not comments:
+            continue
+        first_comment = comments[0]
+        content = first_comment.get("content", "")
+        parsed = parse_marker(content)
+        if not parsed:
+            continue
+
+        thread_id = thread.get("id", 0)
+        comment_id = first_comment.get("id", 0)
+        marker_type = parsed.get("type", "")
+
+        if marker_type == "file-summary":
+            file_path = parsed.get("file", "")
+            if file_path:
+                normalized = normalize_file_path(file_path)
+                file_threads[normalized] = (thread_id, comment_id)
+        elif marker_type == "overall-summary":
+            overall_thread_id = thread_id
+            overall_comment_id = comment_id
+        elif marker_type == "activity-log":
+            activity_log_thread_id = thread_id
+
+    # Only recover if we found at least an overall summary thread
+    if not overall_thread_id:
+        return None
+
+    print(
+        f"Recovered {len(file_threads)} file thread(s), overall summary, "
+        f"and {'activity log' if activity_log_thread_id else 'no activity log'} "
+        f"from existing PR threads. Skipping fresh scaffolding."
+    )
+
+    # Build recovered file entries
+    file_entries: dict[str, FileEntry] = {}
+    has_missing_threads = False
+    for file_path in files:
+        normalized = normalize_file_path(file_path)
+        folder = _get_folder_for_path(file_path)
+        file_name = _get_file_name(file_path)
+
+        thread_id, comment_id = file_threads.get(normalized, (0, 0))
+        if thread_id == 0 or comment_id == 0:
+            has_missing_threads = True
+            break
+        file_entry = FileEntry(
+            threadId=thread_id,
+            commentId=comment_id,
+            folder=folder,
+            fileName=file_name,
+            status=ReviewStatus.UNREVIEWED.value,
+        )
+        if model_id:
+            initialize_model_verdicts(file_entry, [model_id])
+        file_entries[normalized] = file_entry
+
+    # If any file is missing a corresponding thread, fall back to fresh scaffolding
+    # to avoid downstream PATCH failures with invalid threadId=0/commentId=0.
+    if has_missing_threads:
+        print("Not all PR files have corresponding file-summary threads; falling back to fresh scaffolding.")
+        return None
+
+    # Build folder groups
+    folders: dict[str, list[str]] = {}
+    for file_path in files:
+        folder = _get_folder_for_path(file_path)
+        normalized = normalize_file_path(file_path)
+        folders.setdefault(folder, []).append(normalized)
+    folder_groups = {k: FolderGroup(files=v) for k, v in folders.items()}
+
+    # Create session
+    session = _create_session(model_id, commit_hash=commit_hash, now=now)
+
+    # Build recovered state
+    recovered_state = ReviewState(
+        prId=pull_request_id,
+        repoId=repo_id,
+        repoName=repo_name,
+        project=config.project,
+        organization=config.organization,
+        latestIterationId=latest_iteration_id,
+        scaffoldedUtc=now.isoformat(),
+        overallSummary=OverallSummary(threadId=overall_thread_id, commentId=overall_comment_id),
+        folders=folder_groups,
+        files=file_entries,
+        commitHash=commit_hash,
+        modelId=model_id,
+        activityLogThreadId=activity_log_thread_id,
+        sessions=[session],
+        rebaseConflicts=rebase_conflicts,
+    )
+    save_review_state(recovered_state)
+
+    _resolve_scaffold_threads(
+        requests_module=requests_module,
+        headers=headers,
+        config=config,
+        repo_id=repo_id,
+        pull_request_id=pull_request_id,
+        file_entries=file_entries,
+        overall_thread_id=overall_thread_id,
+        activity_log_thread_id=activity_log_thread_id,
+    )
+
+    # Post activity log entry noting recovery
+    if activity_log_thread_id:
+        short_hash = (commit_hash or "unknown")[:7]
+        seq = 1
+        entry = _format_activity_log_entry(
+            "🔄",
+            "State Recovered",
+            now.isoformat(),
+            model_id,
+            short_hash,
+            session.sessionId,
+            "Review state recovered from existing PR threads (state.json was missing).",
+            seq,
+        )
+        try:
+            reply_id = _post_activity_log_entry(requests_module, headers, threads_url, activity_log_thread_id, entry)
+            session.activityLogCommentId = reply_id
+            save_review_state(recovered_state)
+        except Exception as exc:
+            print(f"Warning: Could not post recovery activity log entry: {exc}", file=sys.stderr)
+
+    return recovered_state
 
 
 # ---------------------------------------------------------------------------
@@ -1241,22 +1449,85 @@ def _fresh_scaffold(
     except Exception as exc:
         print(f"Warning: Could not post initial activity log entry: {exc}", file=sys.stderr)
 
-    # Always resolve the activity log thread so it doesn't block merging
-    try:
-        patch_thread_status(
-            requests_module=requests_module,
-            headers=headers,
-            config=config,
-            repo_id=repo_id,
-            pull_request_id=pull_request_id,
-            thread_id=activity_log_thread_id,
-            status="closed",
-        )
-    except Exception as exc:
-        print(f"Warning: Could not resolve activity log thread: {exc}", file=sys.stderr)
+    # Resolve all scaffold threads so they don't block PR merging.
+    # File summary threads, overall summary thread, and activity log thread are
+    # all informational — they get updated via PATCH as the review progresses.
+    # Leaving them "active" would show them as open items in the PR UI and
+    # potentially block merge when "All comments must be resolved" is enabled.
+    _resolve_scaffold_threads(
+        requests_module=requests_module,
+        headers=headers,
+        config=config,
+        repo_id=repo_id,
+        pull_request_id=pull_request_id,
+        file_entries=file_entries,
+        overall_thread_id=overall_thread_id,
+        activity_log_thread_id=activity_log_thread_id,
+    )
 
     print(f"Scaffolding complete. Review state saved for PR {pull_request_id}.")
     return review_state
+
+
+# ---------------------------------------------------------------------------
+# Internal: resolve all scaffold threads to "closed" status
+# ---------------------------------------------------------------------------
+
+
+def _resolve_scaffold_threads(
+    requests_module: Any,
+    headers: dict[str, str],
+    config: AzureDevOpsConfig,
+    repo_id: str,
+    pull_request_id: int,
+    file_entries: dict[str, FileEntry],
+    overall_thread_id: int,
+    activity_log_thread_id: int,
+) -> None:
+    """Resolve all scaffold threads so they don't block PR merging.
+
+    All scaffold threads (file summary, overall summary, activity log) are
+    informational and should be in "closed" status.  They get updated via
+    PATCH as the review progresses but should never block merge.
+
+    Args:
+        requests_module: requests module for HTTP calls.
+        headers: Auth headers.
+        config: Azure DevOps configuration.
+        repo_id: Repository ID.
+        pull_request_id: PR ID.
+        file_entries: Dict of file path to FileEntry (for thread IDs).
+        overall_thread_id: Overall summary thread ID.
+        activity_log_thread_id: Activity log thread ID.
+    """
+    thread_ids_to_resolve = []
+
+    # Collect file thread IDs
+    for fe in file_entries.values():
+        if fe.threadId:
+            thread_ids_to_resolve.append(fe.threadId)
+
+    # Overall summary thread
+    if overall_thread_id:
+        thread_ids_to_resolve.append(overall_thread_id)
+
+    # Activity log thread
+    if activity_log_thread_id:
+        thread_ids_to_resolve.append(activity_log_thread_id)
+
+    for thread_id in thread_ids_to_resolve:
+        try:
+            patch_thread_status(
+                requests_module=requests_module,
+                headers=headers,
+                config=config,
+                repo_id=repo_id,
+                pull_request_id=pull_request_id,
+                thread_id=thread_id,
+                status="closed",
+            )
+        except Exception as exc:
+            print(f"Warning: Could not resolve thread {thread_id}: {exc}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------

@@ -254,6 +254,6 @@ class TestFreshScaffold:
             )
 
         err = capsys.readouterr().err
-        assert "Warning: Could not resolve activity log thread" in err
+        assert "Warning: Could not resolve thread" in err
         assert result is not None
         assert isinstance(result, ReviewState)

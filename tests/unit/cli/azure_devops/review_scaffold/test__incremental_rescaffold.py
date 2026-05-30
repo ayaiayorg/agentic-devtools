@@ -1041,3 +1041,359 @@ class TestIncrementalRescaffoldVerificationGate:
         # No abort — file is needs_review, not unaddressed
         assert result is not None
         assert not any(s.status == "failed" for s in result.sessions)
+
+
+class TestIncrementalRescaffoldEmptyVerificationResults:
+    """Tests for empty verification results (1602->1693)."""
+
+    def test_empty_verification_results_proceeds_normally(self):
+        """When categorize_all_suggestions returns empty, review proceeds.
+
+        Covers branch 1602->1693: ``if verification_results:`` is False.
+        """
+        suggestion = _make_suggestion(thread_id=300)
+        existing = _make_existing_state_with_previous_suggestions(
+            files=["/src/a.ts"],
+            previous_suggestions_map={"/src/a.ts": [suggestion]},
+        )
+
+        requests_mock = MagicMock()
+        id_gen = count(1000)
+
+        def make_resp(*args, **kwargs):
+            i = next(id_gen)
+            return _make_post_response(i, i + 1)
+
+        requests_mock.post.side_effect = make_resp
+        get_resp = MagicMock()
+        get_resp.raise_for_status = MagicMock()
+        get_resp.json.return_value = {"comments": [{"id": 1, "content": "Old content"}]}
+        requests_mock.get.return_value = get_resp
+        patch_resp = MagicMock()
+        patch_resp.raise_for_status = MagicMock()
+        requests_mock.patch.return_value = patch_resp
+
+        with patch("agentic_devtools.cli.azure_devops.review_scaffold.detect_file_changes") as mock_detect:
+            from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+            mock_detect.return_value = FileChangeResult(unchanged_files=["/src/a.ts"])
+            with patch("agentic_devtools.cli.azure_devops.review_scaffold.fetch_threads_lookup") as mock_fetch:
+                mock_fetch.return_value = {300: {"id": 300, "comments": [{"id": 1}]}}
+                with patch("agentic_devtools.cli.azure_devops.review_scaffold.categorize_all_suggestions") as mock_cat:
+                    mock_cat.return_value = []  # Empty results
+                    with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"):
+                        result = _incremental_rescaffold(
+                            existing_state=existing,
+                            pull_request_id=_PR_ID,
+                            files=["/src/a.ts"],
+                            config=_make_config(),
+                            repo_id=_REPO_ID,
+                            repo_name=_REPO,
+                            latest_iteration_id=5,
+                            requests_module=requests_mock,
+                            headers={},
+                            dry_run=False,
+                            commit_hash="new_hash",
+                            model_id="gpt-5",
+                        )
+
+        assert result is not None
+        assert not any(s.status == "failed" for s in result.sessions)
+
+
+class TestIncrementalRescaffoldAbortWithoutOverallThread:
+    """Test abort gate when overall.threadId is 0 (1628->1644)."""
+
+    def test_abort_gate_skips_demote_when_no_overall_thread(self, capsys):
+        """Abort gate skips demote call when overall.threadId is 0.
+
+        Covers branch 1628->1644: ``if overall.threadId:`` is False.
+        """
+        from agentic_devtools.cli.azure_devops.suggestion_verification import (
+            CATEGORY_UNADDRESSED,
+            SuggestionVerificationResult,
+        )
+
+        suggestion = _make_suggestion(thread_id=300)
+        existing = _make_existing_state_with_previous_suggestions(
+            files=["/src/a.ts"],
+            previous_suggestions_map={"/src/a.ts": [suggestion]},
+        )
+        existing.overallSummary.threadId = 0
+
+        unaddressed = SuggestionVerificationResult(
+            suggestion=suggestion,
+            file_path="/src/a.ts",
+            category=CATEGORY_UNADDRESSED,
+            has_reply=False,
+            file_changed=False,
+            thread_status="active",
+        )
+
+        requests_mock = MagicMock()
+        post_resp = MagicMock()
+        post_resp.raise_for_status = MagicMock()
+        post_resp.json.return_value = {"id": 999, "comments": [{"id": 1}]}
+        requests_mock.post.return_value = post_resp
+
+        with patch("agentic_devtools.cli.azure_devops.review_scaffold.detect_file_changes") as mock_detect:
+            from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+            mock_detect.return_value = FileChangeResult(unchanged_files=["/src/a.ts"])
+            with patch("agentic_devtools.cli.azure_devops.review_scaffold.fetch_threads_lookup") as mock_fetch:
+                mock_fetch.return_value = {300: {"id": 300, "comments": [{"id": 1}]}}
+                with patch("agentic_devtools.cli.azure_devops.review_scaffold.categorize_all_suggestions") as mock_cat:
+                    mock_cat.return_value = [unaddressed]
+                    with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"):
+                        result = _incremental_rescaffold(
+                            existing_state=existing,
+                            pull_request_id=_PR_ID,
+                            files=["/src/a.ts"],
+                            config=_make_config(),
+                            repo_id=_REPO_ID,
+                            repo_name=_REPO,
+                            latest_iteration_id=5,
+                            requests_module=requests_mock,
+                            headers={},
+                            dry_run=False,
+                            commit_hash="new_hash",
+                            model_id="gpt-5",
+                        )
+
+        assert result is not None
+        assert result.sessions[-1].status == "failed"
+        out = capsys.readouterr().out
+        assert "Review blocked" in out
+
+
+class TestIncrementalRescaffoldNeedsReviewMissingFile:
+    """Test needs_review loop skips missing file (1688->1686)."""
+
+    def test_needs_review_skips_file_not_in_state(self):
+        """When needs_review result references a file not in state, it is skipped.
+
+        Covers branch 1688->1686: ``if fe:`` is False, loop continues.
+        """
+        from agentic_devtools.cli.azure_devops.suggestion_verification import (
+            CATEGORY_NEEDS_REVIEW,
+            SuggestionVerificationResult,
+        )
+
+        suggestion = _make_suggestion(thread_id=300)
+        existing = _make_existing_state_with_previous_suggestions(
+            files=["/src/a.ts"],
+            previous_suggestions_map={"/src/a.ts": [suggestion]},
+        )
+
+        needs_review = SuggestionVerificationResult(
+            suggestion=suggestion,
+            file_path="/src/nonexistent.ts",
+            category=CATEGORY_NEEDS_REVIEW,
+            has_reply=True,
+            file_changed=False,
+            thread_status="active",
+        )
+
+        requests_mock = MagicMock()
+        id_gen = count(1000)
+
+        def make_resp(*args, **kwargs):
+            i = next(id_gen)
+            return _make_post_response(i, i + 1)
+
+        requests_mock.post.side_effect = make_resp
+        get_resp = MagicMock()
+        get_resp.raise_for_status = MagicMock()
+        get_resp.json.return_value = {"comments": [{"id": 1, "content": "Old content"}]}
+        requests_mock.get.return_value = get_resp
+        patch_resp = MagicMock()
+        patch_resp.raise_for_status = MagicMock()
+        requests_mock.patch.return_value = patch_resp
+
+        with patch("agentic_devtools.cli.azure_devops.review_scaffold.detect_file_changes") as mock_detect:
+            from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+            mock_detect.return_value = FileChangeResult(unchanged_files=["/src/a.ts"])
+            with patch("agentic_devtools.cli.azure_devops.review_scaffold.fetch_threads_lookup") as mock_fetch:
+                mock_fetch.return_value = {300: {"id": 300, "comments": [{"id": 1}]}}
+                with patch("agentic_devtools.cli.azure_devops.review_scaffold.categorize_all_suggestions") as mock_cat:
+                    mock_cat.return_value = [needs_review]
+                    with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"):
+                        result = _incremental_rescaffold(
+                            existing_state=existing,
+                            pull_request_id=_PR_ID,
+                            files=["/src/a.ts"],
+                            config=_make_config(),
+                            repo_id=_REPO_ID,
+                            repo_name=_REPO,
+                            latest_iteration_id=5,
+                            requests_module=requests_mock,
+                            headers={},
+                            dry_run=False,
+                            commit_hash="new_hash",
+                            model_id="gpt-5",
+                        )
+
+        assert result is not None
+        # File /src/a.ts should NOT have pending_verification status
+        assert existing.files["/src/a.ts"].suggestionVerificationStatus is None
+
+
+class TestIncrementalRescaffoldEdgeCases:
+    """Edge case tests for _incremental_rescaffold."""
+
+    def _run_with_change_result(self, existing, files, change_result, activity_log_thread_id=999):
+        """Run _incremental_rescaffold with a specific FileChangeResult."""
+        existing.activityLogThreadId = activity_log_thread_id
+
+        requests_mock = MagicMock()
+        id_gen = count(1000)
+
+        def make_resp(*args, **kwargs):
+            i = next(id_gen)
+            return _make_post_response(i, i + 1)
+
+        requests_mock.post.side_effect = make_resp
+        get_resp = MagicMock()
+        get_resp.raise_for_status = MagicMock()
+        get_resp.json.return_value = {"comments": [{"id": 1, "content": "Old content"}]}
+        requests_mock.get.return_value = get_resp
+        patch_resp = MagicMock()
+        patch_resp.raise_for_status = MagicMock()
+        requests_mock.patch.return_value = patch_resp
+
+        save_mock = MagicMock()
+
+        with patch("agentic_devtools.cli.azure_devops.review_scaffold.detect_file_changes") as mock_detect:
+            mock_detect.return_value = change_result
+            with patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state", save_mock):
+                result = _incremental_rescaffold(
+                    existing_state=existing,
+                    pull_request_id=_PR_ID,
+                    files=files,
+                    config=_make_config(),
+                    repo_id=_REPO_ID,
+                    repo_name=_REPO,
+                    latest_iteration_id=5,
+                    requests_module=requests_mock,
+                    headers={},
+                    dry_run=False,
+                    commit_hash="new_hash",
+                    model_id="gpt-5",
+                )
+
+        return result, requests_mock, save_mock
+
+    def test_modified_file_without_thread_id_skipped(self):
+        """Modified file with threadId=0 is skipped in processing loop.
+
+        Covers branch 1756->1754: ``if fe and fe.threadId:`` is False.
+        """
+        from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+        existing = _make_existing_state(files=["/src/a.ts"])
+        existing.files["/src/a.ts"].threadId = 0
+        result, _, _ = self._run_with_change_result(
+            existing,
+            ["/src/a.ts"],
+            FileChangeResult(modified_files=["/src/a.ts"]),
+        )
+
+        assert result is not None
+        # File state should not have been reset (demote was skipped)
+        assert result.files["/src/a.ts"].status == ReviewStatus.APPROVED.value
+
+    def test_deleted_file_without_thread_id_skipped(self):
+        """Deleted file with threadId=0 is skipped in processing loop.
+
+        Covers branch 1802->1800: ``if fe and fe.threadId:`` is False.
+        """
+        from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+        existing = _make_existing_state(files=["/src/a.ts", "/src/del.ts"])
+        existing.files["/src/del.ts"].threadId = 0
+        result, _, _ = self._run_with_change_result(
+            existing,
+            ["/src/a.ts"],
+            FileChangeResult(deleted_files=["/src/del.ts"], unchanged_files=["/src/a.ts"]),
+        )
+
+        assert result is not None
+        # File status should stay as-is (demote was skipped)
+        assert result.files["/src/del.ts"].status == ReviewStatus.APPROVED.value
+        assert result.files["/src/del.ts"].summary == "Previously reviewed"
+
+    def test_no_overall_thread_skips_summary_update(self, capsys):
+        """Overall summary update is skipped when overall.threadId is 0.
+
+        Covers branch 1840->1875: ``if overall.threadId:`` is False.
+        """
+        from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+        existing = _make_existing_state(files=["/src/a.ts"])
+        existing.overallSummary.threadId = 0
+        result, requests_mock, _ = self._run_with_change_result(
+            existing,
+            ["/src/a.ts"],
+            FileChangeResult(modified_files=["/src/a.ts"]),
+        )
+
+        assert result is not None
+        assert result.commitHash == "new_hash"
+
+    def test_no_changes_at_all_skips_both_summary_branches(self, capsys):
+        """When all file counts are 0, neither summary branch is entered.
+
+        Covers branch 1855->1875: ``elif`` condition is False.
+        """
+        from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+        existing = _make_existing_state(files=[])
+        existing.folders = {}
+        result, _, _ = self._run_with_change_result(
+            existing,
+            [],
+            FileChangeResult(),
+        )
+
+        assert result is not None
+        assert result.commitHash == "new_hash"
+
+    def test_rebase_no_changes_without_overall_thread(self, capsys):
+        """Rebase with no changes skips summary update when overall.threadId is 0.
+
+        Covers branch 1858->1875: ``if overall.threadId:`` is False inside elif.
+        """
+        from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+        existing = _make_existing_state(files=["/src/a.ts"])
+        existing.overallSummary.threadId = 0
+        result, requests_mock, _ = self._run_with_change_result(
+            existing,
+            ["/src/a.ts"],
+            FileChangeResult(unchanged_files=["/src/a.ts"]),
+        )
+
+        assert result is not None
+        assert result.commitHash == "new_hash"
+
+    def test_no_activity_log_skips_log_posting(self, capsys):
+        """Activity log posting is skipped when activityLogThreadId is 0.
+
+        Covers branch 1881->1915: ``if existing_state.activityLogThreadId:`` is False.
+        """
+        from agentic_devtools.cli.azure_devops.review_scaffold import FileChangeResult
+
+        existing = _make_existing_state(files=["/src/a.ts"])
+        result, requests_mock, save_mock = self._run_with_change_result(
+            existing,
+            ["/src/a.ts"],
+            FileChangeResult(unchanged_files=["/src/a.ts"]),
+            activity_log_thread_id=0,
+        )
+
+        assert result is not None
+        # State should be saved only once (no second save for activity log comment ID)
+        assert save_mock.call_count == 1
+        out = capsys.readouterr().out
+        assert "Incremental re-scaffolding complete" in out

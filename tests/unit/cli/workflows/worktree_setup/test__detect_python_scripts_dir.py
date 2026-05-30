@@ -236,3 +236,52 @@ class TestDetectPythonScriptsDir:
                             result = _detect_python_scripts_dir()
 
         assert result == str(fake_bin_dir)
+
+    def test_posix_contains_entry_point_checks_os_access(self, tmp_path):
+        """On POSIX (os.name != 'nt'), _contains_entry_point checks os.access for execute permission."""
+        fake_bin_dir = tmp_path / ".agdt" / "bin"
+        fake_bin_dir.mkdir(parents=True)
+        entry_point_path = fake_bin_dir / "agdt-advance-workflow"
+        entry_point_path.write_text("", encoding="utf-8")
+
+        with patch(f"{_MODULE}.sys.platform", "linux"):
+            with patch(f"{_MODULE}.os.name", "posix"):
+                with patch(f"{_MODULE}.shutil.which", return_value=None):
+                    with patch(f"{_MODULE}.os.path.expanduser", return_value=str(tmp_path)):
+                        with patch(f"{_MODULE}.os.access", return_value=True) as mock_access:
+                            result = _detect_python_scripts_dir()
+
+        assert result == str(fake_bin_dir)
+        mock_access.assert_called()
+
+    def test_posix_contains_entry_point_rejects_non_executable(self, tmp_path):
+        """On POSIX, a non-executable entry point file is rejected by _contains_entry_point."""
+        fake_bin_dir = tmp_path / ".agdt" / "bin"
+        fake_bin_dir.mkdir(parents=True)
+        entry_point_path = fake_bin_dir / "agdt-advance-workflow"
+        entry_point_path.write_text("", encoding="utf-8")
+
+        import sysconfig as _sysconfig
+
+        with patch(f"{_MODULE}.sys.platform", "linux"):
+            with patch(f"{_MODULE}.os.name", "posix"):
+                with patch(f"{_MODULE}.shutil.which", return_value=None):
+                    with patch(f"{_MODULE}.os.path.expanduser", return_value=str(tmp_path)):
+                        with patch(f"{_MODULE}.os.access", return_value=False):
+                            with patch.object(_sysconfig, "get_path", return_value=None):
+                                with patch(f"{_MODULE}.sys.executable", ""):
+                                    result = _detect_python_scripts_dir()
+
+        assert result is None
+
+    def test_sysconfig_returns_none_skips_candidate(self, tmp_path):
+        """When sysconfig.get_path returns None, that candidate is not appended."""
+        import sysconfig as _sysconfig
+
+        with patch(f"{_MODULE}.shutil.which", return_value=None):
+            with patch(f"{_MODULE}.os.path.expanduser", return_value=str(tmp_path / "nohome")):
+                with patch.object(_sysconfig, "get_path", return_value=None):
+                    with patch(f"{_MODULE}.sys.executable", ""):
+                        result = _detect_python_scripts_dir()
+
+        assert result is None

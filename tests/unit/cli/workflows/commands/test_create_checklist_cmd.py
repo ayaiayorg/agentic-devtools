@@ -257,3 +257,57 @@ class TestCreateChecklistCmdFromChecklistCommands:
         assert checklist is not None
         assert checklist.items[0].text == "Task one"
         assert checklist.items[1].text == "Task two"
+
+    def test_wrong_step_with_existing_checklist_no_warning(self, temp_state_dir, clear_state_before, capsys):
+        """When step is wrong but an existing checklist exists, no WARNING is printed."""
+        from agentic_devtools.cli.workflows.checklist import Checklist, ChecklistItem, save_checklist
+
+        state.set_workflow_state(
+            name="work-on-jira-issue",
+            status="in-progress",
+            step="implementation",
+            context={"jira_issue_key": "PROJECT-1850"},
+        )
+
+        # Create an existing checklist
+        existing = Checklist(
+            items=[ChecklistItem(id=1, text="Old task")],
+            modified_by_agent=False,
+        )
+        save_checklist(existing)
+
+        with patch.object(sys, "argv", ["agdt-create-checklist", "New task"]):
+            with patch("agentic_devtools.cli.workflows.manager.notify_workflow_event") as mock_event:
+                from agentic_devtools.cli.workflows.manager import NotifyEventResult
+
+                mock_event.return_value = NotifyEventResult(
+                    triggered=False,
+                    immediate_advance=False,
+                )
+                commands.create_checklist_cmd()
+
+        captured = capsys.readouterr()
+        assert "WARNING" not in captured.err
+        assert "CHECKLIST CREATED" in captured.out
+
+    def test_number_only_item_results_in_empty_cleaned(self, temp_state_dir, clear_state_before, capsys):
+        """An item like '1.' results in empty cleaned string and is skipped."""
+        state.set_workflow_state(
+            name="work-on-jira-issue",
+            status="in-progress",
+            step="checklist-creation",
+            context={"jira_issue_key": "PROJECT-1850"},
+        )
+
+        with patch.object(sys, "argv", ["agdt-create-checklist", "1. |2. Real task"]):
+            with patch("agentic_devtools.cli.workflows.manager.notify_workflow_event") as mock_event:
+                from agentic_devtools.cli.workflows.manager import NotifyEventResult
+
+                mock_event.return_value = NotifyEventResult(
+                    triggered=False,
+                    immediate_advance=False,
+                )
+                commands.create_checklist_cmd()
+
+        captured = capsys.readouterr()
+        assert "1 items" in captured.out

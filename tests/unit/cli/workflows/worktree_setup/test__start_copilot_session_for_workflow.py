@@ -653,6 +653,40 @@ class TestStartCopilotSessionForWorkflow:
     @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_tasks_json_not_a_dict_falls_through(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When tasks.json contains a non-dict (e.g. list), the auto-start check falls through."""
+        _setup_prompt_file(tmp_path)
+        mock_wait.return_value = True
+
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        # Write a JSON list instead of an object
+        (vscode_dir / "tasks.json").write_text("[]", encoding="utf-8")
+
+        _patch_no_tty(monkeypatch)
+
+        with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
+            result = _start_copilot_session_for_workflow(
+                worktree_path=str(tmp_path),
+                prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                start_prompt=_CUSTOM_START_PROMPT,
+                workflow_name=_CUSTOM_WORKFLOW_NAME,
+                interactive=False,
+            )
+
+        assert result is True
+        mock_copilot.assert_called_once()
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
     def test_pre_existing_triggered_run_id_falls_through_to_background(
         self,
         mock_wait,
@@ -983,3 +1017,71 @@ class TestStartCopilotSessionForWorkflow:
         assert result is True
         # Fallback succeeded — non-interactive session must NOT be started
         mock_copilot.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # autostart_injected=True: skip background fallback
+    # ------------------------------------------------------------------
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_autostart_injected_skips_background_fallback(
+        self,
+        mock_wait,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When autostart_injected=True and no TTY, return True immediately without background session."""
+        _setup_prompt_file(tmp_path)
+        mock_wait.return_value = True
+        _patch_no_tty(monkeypatch)
+
+        result = _start_copilot_session_for_workflow(
+            worktree_path=str(tmp_path),
+            prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+            start_prompt=_CUSTOM_START_PROMPT,
+            workflow_name=_CUSTOM_WORKFLOW_NAME,
+            autostart_injected=True,
+        )
+
+        assert result is True
+        # No background Copilot session started — VS Code handles it
+        mock_copilot.assert_not_called()
+        # Prompt file wait should still be called (early return is after prompt check)
+        # but the key assertion is no background session was spawned
+
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_autostart_injected_does_not_skip_when_tty_attached(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        tmp_path,
+        monkeypatch,
+    ):
+        """When autostart_injected=True but TTY is attached, proceed normally (interactive session)."""
+        _setup_prompt_file(tmp_path)
+        mock_wait.return_value = True
+
+        mock_stdin = MagicMock()
+        mock_stdin.isatty.return_value = True
+        mock_stdout = MagicMock()
+        mock_stdout.isatty.return_value = True
+        monkeypatch.setattr("sys.stdin", mock_stdin)
+        monkeypatch.setattr("sys.stdout", mock_stdout)
+
+        with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
+            result = _start_copilot_session_for_workflow(
+                worktree_path=str(tmp_path),
+                prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                start_prompt=_CUSTOM_START_PROMPT,
+                workflow_name=_CUSTOM_WORKFLOW_NAME,
+                interactive=True,
+                autostart_injected=True,
+            )
+
+        # TTY attached means the user is in an interactive terminal — proceed normally
+        assert result is True
+        mock_copilot.assert_called_once()

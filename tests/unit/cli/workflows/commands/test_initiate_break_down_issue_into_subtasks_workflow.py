@@ -90,6 +90,38 @@ class TestInitiateBreakDownIssueIntoSubtasksWorkflowBranches:
                 assert exc_info.value.code == 1
 
 
+class TestProgrammaticParamsSkipCliOverride:
+    """Tests that programmatic params skip the CLI arg override branches."""
+
+    def test_issue_key_and_user_request_set_programmatically(self, temp_state_dir, clear_state_before, capsys):
+        """When issue_key and user_request are set programmatically,
+        the `if X is None:` CLI override branches are skipped."""
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=False,
+                branch_valid=False,
+                folder_name="wrong",
+                branch_name="main",
+                issue_key="PROJECT-1234",
+            )
+
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_break_down_issue_into_subtasks_workflow(
+                    issue_key="PROJECT-1234",
+                    user_request="Split into 3 subtasks",
+                )
+
+        call_kwargs = mock_setup.call_args[1]
+        auto_cmd = call_kwargs["auto_execute_command"]
+        assert "--issue-key" in auto_cmd
+        assert "PROJECT-1234" in auto_cmd
+        assert "--user-request" in auto_cmd
+        assert "Split into 3 subtasks" in auto_cmd
+
+
 class TestInitiateBreakDownIssueInteractive:
     """Tests for the --interactive flag behaviour."""
 

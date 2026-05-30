@@ -199,6 +199,39 @@ class TestInitiateCreateJiraSubtaskWorkflowBranches:
             assert exc_info.value.code == 1
 
 
+class TestProgrammaticParamsSkipCliOverride:
+    """Tests that programmatic params skip the CLI arg override branches."""
+
+    def test_all_params_set_programmatically(self, temp_state_dir, clear_state_before, capsys):
+        """When parent_key, issue_key, user_request are all set
+        programmatically, the `if X is None:` CLI override branches are skipped."""
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=False,
+                branch_valid=False,
+                folder_name="wrong",
+                branch_name="main",
+                issue_key="PROJ-2",
+            )
+
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_create_jira_subtask_workflow(
+                    parent_key="PROJ-1",
+                    issue_key="PROJ-2",
+                    user_request="Add unit tests",
+                )
+
+        call_kwargs = mock_setup.call_args[1]
+        auto_cmd = call_kwargs["auto_execute_command"]
+        assert "--parent-key" in auto_cmd
+        assert "PROJ-1" in auto_cmd
+        assert "--user-request" in auto_cmd
+        assert "Add unit tests" in auto_cmd
+
+
 class TestInitiateCreateJiraSubtaskInteractive:
     """Tests for the --interactive flag behaviour."""
 

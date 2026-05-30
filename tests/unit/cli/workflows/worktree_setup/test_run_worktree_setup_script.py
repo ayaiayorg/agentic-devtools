@@ -163,6 +163,25 @@ class TestRunWorktreeSetupScript:
         assert "Warning" in captured.err
         assert "symlink" in captured.err
 
+    def test_rejects_symlink_script_via_mock(self, tmp_path, capsys):
+        """Test symlink rejection via mock (works on Windows without symlink privileges).
+
+        Covers lines 1798-1802.
+        """
+        script_dir = tmp_path / ".agdt"
+        script_dir.mkdir()
+        script = script_dir / "agentic-devtools-worktree-setup.py"
+        script.write_text("", encoding="utf-8")
+
+        with patch.object(type(script), "is_symlink", return_value=True):
+            with patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.run") as mock_run:
+                run_worktree_setup_script(str(tmp_path))
+
+        mock_run.assert_not_called()
+        captured = capsys.readouterr()
+        assert "Warning" in captured.err
+        assert "symlink" in captured.err
+
     def test_rejects_script_resolving_outside_worktree(self, tmp_path, capsys):
         """Test that a script resolving outside the worktree root is refused."""
         script_dir = tmp_path / ".agdt"

@@ -215,7 +215,6 @@ def run_setup_with_pr_workflow(
             if idempotent:
                 message = "No new changes — setup output matches origin/main (already merged)."
             else:
-
                 # Step 7 — create branch, commit, push
                 # All git operations use check=False because the PR workflow is
                 # best-effort: a failure here must not terminate agdt-setup.

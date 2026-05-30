@@ -173,3 +173,38 @@ class TestResolveThreadsAction:
 
         assert result.decision == ActionDecision.EXECUTE
         assert result.details == "Resolved 2 thread(s), 0 left open; skipped 1 prior review(s)"
+
+    def test_execute_skips_when_no_prior_copilot_reviews(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            head_sha="head123",
+            unresolved_threads=2,
+            reviews=[ReviewInfo(id=11, user="alice", state="COMMENTED", commit_sha="old123")],
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        action = ResolveThreadsAction()
+
+        result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.SKIP
+        assert "No prior Copilot reviews found" in result.details
+
+    def test_execute_failed_when_finalize_post_repair_raises(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            head_sha="head123",
+            base_branch="main",
+            head_branch="feature",
+            unresolved_threads=2,
+            reviews=[ReviewInfo(id=10, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old123")],
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.finalize_post_repair.side_effect = RuntimeError("finalize boom")
+        action = ResolveThreadsAction()
+
+        result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.FAILED
+        assert "finalize_post_repair raised an exception" in result.details

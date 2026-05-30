@@ -201,3 +201,34 @@ class TestCollapsePriorSummaries:
         assert collapsed == 0
         provider.update_comment.assert_not_called()
         provider.find_comment.assert_called_once_with(1565, SUMMARY_FALLBACK_MARKER)
+
+    def test_list_comments_ignores_already_collapsed_summaries(self) -> None:
+        provider = MagicMock()
+        provider.list_issue_comments.return_value = [
+            IssueCommentInfo(
+                id=70,
+                author="github-actions[bot]",
+                body=(
+                    "<!-- agdt:ai-pr-loop-summary -->\n"
+                    "<!-- agdt:ai-pr-loop-summary-collapsed -->\n\n"
+                    "**🤖 AI PR Loop Run**"
+                ),
+            )
+        ]
+
+        collapsed = collapse_prior_summaries(provider, pr_number=1565)
+
+        assert collapsed == 0
+        provider.update_comment.assert_not_called()
+
+    def test_fallback_breaks_when_update_comment_fails(self) -> None:
+        provider = MagicMock()
+        provider.list_issue_comments = None
+        body = "<!-- agdt:ai-pr-loop-summary -->\n\n**🤖 AI PR Loop Run** — run"
+        provider.find_comment.return_value = (101, body)
+        provider.update_comment.side_effect = RuntimeError("cannot update")
+
+        collapsed = collapse_prior_summaries(provider, pr_number=1565)
+
+        assert collapsed == 0
+        provider.update_comment.assert_called_once()

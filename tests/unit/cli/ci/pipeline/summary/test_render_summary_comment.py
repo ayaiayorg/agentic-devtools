@@ -1,5 +1,7 @@
 """Tests for render_summary_comment."""
 
+from unittest.mock import MagicMock, patch
+
 from agentic_devtools.cli.ci.pipeline.models import (
     ActionDecision,
     ActionResult,
@@ -8,6 +10,7 @@ from agentic_devtools.cli.ci.pipeline.models import (
 from agentic_devtools.cli.ci.pipeline.snapshot import PRStateSnapshot
 from agentic_devtools.cli.ci.pipeline.summary import (
     SUMMARY_SENTINEL,
+    post_summary_comment,
     render_summary_comment,
 )
 
@@ -120,6 +123,20 @@ class TestRenderSummaryComment:
         # by checking the row structure: precond cell must be '⬜ —'
         assert "⬜ —" in comment
 
+    def test_format_preconditions_all_passed_rendered(self) -> None:
+        summary = PipelineRunSummary(
+            results=[
+                ActionResult(
+                    name="guards",
+                    decision=ActionDecision.SKIP,
+                    preconditions={"ci_passing": True},
+                    details="all good",
+                )
+            ]
+        )
+        comment = render_summary_comment(summary)
+        assert "all passed" in comment
+
     def test_render_state_snapshot_inline_suffix_only_for_commented_or_nonzero(self) -> None:
         """'(N inline)' suffix must only appear for COMMENTED state or non-zero count."""
         # COMMENTED with count: should show suffix
@@ -153,6 +170,16 @@ class TestRenderSummaryComment:
         comment_nonzero = render_summary_comment(summary_nonzero)
         assert "2 inline" in comment_nonzero
 
+    def test_render_state_snapshot_inline_unknown_suffix(self) -> None:
+        snapshot = PRStateSnapshot(
+            head_sha="abc1234567890",
+            review_state="COMMENTED",
+            copilot_review_inline_count=-1,
+        )
+        summary = PipelineRunSummary(snapshot=snapshot)
+        comment = render_summary_comment(summary)
+        assert "inline unknown" in comment
+
     def test_html_metacharacters_are_escaped_in_table_and_snapshot(self) -> None:
         summary = PipelineRunSummary(
             results=[
@@ -178,3 +205,36 @@ class TestRenderSummaryComment:
         assert "x&amp;y, &lt;/details&gt;" in comment
         assert "merge</details>" not in comment
         assert "bad <tag> & raw" not in comment
+
+    def test_post_summary_comment_continues_when_collapse_raises(self) -> None:
+        provider = MagicMock()
+        summary = PipelineRunSummary()
+
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.summary.collapse_prior_summaries",
+            side_effect=RuntimeError("collapse boom"),
+        ):
+            assert post_summary_comment(provider, pr_number=42, summary=summary) is True
+
+        provider.post_comment.assert_called_once()
+
+    def test_post_summary_comment_returns_false_when_post_fails(self) -> None:
+        provider = MagicMock()
+        provider.post_comment.side_effect = RuntimeError("post boom")
+        summary = PipelineRunSummary()
+
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.summary.collapse_prior_summaries",
+            return_value=0,
+        ):
+            assert post_summary_comment(provider, pr_number=42, summary=summary) is False
+
+    def test_post_summary_comment_logs_collapsed_count_when_nonzero(self) -> None:
+        provider = MagicMock()
+        summary = PipelineRunSummary()
+
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.summary.collapse_prior_summaries",
+            return_value=2,
+        ):
+            assert post_summary_comment(provider, pr_number=42, summary=summary) is True

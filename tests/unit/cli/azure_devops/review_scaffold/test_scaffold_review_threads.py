@@ -517,3 +517,45 @@ class TestScaffoldReviewThreadsNormalFlow:
         out = capsys.readouterr().out
         assert "Scaffolding complete" in out
         assert f"PR {_PR_ID}" in out
+
+
+class TestScaffoldReviewThreadsRecovery:
+    """Tests for the recovery path when review-state.json is missing but PR has threads."""
+
+    def test_returns_recovered_state_when_state_json_missing(self):
+        """Returns recovered state from PR threads when state.json doesn't exist."""
+        recovered = ReviewState(
+            prId=_PR_ID,
+            repoId=_REPO_ID,
+            repoName=_REPO,
+            project=_PROJECT,
+            organization=_ORG,
+            latestIterationId=3,
+            scaffoldedUtc="2026-01-01T00:00:00+00:00",
+            overallSummary=OverallSummary(threadId=500, commentId=501),
+            folders={"src": FolderGroup(files=["/src/app.ts"])},
+        )
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+                side_effect=FileNotFoundError("No review-state.json"),
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold._try_recover_state_from_pr_threads",
+                return_value=recovered,
+            ) as mock_recover,
+        ):
+            result = scaffold_review_threads(
+                pull_request_id=_PR_ID,
+                files=["/src/app.ts"],
+                config=_make_config(),
+                repo_id=_REPO_ID,
+                repo_name=_REPO,
+                latest_iteration_id=3,
+                requests_module=MagicMock(),
+                headers={},
+            )
+
+        assert result is recovered
+        mock_recover.assert_called_once()

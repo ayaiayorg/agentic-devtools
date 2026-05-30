@@ -428,6 +428,72 @@ class TestInitiateApplyPRSuggestionsWorkflowCopilotSession:
         mock_session.assert_called_once_with("/fake/repo-root", interactive=True, model="gpt-4o")
 
 
+class TestAutoExecuteWithoutPrId:
+    """Tests for auto_execute_command when PR ID is not available."""
+
+    def test_auto_execute_command_omits_pr_id_when_not_available(
+        self,
+        temp_state_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+        capsys,
+    ):
+        """When no PR ID is available, --pull-request-id is not in auto_execute_command."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=False,
+                branch_valid=False,
+                folder_name="wrong",
+                branch_name="main",
+                issue_key="PROJECT-1234",
+            )
+
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_apply_pull_request_review_suggestions_workflow(
+                    issue_key="PROJECT-1234",
+                )
+
+        call_kwargs = mock_setup.call_args[1]
+        auto_cmd = call_kwargs["auto_execute_command"]
+        assert "--pull-request-id" not in auto_cmd
+        assert "--issue-key" in auto_cmd
+        assert "PROJECT-1234" in auto_cmd
+
+
+class TestExtractIssueKeyFromBranchReturnsNone:
+    """Tests for the path where _extract_issue_key_from_branch returns None."""
+
+    def test_extract_issue_key_returns_none_skips_set_value(
+        self,
+        temp_state_dir,
+        clear_state_before,
+        mock_workflow_state_clearing,
+        capsys,
+    ):
+        """When _extract_issue_key_from_branch returns None, the set_value is skipped."""
+        state.set_value("pull_request_id", "456")
+        state.set_value(
+            "pr_details",
+            {"sourceRefName": "refs/heads/feature/no-issue-key-here"},
+        )
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.commands._extract_issue_key_from_branch",
+            return_value=None,
+        ):
+            with patch("agentic_devtools.cli.workflows.commands.initiate_workflow"):
+                with patch("agentic_devtools.cli.workflows.commands._copy_review_state_to_apply_suggestions"):
+                    commands.initiate_apply_pull_request_review_suggestions_workflow(_argv=[])
+
+        # Without a resolved issue key from branch extraction, jira.issue_key should stay unset
+        assert state.get_value("jira.issue_key") is None
+
+
 class TestInitiateApplyPRSuggestionsBootstrapScope:
     """Tests that the correct worktree_key scope is set before any set_value() calls."""
 

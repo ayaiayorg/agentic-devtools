@@ -16,57 +16,24 @@ violation is found.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+# Ensure the repo root is on sys.path so agentic_devtools can be imported
+# when this script is run directly (python scripts/validate_test_structure.py).
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 UNIT_TESTS_DIR = REPO_ROOT / "tests" / "unit"
 SOURCE_ROOT = REPO_ROOT / "agentic_devtools"
 
 
 def validate() -> list[str]:
     """Return a list of violation messages (empty list means no violations)."""
-    violations: list[str] = []
+    from agentic_devtools.cli.checks.structure import validate_test_structure as _validate
 
-    if not UNIT_TESTS_DIR.exists():
-        # No unit tests yet — nothing to validate.
-        return violations
-
-    for test_file in sorted(UNIT_TESTS_DIR.rglob("test_*.py")):
-        rel = test_file.relative_to(UNIT_TESTS_DIR)
-        parts = rel.parts  # e.g. ("cli", "git", "core", "test_get_current_branch.py")
-
-        # Rule: test file must be exactly one level inside a source-file folder.
-        # Minimum depth: source_file_name folder + test file = >= 2 parts.
-        # Root-level source files (e.g. agentic_devtools/background_tasks.py) have 2 parts;
-        # deeper modules (e.g. agentic_devtools/cli/testing.py) have 3+ parts.
-        if len(parts) < 2:
-            violations.append(
-                f"{rel}: test file is too shallow — expected "
-                f"tests/unit/{{source_file}}/test_{{function}}.py "
-                f"(minimum 2 path components, got {len(parts)})"
-            )
-            continue
-
-        # The immediate parent directory is the source-file name (without .py).
-        source_file_folder = parts[-2]
-        # The grandparent and above form the module path inside agentic_devtools/.
-        module_path_parts = parts[:-2]
-
-        # Rule: the corresponding source file must exist.
-        expected_source = SOURCE_ROOT.joinpath(*module_path_parts) / f"{source_file_folder}.py"
-        if not expected_source.exists():
-            source_path_display = "/".join((*module_path_parts, f"{source_file_folder}.py"))
-            violations.append(f"{rel}: no matching source file found at agentic_devtools/{source_path_display}")
-
-        # Rule: every intermediate directory must have an __init__.py.
-        current = UNIT_TESTS_DIR
-        for part in parts[:-1]:  # walk all ancestor dirs of the test file
-            current = current / part
-            init = current / "__init__.py"
-            if not init.exists():
-                violations.append(f"{rel}: missing __init__.py in {current.relative_to(REPO_ROOT)}")
-
-    return violations
+    return _validate(REPO_ROOT)
 
 
 def main() -> int:

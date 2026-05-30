@@ -148,3 +148,30 @@ class TestApproveAction:
         assert result.preconditions == {"approver_token_available": False}
         assert "skipped approval" in result.details.lower()
         assert derived.has_approval_on_head is False
+
+    def test_execute_when_review_commented_and_inline_zero(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            has_approval_on_head=False,
+            ci_status="passing",
+            review_state="COMMENTED",
+            copilot_review_id=1,
+            copilot_review_inline_count=0,
+            unresolved_threads=0,
+        )
+        derived = DerivedState(snapshot)
+        action = ApproveAction()
+        result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.EXECUTE
+
+    def test_execute_failed_when_provider_raises(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=42, head_sha="sha123")
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.approve_pr.side_effect = RuntimeError("boom")
+        action = ApproveAction()
+
+        result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.FAILED
+        assert "approve_pr call failed" in result.details
