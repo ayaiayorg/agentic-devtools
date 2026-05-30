@@ -7,6 +7,8 @@
 
 ## Problem Statement
 
+`dispatch_repair` currently builds repair prompts only from API-visible review comments, so Copilot feedback that is suppressed due to low confidence is omitted from the generated `@copilot` comment. The implementation needs to recover those suppressed findings from the review body and pass them through the existing repair-comment rendering path.
+
 ## Bug Description
 
 When Copilot marks review comments as "suppressed due to low confidence," those comments are not included in the @copilot repair dispatch comment, even though the non-suppressed inline comments are
@@ -43,8 +45,7 @@ flagged with lower confidence.
 2. Observe that the pipeline dispatches a repair comment (`@copilot ...`).
 3. Verify that the repair comment lists only the non-suppressed inline comments and omits the suppressed feedback.
 
-The implementation of this feature will improve the overall system reliability and reduce the operational burden on development teams. Without this change, the existing workarounds will continue to
-consume developer time and introduce potential for human error.
+When suppressed review comments are omitted, maintainers must manually inspect the Copilot review details and relay that feedback to the repair agent. Automating inclusion of suppressed feedback reduces missed review context without changing the existing inline-comment dispatch flow.
 
 ## User Scenarios & Testing
 
@@ -71,7 +72,7 @@ As a maintainer of the CI repair loop, I need the suppressed-comment handling to
 
 **Acceptance Scenarios**:
 
-1. **Given** all retry attempts have been exhausted, **When** the fallback mechanism activates, **Then** a structurally valid output is produced that allows the workflow to proceed.
+1. **Given** a Copilot review with no suppressed-comments details block, **When** repair dispatch builds the `@copilot` comment, **Then** the generated comment contains the same regular inline feedback as before and no synthetic suppressed entries.
 
 ## Requirements
 
