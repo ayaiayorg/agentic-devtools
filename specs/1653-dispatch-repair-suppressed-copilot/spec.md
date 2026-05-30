@@ -10,8 +10,8 @@
 
 `dispatch_repair` currently builds repair prompts only from API-visible review comments, so Copilot feedback
 that is suppressed due to low confidence is omitted from the generated `@copilot` comment. The implementation
-needs to recover those suppressed findings from the review body and pass them through the existing repair-comment
-rendering path.
+needs to recover those suppressed findings from a reliable GitHub review data source and pass them through the
+existing repair-comment rendering path.
 
 ## Bug Description
 
@@ -142,8 +142,11 @@ synthetic suppressed entries.
 - **FR-003**: The system MUST clearly label suppressed comments as suppressed when rendering them in the repair dispatch comment.
 
 - **FR-004**: The system MUST avoid duplicating the same review feedback when a
-  comment is available from more than one source by treating entries with the
-  same normalized file path and normalized comment body as duplicates.
+  comment is available from more than one source. Two entries are duplicates only
+  when their file paths match after trimming whitespace and removing one leading
+  `/`, and their comment bodies match after normalizing CRLF to LF and trimming
+  surrounding whitespace; when one duplicate is non-suppressed, that entry MUST
+  be preserved for rendering.
 
 - **FR-005**: The system MUST preserve existing repair dispatch behavior for reviews that contain no suppressed comments.
 
