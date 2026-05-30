@@ -3,6 +3,10 @@
 > ⚠️ **FALLBACK SKELETON** — This specification was generated via deterministic fallback after all LLM retry attempts were exhausted. It requires manual enrichment. Review each section and replace
 > placeholder content with detailed, issue-specific information.
 
+**Feature Branch**: `speckit/1653/phase-1-specify`  
+**Created**: 2026-05-30  
+**Status**: Draft  
+**Input**: User description: "dispatch_repair: Suppressed Copilot review comments not included in repair dispatch comment"  
 **Source Issue**: #1653 (<https://github.com/ayaiayorg/agentic-devtools/issues/1653>)
 
 ## Problem Statement
@@ -59,6 +63,10 @@ changing the existing inline-comment dispatch flow.
 As a maintainer relying on repair dispatch, I need suppressed Copilot review comments to be included in the generated
 `@copilot` repair comment so the repair agent receives the full review context without manual intervention.
 
+**Why this priority**: This is the core bug fix requested by the source issue. Without it, actionable Copilot feedback can be omitted from repair dispatch and the agent may leave review findings unaddressed.
+
+**Independent Test**: Can be tested by constructing a Copilot review fixture that contains both REST-visible inline comments and suppressed feedback, running repair dispatch comment generation, and verifying the output includes both types of comments with the suppressed label.
+
 **Acceptance Scenarios**:
 
 1. **Given** a Copilot review with regular inline comments and a "suppressed due to low confidence" details block,
@@ -68,6 +76,10 @@ As a maintainer relying on repair dispatch, I need suppressed Copilot review com
 ### User Story 2 - Handle Suppressed-Only Feedback (Priority: P1)
 
 As a maintainer reviewing a PR where Copilot only emitted suppressed feedback, I need repair dispatch to still include that feedback so no review finding is silently lost.
+
+**Why this priority**: A suppressed-only review is the highest-risk failure mode because dispatch would otherwise provide no review context at all despite Copilot having findings.
+
+**Independent Test**: Can be tested with a review fixture that has no REST-visible inline comments and only suppressed feedback, then verifying repair dispatch still emits an `@copilot` comment containing each suppressed entry and its file context.
 
 **Acceptance Scenarios**:
 
@@ -79,11 +91,21 @@ As a maintainer reviewing a PR where Copilot only emitted suppressed feedback, I
 
 As a maintainer of the CI repair loop, I need the suppressed-comment handling to be additive so reviews without suppressed comments continue to dispatch the same regular inline feedback as before.
 
+**Why this priority**: Preserving existing behavior prevents the bug fix from regressing the current inline-comment dispatch path that already works for non-suppressed feedback.
+
+**Independent Test**: Can be tested by running the existing regular-inline-comment repair dispatch fixture with no suppressed feedback and verifying the generated comment is unchanged except for expected deterministic metadata, with no synthetic suppressed entries.
+
 **Acceptance Scenarios**:
 
 1. **Given** a Copilot review with no suppressed-comments details block, **When** repair dispatch builds the
    `@copilot` comment, **Then** the generated comment contains the same regular inline feedback as before and no
    synthetic suppressed entries.
+
+### Edge Cases
+
+- What happens when the REST review comments endpoint returns regular comments but the supplemental suppressed-comment source is unavailable or malformed? Repair dispatch should preserve regular comments and fail softly without blocking dispatch.
+- How does the system handle suppressed comments that do not include a parseable file path? The repair comment should still include the feedback with an explicit unknown-file marker rather than dropping it silently.
+- What happens when the same feedback appears in both the REST comments and the supplemental suppressed-comment source? The implementation should deduplicate according to FR-004 while preserving the non-suppressed rendering when available.
 
 ## Requirements
 
@@ -106,6 +128,8 @@ As a maintainer of the CI repair loop, I need the suppressed-comment handling to
 - **NFR-002**: The implementation must maintain backward compatibility with existing interfaces and contracts.
 
 ## Success Criteria
+
+### Measurable Outcomes
 
 - **SC-001**: For a representative Copilot review containing both regular and suppressed comments, the generated repair dispatch comment includes every regular comment and every suppressed comment.
 
