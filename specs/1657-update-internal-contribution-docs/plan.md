@@ -13,7 +13,7 @@
 
 ## Research Summary
 
-See [research.md](research.md) — key decision: pure documentation change, no code modifications needed. Validation via `markdownlint-cli2` on all four files.
+No separate `research.md` artifact is committed for this plan. Key decision: pure documentation change, no code modifications needed. Validation via `markdownlint-cli2` on all four files.
 
 ## Design Overview
 
