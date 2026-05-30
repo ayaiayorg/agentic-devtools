@@ -590,6 +590,37 @@ class TestEngineLangchainFlag:
         call_kwargs = mock_runner.call_args[1]
         assert call_kwargs["resume_data"] == {"completed": True, "summary": "Work done"}
 
+
+class TestNonStringIssueKeyFromState:
+    """Tests for when jira.issue_key in state is a non-string type (e.g., int).
+
+    Covers the isinstance(issue_key, str) FALSE branches in the else path
+    where issue_key is read from state via validate_required_state.
+    """
+
+    def test_integer_issue_key_skips_strip_and_set_value(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
+    ):
+        """When issue_key from state is an int, isinstance checks are False."""
+        state.set_value("jira.issue_key", 1234)
+
+        with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_preflight.return_value = PreflightResult(
+                folder_valid=False,
+                branch_valid=False,
+                folder_name="wrong",
+                branch_name="main",
+                issue_key="1234",
+            )
+
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_work_on_jira_issue_workflow(_argv=[])
+
+        mock_preflight.assert_called_once_with(1234)
+
     def test_auto_execute_command_preserves_engine_langchain(
         self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, capsys
     ):

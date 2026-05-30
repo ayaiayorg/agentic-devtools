@@ -45,7 +45,22 @@ jobs:
       - name: Run targeted checks
         if: steps.changed.outputs.count != '0'
         run: |
-          bash scripts/targeted-checks.sh --files /tmp/changed-files.txt
+          python -m agentic_devtools.cli.checks
+
+      - name: Run markdownlint on changed markdown files
+        if: steps.changed.outputs.count != '0'
+        run: |
+          md_files=$(grep '\.md$' /tmp/changed-files.txt || true)
+          if [ -z "$md_files" ]; then
+            echo "No markdown files changed — skipping markdownlint."
+          else
+            args=()
+            while IFS= read -r f; do
+              [[ -z "$f" ]] && continue
+              args+=(":$f")
+            done <<< "$md_files"
+            npx markdownlint-cli2 --no-globs "${args[@]}"
+          fi
 
       - name: No changes detected
         if: steps.changed.outputs.count == '0'

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _WORKFLOW_AUTO_EXECUTE_TIMEOUTS: dict[str, int] = {
-    "pull-request-review": 300,
+    "pull-request-review": 600,
     "apply-pull-request-review-suggestions": 300,
 }
 

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from agentic_devtools.cli.ci.models import CheckRunStatus, PRMetadata, ReviewInfo
-from agentic_devtools.cli.ci.pipeline.snapshot import build_pr_state_snapshot
+from agentic_devtools.cli.ci.pipeline.snapshot import _evaluate_ci_status, build_pr_state_snapshot
 
 
 class TestBuildPrStateSnapshot:
@@ -282,3 +282,93 @@ class TestBuildPrStateSnapshot:
         snapshot = build_pr_state_snapshot(provider, 1)
 
         assert snapshot.has_approval_on_head is False
+
+    def test_inline_count_unknown_when_head_commented_review_comments_fetch_fails(self) -> None:
+        provider = MagicMock()
+        provider.get_pr_metadata.return_value = PRMetadata(
+            number=1,
+            title="Test PR",
+            head_branch="feature",
+            head_sha="head-sha",
+            base_branch="main",
+            requested_reviewers=[],
+        )
+        provider.list_pr_files.return_value = ["a.py"]
+        provider.list_check_runs.return_value = []
+        provider.list_reviews.return_value = [
+            ReviewInfo(id=12, user="Copilot", state="COMMENTED", commit_sha="head-sha"),
+        ]
+        provider.list_review_comments.side_effect = RuntimeError("comments unavailable")
+        provider.list_pr_issue_events.return_value = []
+        provider.count_commits_above_merge_base.return_value = 1
+
+        snapshot = build_pr_state_snapshot(provider, 1)
+
+        assert snapshot.review_state == "COMMENTED"
+        assert snapshot.copilot_review_id == 12
+        assert snapshot.copilot_review_inline_count == -1
+
+    def test_evaluate_ci_status_pending_when_actionable_pending(self) -> None:
+        status, failed = _evaluate_ci_status(
+            [
+                CheckRunStatus(id=1, name="Targeted Checks ✅", status="in_progress", conclusion=""),
+            ],
+            frozenset({"Targeted Checks ✅"}),
+        )
+        assert status == "pending"
+        assert failed == []
+
+    def test_evaluate_ci_status_failing_with_actionable_failed_checks(self) -> None:
+        status, failed = _evaluate_ci_status(
+            [
+                CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="failure"),
+            ],
+            frozenset({"Targeted Checks ✅"}),
+        )
+        assert status == "failing"
+        assert failed == ["Targeted Checks ✅"]
+
+    def test_evaluate_ci_status_pending_takes_priority_over_failed(self) -> None:
+        status, failed = _evaluate_ci_status(
+            [
+                CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="failure"),
+                CheckRunStatus(id=2, name="Smart Module Tests ✅", status="queued", conclusion=""),
+            ],
+            frozenset({"Targeted Checks ✅", "Smart Module Tests ✅"}),
+        )
+        assert status == "pending"
+        assert failed == ["Targeted Checks ✅"]
+
+    def test_evaluate_ci_status_passing_when_actionable_checks_succeed(self) -> None:
+        status, failed = _evaluate_ci_status(
+            [
+                CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="success"),
+                CheckRunStatus(id=2, name="non-actionable", status="completed", conclusion="failure"),
+            ],
+            frozenset({"Targeted Checks ✅"}),
+        )
+        assert status == "passing"
+        assert failed == []
+
+    def test_head_commented_review_inline_count_is_comment_count(self) -> None:
+        provider = MagicMock()
+        provider.get_pr_metadata.return_value = PRMetadata(
+            number=1,
+            title="Test PR",
+            head_branch="feature",
+            head_sha="head-sha",
+            base_branch="main",
+            requested_reviewers=[],
+        )
+        provider.list_pr_files.return_value = ["a.py"]
+        provider.list_check_runs.return_value = []
+        provider.list_reviews.return_value = [
+            ReviewInfo(id=12, user="Copilot", state="COMMENTED", commit_sha="head-sha"),
+        ]
+        provider.list_review_comments.return_value = [MagicMock(), MagicMock(), MagicMock()]
+        provider.list_pr_issue_events.return_value = []
+        provider.count_commits_above_merge_base.return_value = 1
+
+        snapshot = build_pr_state_snapshot(provider, 1)
+
+        assert snapshot.copilot_review_inline_count == 3

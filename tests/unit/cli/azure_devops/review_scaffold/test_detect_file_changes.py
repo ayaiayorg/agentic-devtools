@@ -215,3 +215,87 @@ class TestDetectFileChanges:
         )
 
         assert result.unchanged_files == ["/src/a.ts"]
+
+    def test_empty_iterations_list_no_modified_files(self):
+        """Empty iterations list from API means no files categorised as modified.
+
+        Covers branch 611->629: ``if iterations:`` is False.
+        """
+        state = _make_state(files=["/src/a.ts"])
+        requests_mock = MagicMock()
+        iter_resp = MagicMock()
+        iter_resp.raise_for_status = MagicMock()
+        iter_resp.json.return_value = {"value": []}
+        requests_mock.get.return_value = iter_resp
+
+        result = detect_file_changes(
+            state,
+            ["/src/a.ts"],
+            _CONFIG,
+            _REPO_ID,
+            1,
+            "old_hash",
+            "new_hash",
+            requests_mock,
+            {},
+        )
+
+        assert result.unchanged_files == ["/src/a.ts"]
+        assert result.modified_files == []
+
+    def test_change_entry_with_empty_path_skipped(self):
+        """Change entries with empty path are skipped during iteration.
+
+        Covers branch 623->620: ``if path:`` is False, loop continues.
+        """
+        state = _make_state(files=["/src/a.ts"])
+        requests_mock = MagicMock()
+        iter_resp = MagicMock()
+        iter_resp.raise_for_status = MagicMock()
+        iter_resp.json.return_value = {"value": [{"id": 1}]}
+        changes_resp = MagicMock()
+        changes_resp.raise_for_status = MagicMock()
+        changes_resp.json.return_value = {
+            "changeEntries": [
+                {"item": {"path": ""}},
+                {"item": {"path": "/src/a.ts"}},
+            ]
+        }
+        requests_mock.get.side_effect = [iter_resp, changes_resp]
+
+        result = detect_file_changes(
+            state,
+            ["/src/a.ts"],
+            _CONFIG,
+            _REPO_ID,
+            1,
+            "old_hash",
+            "new_hash",
+            requests_mock,
+            {},
+        )
+
+        assert result.modified_files == ["/src/a.ts"]
+
+    def test_multiple_change_entries_all_processed(self):
+        """Multiple change entries in iteration are all processed.
+
+        Covers branch 623->620: loop back-edge for multiple entries.
+        """
+        state = _make_state(files=["/src/a.ts", "/src/b.ts"])
+        requests_mock = MagicMock()
+        _mock_iterations_api(requests_mock, changed_paths=["/src/a.ts", "/src/b.ts"])
+
+        result = detect_file_changes(
+            state,
+            ["/src/a.ts", "/src/b.ts"],
+            _CONFIG,
+            _REPO_ID,
+            1,
+            "old_hash",
+            "new_hash",
+            requests_mock,
+            {},
+        )
+
+        assert sorted(result.modified_files) == ["/src/a.ts", "/src/b.ts"]

@@ -68,3 +68,19 @@ class TestGenerateSetupInstructions:
 
         assert "code .." in instructions
         assert "agdt-platform-management.code-workspace" in instructions
+
+    def test_both_valid_skips_worktree_and_branch(self):
+        """When both folder and branch are valid, no setup commands are shown."""
+        result = PreflightResult(
+            folder_valid=True,
+            branch_valid=True,
+            folder_name="PROJECT-1850",
+            branch_name="feature/PROJECT-1850/implementation",
+            issue_key="PROJECT-1850",
+        )
+
+        instructions = generate_setup_instructions("PROJECT-1850", result)
+
+        assert "git worktree add" not in instructions
+        assert "git switch -c" not in instructions
+        assert "Open in VS Code" in instructions

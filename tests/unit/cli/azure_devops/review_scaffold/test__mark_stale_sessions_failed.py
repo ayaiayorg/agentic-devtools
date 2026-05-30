@@ -201,3 +201,33 @@ class TestMarkStaleSessionsFailed:
         # current_session SHOULD be marked because its commitHash matches
         assert current_session.status == "failed"
         assert current_session.completedUtc is not None
+
+    def test_loop_continues_past_non_stale_matching_session(self):
+        """Loop continues past a matching but non-stale session to process the next one.
+
+        Covers branch 532->525: inner stale check is False, loop iterates to next session.
+        """
+        now = datetime.now(timezone.utc)
+        recent_started = now - timedelta(minutes=30)
+        stale_started = now - timedelta(hours=3)
+        recent_session = ReviewSession(
+            sessionId="s-recent",
+            modelId="gpt-5",
+            startedUtc=recent_started.isoformat(),
+            status="in_progress",
+            commitHash="abc123",
+        )
+        stale_session = ReviewSession(
+            sessionId="s-stale",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="in_progress",
+            commitHash="abc123",
+        )
+        state = _make_state(sessions=[recent_session, stale_session])
+
+        transitioned = _mark_stale_sessions_failed(state, "abc123", "gpt-5", now=now)
+
+        assert recent_session.status == "in_progress"
+        assert stale_session.status == "failed"
+        assert transitioned == [stale_session]

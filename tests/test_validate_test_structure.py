@@ -26,6 +26,21 @@ validator = _load_module()
 # ---------------------------------------------------------------------------
 
 
+def _setup_repo_root(tmp_path: Path, monkeypatch) -> tuple[Path, Path]:
+    """Set up a fake repo root with tests/unit/ and agentic_devtools/ dirs.
+
+    Returns (unit_dir, source_root).
+    """
+    unit_dir = tmp_path / "tests" / "unit"
+    unit_dir.mkdir(parents=True)
+    source_root = tmp_path / "agentic_devtools"
+    source_root.mkdir()
+    monkeypatch.setattr(validator, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(validator, "UNIT_TESTS_DIR", unit_dir)
+    monkeypatch.setattr(validator, "SOURCE_ROOT", source_root)
+    return unit_dir, source_root
+
+
 def _make_valid_tree(unit_dir: Path, source_root: Path) -> Path:
     """Create a minimal valid 1:1:1 tree and return the test file path."""
     # Source: source_root/mymod.py
@@ -49,24 +64,14 @@ def _make_valid_tree(unit_dir: Path, source_root: Path) -> Path:
 
 class TestValidateNoViolations:
     def test_empty_unit_dir_returns_no_violations(self, tmp_path, monkeypatch):
-        unit_dir = tmp_path / "unit"
-        unit_dir.mkdir()
-        source_root = tmp_path / "src"
-        source_root.mkdir()
-        monkeypatch.setattr(validator, "UNIT_TESTS_DIR", unit_dir)
-        monkeypatch.setattr(validator, "SOURCE_ROOT", source_root)
+        unit_dir, source_root = _setup_repo_root(tmp_path, monkeypatch)
 
         violations = validator.validate()
 
         assert violations == []
 
     def test_valid_tree_returns_no_violations(self, tmp_path, monkeypatch):
-        unit_dir = tmp_path / "unit"
-        unit_dir.mkdir()
-        source_root = tmp_path / "src"
-        source_root.mkdir()
-        monkeypatch.setattr(validator, "UNIT_TESTS_DIR", unit_dir)
-        monkeypatch.setattr(validator, "SOURCE_ROOT", source_root)
+        unit_dir, source_root = _setup_repo_root(tmp_path, monkeypatch)
 
         _make_valid_tree(unit_dir, source_root)
 
@@ -76,12 +81,7 @@ class TestValidateNoViolations:
 
     def test_nested_module_valid(self, tmp_path, monkeypatch):
         """Test file nested two levels deep maps to a nested source file correctly."""
-        unit_dir = tmp_path / "unit"
-        unit_dir.mkdir()
-        source_root = tmp_path / "src"
-        source_root.mkdir()
-        monkeypatch.setattr(validator, "UNIT_TESTS_DIR", unit_dir)
-        monkeypatch.setattr(validator, "SOURCE_ROOT", source_root)
+        unit_dir, source_root = _setup_repo_root(tmp_path, monkeypatch)
 
         # Source: source_root/cli/git/core.py
         nested_src = source_root / "cli" / "git"
@@ -108,12 +108,7 @@ class TestValidateNoViolations:
 class TestValidateViolations:
     def test_too_shallow_test_file_reported(self, tmp_path, monkeypatch):
         """A test_*.py directly in unit_dir (1 part) is a violation."""
-        unit_dir = tmp_path / "unit"
-        unit_dir.mkdir()
-        source_root = tmp_path / "src"
-        source_root.mkdir()
-        monkeypatch.setattr(validator, "UNIT_TESTS_DIR", unit_dir)
-        monkeypatch.setattr(validator, "SOURCE_ROOT", source_root)
+        unit_dir, source_root = _setup_repo_root(tmp_path, monkeypatch)
 
         (unit_dir / "__init__.py").write_text("")
         (unit_dir / "test_orphan.py").write_text("def test_orphan(): pass\n")
@@ -125,12 +120,7 @@ class TestValidateViolations:
 
     def test_missing_source_file_reported(self, tmp_path, monkeypatch):
         """Test file whose parent folder has no matching source file is a violation."""
-        unit_dir = tmp_path / "unit"
-        unit_dir.mkdir()
-        source_root = tmp_path / "src"
-        source_root.mkdir()
-        monkeypatch.setattr(validator, "UNIT_TESTS_DIR", unit_dir)
-        monkeypatch.setattr(validator, "SOURCE_ROOT", source_root)
+        unit_dir, source_root = _setup_repo_root(tmp_path, monkeypatch)
 
         test_dir = unit_dir / "nonexistent_module"
         test_dir.mkdir()
@@ -144,13 +134,7 @@ class TestValidateViolations:
 
     def test_missing_init_in_test_dir_reported(self, tmp_path, monkeypatch):
         """A test_*.py directory lacking __init__.py is a violation."""
-        unit_dir = tmp_path / "unit"
-        unit_dir.mkdir()
-        source_root = tmp_path / "src"
-        source_root.mkdir()
-        monkeypatch.setattr(validator, "UNIT_TESTS_DIR", unit_dir)
-        monkeypatch.setattr(validator, "SOURCE_ROOT", source_root)
-        monkeypatch.setattr(validator, "REPO_ROOT", tmp_path)
+        unit_dir, source_root = _setup_repo_root(tmp_path, monkeypatch)
 
         # Source exists
         (source_root / "mymod.py").write_text("def do_thing(): pass\n")
@@ -168,13 +152,7 @@ class TestValidateViolations:
 
     def test_missing_init_in_intermediate_dir_reported(self, tmp_path, monkeypatch):
         """An intermediate directory in a nested path lacking __init__.py is a violation."""
-        unit_dir = tmp_path / "unit"
-        unit_dir.mkdir()
-        source_root = tmp_path / "src"
-        source_root.mkdir()
-        monkeypatch.setattr(validator, "UNIT_TESTS_DIR", unit_dir)
-        monkeypatch.setattr(validator, "SOURCE_ROOT", source_root)
-        monkeypatch.setattr(validator, "REPO_ROOT", tmp_path)
+        unit_dir, source_root = _setup_repo_root(tmp_path, monkeypatch)
 
         # Source: src/cli/core.py
         (source_root / "cli").mkdir()
@@ -194,12 +172,7 @@ class TestValidateViolations:
 
     def test_multiple_violations_all_reported(self, tmp_path, monkeypatch):
         """Multiple bad test files each generate their own violation entry."""
-        unit_dir = tmp_path / "unit"
-        unit_dir.mkdir()
-        source_root = tmp_path / "src"
-        source_root.mkdir()
-        monkeypatch.setattr(validator, "UNIT_TESTS_DIR", unit_dir)
-        monkeypatch.setattr(validator, "SOURCE_ROOT", source_root)
+        unit_dir, source_root = _setup_repo_root(tmp_path, monkeypatch)
 
         # Two directories whose source files do not exist
         for name in ("missing_a", "missing_b"):
@@ -221,12 +194,7 @@ class TestValidateViolations:
 
 class TestMain:
     def test_exits_zero_when_no_violations(self, tmp_path, monkeypatch):
-        unit_dir = tmp_path / "unit"
-        unit_dir.mkdir()
-        source_root = tmp_path / "src"
-        source_root.mkdir()
-        monkeypatch.setattr(validator, "UNIT_TESTS_DIR", unit_dir)
-        monkeypatch.setattr(validator, "SOURCE_ROOT", source_root)
+        unit_dir, source_root = _setup_repo_root(tmp_path, monkeypatch)
 
         _make_valid_tree(unit_dir, source_root)
 
@@ -235,12 +203,7 @@ class TestMain:
         assert rc == 0
 
     def test_exits_one_when_violations_exist(self, tmp_path, monkeypatch):
-        unit_dir = tmp_path / "unit"
-        unit_dir.mkdir()
-        source_root = tmp_path / "src"
-        source_root.mkdir()
-        monkeypatch.setattr(validator, "UNIT_TESTS_DIR", unit_dir)
-        monkeypatch.setattr(validator, "SOURCE_ROOT", source_root)
+        unit_dir, source_root = _setup_repo_root(tmp_path, monkeypatch)
 
         # Create a test file with no matching source
         d = unit_dir / "no_source"
@@ -254,12 +217,7 @@ class TestMain:
         assert rc == 1
 
     def test_ok_message_printed_when_clean(self, tmp_path, monkeypatch, capsys):
-        unit_dir = tmp_path / "unit"
-        unit_dir.mkdir()
-        source_root = tmp_path / "src"
-        source_root.mkdir()
-        monkeypatch.setattr(validator, "UNIT_TESTS_DIR", unit_dir)
-        monkeypatch.setattr(validator, "SOURCE_ROOT", source_root)
+        unit_dir, source_root = _setup_repo_root(tmp_path, monkeypatch)
 
         _make_valid_tree(unit_dir, source_root)
         validator.main()
@@ -268,12 +226,7 @@ class TestMain:
         assert "OK" in captured.out
 
     def test_fail_message_printed_when_violations(self, tmp_path, monkeypatch, capsys):
-        unit_dir = tmp_path / "unit"
-        unit_dir.mkdir()
-        source_root = tmp_path / "src"
-        source_root.mkdir()
-        monkeypatch.setattr(validator, "UNIT_TESTS_DIR", unit_dir)
-        monkeypatch.setattr(validator, "SOURCE_ROOT", source_root)
+        unit_dir, source_root = _setup_repo_root(tmp_path, monkeypatch)
 
         (unit_dir / "test_orphan.py").write_text("def test_orphan(): pass\n")
 
@@ -284,9 +237,10 @@ class TestMain:
 
     def test_exits_zero_when_unit_dir_missing(self, tmp_path, monkeypatch):
         """If tests/unit/ does not exist, there are no violations."""
-        unit_dir = tmp_path / "unit"  # does not exist
-        source_root = tmp_path / "src"
+        unit_dir = tmp_path / "tests" / "unit"  # does not exist
+        source_root = tmp_path / "agentic_devtools"
         source_root.mkdir()
+        monkeypatch.setattr(validator, "REPO_ROOT", tmp_path)
         monkeypatch.setattr(validator, "UNIT_TESTS_DIR", unit_dir)
         monkeypatch.setattr(validator, "SOURCE_ROOT", source_root)
 

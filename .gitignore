@@ -59,6 +59,10 @@ htmlcov/
 .agdt-*-output.json
 .agdt-*-output.txt
 *.log
+check-output.txt
+check-output-condensed.txt
+coverage_rc.txt
+.pre-push-output.log
 state-out.txt
 out.txt
 err.txt

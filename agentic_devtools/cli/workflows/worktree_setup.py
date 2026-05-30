@@ -822,7 +822,7 @@ def create_worktree(
         return WorktreeSetupResult(
             success=False,
             worktree_path=worktree_path,
-            branch_name=branch_name,
+            branch_name=resolved_branch_name,
             error_message=f"Error creating worktree: {e}",
         )
 
@@ -870,12 +870,14 @@ def open_vscode_workspace(worktree_path: str) -> bool:
         if platform.system() == "Windows" and hasattr(subprocess, "DETACHED_PROCESS"):
             # On Windows, 'code' is a .cmd batch file, so we need shell=True
             # to find it via PATH. We also use creationflags to detach the process.
+            _DETACHED = getattr(subprocess, "DETACHED_PROCESS", 0)
+            _NEW_PG = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
             subprocess.Popen(  # nosec B602 - shell=True required on Windows to find 'code.cmd' via PATH; args is a fixed list
                 ["code", target],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 shell=True,
-                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+                creationflags=_DETACHED | _NEW_PG,
             )
         else:
             # On Unix-like systems, start_new_session works correctly
@@ -1335,27 +1337,67 @@ def inject_task_permission_settings(worktree_path: str) -> None:
 
     if existing_value == "on":
         print(f"Task permission settings already configured in {settings_path}")
-        return
-
-    if existing_value == "off":
+    elif existing_value == "off":
         print(
             f'Warning: {_SETTING_KEY} is set to "off" in {settings_path}; '
             "automatic tasks are disabled by user choice — skipping injection",
             file=sys.stderr,
         )
         return
+    else:
+        # Value is missing, "auto", or any other unexpected value — set to "on".
+        settings[_SETTING_KEY] = "on"
 
-    # Value is missing, "auto", or any other unexpected value — set to "on".
-    settings[_SETTING_KEY] = "on"
+        try:
+            os.makedirs(vscode_dir, exist_ok=True)
+            with open(settings_path, "w", encoding="utf-8") as fh:
+                json.dump(settings, fh, indent=2)
+                fh.write("\n")
+            print(f"Injected task permission settings into {settings_path}")
+        except OSError as exc:
+            print(f"Warning: could not write {settings_path}: {exc}", file=sys.stderr)
 
-    try:
-        os.makedirs(vscode_dir, exist_ok=True)
-        with open(settings_path, "w", encoding="utf-8") as fh:
-            json.dump(settings, fh, indent=2)
-            fh.write("\n")
-        print(f"Injected task permission settings into {settings_path}")
-    except OSError as exc:
-        print(f"Warning: could not write {settings_path}: {exc}", file=sys.stderr)
+    # Also inject into the .code-workspace file if one exists.
+    # Workspace-level settings take precedence over .vscode/settings.json
+    # in multi-root workspaces, so we must set the permission there too
+    # to ensure VS Code doesn't show a "Allow automatic tasks?" dialog
+    # that blocks the runOn:folderOpen task from executing.
+    workspace_file = find_workspace_file(worktree_path)
+    if workspace_file:
+        try:
+            with open(workspace_file, encoding="utf-8") as fh:
+                ws_data = json.load(fh)
+        except (json.JSONDecodeError, OSError) as exc:
+            print(
+                f"Warning: could not read workspace file {workspace_file}: {exc}",
+                file=sys.stderr,
+            )
+            ws_data = None
+
+        if isinstance(ws_data, dict):
+            ws_settings = ws_data.get("settings")
+            if not isinstance(ws_settings, dict):
+                ws_settings = {}
+                ws_data["settings"] = ws_settings
+
+            ws_existing = ws_settings.get(_SETTING_KEY)
+            if ws_existing == "off":
+                print(
+                    f'Warning: {_SETTING_KEY} is set to "off" in {workspace_file}; skipping workspace-level injection',
+                    file=sys.stderr,
+                )
+            elif ws_existing != "on":
+                ws_settings[_SETTING_KEY] = "on"
+                try:
+                    with open(workspace_file, "w", encoding="utf-8") as fh:
+                        json.dump(ws_data, fh, indent=2)
+                        fh.write("\n")
+                    print(f"Injected task permission settings into {workspace_file}")
+                except OSError as exc:
+                    print(
+                        f"Warning: could not write {workspace_file}: {exc}",
+                        file=sys.stderr,
+                    )
 
 
 # ---------------------------------------------------------------------------
@@ -2241,6 +2283,7 @@ def _start_copilot_session_for_workflow(
     workflow_name: str,
     interactive: bool = False,
     model: str | None = None,
+    autostart_injected: bool = False,
 ) -> bool:
     """Wait for the workflow setup to complete, then start a ``gh copilot`` session.
 
@@ -2249,15 +2292,19 @@ def _start_copilot_session_for_workflow(
     TTY availability, handles the auto-start task run-ID check, and
     finally calls :func:`start_copilot_session`.
 
-    **Auto-start task handling**: The VS Code auto-start task is injected
-    *before* VS Code opens (by :func:`_maybe_inject_auto_start_before_vscode`
-    in the background worktree setup flow).  When this function detects the
-    task was already injected and there is no TTY attached (background task
-    scenario), it waits for the run ID to appear in
-    ``copilot.auto_start_triggered_runs`` to confirm VS Code handled the
-    session.  This check runs regardless of the *interactive* flag — injection
-    is attempted whenever VS Code is available (even when the background setup
-    was invoked with ``interactive=False``).
+    **Auto-start task handling**: When *autostart_injected* is ``True``,
+    the VS Code auto-start task was already successfully written to
+    ``tasks.json`` before VS Code opened.  In that case this function
+    returns ``True`` immediately without starting a duplicate background
+    session — VS Code will handle the Copilot session via the
+    ``runOn: folderOpen`` task.  This eliminates the race condition
+    where a permission/trust dialog delays VS Code task execution beyond
+    the previous 15-second timeout, causing a duplicate background
+    session to be spawned.
+
+    When *autostart_injected* is ``False`` (injection failed or was
+    skipped), the original behaviour is preserved: wait for the run ID,
+    try terminal sendSequence, then fall back to a background session.
 
     In interactive mode the Copilot session inherits the terminal so the
     user can interact with it; in non-interactive mode it runs in the
@@ -2274,6 +2321,9 @@ def _start_copilot_session_for_workflow(
         start_prompt: The prompt text to pass to ``start_copilot_session()``.
         workflow_name: Human-readable workflow name for log messages.
         interactive: Whether to start the Copilot session interactively.
+        autostart_injected: Whether the VS Code auto-start task was
+            successfully injected.  When ``True``, skip the background
+            fallback entirely.
 
     Returns:
         ``True`` when a Copilot session was started successfully or the
@@ -2297,7 +2347,22 @@ def _start_copilot_session_for_workflow(
     # where stdin/stdout are redirected to DEVNULL/log files).
     has_tty = getattr(sys.stdin, "isatty", lambda: False)() and getattr(sys.stdout, "isatty", lambda: False)()
 
-    # --- Check if the VS Code auto-start task was already injected -----------
+    # --- Auto-start injection confirmed: skip background fallback ------------
+    # When the caller confirms the auto-start task was successfully injected
+    # into tasks.json, trust that VS Code will execute it (possibly after a
+    # trust/permission dialog).  Do NOT start a duplicate background session.
+    # The previous 15-second timeout was insufficient for scenarios where
+    # VS Code shows a workspace trust or task permission dialog before
+    # executing the runOn:folderOpen task.
+    if autostart_injected and not has_tty:
+        print(
+            "\n--- VS Code auto-start task was successfully injected. "
+            "Trusting VS Code to handle the Copilot session "
+            "(no background fallback will be started). ---"
+        )
+        return True
+
+    # --- Legacy check for auto-start task (when autostart_injected=False) ----
     # _maybe_inject_auto_start_before_vscode() injects the task *before* VS
     # Code opens so that ``runOn: folderOpen`` fires with the task present.
     # When that happened and we're in a background context (no TTY), we wait
@@ -3110,7 +3175,7 @@ def setup_worktree_in_background_sync(
     """
     import uuid
 
-    from ...state import get_workflow_state, set_value
+    from ...state import delete_value, get_workflow_state, set_value
 
     def _resolve_prompt_filename(target_path: str) -> str | None:
         filename = _WORKFLOW_PROMPT_FILENAMES.get(workflow_name)
@@ -3154,8 +3219,15 @@ def setup_worktree_in_background_sync(
         # fires on ``folderOpen``, so completing data-fetching before opening
         # the window ensures the Copilot agent starts with full context.
         if auto_execute_command:
+            delete_value("worktree_setup.auto_execute_failed")
             exit_code = _run_auto_execute_command(auto_execute_command, existing_path, auto_execute_timeout)
             set_value("worktree_setup.auto_execute_exit_code", str(exit_code))
+            if exit_code != 0:
+                print(
+                    f"\n⚠️  Auto-execute command exited with code {exit_code}. Review data may be incomplete.",
+                    file=sys.stderr,
+                )
+                set_value("worktree_setup.auto_execute_failed", "true")
 
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
@@ -3169,9 +3241,10 @@ def setup_worktree_in_background_sync(
         print(f"   VS Code opened: {'Yes' if vscode_opened else 'No'}")
 
         # Start Copilot session as a secondary fallback.  The primary
-        # mechanism is the VS Code ``runOn: folderOpen`` task injected above;
-        # this call provides the 15-second wait + terminal sendSequence +
-        # background session fallback chain.
+        # mechanism is the VS Code ``runOn: folderOpen`` task injected above.
+        # When autostart_injected=True and VS Code was successfully opened,
+        # the function returns immediately without starting a background
+        # session — VS Code will handle it.
         prompt_filename = _resolve_prompt_filename(existing_path)
         if prompt_filename:
             _start_copilot_session_for_workflow(
@@ -3181,6 +3254,7 @@ def setup_worktree_in_background_sync(
                 workflow_name=workflow_name,
                 interactive=interactive,
                 model=model,
+                autostart_injected=autostart_injected and vscode_opened,
             )
 
         print("\n✅ Environment ready!")
@@ -3209,8 +3283,15 @@ def setup_worktree_in_background_sync(
         # fires on ``folderOpen``, so completing data-fetching before opening
         # the window ensures the Copilot agent starts with full context.
         if auto_execute_command:
+            delete_value("worktree_setup.auto_execute_failed")
             exit_code = _run_auto_execute_command(auto_execute_command, result.worktree_path, auto_execute_timeout)
             set_value("worktree_setup.auto_execute_exit_code", str(exit_code))
+            if exit_code != 0:
+                print(
+                    f"\n⚠️  Auto-execute command exited with code {exit_code}. Review data may be incomplete.",
+                    file=sys.stderr,
+                )
+                set_value("worktree_setup.auto_execute_failed", "true")
 
         # Inject VS Code auto-start task *before* opening the window so that
         # the ``runOn: folderOpen`` event fires with the task already present.
@@ -3225,9 +3306,10 @@ def setup_worktree_in_background_sync(
         result.vscode_opened = open_vscode_workspace(result.worktree_path)
 
         # Start Copilot session as a secondary fallback.  The primary
-        # mechanism is the VS Code ``runOn: folderOpen`` task injected above;
-        # this call provides the 15-second wait + terminal sendSequence +
-        # background session fallback chain.
+        # mechanism is the VS Code ``runOn: folderOpen`` task injected above.
+        # When autostart_injected=True and VS Code was successfully opened,
+        # the function returns immediately without starting a background
+        # session — VS Code will handle it.
         prompt_filename = _resolve_prompt_filename(result.worktree_path)
         if prompt_filename:
             _start_copilot_session_for_workflow(
@@ -3237,6 +3319,7 @@ def setup_worktree_in_background_sync(
                 workflow_name=workflow_name,
                 interactive=interactive,
                 model=model,
+                autostart_injected=autostart_injected and result.vscode_opened,
             )
 
         print("\n✅ Environment setup complete!")
@@ -3559,6 +3642,8 @@ def create_placeholder_and_setup_worktree(
         return False, None
 
     issue_key = issue_result.issue_key
+    if issue_key is None:
+        return False, None
     print(f"   Issue key: {issue_key}")
 
     # Set the issue key in state for later use

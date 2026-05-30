@@ -82,6 +82,21 @@ class TestDispatchRepairAction:
         result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.EXECUTE
 
+    def test_skip_when_ci_pending_even_if_review_actionable(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            ci_status="pending",
+            active_session=False,
+            review_state="COMMENTED",
+            copilot_review_id=100,
+            copilot_review_inline_count=1,
+        )
+        derived = DerivedState(snapshot)
+        action = DispatchRepairAction()
+        result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.SKIP
+        assert "pending" in result.details.lower()
+
     def test_execute_dispatches_repair(self) -> None:
         snapshot = PRStateSnapshot(
             pr_number=42,
@@ -209,3 +224,158 @@ class TestDispatchRepairAction:
             result = action.execute(provider, snapshot, derived)
             assert result.decision == ActionDecision.EXECUTE
             assert derived.repair_dispatched is True
+
+    def test_failed_when_deduplication_check_raises(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=1, ci_status="failing", head_sha="abc123")
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+            side_effect=RuntimeError("dedup boom"),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.FAILED
+        assert "Deduplication check failed" in result.details
+
+    def test_failed_when_cycle_limit_check_raises(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=1, ci_status="failing", head_sha="abc123")
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+                return_value=(False, 0),
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_cycle_limit",
+                side_effect=RuntimeError("cycle boom"),
+            ),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.FAILED
+        assert "Cycle limit check failed" in result.details
+
+    def test_execute_dispatches_review_only_and_fetches_review_comments(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=42,
+            ci_status="passing",
+            head_sha="abc123",
+            review_state="CHANGES_REQUESTED",
+            copilot_review_id=12,
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.list_review_comments.return_value = [MagicMock(id=1)]
+        provider.dispatch_repair.return_value = 77
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+                return_value=(False, 0),
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_cycle_limit",
+                return_value=(False, 1),
+            ),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+        call_kwargs = provider.dispatch_repair.call_args.kwargs
+        assert call_kwargs["repair_type"] == "review"
+        assert call_kwargs["review_comments"] == [provider.list_review_comments.return_value[0]]
+
+    def test_execute_continues_when_review_comments_fetch_fails(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=42,
+            ci_status="passing",
+            head_sha="abc123",
+            review_state="CHANGES_REQUESTED",
+            copilot_review_id=12,
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.list_review_comments.side_effect = RuntimeError("comments boom")
+        provider.dispatch_repair.return_value = 88
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+                return_value=(False, 0),
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_cycle_limit",
+                return_value=(False, 1),
+            ),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+        assert provider.dispatch_repair.call_args.kwargs["review_comments"] == []
+
+    def test_failed_when_dispatch_repair_raises(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=42,
+            ci_status="failing",
+            head_sha="abc123",
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.dispatch_repair.side_effect = RuntimeError("dispatch boom")
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+                return_value=(False, 0),
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_cycle_limit",
+                return_value=(False, 1),
+            ),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.FAILED
+        assert "dispatch_repair call failed" in result.details
+
+    def test_execute_dispatches_both_when_ci_failing_and_review_actionable(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=42,
+            ci_status="failing",
+            head_sha="abc123",
+            review_state="CHANGES_REQUESTED",
+            copilot_review_id=12,
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.list_review_comments.return_value = [MagicMock(id=1)]
+        provider.dispatch_repair.return_value = 99
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+                return_value=(False, 0),
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_cycle_limit",
+                return_value=(False, 1),
+            ),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+        assert provider.dispatch_repair.call_args.kwargs["repair_type"] == "both"

@@ -952,11 +952,7 @@ class TestRunSetupWithPrWorkflow:
             ]
             # Ensure AZURE_CLI_DISABLE_CONNECTION_VERIFICATION is absent before the run,
             # and AGDT_NO_VERIFY_SSL is set.
-            clean_env = {
-                k: v
-                for k, v in os.environ.items()
-                if k != "AZURE_CLI_DISABLE_CONNECTION_VERIFICATION"
-            }
+            clean_env = {k: v for k, v in os.environ.items() if k != "AZURE_CLI_DISABLE_CONNECTION_VERIFICATION"}
             clean_env["AGDT_NO_VERIFY_SSL"] = "1"
             with patch.dict(os.environ, clean_env, clear=True):
                 with patch(_CREATE_PR, side_effect=_capture_env):

@@ -294,6 +294,39 @@ class TestWorkflowCommands:
         assert workflow["active"] == "create-jira-epic"
 
 
+class TestProgrammaticParamsSkipCliOverride:
+    """Tests that programmatic params skip the CLI arg override branches."""
+
+    def test_all_params_set_programmatically(self, temp_state_dir, clear_state_before, capsys):
+        """When project_key, issue_key, user_request are all set
+        programmatically, the `if X is None:` CLI override branches are skipped."""
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=False,
+                branch_valid=False,
+                folder_name="wrong",
+                branch_name="main",
+                issue_key="PROJ-1",
+            )
+
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_create_jira_epic_workflow(
+                    project_key="PROJ",
+                    issue_key="PROJ-1",
+                    user_request="Create auth epic",
+                )
+
+        call_kwargs = mock_setup.call_args[1]
+        auto_cmd = call_kwargs["auto_execute_command"]
+        assert "--project-key" in auto_cmd
+        assert "PROJ" in auto_cmd
+        assert "--user-request" in auto_cmd
+        assert "Create auth epic" in auto_cmd
+
+
 class TestSkipCopilotSession:
     """Tests for the --skip-copilot-session flag."""
 

@@ -190,3 +190,28 @@ class TestPropagateAgdtCache:
 
         dst_bootstrap = worktree / ".agdt" / BOOTSTRAP_FILENAME
         assert not dst_bootstrap.exists()
+
+    def test_propagates_bootstrap_only_without_identity(self, tmp_path: Path) -> None:
+        """Propagates bootstrap when identity.json is absent but bootstrap exists (worktree_key=None)."""
+        main_repo = tmp_path / "main"
+        main_repo.mkdir()
+        src_agdt = main_repo / ".agdt"
+        src_agdt.mkdir()
+        # No identity.json, but bootstrap exists
+        bootstrap_content = '{"worktree_key": "PR-100"}'
+        (src_agdt / BOOTSTRAP_FILENAME).write_text(bootstrap_content)
+
+        worktree = tmp_path / "worktree"
+        worktree.mkdir()
+
+        with patch(f"{_MODULE}.get_main_repo_root", return_value=str(main_repo)):
+            _propagate_agdt_cache(str(worktree))
+
+        # Should NOT return early — should propagate bootstrap
+        dst_agdt = worktree / ".agdt"
+        assert dst_agdt.is_dir()
+        dst_bootstrap = dst_agdt / BOOTSTRAP_FILENAME
+        assert dst_bootstrap.is_file()
+        assert dst_bootstrap.read_text() == bootstrap_content
+        # Identity should not be propagated
+        assert not (dst_agdt / IDENTITY_CACHE_FILENAME).exists()

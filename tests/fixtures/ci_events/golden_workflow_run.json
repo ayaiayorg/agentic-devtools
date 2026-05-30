@@ -14,7 +14,11 @@
       "action": "completed",
       "trigger_label": "",
       "repository_full_name": "owner/repo",
-      "sender_login": ""
+      "sender_login": "",
+      "title_changed": false,
+      "body_changed": false,
+      "base_changed": false,
+      "edit_changes_known": false
     }
   }
 }

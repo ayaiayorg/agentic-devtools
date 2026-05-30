@@ -219,8 +219,8 @@ class TestPerformAutoSetup:
         assert call_kwargs["model"] is None
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
-    def test_pr_review_workflow_uses_300s_timeout(self, mock_start_background, temp_state_dir):
-        """Test that pull-request-review workflow uses 300s timeout by default."""
+    def test_pr_review_workflow_uses_600s_timeout(self, mock_start_background, temp_state_dir):
+        """Test that pull-request-review workflow uses 600s timeout by default."""
         mock_start_background.return_value = "task-pr-review"
 
         perform_auto_setup(
@@ -230,7 +230,7 @@ class TestPerformAutoSetup:
 
         mock_start_background.assert_called_once()
         call_kwargs = mock_start_background.call_args[1]
-        assert call_kwargs["auto_execute_timeout"] == 300
+        assert call_kwargs["auto_execute_timeout"] == 600
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.start_worktree_setup_background")
     def test_apply_suggestions_workflow_uses_300s_timeout(self, mock_start_background, temp_state_dir):

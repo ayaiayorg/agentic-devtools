@@ -91,15 +91,10 @@ class AzureDevOpsProvider(CIPlatformProvider):
                 # ADO includes a "changedFields" dict or per-field deltas in resource
                 changed_fields = raw_payload.get("changedFields")
                 edit_changes_known = isinstance(changed_fields, dict)
-                if edit_changes_known:
+                if isinstance(changed_fields, dict):
                     title_changed = "title" in changed_fields or "Title" in changed_fields
-                    body_changed = (
-                        "description" in changed_fields or "Description" in changed_fields
-                    )
-                    base_changed = (
-                        "targetRefName" in changed_fields
-                        or "TargetRefName" in changed_fields
-                    )
+                    body_changed = "description" in changed_fields or "Description" in changed_fields
+                    base_changed = "targetRefName" in changed_fields or "TargetRefName" in changed_fields
 
             return EventPayload(
                 pr_number=pr_id,

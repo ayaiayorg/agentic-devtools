@@ -2269,3 +2269,76 @@ class TestSetupPullRequestReviewSkippedFiles:
 
         captured = capsys.readouterr()
         assert "Could not persist skipped files" in captured.err
+
+    def test_sets_rebase_conflicts_detected_when_conflicts_present(self):
+        """When had_rebase_conflicts is True, set_value('review.rebase_conflicts_detected', 'true') is called.
+
+        Covers line 940.
+        """
+        from agentic_devtools.cli.azure_devops.review_commands import (
+            setup_pull_request_review,
+        )
+
+        mock_git_result = MagicMock()
+        mock_git_result.returncode = 0
+        mock_git_result.stdout = "/repo/root\n"
+
+        mock_config = MagicMock()
+        mock_config.organization = "https://dev.azure.com/testorg"
+        mock_config.project = "TestProject"
+        mock_config.repository = "test-repo"
+
+        mock_set_value = MagicMock()
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.get_value",
+                side_effect=self._default_get_value,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_commands.is_dry_run",
+                return_value=False,
+            ),
+        ):
+            with patch("agentic_devtools.cli.azure_devops.pull_request_details_commands.get_pull_request_details"):
+                with patch("builtins.open", create=True) as mock_open:
+                    mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(
+                        self._make_pr_details()
+                    )
+                    with patch("pathlib.Path.exists", return_value=True):
+                        with patch(
+                            "agentic_devtools.cli.azure_devops.review_commands.checkout_and_sync_branch",
+                            return_value=(True, None, set(), True, None),
+                        ):
+                            with patch(
+                                "agentic_devtools.cli.azure_devops.review_commands.generate_review_prompts",
+                                return_value=(3, 0, 0, MagicMock(), []),
+                            ):
+                                with patch(
+                                    "agentic_devtools.cli.azure_devops.review_commands.print_review_instructions"
+                                ):
+                                    with patch("agentic_devtools.state.set_workflow_state"):
+                                        with patch("agentic_devtools.prompts.loader.load_and_render_prompt"):
+                                            with patch(
+                                                "agentic_devtools.config.load_review_focus_areas",
+                                                return_value=None,
+                                            ):
+                                                with patch(
+                                                    "agentic_devtools.cli.azure_devops.review_commands.run_safe",
+                                                    return_value=mock_git_result,
+                                                ):
+                                                    with patch(
+                                                        "agentic_devtools.cli.azure_devops.review_commands.AzureDevOpsConfig.from_state",
+                                                        return_value=mock_config,
+                                                    ):
+                                                        with patch("agentic_devtools.state.set_bootstrap_state"):
+                                                            with patch(
+                                                                "agentic_devtools.state.set_value",
+                                                                mock_set_value,
+                                                            ):
+                                                                with patch("agentic_devtools.state.delete_value"):
+                                                                    setup_pull_request_review()
+
+        rebase_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "review.rebase_conflicts_detected"]
+        assert len(rebase_calls) == 1
+        assert rebase_calls[0][0][1] == "true"

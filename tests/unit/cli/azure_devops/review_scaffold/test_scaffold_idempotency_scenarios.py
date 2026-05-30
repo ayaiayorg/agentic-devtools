@@ -1349,3 +1349,243 @@ class TestRebaseConflictsPersistedInSkipPaths:
         assert result is None
         assert state.rebaseConflicts is True
         save_mock.assert_not_called()
+
+
+class TestScaffoldInProgressNoMatchingSession:
+    """in_progress path when for-loop finds no matching session (842->850)."""
+
+    def test_uses_unknown_when_no_session_matches_search(self, capsys):
+        """When in_progress but session search loop finds no match, active_id is 'unknown'.
+
+        Covers branch 842->850: for loop exhausts without ``break``.
+        This is an edge case where _check_session_status finds a match but
+        the subsequent search loop criteria diverge (e.g., mock returns in_progress).
+        """
+        now = datetime.now(timezone.utc)
+        # Session has different commitHash than what scaffold_review_threads will search for
+        session = ReviewSession(
+            sessionId="s1",
+            modelId="gpt-5",
+            startedUtc=now.isoformat(),
+            status="in_progress",
+            commitHash="abc123",
+        )
+        state = _make_existing_state(sessions=[session])
+        requests_mock = _make_requests_mock()
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+                return_value=state,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold._check_session_status",
+                return_value="in_progress",
+            ),
+        ):
+            # Pass commit_hash="different" so the for-loop search won't find session
+            result = scaffold_review_threads(
+                pull_request_id=_PR_ID,
+                files=["/src/a.ts"],
+                config=_make_config(),
+                repo_id=_REPO_ID,
+                repo_name=_REPO,
+                latest_iteration_id=1,
+                requests_module=requests_mock,
+                headers={},
+                commit_hash="different",
+                model_id="gpt-5",
+            )
+
+        assert result is None
+        out = capsys.readouterr().out
+        assert "unknown" in out
+
+
+class TestScaffoldResumeStaleNoActivityLog:
+    """resume_stale path when activityLogThreadId is 0 (900->920, 935->960)."""
+
+    def test_resume_stale_without_activity_log(self):
+        """resume_stale proceeds without activity log posting when thread ID is 0.
+
+        Covers branches 900->920 and 935->960.
+        """
+        now = datetime.now(timezone.utc)
+        stale_started = now - timedelta(hours=3)
+        session = ReviewSession(
+            sessionId="stale-sess",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="in_progress",
+            commitHash="abc123",
+        )
+        state = _make_existing_state(sessions=[session], activity_log_thread_id=0)
+        requests_mock = _make_requests_mock()
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+                return_value=state,
+            ),
+            patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"),
+        ):
+            result = scaffold_review_threads(
+                pull_request_id=_PR_ID,
+                files=["/src/a.ts"],
+                config=_make_config(),
+                repo_id=_REPO_ID,
+                repo_name=_REPO,
+                latest_iteration_id=1,
+                requests_module=requests_mock,
+                headers={},
+                commit_hash="abc123",
+                model_id="gpt-5",
+            )
+
+        assert result is state
+        assert len(state.sessions) == 2
+        assert session.status == "failed"
+        # No POST calls for activity log
+        requests_mock.post.assert_not_called()
+
+
+class TestScaffoldResumeStaleNoFailedSessions:
+    """resume_stale path when fallback stale_id loop finds no match (924->932)."""
+
+    def test_stale_id_fallback_loop_exhausted(self, capsys):
+        """Falls back to 'unknown' when no transitioned sessions AND no failed sessions match.
+
+        Covers branch 924->932: for loop exhausts without break.
+        """
+        now = datetime.now(timezone.utc)
+        stale_started = now - timedelta(hours=3)
+        stale_session = ReviewSession(
+            sessionId="stale-sess",
+            modelId="gpt-5",
+            startedUtc=stale_started.isoformat(),
+            status="in_progress",
+            commitHash="abc123",
+        )
+        state = _make_existing_state(sessions=[stale_session], activity_log_thread_id=0)
+        requests_mock = _make_requests_mock()
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+                return_value=state,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold._mark_stale_sessions_failed",
+                return_value=[],
+            ),
+            patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"),
+        ):
+            result = scaffold_review_threads(
+                pull_request_id=_PR_ID,
+                files=["/src/a.ts"],
+                config=_make_config(),
+                repo_id=_REPO_ID,
+                repo_name=_REPO,
+                latest_iteration_id=1,
+                requests_module=requests_mock,
+                headers={},
+                commit_hash="abc123",
+                model_id="gpt-5",
+            )
+
+        assert result is state
+        out = capsys.readouterr().out
+        assert "Resuming" in out
+
+
+class TestScaffoldDifferentModelNoActivityLog:
+    """different_model path when activityLogThreadId is 0 (969->993)."""
+
+    def test_different_model_without_activity_log(self):
+        """different_model proceeds without activity log when thread ID is 0.
+
+        Covers branch 969->993.
+        """
+        session = ReviewSession(
+            sessionId="s1",
+            modelId="claude-4",
+            startedUtc="2026-01-01T00:00:00+00:00",
+            completedUtc="2026-01-01T01:00:00+00:00",
+            status="completed",
+            commitHash="abc123",
+        )
+        state = _make_existing_state(sessions=[session], activity_log_thread_id=0)
+        requests_mock = _make_requests_mock()
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+                return_value=state,
+            ),
+            patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"),
+        ):
+            result = scaffold_review_threads(
+                pull_request_id=_PR_ID,
+                files=["/src/a.ts"],
+                config=_make_config(),
+                repo_id=_REPO_ID,
+                repo_name=_REPO,
+                latest_iteration_id=1,
+                requests_module=requests_mock,
+                headers={},
+                commit_hash="abc123",
+                model_id="gpt-5",
+            )
+
+        assert result is state
+        assert len(state.sessions) == 2
+        assert state.sessions[1].modelId == "gpt-5"
+        # No POST calls for activity log
+        requests_mock.post.assert_not_called()
+
+
+class TestScaffoldUnknownStatusFallthrough:
+    """When _check_session_status returns an unrecognized value, the code falls
+    through past the ``if status == "first_review":`` guard to first-time scaffolding.
+
+    Covers branch 1018->1033.
+    """
+
+    def test_unknown_status_falls_through_to_first_time_scaffolding(self, capsys):
+        """Unexpected status bypasses first_review guard and triggers fresh scaffolding."""
+        state = _make_existing_state()
+        requests_mock = _make_requests_mock()
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold.load_review_state",
+                return_value=state,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold._check_session_status",
+                return_value="unexpected_status",
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_scaffold._try_recover_state_from_pr_threads",
+                return_value=None,
+            ),
+            patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state"),
+        ):
+            result = scaffold_review_threads(
+                pull_request_id=_PR_ID,
+                files=["/src/a.ts"],
+                config=_make_config(),
+                repo_id=_REPO_ID,
+                repo_name=_REPO,
+                latest_iteration_id=1,
+                requests_module=requests_mock,
+                headers={},
+                commit_hash="abc123",
+                model_id="gpt-5",
+            )
+
+        # Falls through to first-time scaffolding — new state is created
+        assert result is not None
+        # The "Skipping" message should NOT appear (that's the first_review path)
+        out = capsys.readouterr().out
+        assert "Skipping" not in out

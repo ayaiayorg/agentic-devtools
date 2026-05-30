@@ -209,3 +209,15 @@ class TestInitiatePrMergeOrchestratorWorkflow:
 
         assert call_order[0] == ("bootstrap", "PR42")
         assert call_order[1] == ("clear",)
+
+    def test_programmatic_poll_interval_skips_cli_override(
+        self, temp_state_dir, clear_state_before, mock_workflow_init
+    ):
+        """When poll_interval_seconds is set programmatically, the CLI override is skipped."""
+        commands.initiate_pr_merge_orchestrator_workflow(
+            pull_request_id="42",
+            poll_interval_seconds=60,
+        )
+
+        call_kwargs = mock_workflow_init.call_args[1]
+        assert call_kwargs["context"]["poll_interval_seconds"] == 60

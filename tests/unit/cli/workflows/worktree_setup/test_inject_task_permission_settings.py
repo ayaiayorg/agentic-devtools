@@ -169,3 +169,118 @@ class TestInjectTaskPermissionSettings:
 
         content = (tmp_path / ".vscode" / "settings.json").read_text(encoding="utf-8")
         assert content.endswith("\n")
+
+    # ------------------------------------------------------------------
+    # Workspace file injection
+    # ------------------------------------------------------------------
+
+    def test_injects_into_workspace_file_when_present(self, tmp_path, capsys):
+        """Injects task.allowAutomaticTasks into .code-workspace file settings."""
+        ws_data = {"folders": [{"path": "."}], "settings": {"editor.tabSize": 2}}
+        ws_file = tmp_path / "project.code-workspace"
+        ws_file.write_text(json.dumps(ws_data), encoding="utf-8")
+
+        inject_task_permission_settings(str(tmp_path))
+
+        result = json.loads(ws_file.read_text(encoding="utf-8"))
+        assert result["settings"][_SETTING_KEY] == "on"
+        assert result["settings"]["editor.tabSize"] == 2
+        captured = capsys.readouterr()
+        assert "Injected task permission settings into" in captured.out
+        assert "project.code-workspace" in captured.out
+
+    def test_creates_settings_section_in_workspace_file(self, tmp_path):
+        """Creates 'settings' key in workspace file when it doesn't exist."""
+        ws_data = {"folders": [{"path": "."}]}
+        ws_file = tmp_path / "project.code-workspace"
+        ws_file.write_text(json.dumps(ws_data), encoding="utf-8")
+
+        inject_task_permission_settings(str(tmp_path))
+
+        result = json.loads(ws_file.read_text(encoding="utf-8"))
+        assert result["settings"][_SETTING_KEY] == "on"
+
+    def test_workspace_file_respects_off_setting(self, tmp_path, capsys):
+        """Does not override 'off' in workspace file, respecting user choice."""
+        ws_data = {"folders": [{"path": "."}], "settings": {_SETTING_KEY: "off"}}
+        ws_file = tmp_path / "project.code-workspace"
+        ws_file.write_text(json.dumps(ws_data), encoding="utf-8")
+
+        inject_task_permission_settings(str(tmp_path))
+
+        result = json.loads(ws_file.read_text(encoding="utf-8"))
+        assert result["settings"][_SETTING_KEY] == "off"
+        captured = capsys.readouterr()
+        assert "skipping workspace-level injection" in captured.err
+
+    def test_workspace_file_no_op_when_already_on(self, tmp_path):
+        """No modification when workspace file already has 'on'."""
+        ws_data = {"folders": [{"path": "."}], "settings": {_SETTING_KEY: "on"}}
+        ws_file = tmp_path / "project.code-workspace"
+        ws_file.write_text(json.dumps(ws_data), encoding="utf-8")
+        original_content = ws_file.read_text(encoding="utf-8")
+
+        inject_task_permission_settings(str(tmp_path))
+
+        assert ws_file.read_text(encoding="utf-8") == original_content
+
+    def test_workspace_file_off_skips_with_warning(self, tmp_path, capsys):
+        """'off' in workspace file prints warning and does not modify the file."""
+        ws_data = {"folders": [{"path": "."}], "settings": {_SETTING_KEY: "off"}}
+        ws_file = tmp_path / "project.code-workspace"
+        ws_file.write_text(json.dumps(ws_data), encoding="utf-8")
+        original_content = ws_file.read_text(encoding="utf-8")
+
+        inject_task_permission_settings(str(tmp_path))
+
+        assert ws_file.read_text(encoding="utf-8") == original_content
+        captured = capsys.readouterr()
+        assert "skipping workspace-level injection" in captured.err
+
+    def test_workspace_not_injected_when_vscode_settings_are_off(self, tmp_path):
+        """Workspace file is not overridden when user opted out in .vscode/settings.json."""
+        vscode_dir = tmp_path / ".vscode"
+        vscode_dir.mkdir()
+        (vscode_dir / "settings.json").write_text(json.dumps({_SETTING_KEY: "off"}), encoding="utf-8")
+
+        ws_data = {"folders": [{"path": "."}], "settings": {"editor.tabSize": 2}}
+        ws_file = tmp_path / "project.code-workspace"
+        ws_file.write_text(json.dumps(ws_data), encoding="utf-8")
+        original_content = ws_file.read_text(encoding="utf-8")
+
+        inject_task_permission_settings(str(tmp_path))
+
+        assert ws_file.read_text(encoding="utf-8") == original_content
+
+    def test_workspace_file_read_error_logs_warning(self, tmp_path, capsys):
+        """OSError/JSONDecodeError reading workspace file is caught and logged as a warning.
+
+        Covers lines 1369-1374, 1376->exit.
+        """
+        ws_file = tmp_path / "project.code-workspace"
+        ws_file.write_text("not valid json {{{", encoding="utf-8")
+
+        inject_task_permission_settings(str(tmp_path))
+
+        captured = capsys.readouterr()
+        assert "could not read workspace file" in captured.err
+
+    def test_workspace_file_write_error_logs_warning(self, tmp_path, capsys):
+        """OSError writing workspace file is caught and logged as a warning."""
+        ws_data = {"folders": [{"path": "."}], "settings": {"editor.tabSize": 2}}
+        ws_file = tmp_path / "project.code-workspace"
+        ws_file.write_text(json.dumps(ws_data), encoding="utf-8")
+
+        original_open = open
+
+        def failing_write(path, *args, **kwargs):
+            if str(path) == str(ws_file) and "w" in (args[0] if args else kwargs.get("mode", "r")):
+                raise OSError("disk full")
+            return original_open(path, *args, **kwargs)
+
+        with patch("builtins.open", side_effect=failing_write):
+            inject_task_permission_settings(str(tmp_path))
+
+        captured = capsys.readouterr()
+        assert "could not write" in captured.err
+        assert "disk full" in captured.err

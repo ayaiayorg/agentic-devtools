@@ -128,10 +128,7 @@ def _try_force_push_after_rebase(dry_run: bool) -> bool | None:
         force_push(dry_run=False)
         return True
     except SystemExit:
-        print(
-            "Warning: Rebase succeeded but push failed. "
-            "You can manually push with: git push --force-with-lease"
-        )
+        print("Warning: Rebase succeeded but push failed. You can manually push with: git push --force-with-lease")
         return False
 
 
@@ -774,7 +771,7 @@ def setup_pull_request_review() -> None:
     pull_request_id = int(pr_id_str)
 
     jira_issue_key = get_value("jira.issue_key")
-    include_reviewed = str(get_value("include_reviewed", "")).lower() in ("true", "1", "yes")
+    include_reviewed = str(get_value("include_reviewed") or "").lower() in ("true", "1", "yes")
     copilot_model_id = get_value("copilot.model_id")
     dry_run_val = get_value("dry_run")
 
@@ -802,11 +799,19 @@ def setup_pull_request_review() -> None:
         # would be redundant and could cause a race condition for concurrent commands.
         if not os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR", "").strip():
             set_bootstrap_state(worktree_key=worktree_key)
+        else:
+            # FR-004: AGENTIC_DEVTOOLS_STATE_DIR is set — skip bootstrap modification.
+            # The env var already pins the state directory. Log for debugging.
+            import logging
+
+            logging.debug("FR-004: Skipping set_bootstrap_state() — AGENTIC_DEVTOOLS_STATE_DIR is set.")
 
         # Re-set context keys that were read from the old (_unscoped) state
         # directory.  set_bootstrap_state() may have changed the resolved
         # state dir, so downstream commands (e.g., get_pull_request_details)
         # that call get_value() would find an empty scoped state.json.
+        # NOTE: When adding new state keys to this function, they MUST be
+        # added to this re-persistence block as well.
         set_value("pull_request_id", str(pull_request_id))
         if jira_issue_key_norm:
             set_value("jira.issue_key", jira_issue_key_norm)
@@ -834,7 +839,17 @@ def setup_pull_request_review() -> None:
     # Step 1: Fetch Jira issue details if we have a key
     if jira_issue_key:
         print(f"\nFetching Jira issue details for {jira_issue_key}...")
-        _fetch_and_display_jira_issue(jira_issue_key)
+        jira_fetch_success = _fetch_and_display_jira_issue(jira_issue_key)
+        if not jira_fetch_success:
+            set_value("review.jira_fetch_failed", "true")
+            print(
+                "Warning: Jira issue fetch failed. Review will proceed without acceptance criteria context.",
+                file=sys.stderr,
+            )
+        else:
+            delete_value("review.jira_fetch_failed")
+    else:
+        delete_value("review.jira_fetch_failed")
 
     # Step 2: Fetch PR details
     print(f"\nFetching pull request details for PR {pull_request_id}...")
@@ -871,7 +886,7 @@ def setup_pull_request_review() -> None:
         source_commit_id = last_merge.get("commitId", "")
         # Treat empty string as "absent", but warn and normalize any other non-string value.
         if not isinstance(source_commit_id, str):
-            if source_commit_id != "":
+            if source_commit_id != "":  # pragma: no branch
                 print(
                     f"Warning: lastMergeSourceCommit.commitId has unexpected type "
                     f"{type(source_commit_id).__name__!r}; review artifacts will be scoped by PR ID.",
@@ -912,10 +927,19 @@ def setup_pull_request_review() -> None:
     if source_branch:
         print(f"\nChecking out source branch '{source_branch}' and syncing with main...")
         (
-            checkout_success, checkout_error, files_on_branch, had_rebase_conflicts, _push_succeeded,
-        ) = checkout_and_sync_branch(
-            source_branch, pull_request_id, save_files_on_branch=True, dry_run=is_dry_run()
-        )
+            checkout_success,
+            checkout_error,
+            files_on_branch,
+            had_rebase_conflicts,
+            _push_succeeded,
+        ) = checkout_and_sync_branch(source_branch, pull_request_id, save_files_on_branch=True, dry_run=is_dry_run())
+
+        # Finding 5: Persist rebase conflict status so downstream prompts can
+        # include a disclaimer when reviewing files from a conflict-containing tree.
+        if had_rebase_conflicts:
+            set_value("review.rebase_conflicts_detected", "true")
+        else:
+            delete_value("review.rebase_conflicts_detected")
 
         if not checkout_success:
             print("", file=sys.stderr)

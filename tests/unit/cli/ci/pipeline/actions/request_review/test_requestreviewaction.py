@@ -172,3 +172,15 @@ class TestRequestReviewAction:
         assert derived.copilot_review_pending is True
         # Snapshot itself must remain unchanged (frozen)
         assert snapshot.copilot_review_pending is False
+
+    def test_execute_failed_when_provider_raises(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=42)
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.request_reviewer.side_effect = RuntimeError("request failed")
+        action = RequestReviewAction()
+
+        result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.FAILED
+        assert "Failed to request Copilot review" in result.details

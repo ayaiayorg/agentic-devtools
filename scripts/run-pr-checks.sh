@@ -1,12 +1,25 @@
 #!/usr/bin/env bash
-# Run PR checks locally — wrapper around the targeted checks script.
-# For fast, scoped checks (same as CI): bash scripts/targeted-checks.sh
-# For the full suite (manual pre-merge validation): bash scripts/run-pr-checks.sh --full
-# Usage: bash scripts/run-pr-checks.sh [--full]
+# Run CI-blocking checks locally plus ruff formatting (applied by the auto-fix workflow).
+# Covers all checks in test.yml, workflow-tests.yml, and lint.yml that can block a PR.
+# Note: black/isort/mypy in test.yml's lint job run with continue-on-error:true
+# (informational only); mypy is included here as step 8 for visibility.
+#
+# Usage:
+#   bash scripts/run-pr-checks.sh          # Targeted checks (fast, scoped to changed files)
+#   bash scripts/run-pr-checks.sh --full   # Full suite (manual pre-merge validation)
+#   bash scripts/run-pr-checks.sh --quick  # Fast mode (changed files only, used by pre-push hook)
+#
+# Exit code 0 = all checks pass, non-zero = failures
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# --quick: delegate to the Python checks module for consistent logic
+if [ "${1:-}" = "--quick" ]; then
+    cd "$REPO_ROOT"
+    exec python -m agentic_devtools.cli.checks --format-fix
+fi
 
 if [[ "${1:-}" == "--full" ]]; then
   echo "=========================================="

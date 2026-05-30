@@ -242,9 +242,7 @@ class TestMergeAction:
         result = action.execute(provider, snapshot, derived)
         assert result.decision == ActionDecision.EXECUTE
         assert "squash" in result.details.lower()
-        provider.merge_pr.assert_called_once_with(
-            42, "sha123", "squash", commit_title="Fix bug (#42)"
-        )
+        provider.merge_pr.assert_called_once_with(42, "sha123", "squash", commit_title="Fix bug (#42)")
 
     def test_execute_uses_clean_fallback_title_for_squash(self) -> None:
         """Fallback squash title does not duplicate PR number when PR title is missing."""
@@ -276,3 +274,15 @@ class TestMergeAction:
         result = action.execute(provider, snapshot, derived)
         assert result.decision == ActionDecision.EXECUTE
         provider.merge_pr.assert_called_once_with(42, "sha123", "rebase")
+
+    def test_execute_failed_when_provider_raises(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=42, head_sha="sha123", commit_count=1)
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.merge_pr.side_effect = RuntimeError("merge boom")
+        action = MergeAction()
+
+        result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.FAILED
+        assert "merge_pr call failed" in result.details

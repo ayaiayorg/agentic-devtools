@@ -1,5 +1,7 @@
 """Tests for DerivedState."""
 
+import pytest
+
 from agentic_devtools.cli.ci.pipeline.snapshot import DerivedState, PRStateSnapshot
 
 
@@ -35,3 +37,9 @@ class TestDerivedState:
         snapshot = PRStateSnapshot(pr_number=7)
         derived = DerivedState(snapshot)
         assert derived.snapshot is snapshot
+
+    def test_private_attribute_lookup_raises_attribute_error(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=7)
+        derived = DerivedState(snapshot)
+        with pytest.raises(AttributeError):
+            _ = derived._private_attr  # type: ignore[attr-defined]

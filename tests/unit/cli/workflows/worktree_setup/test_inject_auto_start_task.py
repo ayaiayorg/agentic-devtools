@@ -10,6 +10,7 @@ import pytest
 
 from agentic_devtools.cli.workflows.worktree_setup import inject_auto_start_task as _inject_auto_start_task
 
+_MODULE = "agentic_devtools.cli.workflows.worktree_setup"
 _RUN_ID = "test-run-456"
 
 
@@ -697,6 +698,63 @@ class TestInjectAutoStartTask:
         data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
         task_args = data["tasks"][0]["args"]
         assert "--model" not in task_args
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_posix_executable_entry_point_uses_absolute_path(self, mock_available, tmp_path, capsys):
+        """On POSIX, an executable auto-start file uses the absolute path.
+
+        Covers line 1698 (auto_start_exe = candidate on POSIX).
+        """
+        scripts_dir = tmp_path / "scripts"
+        scripts_dir.mkdir()
+        candidate = scripts_dir / "agdt-copilot-auto-start"
+        candidate.write_text("", encoding="utf-8")
+
+        with patch(f"{_MODULE}.sys.platform", "linux"):
+            with patch(f"{_MODULE}._detect_python_scripts_dir", return_value=str(scripts_dir)):
+                with patch(f"{_MODULE}.os.path.isfile", return_value=True):
+                    with patch(f"{_MODULE}.os.access", return_value=True):
+                        with patch(f"{_MODULE}._resolve_state_context_in_worktree", return_value=(None, "")):
+                            _inject_auto_start_task(str(tmp_path), "test prompt", run_id=_RUN_ID)
+
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        assert data["tasks"][0]["command"] == str(candidate)
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_posix_non_executable_entry_point_warns_and_uses_bare_name(self, mock_available, tmp_path, capsys):
+        """On POSIX, a non-executable auto-start file warns and uses bare command name."""
+        scripts_dir = tmp_path / "scripts"
+        scripts_dir.mkdir()
+        candidate = scripts_dir / "agdt-copilot-auto-start"
+        candidate.write_text("", encoding="utf-8")
+
+        with patch(f"{_MODULE}.sys.platform", "linux"):
+            with patch(f"{_MODULE}._detect_python_scripts_dir", return_value=str(scripts_dir)):
+                with patch(f"{_MODULE}.os.access", return_value=False):
+                    with patch(f"{_MODULE}._resolve_state_context_in_worktree", return_value=(None, "")):
+                        _inject_auto_start_task(str(tmp_path), "test prompt", run_id=_RUN_ID)
+
+        captured = capsys.readouterr()
+        assert "not executable" in captured.err
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        assert data["tasks"][0]["command"] == "agdt-copilot-auto-start"
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
+    def test_posix_missing_entry_point_warns_and_uses_bare_name(self, mock_available, tmp_path, capsys):
+        """On POSIX, a missing auto-start file warns and uses bare command name."""
+        scripts_dir = tmp_path / "scripts"
+        scripts_dir.mkdir()
+        # No agdt-copilot-auto-start file created
+
+        with patch(f"{_MODULE}.sys.platform", "linux"):
+            with patch(f"{_MODULE}._detect_python_scripts_dir", return_value=str(scripts_dir)):
+                with patch(f"{_MODULE}._resolve_state_context_in_worktree", return_value=(None, "")):
+                    _inject_auto_start_task(str(tmp_path), "test prompt", run_id=_RUN_ID)
+
+        captured = capsys.readouterr()
+        assert "not found at" in captured.err
+        data = json.loads((tmp_path / ".vscode" / "tasks.json").read_text(encoding="utf-8"))
+        assert data["tasks"][0]["command"] == "agdt-copilot-auto-start"
 
     @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available", return_value=True)
     def test_command_args_omit_model_when_empty_string(self, mock_available, tmp_path):

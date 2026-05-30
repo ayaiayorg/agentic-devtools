@@ -147,3 +147,28 @@ class TestAdvanceWorkOnJiraIssueWorkflow:
         workflow = state.get_workflow_state()
         assert workflow["step"] == "completion"
         assert workflow["status"] == "completed"
+
+    def test_advance_with_explicit_step_skips_auto_detection(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """When step is explicitly provided, auto-detection is skipped."""
+        state.set_workflow_state(
+            name="work-on-jira-issue",
+            status="in-progress",
+            step="planning",
+            context={
+                "jira_issue_key": "PROJECT-1234",
+                "branch_name": "feature/PROJECT-1234/test",
+                "issue_summary": "Test issue",
+            },
+        )
+
+        workflow_dir = temp_prompts_dir / "work-on-jira-issue"
+        workflow_dir.mkdir()
+        template_file = workflow_dir / "default-verification-prompt.md"
+        template_file.write_text("Verification for {{issue_key}}", encoding="utf-8")
+
+        commands.advance_work_on_jira_issue_workflow(step="verification")
+
+        workflow = state.get_workflow_state()
+        assert workflow["step"] == "verification"
