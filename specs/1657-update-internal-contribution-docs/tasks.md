@@ -17,7 +17,8 @@
 
 ## Phase 2: Foundational
 
-- [ ] T002 (FR-001, FR-002, FR-004, FR-005) Read `.githooks/pre-push` to confirm the exact list of checks it runs (ruff format, ruff check, markdownlint, per-file coverage, mypy, test structure validation)
+- [ ] T002 (FR-001, FR-002, FR-004, FR-005) Read `.githooks/pre-push` to confirm the exact list of checks it runs (ruff format, ruff check, markdownlint, per-file coverage, mypy, test structure
+  validation)
 
 ## Phase 3: User Story 1 — Agent Consulting Contribution Docs (P1)
 
@@ -43,7 +44,8 @@
 ## Final Phase: Polish & Cross-Cutting
 
 - [ ] T009 (FR-001, FR-002, FR-003, FR-004, FR-005, NFR-001) Run `markdownlint-cli2` on all 4 updated files to validate zero warnings
-- [ ] T010 (FR-001, FR-002, FR-003, FR-004, FR-005, NFR-002) Run `git diff --stat` to confirm only the 4 target files are modified — no Jira workflow agents, `agdt.git-*`, or `agdt.test*` files touched
+- [ ] T010 (FR-001, FR-002, FR-003, FR-004, FR-005, NFR-002) Run `git diff --stat` to confirm only the 4 target files are modified — no Jira workflow agents, `agdt.git-*`, or `agdt.test*` files
+  touched
 - [ ] T011 Commit all changes with `agdt-git-save-work` using conventional commit format referencing #1657
 
 ## Task Dependencies
