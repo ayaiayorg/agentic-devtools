@@ -232,3 +232,64 @@ class TestCollapsePriorSummaries:
 
         assert collapsed == 0
         provider.update_comment.assert_called_once()
+
+    def test_list_comments_uses_first_matching_header_line(self) -> None:
+        provider = MagicMock()
+        provider.list_issue_comments.return_value = [
+            IssueCommentInfo(
+                id=111,
+                author="github-actions[bot]",
+                body="<!-- agdt:ai-pr-loop-summary -->\n\nprefix AI PR Loop Run suffix",
+            )
+        ]
+
+        collapsed = collapse_prior_summaries(provider, pr_number=1565)
+
+        assert collapsed == 1
+        updated_body = provider.update_comment.call_args.args[1]
+        assert "<summary>prefix AI PR Loop Run suffix</summary>" in updated_body
+
+    def test_fallback_uses_first_matching_header_line(self) -> None:
+        provider = MagicMock()
+        provider.list_issue_comments = None
+        provider.find_comment.side_effect = [
+            (112, "<!-- agdt:ai-pr-loop-summary -->\n\nprefix AI PR Loop Run suffix"),
+            None,
+        ]
+
+        collapsed = collapse_prior_summaries(provider, pr_number=1565)
+
+        assert collapsed == 1
+        updated_body = provider.update_comment.call_args.args[1]
+        assert "<summary>prefix AI PR Loop Run suffix</summary>" in updated_body
+
+    def test_list_comments_uses_default_header_when_no_line_contains_phrase(self) -> None:
+        provider = MagicMock()
+        sentinel_with_phrase = "<!-- agdt:ai-pr-loop-summary AI PR Loop Run -->"
+        provider.list_issue_comments.return_value = [
+            IssueCommentInfo(
+                id=113,
+                author="github-actions[bot]",
+                body=sentinel_with_phrase,
+            )
+        ]
+
+        with patch("agentic_devtools.cli.ci.pipeline.summary.SUMMARY_SENTINEL", sentinel_with_phrase):
+            collapsed = collapse_prior_summaries(provider, pr_number=1565)
+
+        assert collapsed == 1
+        updated_body = provider.update_comment.call_args.args[1]
+        assert "<summary>AI PR Loop Run (prior)</summary>" in updated_body
+
+    def test_fallback_uses_default_header_when_no_line_contains_phrase(self) -> None:
+        provider = MagicMock()
+        provider.list_issue_comments = None
+        sentinel_with_phrase = "<!-- agdt:ai-pr-loop-summary AI PR Loop Run -->"
+        provider.find_comment.side_effect = [(114, sentinel_with_phrase), None]
+
+        with patch("agentic_devtools.cli.ci.pipeline.summary.SUMMARY_SENTINEL", sentinel_with_phrase):
+            collapsed = collapse_prior_summaries(provider, pr_number=1565)
+
+        assert collapsed == 1
+        updated_body = provider.update_comment.call_args.args[1]
+        assert "<summary>AI PR Loop Run (prior)</summary>" in updated_body

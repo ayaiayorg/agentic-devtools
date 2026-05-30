@@ -11,7 +11,6 @@ from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     ReviewInfo,
 )
-from agentic_devtools.cli.ci.pipeline.session_detector import is_copilot_session_active
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
 
 
@@ -170,9 +169,6 @@ def build_pr_state_snapshot(
     # Check Copilot review pending
     copilot_review_pending = _is_copilot_review_pending(pr_meta.requested_reviewers)
 
-    # Check active Copilot session
-    active_session = is_copilot_session_active(provider, pr_number)
-
     # Count commits above merge-base
     commit_count = _count_commits(provider, base_branch=pr_meta.base_branch, head_sha=pr_meta.head_sha)
 
@@ -187,7 +183,6 @@ def build_pr_state_snapshot(
         review_state=copilot_review_state,
         copilot_review_id=copilot_review_id,
         copilot_review_inline_count=copilot_review_inline_count,
-        active_session=active_session,
         copilot_review_pending=copilot_review_pending,
         unresolved_threads=unresolved_threads,
         labels=list(pr_meta.labels),

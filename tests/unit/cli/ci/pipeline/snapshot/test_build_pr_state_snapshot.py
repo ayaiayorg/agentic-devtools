@@ -5,7 +5,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from agentic_devtools.cli.ci.models import CheckRunStatus, PRMetadata, ReviewInfo
-from agentic_devtools.cli.ci.pipeline.snapshot import _evaluate_ci_status, build_pr_state_snapshot
+from agentic_devtools.cli.ci.pipeline.snapshot import (
+    _evaluate_ci_status,
+    build_pr_state_snapshot,
+    get_effective_head_reviews,
+    has_non_copilot_changes_requested_on_head,
+)
 
 
 class TestBuildPrStateSnapshot:
@@ -38,6 +43,29 @@ class TestBuildPrStateSnapshot:
 
         assert snapshot.ci_status == "unknown"
         assert snapshot.ci_failed_checks == []
+
+    def test_uses_explicit_actionable_check_names_when_provided(self) -> None:
+        """Explicit actionable set should be used without defaulting."""
+        provider = MagicMock()
+        provider.get_pr_metadata.return_value = PRMetadata(
+            number=1,
+            title="Test PR",
+            head_branch="feature",
+            head_sha="head-sha",
+            base_branch="main",
+            requested_reviewers=[],
+        )
+        provider.list_pr_files.return_value = ["a.py"]
+        provider.list_check_runs.return_value = [
+            CheckRunStatus(id=101, name="Custom Check", status="completed", conclusion="success"),
+        ]
+        provider.list_reviews.return_value = []
+        provider.list_pr_issue_events.return_value = []
+        provider.count_commits_above_merge_base.return_value = 1
+
+        snapshot = build_pr_state_snapshot(provider, 1, actionable_check_names=frozenset({"Custom Check"}))
+
+        assert snapshot.ci_status == "passing"
 
     def test_unresolved_threads_fails_closed_when_review_comments_fetch_fails(self) -> None:
         provider = MagicMock()
@@ -372,3 +400,19 @@ class TestBuildPrStateSnapshot:
         snapshot = build_pr_state_snapshot(provider, 1)
 
         assert snapshot.copilot_review_inline_count == 3
+
+    def test_get_effective_head_reviews_ignores_older_duplicate_review(self) -> None:
+        """Lower review.id for same reviewer should not replace the latest review."""
+        reviews = [
+            ReviewInfo(id=20, user="alice", state="APPROVED", commit_sha="head-sha"),
+            ReviewInfo(id=19, user="alice", state="CHANGES_REQUESTED", commit_sha="head-sha"),
+        ]
+
+        effective = get_effective_head_reviews(reviews, "head-sha")
+
+        assert len(effective) == 1
+        assert effective[0].id == 20
+        assert effective[0].state == "APPROVED"
+
+    def test_has_non_copilot_changes_requested_on_head_false_when_none(self) -> None:
+        assert has_non_copilot_changes_requested_on_head([], "head-sha") is False

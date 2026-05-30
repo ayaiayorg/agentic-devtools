@@ -1,6 +1,7 @@
 """Tests for is_copilot_session_active."""
 
 import os
+import warnings
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
@@ -32,15 +33,27 @@ class TestIsCopilotSessionActive:
         provider.list_pr_issue_events.return_value = events
         return provider
 
+    def test_emits_deprecation_warning(self) -> None:
+        """is_copilot_session_active() emits DeprecationWarning."""
+        provider = self._make_provider([])
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            is_copilot_session_active(provider, 1)
+        assert any(issubclass(warning.category, DeprecationWarning) for warning in w)
+
     def test_no_events_returns_false(self) -> None:
         provider = self._make_provider([])
-        assert is_copilot_session_active(provider, 1) is False
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert is_copilot_session_active(provider, 1) is False
 
     def test_started_without_terminal_recent_returns_true(self) -> None:
         """A recent start event with no terminal → active."""
         events = [IssueEvent(id=1, event="copilot_work_started", created_at=_recent_timestamp())]
         provider = self._make_provider(events)
-        assert is_copilot_session_active(provider, 1) is True
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert is_copilot_session_active(provider, 1) is True
 
     def test_started_with_finished_returns_false(self) -> None:
         events = [
@@ -48,7 +61,9 @@ class TestIsCopilotSessionActive:
             IssueEvent(id=2, event="copilot_work_finished", created_at=_recent_timestamp(30)),
         ]
         provider = self._make_provider(events)
-        assert is_copilot_session_active(provider, 1) is False
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert is_copilot_session_active(provider, 1) is False
 
     def test_started_with_failure_returns_false(self) -> None:
         events = [
@@ -56,7 +71,9 @@ class TestIsCopilotSessionActive:
             IssueEvent(id=2, event="copilot_work_finished_failure", created_at=_recent_timestamp(30)),
         ]
         provider = self._make_provider(events)
-        assert is_copilot_session_active(provider, 1) is False
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert is_copilot_session_active(provider, 1) is False
 
     def test_multiple_sessions_latest_active(self) -> None:
         """When the latest start has no terminal and is recent, session is active."""
@@ -66,7 +83,9 @@ class TestIsCopilotSessionActive:
             IssueEvent(id=3, event="copilot_work_started", created_at=_recent_timestamp(60)),
         ]
         provider = self._make_provider(events)
-        assert is_copilot_session_active(provider, 1) is True
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert is_copilot_session_active(provider, 1) is True
 
     def test_multiple_sessions_latest_finished(self) -> None:
         """When the latest start has a terminal, session is not active."""
@@ -77,39 +96,62 @@ class TestIsCopilotSessionActive:
             IssueEvent(id=4, event="copilot_work_finished", created_at=_recent_timestamp(50)),
         ]
         provider = self._make_provider(events)
-        assert is_copilot_session_active(provider, 1) is False
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert is_copilot_session_active(provider, 1) is False
+
+    def test_out_of_order_older_start_event_is_ignored(self) -> None:
+        """A lower-id later-listed start must not replace the latest start event."""
+        events = [
+            IssueEvent(id=3, event="copilot_work_started", created_at=_recent_timestamp(60)),
+            IssueEvent(id=2, event="copilot_work_started", created_at=_recent_timestamp(300)),
+        ]
+        provider = self._make_provider(events)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert is_copilot_session_active(provider, 1) is True
 
     def test_api_failure_returns_true(self) -> None:
         """When API call fails, assume active session (fail-closed)."""
         provider = MagicMock()
         provider.list_pr_issue_events.side_effect = RuntimeError("API error")
-        assert is_copilot_session_active(provider, 1) is True
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert is_copilot_session_active(provider, 1) is True
 
     def test_stale_session_returns_false(self) -> None:
         """A start event older than the staleness threshold with no terminal → inactive."""
         events = [IssueEvent(id=1, event="copilot_work_started", created_at=_old_timestamp())]
         provider = self._make_provider(events)
-        assert is_copilot_session_active(provider, 1) is False
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert is_copilot_session_active(provider, 1) is False
 
     def test_stale_session_custom_threshold_via_env(self) -> None:
         """AGDT_MAX_SESSION_AGE_SECONDS env var overrides default threshold."""
         # Use a 10-second threshold; event is 60 seconds old → stale
         events = [IssueEvent(id=1, event="copilot_work_started", created_at=_recent_timestamp(60))]
         provider = self._make_provider(events)
-        with patch.dict("os.environ", {"AGDT_MAX_SESSION_AGE_SECONDS": "10"}):
-            assert is_copilot_session_active(provider, 1) is False
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            with patch.dict("os.environ", {"AGDT_MAX_SESSION_AGE_SECONDS": "10"}):
+                assert is_copilot_session_active(provider, 1) is False
 
     def test_unparseable_created_at_falls_back_to_active(self) -> None:
         """If created_at cannot be parsed, treat session as potentially active."""
         events = [IssueEvent(id=1, event="copilot_work_started", created_at="not-a-date")]
         provider = self._make_provider(events)
-        assert is_copilot_session_active(provider, 1) is True
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert is_copilot_session_active(provider, 1) is True
 
     def test_empty_created_at_falls_back_to_active(self) -> None:
         """If created_at is empty string, treat session as potentially active."""
         events = [IssueEvent(id=1, event="copilot_work_started", created_at="")]
         provider = self._make_provider(events)
-        assert is_copilot_session_active(provider, 1) is True
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert is_copilot_session_active(provider, 1) is True
 
 
 class TestIsSessionStale:

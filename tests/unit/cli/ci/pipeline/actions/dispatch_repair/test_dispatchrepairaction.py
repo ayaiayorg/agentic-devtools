@@ -10,13 +10,35 @@ from agentic_devtools.cli.ci.pipeline.snapshot import DerivedState, PRStateSnaps
 class TestDispatchRepairAction:
     """Tests for dispatch repair action evaluation."""
 
-    def test_skip_when_active_session(self) -> None:
+    def test_execute_when_ci_failing_even_with_active_session(self) -> None:
+        """Session gate removed: active_session=True does NOT cause skip."""
         snapshot = PRStateSnapshot(pr_number=1, active_session=True, ci_status="failing")
         derived = DerivedState(snapshot)
         action = DispatchRepairAction()
         result = action.evaluate(snapshot, derived)
-        assert result.decision == ActionDecision.SKIP
-        assert "active" in result.details.lower()
+        assert result.decision == ActionDecision.EXECUTE
+
+    def test_preconditions_do_not_contain_no_active_session(self) -> None:
+        """no_active_session key must be absent from preconditions."""
+        snapshot = PRStateSnapshot(pr_number=1, ci_status="failing")
+        derived = DerivedState(snapshot)
+        action = DispatchRepairAction()
+        result = action.evaluate(snapshot, derived)
+        assert "no_active_session" not in result.preconditions
+
+    def test_execute_when_review_actionable_with_active_session(self) -> None:
+        """Session gate removed: actionable review + active_session=True returns EXECUTE."""
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            ci_status="passing",
+            active_session=True,
+            review_state="CHANGES_REQUESTED",
+            copilot_review_id=100,
+        )
+        derived = DerivedState(snapshot)
+        action = DispatchRepairAction()
+        result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.EXECUTE
 
     def test_skip_when_ci_passing_and_no_review(self) -> None:
         snapshot = PRStateSnapshot(

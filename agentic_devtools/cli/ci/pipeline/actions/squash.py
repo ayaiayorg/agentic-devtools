@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from agentic_devtools.cli.ci.pipeline.models import ActionDecision, ActionResult
+from agentic_devtools.cli.ci.pipeline.session_detector import is_copilot_session_active_via_agent_task
 from agentic_devtools.cli.ci.pipeline.snapshot import DerivedState, PRStateSnapshot
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
 
@@ -17,8 +18,8 @@ class SquashAction:
     Preconditions:
     - Commits above merge-base > 1
     - No repair dispatched in this run (keeps HEAD stable for the repair cycle)
-    - No active Copilot coding session (pending review does NOT block squash)
     - CI passing
+    - No active Copilot coding session (pending review does NOT block squash)
 
     Idempotency: Already 1 commit → skip.
     """
@@ -52,16 +53,6 @@ class SquashAction:
                 details="Repair dispatched — deferring squash",
             )
 
-        # No active Copilot session (coding/repair only — pending review does NOT block squash)
-        preconditions["no_active_session"] = not snapshot.active_session
-        if snapshot.active_session:
-            return ActionResult(
-                name=self.name,
-                decision=ActionDecision.SKIP,
-                preconditions=preconditions,
-                details="Copilot session active — deferring squash",
-            )
-
         # CI must be passing
         preconditions["ci_passing"] = snapshot.ci_status == "passing"
         if snapshot.ci_status != "passing":
@@ -70,6 +61,17 @@ class SquashAction:
                 decision=ActionDecision.SKIP,
                 preconditions=preconditions,
                 details=f"CI is {snapshot.ci_status} — deferring squash",
+            )
+
+        # No active Copilot session (coding/repair only — pending review does NOT block squash)
+        active_session = is_copilot_session_active_via_agent_task(snapshot.base_repo_full_name, snapshot.pr_number)
+        preconditions["no_active_session"] = not active_session
+        if active_session:
+            return ActionResult(
+                name=self.name,
+                decision=ActionDecision.SKIP,
+                preconditions=preconditions,
+                details="Copilot session active — deferring squash",
             )
 
         return ActionResult(
