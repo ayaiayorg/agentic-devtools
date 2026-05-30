@@ -37,9 +37,9 @@
 
 ## Phase 3: Deprecate Old Detector
 
-- [ ] T010 [US2] Write test verifying `is_copilot_session_active()` emits `DeprecationWarning` (FR-006) in `tests/unit/cli/ci/pipeline/session_detector/test_is_copilot_session_active_deprecated.py`
+- [ ] T010 [US2] Add/update a focused test case in `tests/unit/cli/ci/pipeline/session_detector/test_is_copilot_session_active.py` verifying `is_copilot_session_active()` emits `DeprecationWarning` (FR-006)
 - [ ] T011 [US2] Add `warnings.warn(...)` with `DeprecationWarning` and `stacklevel=2` at top of `is_copilot_session_active()` in `agentic_devtools/cli/ci/pipeline/session_detector.py` (FR-006)
-- [ ] T012 Update existing test `tests/unit/cli/ci/pipeline/session_detector/test_is_copilot_session_active.py` to expect `DeprecationWarning` (FR-006)
+- [ ] T012 Update existing test `tests/unit/cli/ci/pipeline/session_detector/test_is_copilot_session_active.py` to expect or suppress `DeprecationWarning` (FR-006)
 
 ## Phase 4: User Story 1 — Remove Session Gate from DispatchRepairAction (P1)
 
