@@ -6,6 +6,24 @@
 **Input**: GitHub Issue #1620 — Runner does not detect human-in-the-loop pause with LangGraph  
 **Source Issue**: #1620 (<https://github.com/ayaiayorg/agentic-devtools/issues/1620>)
 
+## Clarifications
+
+### Session 2026-05-31
+
+- Q: Should the state inspection check only the `status` field, or should it also inspect `tasks_pending` from LangGraph's interrupt metadata as a secondary signal? → A: Only the `status` field should
+  be checked. The spec explicitly states forward-compatible detection via `status != "completed"`. LangGraph interrupt metadata is implementation-internal and version-dependent; relying on it would
+  violate NFR-004.
+- Q: When `invoke()` returns `None` or an unexpected type (per the edge case), what specific exit code should the runner use? → A: The runner should exit with code 1 (generic error), consistent with
+  the existing `sys.exit(1)` pattern used for other failure conditions in the runner (e.g., workflow execution failures).
+- Q: Should the state inspection logic be extracted into a separate helper function (e.g., `_is_workflow_paused(result)`) for testability, or should it be inline in the existing flow? → A: Extract
+  into a small helper function `_is_workflow_paused(result: dict) -> bool` that returns `True` when `result.get("status") != "completed"`. This improves testability and keeps the net new line count
+  within SC-005's 5-line budget for the runner itself while the helper lives alongside `_print_pause_message`.
+- Q: For the resume path, the current code in `runner.py` line 90 uses `compiled.invoke(Command(resume=resume_value), config=config)` — should the state inspection apply to the result of this call
+  identically (same helper, same logic) as the fresh path? → A: Yes, both paths must call the same `_is_workflow_paused` helper on the returned `result` dictionary. The spec (FR-004) mandates
+  identical logic for both paths.
+- Q: The edge case mentions `invoke()` returning `None` — in practice, can LangGraph return `None` from `invoke()`, or is this purely a defensive guard? → A: This is a defensive guard. LangGraph's
+  documented contract returns a state dict, but the runner should not crash on unexpected return types. The guard handles corrupted graph configurations or future LangGraph version changes gracefully.
+
 ## Problem Statement
 
 The LangGraph workflow runner in `agentic_devtools/orchestration/runner.py` currently
@@ -158,7 +176,8 @@ purpose.
 - What happens when a new gate node is added to the graph in the future? The detection logic should not hardcode gate node names but instead rely on the `status` field value, making it
   forward-compatible with new interrupt points.
 
-- What happens if `invoke()` returns `None` or an unexpected type? The runner should treat this as an error condition, print a diagnostic message to stderr, and exit with a non-zero code.
+- What happens if `invoke()` returns `None` or an unexpected type? The runner should treat this as an error condition, print a diagnostic message to stderr (`ERROR: Workflow returned unexpected result
+  type: <type>`), and exit with code 1, consistent with the existing error exit pattern in the runner.
 
 - What happens when the checkpointer database is corrupted or locked? This is outside the scope of this feature — the existing error handling for `invoke()` exceptions applies.
 
@@ -175,7 +194,7 @@ purpose.
 - **FR-003**: The runner MUST print the "Workflow completed" message ONLY when the returned state's `status` field equals `"completed"`, confirming true terminal completion of the workflow.
 
 - **FR-004**: The runner MUST apply the same state-inspection logic to both the fresh invocation path (`compiled.invoke(initial_state, ...)`) and the resume invocation path
-  (`compiled.invoke(Command(resume=...), ...)`), ensuring consistent behavior regardless of how the workflow was entered.
+  (`compiled.invoke(Command(resume=...), ...)`), ensuring consistent behavior regardless of how the workflow was entered. Both paths MUST call the same `_is_workflow_paused(result)` helper function.
 
 - **FR-005**: The runner MUST preserve backward compatibility with the existing `GraphInterrupt` exception-based detection. Both detection mechanisms (exception-based and state-inspection-based) must
   coexist, with the exception handler taking precedence when a `GraphInterrupt` is raised.
@@ -183,6 +202,9 @@ purpose.
 - **FR-006**: The pause message printed by the runner MUST include the issue key and the complete CLI command needed to resume the workflow, matching the existing `_print_pause_message` output format.
 
 - **FR-007**: The runner MUST exit with code 0 when a pause is detected (not an error condition), matching the existing behavior when `GraphInterrupt` is caught.
+
+- **FR-008**: The state inspection logic MUST be encapsulated in a helper function `_is_workflow_paused(result: dict | None) -> bool` that returns `True` when `result` is a dict and
+  `result.get("status") != "completed"`, and raises/handles the `None`/unexpected-type case as an error.
 
 ### Non-Functional Requirements
 
@@ -192,16 +214,22 @@ purpose.
 - **NFR-002**: The runner's output format for pause and completion messages MUST remain consistent with the existing format established by `_print_pause_message` and the current completion print
   statement, preserving parseability for any downstream tools or scripts that consume runner output.
 
-- **NFR-003**: The implementation MUST achieve 100% branch coverage in unit tests, consistent with the project's existing coverage requirements enforced by the targeted checks runner (`bash scripts/targeted-checks.sh`).
+- **NFR-003**: The implementation MUST achieve 100% branch coverage in unit tests, consistent with the project's existing coverage requirements enforced by the targeted checks runner (`bash
+  scripts/targeted-checks.sh`).
 
 - **NFR-004**: The fix MUST NOT introduce any new dependencies or require changes to the LangGraph library version, relying solely on state dictionary inspection that is version-agnostic.
 
 ### Key Entities
 
-- **WorkOnIssueState**: The TypedDict state schema containing `step`, `status`, and other workflow fields. The `status` field is the primary discriminator for pause vs. completion detection. Terminal
+- **WorkOnIssueState**: The TypedDict state schema (defined in `agentic_devtools/orchestration/state_schema.py`) containing `step`, `status`, and other workflow fields. The `status` field is the
+  primary discriminator for pause vs. completion detection. Terminal
   value is `"completed"`; any other value (including `"active"`, empty string, or missing) indicates non-completion.
 
-- **Gate Nodes**: Nodes that call `interrupt()` to pause execution (currently `planning_gate_node`). These nodes set or preserve `status` as non-`"completed"` while the workflow is waiting for human input.
+- **Gate Nodes**: Nodes that call `interrupt()` to pause execution (currently `planning_gate_node`). These nodes set or preserve `status` as non-`"completed"` while the workflow is waiting for human
+  input.
+
+- **`_is_workflow_paused(result)`**: New helper function to be added alongside `_print_pause_message` in `runner.py`. Encapsulates the pause detection logic: returns `True` when `result` is a dict
+  with `status != "completed"`. Returns `False` when `status == "completed"`. Raises/handles error when `result` is `None` or not a dict.
 
 ## Success Criteria
 
@@ -217,7 +245,8 @@ purpose.
 
 - **SC-004**: 100% branch coverage of the new pause/completion decision logic in `runner.py`, verified by `bash scripts/targeted-checks.sh`.
 
-- **SC-005**: The pause detection logic adds fewer than 5 lines of net new code to the runner (excluding tests and documentation), ensuring the fix is minimal and surgical.
+- **SC-005**: The pause detection logic adds fewer than 5 lines of net new code to the runner's main flow (excluding the `_is_workflow_paused` helper, tests, and documentation), ensuring the fix is
+  minimal and surgical.
 
 - **SC-006**: At least 3 new regression test cases are added covering: (a) fresh run
   pausing at a gate with a checkpointer, (b) resumed invocation returning a
