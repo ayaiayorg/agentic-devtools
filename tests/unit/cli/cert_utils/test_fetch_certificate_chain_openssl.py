@@ -56,3 +56,37 @@ class TestFetchCertificateChainOpenssl:
             result = cert_utils.fetch_certificate_chain_openssl("example.com")
 
         assert result is None
+
+    def test_normalizes_blank_lines_in_output(self):
+        """Blank lines within certificate bodies are removed from output (FR-002)."""
+        mock_output = (
+            b"---\n"
+            b"-----BEGIN CERTIFICATE-----\nMIIFakeServer\n\nMoreData\n-----END CERTIFICATE-----\n"
+            b"-----BEGIN CERTIFICATE-----\nMIIFakeCA\n\n-----END CERTIFICATE-----\n"
+            b"---\n"
+        )
+        with patch("agentic_devtools.cli.subprocess_utils.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout=mock_output)
+            result = cert_utils.fetch_certificate_chain_openssl("example.com")
+
+        assert result is not None
+        # No blank lines should exist within cert blocks
+        assert "MIIFakeServer\nMoreData" in result
+        assert "\n\n" not in result
+
+    def test_handles_whitespace_around_markers(self):
+        """Whitespace around BEGIN/END markers is tolerated and trimmed (FR-004)."""
+        mock_output = (
+            b"---\n"
+            b"  -----BEGIN CERTIFICATE-----  \nMIIFakeServer\n  -----END CERTIFICATE-----  \n"
+            b"  -----BEGIN CERTIFICATE-----  \nMIIFakeCA\n  -----END CERTIFICATE-----  \n"
+            b"---\n"
+        )
+        with patch("agentic_devtools.cli.subprocess_utils.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout=mock_output)
+            result = cert_utils.fetch_certificate_chain_openssl("example.com")
+
+        assert result is not None
+        # Markers must be canonical (no surrounding whitespace)
+        assert "  -----BEGIN" not in result
+        assert "-----BEGIN CERTIFICATE-----\nMIIFakeServer" in result

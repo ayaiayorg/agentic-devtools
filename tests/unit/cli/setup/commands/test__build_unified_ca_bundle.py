@@ -174,3 +174,86 @@ class TestBuildUnifiedCaBundle:
         assert result is None
         err = capsys.readouterr().err
         assert "Could not write unified CA bundle" in err
+
+    def test_normalizes_blank_lines_in_per_host_pem_certs(self, tmp_path):
+        """Blank lines inside cert bodies in per-host PEMs are removed in output (FR-001)."""
+        certifi_pem_path = tmp_path / "cacert.pem"
+        certifi_pem_path.write_text(_FAKE_CERT_A + "\n", encoding="utf-8")
+
+        # Intermediate cert with blank lines inside the body
+        corrupted_intermediate = (
+            "-----BEGIN CERTIFICATE-----\n"
+            "MIIDINTERMEDIATECERT22222222222222222222222222222222222222222222\n"
+            "\n"
+            "-----END CERTIFICATE-----"
+        )
+        host_pem_path = tmp_path / "host.pem"
+        host_pem_path.write_text(_FAKE_CERT_B + "\n" + corrupted_intermediate, encoding="utf-8")
+
+        with patch("certifi.where", return_value=str(certifi_pem_path)):
+            with patch.object(Path, "home", return_value=tmp_path):
+                result = _build_unified_ca_bundle([str(host_pem_path)])
+
+        assert result is not None
+        content = result.read_text(encoding="utf-8")
+        # The output must not contain blank lines within any cert block
+        import re
+
+        cert_pattern = r"-----BEGIN CERTIFICATE-----\n(.*?)\n-----END CERTIFICATE-----"
+        for match in re.finditer(cert_pattern, content, re.DOTALL):
+            body = match.group(1)
+            for line in body.split("\n"):
+                assert line.strip() != "", "Found blank line inside certificate body"
+
+    def test_writes_unix_line_endings(self, tmp_path):
+        """Output file uses Unix \\n line endings on all platforms (FR-006)."""
+        certifi_pem_path = tmp_path / "cacert.pem"
+        certifi_pem_path.write_text(_FAKE_CERT_A + "\n", encoding="utf-8")
+
+        host_pem_path = tmp_path / "host.pem"
+        host_pem_path.write_text("\n".join([_FAKE_CERT_B, _FAKE_CERT_INTERMEDIATE]), encoding="utf-8")
+
+        with patch("certifi.where", return_value=str(certifi_pem_path)):
+            with patch.object(Path, "home", return_value=tmp_path):
+                result = _build_unified_ca_bundle([str(host_pem_path)])
+
+        assert result is not None
+        # Read as binary to check actual bytes on disk
+        raw = result.read_bytes()
+        assert b"\r\n" not in raw
+        assert b"\n" in raw
+
+    def test_self_heals_corrupted_bundle_on_rerun(self, tmp_path):
+        """Re-running _build_unified_ca_bundle overwrites a corrupted bundle (FR-003)."""
+        certifi_pem_path = tmp_path / "cacert.pem"
+        certifi_pem_path.write_text(_FAKE_CERT_A + "\n", encoding="utf-8")
+
+        host_pem_path = tmp_path / "host.pem"
+        host_pem_path.write_text("\n".join([_FAKE_CERT_B, _FAKE_CERT_INTERMEDIATE]), encoding="utf-8")
+
+        # Seed a corrupted bundle on disk
+        corrupted_bundle = tmp_path / ".agdt" / "certs" / "unified-ca-bundle.pem"
+        corrupted_bundle.parent.mkdir(parents=True, exist_ok=True)
+        corrupted_content = "-----BEGIN CERTIFICATE-----\nCORRUPTED\n\nDATA\n-----END CERTIFICATE-----\n"
+        corrupted_bundle.write_text(corrupted_content, encoding="utf-8")
+
+        with patch("certifi.where", return_value=str(certifi_pem_path)):
+            with patch.object(Path, "home", return_value=tmp_path):
+                result = _build_unified_ca_bundle([str(host_pem_path)])
+
+        assert result is not None
+        content = result.read_text(encoding="utf-8")
+        # Corrupted markers from the seeded bundle must be gone
+        assert "CORRUPTED" not in content
+        assert "DATA" not in content
+        # No blank lines inside any certificate body
+        import re
+
+        cert_pattern = r"-----BEGIN CERTIFICATE-----\n(.*?)\n-----END CERTIFICATE-----"
+        for match in re.finditer(cert_pattern, content, re.DOTALL):
+            body = match.group(1)
+            for line in body.split("\n"):
+                assert line.strip() != "", "Found blank line inside certificate body"
+        # Valid certs must be present
+        assert _FAKE_CERT_A in content
+        assert _FAKE_CERT_INTERMEDIATE in content

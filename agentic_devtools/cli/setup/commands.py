@@ -20,7 +20,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from agentic_devtools.cli.cert_utils import ensure_ca_bundle as _ensure_ca_bundle
-from agentic_devtools.cli.cert_utils import normalize_pem as _normalize_pem
+from agentic_devtools.cli.cert_utils import normalize_pem_block as _normalize_pem_block
 
 from .copilot_cli_installer import install_copilot_cli
 from .dependency_checker import check_all_dependencies, print_dependency_report
@@ -105,7 +105,7 @@ def _build_unified_ca_bundle(per_host_pem_paths: list[str]) -> Path | None:
         chain = re.findall(cert_pattern, content, re.DOTALL)
         # Skip index 0 (leaf/server cert); only add intermediates and roots
         for cert in chain[1:]:
-            cert = _normalize_pem(cert)
+            cert = _normalize_pem_block(cert)
             if cert not in system_certs:
                 system_certs.add(cert)
                 extra_certs.append(cert)
@@ -117,7 +117,7 @@ def _build_unified_ca_bundle(per_host_pem_paths: list[str]) -> Path | None:
     unified_path = Path.home() / ".agdt" / "certs" / "unified-ca-bundle.pem"
     try:
         unified_path.parent.mkdir(parents=True, exist_ok=True)
-        unified_path.write_text(unified_content, encoding="utf-8")
+        unified_path.write_text(unified_content, encoding="utf-8", newline="\n")
     except OSError as exc:
         print(f"  ⚠ Could not write unified CA bundle {unified_path}: {exc}", file=sys.stderr)
         return None
