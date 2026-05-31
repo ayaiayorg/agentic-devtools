@@ -38,7 +38,7 @@
 - [ ] T010 [US2] Update integration tests in
   `tests/unit/cli/cert_utils/test_fetch_certificate_chain_openssl.py` to verify
   normalized output when raw openssl output contains blank lines and whitespace
-  around markers (FR-004, FR-005)
+  around markers (FR-002, FR-004, FR-005)
 
 ## Phase 5: User Story 3 — Self-heal existing corrupted bundles (P3)
 
@@ -66,9 +66,9 @@ T007, T010, T011 → T012 → T014 → T013
 | FR | Tasks |
 |----|-------|
 | FR-001 | T005, T007 |
-| FR-002 | T009 |
+| FR-002 | T009, T010 |
 | FR-003 | T011 |
-| FR-004 | T002, T003, T010 |
+| FR-004 | T002, T003, T007, T010 |
 | FR-005 | T003, T008, T010 |
 | FR-006 | T006, T007 |
 
