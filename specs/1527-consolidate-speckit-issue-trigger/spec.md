@@ -29,7 +29,8 @@
   queued duplicates safe.
 - Q: When `phase=1` is dispatched via `workflow_dispatch`, should the extract step set `merged_pr_url` to an empty string (as it currently does for Phases 2–5 dispatches), and should the "Add Phase
   Complete Label" step be skipped for `workflow_dispatch` events (as currently implemented)? → A: Yes, the existing extract step behavior is correct and should be preserved: `merged_pr_url` is set to
-  an empty string for `workflow_dispatch` events (there is no merged PR for Phase 1 initial triggers), and the "Add Phase Complete Label" step already gates on `github.event_name != 'workflow_dispatch'`,
+  an empty string for `workflow_dispatch` events (there is no merged PR for Phase 1 initial triggers), and the "Add Phase Complete Label" step already gates on
+  `github.event_name != 'workflow_dispatch'`,
   which is the correct behavior since the phase-complete label should only be applied when a phase PR is merged, not when the next phase is dispatched.
 - Q: Should the `AGDT_USE_PYTHON_ORCHESTRATOR` environment variable (currently set in `speckit-issue-trigger.yml`) be preserved in the thin dispatcher, removed entirely, or moved to the progression
   workflow? → A: Remove `AGDT_USE_PYTHON_ORCHESTRATOR` entirely. The thin dispatcher does not run any Python orchestration (it only dispatches), and the progression workflow uses shell scripts for
