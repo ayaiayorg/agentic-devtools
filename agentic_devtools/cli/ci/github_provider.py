@@ -113,6 +113,144 @@ def _comment_is_suppressed(comment: dict[str, Any]) -> bool:
     )
 
 
+# ---------------------------------------------------------------------------
+# Suppressed-comment recovery from Copilot review body
+# ---------------------------------------------------------------------------
+
+# Regex to extract the <details> block containing suppressed comments.
+# Uses DOTALL so `.*?` spans newlines.
+_SUPPRESSED_DETAILS_RE = re.compile(
+    r"<details>\s*<summary>[^<]*suppressed due to low confidence[^<]*</summary>(.*?)</details>",
+    re.DOTALL | re.IGNORECASE,
+)
+
+# Regex to extract individual entries within the suppressed block.
+# Each entry starts with a bold or code-formatted file path, followed by body text.
+# Matches patterns like:
+#   **path/to/file.py**: body text
+#   `path/to/file.py`: body text
+#   **`path/to/file.py`**: body text
+_SUPPRESSED_ENTRY_RE = re.compile(
+    r"(?:\*\*`?|`)"  # opening bold/code marker
+    r"([^`*\n]+?)"  # file path (captured)
+    r"(?:`?\*\*|`)"  # closing bold/code marker
+    r"\s*:?\s*"  # optional colon separator
+    r"(.*?)(?=\n(?:\*\*`?|`)[^`*\n]+?(?:`?\*\*|`)\s*:?|\Z)",  # body (captured, up to next entry or end)
+    re.DOTALL,
+)
+
+
+def _parse_suppressed_from_review_body(review_body: str) -> list[ReviewCommentInfo]:
+    """Parse suppressed comments from a Copilot review body HTML.
+
+    Extracts comments from the ``<details>`` block with summary containing
+    "suppressed due to low confidence". Each entry is expected to have a bold
+    or code-formatted file path followed by comment body text.
+
+    Args:
+        review_body: Full review body text (may contain HTML).
+
+    Returns:
+        List of ``ReviewCommentInfo`` with ``is_suppressed=True`` and negative
+        sentinel IDs. Returns empty list if no suppressed block is found.
+    """
+    if not review_body:
+        return []
+
+    match = _SUPPRESSED_DETAILS_RE.search(review_body)
+    if not match:
+        return []
+
+    block_content = match.group(1).strip()
+    if not block_content:
+        return []
+
+    entries: list[ReviewCommentInfo] = []
+    sentinel_id = -1
+
+    for entry_match in _SUPPRESSED_ENTRY_RE.finditer(block_content):
+        path = entry_match.group(1).strip()
+        body = entry_match.group(2).strip()
+
+        if not path:
+            path = "(unknown file)"
+        if not body:
+            continue
+
+        entries.append(
+            ReviewCommentInfo(
+                id=sentinel_id,
+                path=path,
+                body=body,
+                html_url="",
+                is_suppressed=True,
+            )
+        )
+        sentinel_id -= 1
+
+    # If we found a details block but no structured entries, try a line-based
+    # fallback: treat each non-empty line as a standalone comment.
+    if not entries:
+        for line in block_content.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            entries.append(
+                ReviewCommentInfo(
+                    id=sentinel_id,
+                    path="(unknown file)",
+                    body=line,
+                    html_url="",
+                    is_suppressed=True,
+                )
+            )
+            sentinel_id -= 1
+
+    return entries
+
+
+def _deduplicate_review_comments(
+    rest_comments: list[ReviewCommentInfo],
+    suppressed_comments: list[ReviewCommentInfo],
+) -> list[ReviewCommentInfo]:
+    """Merge REST and suppressed comments, removing exact duplicates.
+
+    When a suppressed comment matches a REST comment (after path and body
+    normalization), the REST entry is preserved and the suppressed duplicate
+    is dropped.
+
+    Args:
+        rest_comments: Comments from the REST API (non-suppressed).
+        suppressed_comments: Synthetic comments parsed from the review body.
+
+    Returns:
+        Merged list: all REST comments followed by non-duplicate suppressed ones.
+    """
+    if not suppressed_comments:
+        return list(rest_comments)
+
+    def _normalize_path(path: str) -> str:
+        p = path.strip()
+        if p.startswith("/"):
+            p = p[1:]
+        return p
+
+    def _normalize_body(body: str) -> str:
+        return body.replace("\r\n", "\n").strip()
+
+    rest_keys: set[tuple[str, str]] = set()
+    for c in rest_comments:
+        rest_keys.add((_normalize_path(c.path), _normalize_body(c.body)))
+
+    filtered: list[ReviewCommentInfo] = []
+    for c in suppressed_comments:
+        key = (_normalize_path(c.path), _normalize_body(c.body))
+        if key not in rest_keys:
+            filtered.append(c)
+
+    return list(rest_comments) + filtered
+
+
 def _is_transient_gh_failure(stderr: str) -> bool:
     """Return True when stderr indicates a retryable transient GitHub/CLI failure."""
     stderr_lower = stderr.lower()
@@ -857,13 +995,19 @@ class GitHubActionsProvider(CIPlatformProvider):
 
     @retry_with_backoff()
     def list_review_comments(self, pr_number: int, review_id: int) -> list[ReviewCommentInfo]:
-        """List inline comments from a specific review."""
+        """List inline comments from a specific review.
+
+        After fetching REST inline comments, also recovers suppressed comments
+        from the review body ``<details>`` block (when ``review_id > 0``).
+        Suppressed comments are deduplicated against REST comments and merged
+        into the result with ``is_suppressed=True``.
+        """
         response = _gh_api(
             self._repo_api(f"/pulls/{pr_number}/reviews/{review_id}/comments"),
             paginate=True,
         )
         comments = _parse_paginated_json(response)
-        return [
+        rest_comments = [
             ReviewCommentInfo(
                 id=int(c["id"]),
                 path=c.get("path", ""),
@@ -879,6 +1023,26 @@ class GitHubActionsProvider(CIPlatformProvider):
             )
             for c in comments
         ]
+
+        # Recover suppressed comments from the review body (FR-001, FR-006, FR-008)
+        if review_id > 0:
+            try:
+                review_response = _gh_api(
+                    self._repo_api(f"/pulls/{pr_number}/reviews/{review_id}"),
+                )
+                review_data = json.loads(review_response)
+                review_body = review_data.get("body", "") or ""
+                suppressed = _parse_suppressed_from_review_body(review_body)
+                if suppressed:
+                    rest_comments = _deduplicate_review_comments(rest_comments, suppressed)
+            except Exception:
+                logger.warning(
+                    "PR #%d: Failed to recover suppressed comments from review %d body",
+                    pr_number,
+                    review_id,
+                )
+
+        return rest_comments
 
     @retry_with_backoff()
     def list_pr_issue_events(self, pr_number: int) -> list[IssueEvent]:

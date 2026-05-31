@@ -130,6 +130,10 @@ def build_snapshot(
 
             review_comments = provider.list_review_comments(pr_number, review_id)
             for rc in review_comments:
+                # Skip synthetic review-body entries — they have no real GitHub
+                # thread and must not be used for thread-resolution lookup.
+                if rc.id < 0:
+                    continue
                 is_resolved, has_reply = thread_statuses.get(rc.id, (False, False))
                 threads.append(
                     ThreadInfo(

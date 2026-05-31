@@ -270,7 +270,9 @@ def _count_unresolved_prior_threads(
     for prior_review in prior_copilot_reviews:
         try:
             comments = provider.list_review_comments(pr_number, prior_review.id)
-            total_unresolved += len(comments)
+            # Exclude synthetic review-body entries — they have no real GitHub
+            # thread and must not inflate the unresolved count.
+            total_unresolved += sum(1 for c in comments if c.id >= 0)
         except Exception:
             return max(1, total_unresolved + 1)
     return total_unresolved
