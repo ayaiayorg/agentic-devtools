@@ -52,7 +52,7 @@ class TestActionableCheckNames:
         )
         passing = CheckRunStatus(
             id=11,
-            name="Targeted Checks ✅",
+            name="Run Targeted Checks",
             status="completed",
             conclusion="success",
         )
@@ -106,7 +106,7 @@ class TestActionableCheckNames:
                     conclusion="failure",
                     html_url="https://github.com/ayaiayorg/agentic-devtools/runs/123",
                 ),
-                CheckRunStatus(id=11, name="Targeted Checks ✅", status="completed", conclusion="success"),
+                CheckRunStatus(id=11, name="Run Targeted Checks", status="completed", conclusion="success"),
             ]
         )
         provider.dispatch_repair.return_value = 200
@@ -125,9 +125,9 @@ class TestActionableCheckNames:
 
         assert _DEFAULT_ACTIONABLE_CHECK_NAMES == frozenset(
             {
-                "Targeted Checks ✅",
-                "Smart Module Tests ✅",
-                "Workflow Tests ✅",
+                "Run Targeted Checks",
+                "Run Smart Module Tests",
+                "Workflow Tests",
                 "Code scanning results / CodeQL",
                 "CodeQL / Analyze (actions) (dynamic)",
                 "CodeQL / Analyze (python) (dynamic)",

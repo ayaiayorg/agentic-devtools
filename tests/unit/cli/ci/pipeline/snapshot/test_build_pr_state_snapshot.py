@@ -30,7 +30,7 @@ class TestBuildPrStateSnapshot:
         provider.list_check_runs.return_value = [
             CheckRunStatus(
                 id=101,
-                name="Targeted Checks ✅",
+                name="Run Targeted Checks",
                 status="completed",
                 conclusion="cancelled",
             )

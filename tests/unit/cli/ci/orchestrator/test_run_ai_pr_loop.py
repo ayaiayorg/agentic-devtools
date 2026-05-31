@@ -53,7 +53,7 @@ def _make_provider(
     provider.list_check_runs.return_value = (
         check_runs
         if check_runs is not None
-        else [CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="success")]
+        else [CheckRunStatus(id=1, name="Run Targeted Checks", status="completed", conclusion="success")]
     )
     provider.list_reviews.return_value = (
         reviews
@@ -168,7 +168,7 @@ class TestRunAIPRLoop:
         provider.merge_pr.assert_not_called()
 
     def test_pending_checks_waits(self) -> None:
-        provider = _make_provider(check_runs=[CheckRunStatus(id=1, name="Targeted Checks ✅", status="in_progress")])
+        provider = _make_provider(check_runs=[CheckRunStatus(id=1, name="Run Targeted Checks", status="in_progress")])
         payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
@@ -177,7 +177,7 @@ class TestRunAIPRLoop:
     def test_ci_completion_with_failed_checks_and_actionable_review_dispatches_both_repair(self) -> None:
         """CI-completion dispatches combined repair when CI fails and Copilot is actionable."""
         provider = _make_provider(
-            check_runs=[CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure")],
+            check_runs=[CheckRunStatus(id=2, name="Workflow Tests", status="completed", conclusion="failure")],
             reviews=[
                 ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="CHANGES_REQUESTED", body="fix")
             ],
@@ -204,7 +204,7 @@ class TestRunAIPRLoop:
                 base_repo_full_name="owner/repo",
                 requested_reviewers=[COPILOT_REVIEWER_LOGIN],
             ),
-            check_runs=[CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure")],
+            check_runs=[CheckRunStatus(id=2, name="Workflow Tests", status="completed", conclusion="failure")],
             reviews=[ReviewInfo(id=10, user="human-reviewer", state="APPROVED", body="looks good")],
         )
         payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
@@ -228,7 +228,7 @@ class TestRunAIPRLoop:
                 base_repo_full_name="owner/repo",
                 requested_reviewers=[COPILOT_REVIEWER_LOGIN],
             ),
-            check_runs=[CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure")],
+            check_runs=[CheckRunStatus(id=2, name="Workflow Tests", status="completed", conclusion="failure")],
             reviews=[
                 ReviewInfo(
                     id=12,
@@ -249,7 +249,7 @@ class TestRunAIPRLoop:
     def test_ci_completion_failed_checks_and_non_actionable_copilot_dispatches_ci_repair(self) -> None:
         """CI-completion dispatches CI-only repair when Copilot already reviewed non-actionably."""
         provider = _make_provider(
-            check_runs=[CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure")],
+            check_runs=[CheckRunStatus(id=2, name="Workflow Tests", status="completed", conclusion="failure")],
             reviews=[ReviewInfo(id=11, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")],
         )
         provider.list_review_comments.return_value = []
@@ -264,7 +264,7 @@ class TestRunAIPRLoop:
     def test_ci_completion_failed_checks_dispatch_failure_returns_reason(self) -> None:
         """CI-completion repair dispatch failures surface failure reason in summary path."""
         provider = _make_provider(
-            check_runs=[CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure")],
+            check_runs=[CheckRunStatus(id=2, name="Workflow Tests", status="completed", conclusion="failure")],
             reviews=[],
         )
         provider.dispatch_repair.side_effect = RuntimeError("ci dispatch failed")
@@ -314,7 +314,7 @@ class TestRunAIPRLoop:
     def test_ci_completion_dedup_race_recheck_blocks_duplicate_dispatch(self) -> None:
         """A dedup marker increase before dispatch blocks duplicate repair comments."""
         provider = _make_provider(
-            check_runs=[CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure")],
+            check_runs=[CheckRunStatus(id=2, name="Workflow Tests", status="completed", conclusion="failure")],
             reviews=[ReviewInfo(id=11, user="copilot-pull-request-reviewer[bot]", state="COMMENTED", body="lgtm")],
         )
         provider.list_review_comments.return_value = []
@@ -379,7 +379,7 @@ class TestRunAIPRLoop:
 
         provider = _make_provider(
             check_runs=[
-                CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="cancelled"),
+                CheckRunStatus(id=1, name="Run Targeted Checks", status="completed", conclusion="cancelled"),
             ]
         )
         payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
@@ -1655,7 +1655,7 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["exit_code"] == EXIT_GUARD_BLOCKED
 
     def test_pending_checks_emits_wait_summary(self) -> None:
-        provider = _make_provider(check_runs=[CheckRunStatus(id=1, name="Targeted Checks ✅", status="in_progress")])
+        provider = _make_provider(check_runs=[CheckRunStatus(id=1, name="Run Targeted Checks", status="in_progress")])
         payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
@@ -1666,8 +1666,8 @@ class TestRunAIPRLoopDecisionSummary:
     def test_repair_dispatched_emits_summary(self) -> None:
         provider = _make_provider(
             check_runs=[
-                CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="success"),
-                CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure"),
+                CheckRunStatus(id=1, name="Run Targeted Checks", status="completed", conclusion="success"),
+                CheckRunStatus(id=2, name="Workflow Tests", status="completed", conclusion="failure"),
             ],
             reviews=[],
         )
@@ -1679,15 +1679,15 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["exit_code"] == EXIT_REPAIR_DISPATCHED
         assert summary["repair"]["needed"] is True
         assert summary["repair"]["type"] == "ci"
-        assert "Workflow Tests ✅" in summary["repair"]["failed_checks"]
+        assert "Workflow Tests" in summary["repair"]["failed_checks"]
         assert summary["repair_cycle"]["count"] == 1
 
     def test_repair_dispatched_summary_survives_cycle_increment_failure(self) -> None:
         """Repair dispatch still succeeds when cycle tracking update fails."""
         provider = _make_provider(
             check_runs=[
-                CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="success"),
-                CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure"),
+                CheckRunStatus(id=1, name="Run Targeted Checks", status="completed", conclusion="success"),
+                CheckRunStatus(id=2, name="Workflow Tests", status="completed", conclusion="failure"),
             ],
             reviews=[],
         )
@@ -1897,7 +1897,7 @@ class TestCountCommitsAboveMergeBase:
     def test_ci_completion_repair_summary_survives_cycle_increment_failure(self) -> None:
         """CI-completion repair dispatch still succeeds when cycle tracking update fails."""
         provider = _make_provider(
-            check_runs=[CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure")],
+            check_runs=[CheckRunStatus(id=2, name="Workflow Tests", status="completed", conclusion="failure")],
             reviews=[],
         )
         provider.dispatch_repair.return_value = 200
@@ -2001,8 +2001,8 @@ class TestCountCommitsAboveMergeBase:
     def test_summary_includes_ci_failed_check_names(self) -> None:
         provider = _make_provider(
             check_runs=[
-                CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="failure"),
-                CheckRunStatus(id=2, name="Smart Module Tests ✅", status="completed", conclusion="success"),
+                CheckRunStatus(id=1, name="Run Targeted Checks", status="completed", conclusion="failure"),
+                CheckRunStatus(id=2, name="Run Smart Module Tests", status="completed", conclusion="success"),
                 CheckRunStatus(id=3, name="copilot-pull-request-reviewer", status="completed", conclusion="failure"),
             ],
             reviews=[],
@@ -2011,15 +2011,15 @@ class TestCountCommitsAboveMergeBase:
         payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
         summary = _capture_summary(provider, payload)
 
-        assert "Targeted Checks ✅" in summary["ci"]["failed"]
-        assert "Smart Module Tests ✅" not in summary["ci"]["failed"]
+        assert "Run Targeted Checks" in summary["ci"]["failed"]
+        assert "Run Smart Module Tests" not in summary["ci"]["failed"]
         assert "copilot-pull-request-reviewer" not in summary["ci"]["failed"]
         assert summary["ci"]["ignored"] == 1
 
     def test_unknown_check_conclusion_emits_blocked_summary(self) -> None:
         provider = _make_provider(
             check_runs=[
-                CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="cancelled"),
+                CheckRunStatus(id=1, name="Run Targeted Checks", status="completed", conclusion="cancelled"),
             ]
         )
         payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
@@ -2042,7 +2042,7 @@ class TestCountCommitsAboveMergeBase:
 
     def test_repair_dispatch_failure_emits_failure_reason(self) -> None:
         provider = _make_provider(
-            check_runs=[CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure")],
+            check_runs=[CheckRunStatus(id=2, name="Workflow Tests", status="completed", conclusion="failure")],
             reviews=[],
         )
         provider.dispatch_repair.side_effect = RuntimeError("dispatch endpoint timeout")
@@ -2311,7 +2311,7 @@ class TestCountCommitsAboveMergeBase:
                 labels=["ai-auto-merge-allowed"],
                 requested_reviewers=[COPILOT_REVIEWER_LOGIN],
             ),
-            check_runs=[CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="failure")],
+            check_runs=[CheckRunStatus(id=1, name="Run Targeted Checks", status="completed", conclusion="failure")],
             reviews=[],
         )
         # The pre-dedup list_reviews call (line 630) throws
@@ -2337,7 +2337,7 @@ class TestCountCommitsAboveMergeBase:
                 labels=["ai-auto-merge-allowed"],
                 requested_reviewers=[COPILOT_REVIEWER_LOGIN],
             ),
-            check_runs=[CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="failure")],
+            check_runs=[CheckRunStatus(id=1, name="Run Targeted Checks", status="completed", conclusion="failure")],
             reviews=[],
         )
         provider.list_reviews.side_effect = [

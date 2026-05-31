@@ -47,8 +47,8 @@ class TestRunAIPRLoopRepairDispatch:
         )
         provider.list_pr_files.return_value = ["src/app.py"]
         provider.list_check_runs.return_value = [
-            CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="success"),
-            CheckRunStatus(id=2, name="Workflow Tests ✅", status="completed", conclusion="failure"),
+            CheckRunStatus(id=1, name="Run Targeted Checks", status="completed", conclusion="success"),
+            CheckRunStatus(id=2, name="Workflow Tests", status="completed", conclusion="failure"),
         ]
         provider.list_reviews.return_value = []
         provider.find_comment.return_value = None
@@ -70,7 +70,7 @@ class TestRunAIPRLoopRepairDispatch:
         provider.get_pr_metadata.return_value = _base_pr_meta(_SHA)
         provider.list_pr_files.return_value = ["src/app.py"]
         provider.list_check_runs.return_value = [
-            CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="success"),
+            CheckRunStatus(id=1, name="Run Targeted Checks", status="completed", conclusion="success"),
         ]
         # Simulate dedup counter already at max (count=3, so next increment → 4 > 3)
         provider.find_comment.return_value = (
@@ -90,7 +90,7 @@ class TestRunAIPRLoopRepairDispatch:
         provider.get_pr_metadata.return_value = _base_pr_meta(_SHA)
         provider.list_pr_files.return_value = ["src/app.py"]
         provider.list_check_runs.return_value = [
-            CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="success"),
+            CheckRunStatus(id=1, name="Run Targeted Checks", status="completed", conclusion="success"),
         ]
 
         # Dedup counter well above limit — should be ignored for "submitted" events.
@@ -129,7 +129,7 @@ class TestRunAIPRLoopRepairDispatch:
         provider.get_pr_metadata.return_value = _base_pr_meta(_SHA)
         provider.list_pr_files.return_value = ["src/app.py"]
         provider.list_check_runs.return_value = [
-            CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="success"),
+            CheckRunStatus(id=1, name="Run Targeted Checks", status="completed", conclusion="success"),
         ]
         provider.find_comment.return_value = (
             99,
