@@ -1147,19 +1147,71 @@ def _try_recover_state_from_pr_threads(
         elif marker_type == "activity-log":
             activity_log_thread_id = thread_id
 
-    # Only recover if we found at least an overall summary thread
-    if not overall_thread_id:
+    # If no agdt threads of any relevant type were found, cannot recover.
+    if not overall_thread_id and not file_threads and not activity_log_thread_id:
         return None
 
     print(
-        f"Recovered {len(file_threads)} file thread(s), overall summary, "
+        f"Found {len(file_threads)} existing file thread(s), "
+        f"{'overall summary' if overall_thread_id else 'no overall summary'}, "
         f"and {'activity log' if activity_log_thread_id else 'no activity log'} "
-        f"from existing PR threads. Skipping fresh scaffolding."
+        f"from existing PR threads (any identity). Reusing where possible."
     )
 
-    # Build recovered file entries
+    # Create any missing top-level threads (overall-summary, activity-log)
+    # to avoid duplicates when another identity already created some threads.
+    base_url = _build_pr_base_url(config, pull_request_id)
+
+    if not overall_thread_id:
+        # Create overall summary thread since none exists from any identity
+        temp_state = ReviewState(
+            prId=pull_request_id,
+            repoId=repo_id,
+            repoName=repo_name,
+            project=config.project,
+            organization=config.organization,
+            latestIterationId=latest_iteration_id,
+            scaffoldedUtc=now.isoformat(),
+            overallSummary=OverallSummary(threadId=0, commentId=0),
+            folders={},
+            files={},
+            commitHash=commit_hash,
+            modelId=model_id,
+            activityLogThreadId=0,
+            sessions=[],
+            rebaseConflicts=rebase_conflicts,
+        )
+        commit_url_pr = (
+            build_commit_pr_url(config.organization, config.project, repo_name, pull_request_id, latest_iteration_id)
+            if commit_hash and latest_iteration_id
+            else None
+        )
+        overall_content = render_overall_summary(
+            temp_state, base_url, model_name=model_id, commit_hash=commit_hash, commit_url=commit_url_pr
+        )
+        print("Creating overall PR summary thread (not found from any identity)...")
+        overall_thread_id, overall_comment_id = _post_thread(
+            requests_module,
+            headers,
+            threads_url,
+            overall_content,
+            marker=build_marker("overall-summary", pr=pull_request_id),
+        )
+
+    if not activity_log_thread_id:
+        # Create activity log thread since none exists from any identity
+        activity_log_content = "## Review Activity Log\n\n*This thread tracks all review sessions for this PR.*\n"
+        print("Creating Review Activity Log thread (not found from any identity)...")
+        activity_log_thread_id, _ = _post_thread(
+            requests_module,
+            headers,
+            threads_url,
+            activity_log_content,
+            marker=build_marker("activity-log", pr=pull_request_id),
+        )
+
+    # Build recovered file entries, creating threads only for files that are missing
     file_entries: dict[str, FileEntry] = {}
-    has_missing_threads = False
     for file_path in files:
         normalized = normalize_file_path(file_path)
         folder = _get_folder_for_path(file_path)
@@ -1167,8 +1219,36 @@ def _try_recover_state_from_pr_threads(
 
         thread_id, comment_id = file_threads.get(normalized, (0, 0))
         if thread_id == 0 or comment_id == 0:
-            has_missing_threads = True
-            break
+            # Create file summary thread for this file (not found from any identity)
+            temp_entry = FileEntry(
+                threadId=0,
+                commentId=0,
+                folder=folder,
+                fileName=file_name,
+                status=ReviewStatus.UNREVIEWED.value,
+            )
+            if model_id:
+                initialize_model_verdicts(temp_entry, [model_id])
+            commit_url_file = (
+                build_commit_file_url(
+                    config.organization, config.project, repo_name, pull_request_id, normalized, latest_iteration_id
+                )
+                if commit_hash and latest_iteration_id
+                else None
+            )
+            content = render_file_summary(
+                temp_entry, [], base_url, model_name=model_id, commit_hash=commit_hash, commit_url=commit_url_file
+            )
+            print(f"Creating file summary thread for {normalized} (not found from any identity)...")
+            thread_id, comment_id = _post_thread(
+                requests_module,
+                headers,
+                threads_url,
+                content,
+                file_path=normalized,
+                marker=build_marker("file-summary", file=normalized, pr=pull_request_id),
+            )
+
         file_entry = FileEntry(
             threadId=thread_id,
             commentId=comment_id,
@@ -1179,12 +1259,6 @@ def _try_recover_state_from_pr_threads(
         if model_id:
             initialize_model_verdicts(file_entry, [model_id])
         file_entries[normalized] = file_entry
-
-    # If any file is missing a corresponding thread, fall back to fresh scaffolding
-    # to avoid downstream PATCH failures with invalid threadId=0/commentId=0.
-    if has_missing_threads:
-        print("Not all PR files have corresponding file-summary threads; falling back to fresh scaffolding.")
-        return None
 
     # Build folder groups
     folders: dict[str, list[str]] = {}

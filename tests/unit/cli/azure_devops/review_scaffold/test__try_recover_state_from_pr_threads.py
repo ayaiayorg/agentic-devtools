@@ -90,12 +90,18 @@ class TestTryRecoverStateFromPrThreads:
         assert result is None
 
     @patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state")
-    def test_returns_none_when_no_overall_summary_thread(self, save_mock):
-        """Returns None when agdt threads exist but no overall-summary."""
+    def test_returns_none_when_only_unclassified_agdt_threads(self, save_mock):
+        """Returns None when agdt threads exist but none are classifiable scaffold types.
+
+        Covers line 1152: ``if not overall_thread_id and not file_threads and not
+        activity_log_thread_id: return None``.  Uses ``suggestion``-type threads
+        which pass ``filter_agdt_threads`` (they are valid agdt markers) but are
+        silently skipped in the classification loop.
+        """
         requests_mock = MagicMock()
         resp = MagicMock()
         resp.raise_for_status = MagicMock()
-        resp.json.return_value = {"value": [_make_agdt_thread(100, "file-summary", "/src/a.ts")]}
+        resp.json.return_value = {"value": [_make_agdt_thread(50, "suggestion")]}
         requests_mock.get.return_value = resp
 
         result = _try_recover_state_from_pr_threads(
@@ -112,6 +118,44 @@ class TestTryRecoverStateFromPrThreads:
         )
 
         assert result is None
+        save_mock.assert_not_called()
+
+    @patch("agentic_devtools.cli.azure_devops.review_scaffold._resolve_scaffold_threads")
+    @patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state")
+    def test_creates_missing_overall_and_activity_log_threads(self, save_mock, resolve_mock):
+        """Creates overall-summary and activity-log threads when not found from any identity."""
+        requests_mock = MagicMock()
+        resp = MagicMock()
+        resp.raise_for_status = MagicMock()
+        resp.json.return_value = {"value": [_make_agdt_thread(100, "file-summary", "/src/a.ts")]}
+        requests_mock.get.return_value = resp
+        # POST for creating missing overall-summary, activity-log, and activity log reply
+        post_resp = MagicMock()
+        post_resp.raise_for_status = MagicMock()
+        post_resp.json.return_value = {"id": 700, "comments": [{"id": 701}]}
+        requests_mock.post.return_value = post_resp
+
+        result = _try_recover_state_from_pr_threads(
+            pull_request_id=_PR_ID,
+            files=["/src/a.ts"],
+            config=_make_config(),
+            repo_id=_REPO_ID,
+            repo_name=_REPO,
+            latest_iteration_id=5,
+            requests_module=requests_mock,
+            headers={},
+            commit_hash="abc123",
+            model_id="gpt-5",
+        )
+
+        # Recovery succeeds — creates missing overall and activity log threads
+        assert result is not None
+        assert isinstance(result, ReviewState)
+        # File thread reused from existing
+        assert result.files["/src/a.ts"].threadId == 100
+        # Overall and activity log were created
+        assert result.overallSummary.threadId == 700
+        assert result.activityLogThreadId == 700
 
     @patch("agentic_devtools.cli.azure_devops.review_scaffold._resolve_scaffold_threads")
     @patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state")
@@ -163,9 +207,10 @@ class TestTryRecoverStateFromPrThreads:
         assert save_mock.call_count >= 1
         resolve_mock.assert_called_once()
 
+    @patch("agentic_devtools.cli.azure_devops.review_scaffold._resolve_scaffold_threads")
     @patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state")
-    def test_returns_none_when_file_missing_thread(self, save_mock):
-        """Returns None when not all files have corresponding threads."""
+    def test_creates_missing_file_threads_reuses_existing(self, save_mock, resolve_mock):
+        """Creates threads only for files missing from any identity, reuses existing."""
         requests_mock = MagicMock()
         resp = MagicMock()
         resp.raise_for_status = MagicMock()
@@ -178,6 +223,11 @@ class TestTryRecoverStateFromPrThreads:
             ]
         }
         requests_mock.get.return_value = resp
+        # POST for creating the missing /src/c.ts thread + activity log reply
+        post_resp = MagicMock()
+        post_resp.raise_for_status = MagicMock()
+        post_resp.json.return_value = {"id": 600, "comments": [{"id": 601}]}
+        requests_mock.post.return_value = post_resp
 
         result = _try_recover_state_from_pr_threads(
             pull_request_id=_PR_ID,
@@ -192,8 +242,17 @@ class TestTryRecoverStateFromPrThreads:
             model_id="gpt-5",
         )
 
-        # /src/c.ts has no thread, so recovery falls back to None
-        assert result is None
+        # Recovery succeeds — existing threads reused, missing one created
+        assert result is not None
+        assert isinstance(result, ReviewState)
+        # Existing file threads reused
+        assert result.files["/src/a.ts"].threadId == 200
+        assert result.files["/src/b.ts"].threadId == 300
+        # Missing file thread was created via _post_thread
+        assert result.files["/src/c.ts"].threadId == 600
+        # Overall and activity log reused
+        assert result.overallSummary.threadId == 400
+        assert result.activityLogThreadId == 500
 
     @patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state")
     def test_returns_none_when_fetch_fails(self, save_mock, capsys):
@@ -253,9 +312,10 @@ class TestTryRecoverStateFromPrThreads:
         err = capsys.readouterr().err
         assert "Could not post recovery activity log entry" in err
 
+    @patch("agentic_devtools.cli.azure_devops.review_scaffold._resolve_scaffold_threads")
     @patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state")
-    def test_recovery_without_activity_log_thread(self, save_mock):
-        """Recovery works when no activity log thread exists on PR."""
+    def test_creates_activity_log_when_not_found(self, save_mock, resolve_mock):
+        """Creates activity-log thread when none exists from any identity."""
         requests_mock = MagicMock()
         resp = MagicMock()
         resp.raise_for_status = MagicMock()
@@ -266,6 +326,11 @@ class TestTryRecoverStateFromPrThreads:
             ]
         }
         requests_mock.get.return_value = resp
+        # POST for creating activity-log thread + activity log reply
+        post_resp = MagicMock()
+        post_resp.raise_for_status = MagicMock()
+        post_resp.json.return_value = {"id": 800, "comments": [{"id": 801}]}
+        requests_mock.post.return_value = post_resp
 
         result = _try_recover_state_from_pr_threads(
             pull_request_id=_PR_ID,
@@ -281,9 +346,8 @@ class TestTryRecoverStateFromPrThreads:
         )
 
         assert result is not None
-        assert result.activityLogThreadId == 0
-        # No POST call since no activity log thread to reply to
-        requests_mock.post.assert_not_called()
+        # Activity log was created (not 0)
+        assert result.activityLogThreadId == 800
 
     @patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state")
     def test_skips_threads_with_no_comments(self, save_mock):
@@ -384,7 +448,7 @@ class TestTryRecoverStateFromPrThreads:
         requests_mock.get.return_value = resp
         post_resp = MagicMock()
         post_resp.raise_for_status = MagicMock()
-        post_resp.json.return_value = {"id": 502}
+        post_resp.json.return_value = {"id": 502, "comments": [{"id": 503}]}
         requests_mock.post.return_value = post_resp
 
         result = _try_recover_state_from_pr_threads(
@@ -427,7 +491,7 @@ class TestTryRecoverStateFromPrThreads:
         requests_mock.get.return_value = resp
         post_resp = MagicMock()
         post_resp.raise_for_status = MagicMock()
-        post_resp.json.return_value = {"id": 502}
+        post_resp.json.return_value = {"id": 502, "comments": [{"id": 503}]}
         requests_mock.post.return_value = post_resp
 
         result = _try_recover_state_from_pr_threads(
@@ -471,7 +535,7 @@ class TestTryRecoverStateFromPrThreads:
         requests_mock.get.return_value = resp
         post_resp = MagicMock()
         post_resp.raise_for_status = MagicMock()
-        post_resp.json.return_value = {"id": 502}
+        post_resp.json.return_value = {"id": 502, "comments": [{"id": 503}]}
         requests_mock.post.return_value = post_resp
 
         result = _try_recover_state_from_pr_threads(
@@ -512,7 +576,7 @@ class TestTryRecoverStateFromPrThreads:
         requests_mock.get.return_value = resp
         post_resp = MagicMock()
         post_resp.raise_for_status = MagicMock()
-        post_resp.json.return_value = {"id": 502}
+        post_resp.json.return_value = {"id": 502, "comments": [{"id": 503}]}
         requests_mock.post.return_value = post_resp
 
         result = _try_recover_state_from_pr_threads(
@@ -552,7 +616,7 @@ class TestTryRecoverStateFromPrThreads:
         requests_mock.get.return_value = resp
         post_resp = MagicMock()
         post_resp.raise_for_status = MagicMock()
-        post_resp.json.return_value = {"id": 502}
+        post_resp.json.return_value = {"id": 502, "comments": [{"id": 503}]}
         requests_mock.post.return_value = post_resp
 
         result = _try_recover_state_from_pr_threads(
@@ -642,3 +706,187 @@ class TestTryRecoverStateFromPrThreads:
         assert "utils" in result.folders
         assert "/src/a.ts" in result.folders["src"].files
         assert "/utils/b.ts" in result.folders["utils"].files
+
+    @patch("agentic_devtools.cli.azure_devops.review_scaffold._resolve_scaffold_threads")
+    @patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state")
+    def test_cross_identity_reuses_all_thread_types(self, save_mock, resolve_mock):
+        """Threads from another identity are reused without creating duplicates.
+
+        Simulates a scenario where a different bot already created the
+        activity-log, overall-summary, and some file-summary threads.
+        The current identity should reuse them all and only create missing
+        file threads.
+        """
+        requests_mock = MagicMock()
+        resp = MagicMock()
+        resp.raise_for_status = MagicMock()
+        # Threads created by "other-bot" (author is irrelevant — markers are the key)
+        resp.json.return_value = {
+            "value": [
+                _make_agdt_thread(10, "activity-log", comment_id=11),
+                _make_agdt_thread(20, "overall-summary", comment_id=21),
+                _make_agdt_thread(30, "file-summary", "/src/existing.ts", comment_id=31),
+            ]
+        }
+        requests_mock.get.return_value = resp
+        # POST for creating the missing file thread + activity log reply
+        post_resp = MagicMock()
+        post_resp.raise_for_status = MagicMock()
+        post_resp.json.return_value = {"id": 900, "comments": [{"id": 901}]}
+        requests_mock.post.return_value = post_resp
+
+        result = _try_recover_state_from_pr_threads(
+            pull_request_id=_PR_ID,
+            files=["/src/existing.ts", "/src/new-file.ts"],
+            config=_make_config(),
+            repo_id=_REPO_ID,
+            repo_name=_REPO,
+            latest_iteration_id=5,
+            requests_module=requests_mock,
+            headers={},
+            commit_hash="def456",
+            model_id="gpt-5",
+        )
+
+        assert result is not None
+        # Existing threads reused (from other identity)
+        assert result.overallSummary.threadId == 20
+        assert result.overallSummary.commentId == 21
+        assert result.activityLogThreadId == 10
+        assert result.files["/src/existing.ts"].threadId == 30
+        assert result.files["/src/existing.ts"].commentId == 31
+        # New file thread was created (not found from any identity)
+        assert result.files["/src/new-file.ts"].threadId == 900
+
+    @patch("agentic_devtools.cli.azure_devops.review_scaffold._resolve_scaffold_threads")
+    @patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state")
+    def test_cross_identity_no_duplicate_when_all_threads_exist(self, save_mock, resolve_mock):
+        """No POST calls for thread creation when all threads already exist from any identity."""
+        requests_mock = MagicMock()
+        resp = MagicMock()
+        resp.raise_for_status = MagicMock()
+        resp.json.return_value = {
+            "value": [
+                _make_agdt_thread(10, "activity-log", comment_id=11),
+                _make_agdt_thread(20, "overall-summary", comment_id=21),
+                _make_agdt_thread(30, "file-summary", "/src/a.ts", comment_id=31),
+                _make_agdt_thread(40, "file-summary", "/src/b.ts", comment_id=41),
+            ]
+        }
+        requests_mock.get.return_value = resp
+        # POST for activity log reply only
+        reply_resp = MagicMock()
+        reply_resp.raise_for_status = MagicMock()
+        reply_resp.json.return_value = {"id": 99}
+        requests_mock.post.return_value = reply_resp
+
+        result = _try_recover_state_from_pr_threads(
+            pull_request_id=_PR_ID,
+            files=["/src/a.ts", "/src/b.ts"],
+            config=_make_config(),
+            repo_id=_REPO_ID,
+            repo_name=_REPO,
+            latest_iteration_id=5,
+            requests_module=requests_mock,
+            headers={},
+            commit_hash="abc123",
+            model_id="gpt-5",
+        )
+
+        assert result is not None
+        # All existing threads reused
+        assert result.overallSummary.threadId == 20
+        assert result.activityLogThreadId == 10
+        assert result.files["/src/a.ts"].threadId == 30
+        assert result.files["/src/b.ts"].threadId == 40
+        # Only one POST call — for the activity log reply (not thread creation)
+        assert requests_mock.post.call_count == 1
+
+    @patch("agentic_devtools.cli.azure_devops.review_scaffold._resolve_scaffold_threads")
+    @patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state")
+    def test_missing_file_thread_with_empty_model_id_skips_verdict_init(self, save_mock, resolve_mock):
+        """Empty model_id skips initialize_model_verdicts when creating a missing file thread.
+
+        Covers branch 1230->1232: the False branch of ``if model_id:`` inside the
+        missing-file-thread creation block.  The existing
+        test_recovery_without_model_id_skips_verdict_init covers line 1259's
+        ``if model_id:`` (for already-existing threads), but this test covers
+        the same branch at line 1230 (for newly created threads).
+        """
+        requests_mock = MagicMock()
+        resp = MagicMock()
+        resp.raise_for_status = MagicMock()
+        resp.json.return_value = {
+            "value": [
+                _make_agdt_thread(200, "overall-summary", comment_id=201),
+                _make_agdt_thread(300, "activity-log", comment_id=301),
+                # /src/a.ts has NO thread — it will be created
+            ]
+        }
+        requests_mock.get.return_value = resp
+        # POST for creating the missing file thread + activity log reply
+        post_resp = MagicMock()
+        post_resp.raise_for_status = MagicMock()
+        post_resp.json.return_value = {"id": 400, "comments": [{"id": 401}]}
+        requests_mock.post.return_value = post_resp
+
+        result = _try_recover_state_from_pr_threads(
+            pull_request_id=_PR_ID,
+            files=["/src/a.ts"],
+            config=_make_config(),
+            repo_id=_REPO_ID,
+            repo_name=_REPO,
+            latest_iteration_id=5,
+            requests_module=requests_mock,
+            headers={},
+            commit_hash="abc123",
+            model_id="",  # empty model_id — skips initialize_model_verdicts in missing-file block
+        )
+
+        assert result is not None
+        assert result.files["/src/a.ts"].threadId == 400
+        assert result.files["/src/a.ts"].modelVerdicts == []
+
+    @patch("agentic_devtools.cli.azure_devops.review_scaffold._resolve_scaffold_threads")
+    @patch("agentic_devtools.cli.azure_devops.review_scaffold.save_review_state")
+    def test_no_activity_log_reply_when_thread_id_is_zero(self, save_mock, resolve_mock):
+        """Skips activity log reply when activity_log_thread_id is zero after creation.
+
+        Covers branch 1306->1326: the False branch of ``if activity_log_thread_id:``
+        at the end of the function.  This happens when _post_thread returns id=0 for
+        the activity-log creation (e.g. the API echoes back an id of 0).
+        """
+        requests_mock = MagicMock()
+        resp = MagicMock()
+        resp.raise_for_status = MagicMock()
+        resp.json.return_value = {
+            "value": [
+                # Only overall-summary exists; activity-log must be created
+                _make_agdt_thread(100, "overall-summary", comment_id=101),
+            ]
+        }
+        requests_mock.get.return_value = resp
+        # _post_thread for activity-log returns id=0 (unusual but valid edge case)
+        post_resp = MagicMock()
+        post_resp.raise_for_status = MagicMock()
+        post_resp.json.return_value = {"id": 0, "comments": [{"id": 1}]}
+        requests_mock.post.return_value = post_resp
+
+        result = _try_recover_state_from_pr_threads(
+            pull_request_id=_PR_ID,
+            files=[],  # no file threads needed — simplifies the test
+            config=_make_config(),
+            repo_id=_REPO_ID,
+            repo_name=_REPO,
+            latest_iteration_id=5,
+            requests_module=requests_mock,
+            headers={},
+            commit_hash="abc123",
+            model_id="gpt-5",
+        )
+
+        # Recovery still succeeds; activity log thread id stays 0
+        assert result is not None
+        assert result.activityLogThreadId == 0
+        # No activity log reply was posted (if activity_log_thread_id: was False)
+        assert requests_mock.post.call_count == 1  # only the creation POST, no reply
