@@ -4,7 +4,7 @@
 
 | ID | Category | Severity | Location(s) | Summary | Recommendation |
 |----|----------|----------|-------------|---------|----------------|
-| F-01 | C | MEDIUM | Plan Phase 4, T017 | Task T017 references `copilot_review_inline_count` "correctly counts merged comments (REST + suppressed)" but `_count_unresolved_prior_threads()` at line 273 uses `len(comments)` which will now include suppressed entries — the plan does not clarify whether `copilot_review_inline_count` SHOULD include suppressed entries or only REST ones | Clarify in spec whether `copilot_review_inline_count` semantics include suppressed comments; add explicit requirement if counting semantics change |
+| F-01 | C | MEDIUM | Plan Phase 4, T017; `snapshot.py` lines 158-162 | Task T017 references `copilot_review_inline_count` semantics, but this metric is computed in `build_pr_state_snapshot()` via `comments = provider.list_review_comments(...)` and `copilot_review_inline_count = len(comments)`; the report should anchor count semantics to this code path, not `_count_unresolved_prior_threads()` (covered by F-04) | Clarify in spec whether `copilot_review_inline_count` semantics include suppressed comments; add explicit requirement if counting semantics change |
 | F-02 | B | LOW | Spec NFR-001 | "under normal conditions" is vague — no definition of what constitutes normal vs. abnormal conditions (network latency, API throttling, etc.) | Define "normal conditions" (e.g., API response <5s, no rate-limiting) or remove qualifier |
 | F-03 | F | MEDIUM | Plan Phase 4, T016 | Plan says guard at "line ~132" in `evaluator/snapshot.py`; actual code at lines 131-144 iterates `review_comments` — the guard location is approximate but the described approach (skip `rc.is_suppressed`) is correct for the current code structure | Validate line reference during implementation; update plan if code has shifted |
 | F-04 | C | MEDIUM | Plan Phase 4, T019 | `_count_unresolved_prior_threads()` (line 270-276) counts `len(comments)` directly — T019 says "implement `is_suppressed` filter" but the plan doesn't clarify whether this should filter before `len()` or use a list comprehension; implementation detail is underspecified | Specify the filtering mechanism: `total_unresolved += sum(1 for c in comments if not c.is_suppressed)` |
@@ -69,6 +69,7 @@
 ## Next Actions
 
 - Resolve CRITICAL findings (F-05, F-09) before `/speckit.agdt:implement`.
+- Confirm CHK001–CHK014 in `checklists/requirements.md` are either satisfied and checked, or that `spec.md`/checklist updates are made before `/speckit.agdt:implement`.
 - Keep FR-to-task mappings aligned with `tasks.md` and rerun analysis after artifact updates.
 - Suggested commands: `/speckit.agdt:tasks`, `/speckit.agdt:analyze`
 
