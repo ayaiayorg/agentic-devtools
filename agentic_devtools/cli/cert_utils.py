@@ -27,19 +27,57 @@ from agentic_devtools.cli.subprocess_utils import run_safe
 _CERTS_DIR = Path.home() / ".agdt" / "certs"
 
 
-def normalize_pem(pem_content: str) -> str:
-    """Remove blank lines within PEM certificate bodies.
+def normalize_pem_block(pem: str) -> str:
+    """Normalize a single PEM certificate block.
 
-    Some corporate proxies and openssl builds insert empty lines between
-    base64 data lines in PEM certificates.  Python's ``ssl`` module rejects
-    such malformed PEM with ``[X509] PEM lib``.  This function strips those
-    blank lines while preserving the ``BEGIN``/``END`` markers.
+    Removes blank/whitespace-only lines between markers, strips
+    leading/trailing whitespace from base64 content lines, emits canonical
+    marker lines, and converts ``\\r\\n`` to ``\\n``.
+
+    This is the shared normalization function (FR-005) called by both
+    :func:`fetch_certificate_chain_openssl` and ``_build_unified_ca_bundle``.
+
+    Args:
+        pem: A single PEM certificate block string (from BEGIN to END marker).
+
+    Returns:
+        Canonically normalized PEM block with Unix line endings.
+    """
+    # Normalize line endings first
+    pem = pem.replace("\r\n", "\n").replace("\r", "\n")
+
+    lines = pem.split("\n")
+    content_lines: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped == "-----BEGIN CERTIFICATE-----" or stripped == "-----END CERTIFICATE-----":
+            continue
+        content_lines.append(stripped)
+
+    return "-----BEGIN CERTIFICATE-----\n" + "\n".join(content_lines) + "\n-----END CERTIFICATE-----"
+
+
+def normalize_pem(pem_content: str) -> str:
+    """Normalize all PEM certificate blocks in *pem_content*.
+
+    Delegates to :func:`normalize_pem_block` for each block, which:
+
+    * Removes blank/whitespace-only lines between markers.
+    * Strips leading/trailing whitespace from base64 content lines.
+    * Rewrites ``BEGIN``/``END`` marker lines canonically (surrounding
+      whitespace trimmed).
+    * Converts ``\\r\\n`` to ``\\n``.
+
+    Non-certificate content outside the ``BEGIN``/``END`` markers is
+    preserved unchanged.
 
     Args:
         pem_content: Raw PEM string (may contain multiple certificates).
 
     Returns:
-        Normalized PEM string with blank lines removed from certificate bodies.
+        Normalized PEM string with all certificate blocks canonicalized.
     """
     cert_pattern = r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----"
     certs = re.findall(cert_pattern, pem_content, re.DOTALL)
@@ -48,10 +86,9 @@ def normalize_pem(pem_content: str) -> str:
 
     result = pem_content
     for cert in certs:
-        lines = cert.split("\n")
-        clean_lines = [line for line in lines if line.strip()]
-        if len(clean_lines) < len(lines):
-            result = result.replace(cert, "\n".join(clean_lines))
+        normalized = normalize_pem_block(cert)
+        if normalized != cert:
+            result = result.replace(cert, normalized)
     return result
 
 
@@ -85,10 +122,15 @@ def fetch_certificate_chain_openssl(hostname: str, port: int = 443) -> str | Non
             shell=False,
         )
         output = result.stdout.decode("utf-8", errors="ignore")
-        cert_pattern = r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----"
-        certs = re.findall(cert_pattern, output, re.DOTALL)
+        cert_pattern = (
+            r"^\s*-----BEGIN CERTIFICATE-----\s*$"
+            r".*?"
+            r"^\s*-----END CERTIFICATE-----\s*$"
+        )
+        certs = re.findall(cert_pattern, output, re.DOTALL | re.MULTILINE)
         if certs:
-            return normalize_pem("\n".join(certs))
+            normalized = [normalize_pem_block(c) for c in certs]
+            return "\n".join(normalized)
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError, subprocess.SubprocessError):
         pass
     except Exception:  # noqa: BLE001 — cert fetch must not crash setup
