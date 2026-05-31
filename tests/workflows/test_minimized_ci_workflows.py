@@ -7,6 +7,8 @@ AI_PR_LOOP = REPO_ROOT / ".github" / "workflows" / "ai-pr-loop.yml"
 AI_PR_LOOP_LINT = REPO_ROOT / ".github" / "workflows" / "ai-pr-loop-lint.yml"
 SPECKIT_TRIGGER = REPO_ROOT / ".github" / "workflows" / "speckit-issue-trigger.yml"
 WORKFLOW_APPROVAL_MONITOR = REPO_ROOT / ".github" / "workflows" / "workflow-approval-monitor.yml"
+SQUASH_WAIT_SCHEDULER = REPO_ROOT / ".github" / "workflows" / "squash-wait-scheduler.yml"
+AI_PR_LOOP_CONFIG = REPO_ROOT / ".github" / "ai-pr-loop-config.json"
 
 
 def _non_empty_line_count(path: Path) -> int:
@@ -64,20 +66,21 @@ class TestMinimizedCiWorkflows:
         assert "issue_comment:" in content
         assert "workflow_run:" in content
 
+    def test_ai_pr_loop_does_not_have_pull_request_review_trigger(self) -> None:
+        content = AI_PR_LOOP.read_text(encoding="utf-8")
+        assert "pull_request_review:" not in content
+
     def test_redundant_ai_pr_loop_workflows_are_removed(self) -> None:
         assert not AI_PR_LOOP_LINT.exists()
 
-    def test_workflow_approval_monitor_exists(self) -> None:
-        assert WORKFLOW_APPROVAL_MONITOR.exists()
-        content = WORKFLOW_APPROVAL_MONITOR.read_text(encoding="utf-8")
-        assert "schedule:" in content
-        assert 'cron: "*/5 * * * *"' in content
-        assert "actions: write" in content
-        assert "status: 'action_required'" in content
-        assert "per_page: 100" in content
-        assert "stuckThresholdMinutes" in content
-        assert "github.rest.pulls.get" in content
-        assert "workflow-approval-monitor:pr-" in content
+    def test_workflow_approval_monitor_deleted(self) -> None:
+        assert not WORKFLOW_APPROVAL_MONITOR.exists()
+
+    def test_squash_wait_scheduler_deleted(self) -> None:
+        assert not SQUASH_WAIT_SCHEDULER.exists()
+
+    def test_ai_pr_loop_config_deleted(self) -> None:
+        assert not AI_PR_LOOP_CONFIG.exists()
 
     def test_speckit_trigger_has_concurrency_group(self) -> None:
         content = SPECKIT_TRIGGER.read_text(encoding="utf-8")

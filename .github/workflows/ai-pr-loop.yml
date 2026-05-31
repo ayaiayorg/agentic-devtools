@@ -5,8 +5,6 @@ on:
     # PR edit filtering (title vs body-only) is handled in Python orchestrator code,
     # not in workflow-level `if:` conditions. See check_edit_relevance() in guards.py.
     types: [opened, reopened, edited]
-  pull_request_review:
-    types: [submitted]
   issue_comment:
     types: [created]
   workflow_run:
@@ -15,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: 'PR number to process (for squash-wait-scheduler invocations)'
+        description: 'PR number to process (for agent-session-monitor invocations)'
         required: false
         type: string
       trigger_reason:
@@ -42,10 +40,6 @@ jobs:
       (github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number != '') ||
       ((github.event_name == 'pull_request' &&
         github.event.pull_request.head.repo.full_name == github.repository) ||
-       (github.event_name == 'pull_request_review' &&
-         github.event.pull_request.head.repo.full_name == github.repository &&
-         (github.event.review.user.login == 'Copilot' ||
-           github.event.review.user.login == 'copilot-pull-request-reviewer[bot]')) ||
        (github.event_name == 'issue_comment' &&
          github.event.issue.pull_request &&
          (github.event.comment.user.login == 'copilot[bot]' ||

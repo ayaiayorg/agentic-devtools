@@ -4,29 +4,31 @@
 # and triggers the AI PR loop workflow for immediate post-session processing.
 #
 # Design:
-#   - Polls the GitHub Issues Events API every 5 minutes for terminal session
-#     events (copilot_work_finished, copilot_work_finished_failure).
-#   - Deduplicates using a cached JSON array of processed event IDs persisted
-#     via actions/cache with prefix-based restore.
-#   - Dispatches ai-pr-loop.yml via workflow_dispatch (same pattern as
-#     squash-wait-scheduler.yml) with pr_number and trigger_reason fields.
-#   - Coexists with all existing ai-pr-loop.yml triggers (FR-006). The
-#     ai-pr-loop concurrency group (ai-pr-loop-{pr_number}) serializes
-#     any concurrent runs for the same PR.
+#   - Polls BOTH the GitHub Issues Events API AND the Copilot sessions API
+#     every 5 minutes for terminal session events.
+#   - Also checks the Reviews API for Copilot review completions.
+#   - Deduplicates using a durable per-PR marker comment (upsert pattern)
+#     instead of fragile actions/cache.
+#   - Dispatches ai-pr-loop.yml via workflow_dispatch (PAT-triggered, no
+#     approval required) with pr_number and trigger_reason fields.
+#   - Coexists with all existing ai-pr-loop.yml triggers. The ai-pr-loop
+#     concurrency group (ai-pr-loop-{pr_number}) serializes any concurrent
+#     runs for the same PR.
 #
 # Related:
-#   - squash-wait-scheduler.yml — complementary scheduler for squash-wait markers
 #   - ai-pr-loop.yml — target workflow (unchanged by this feature)
 #   - Issue #1587: Feature: Add webhook or event-driven trigger for ai-pr-loop
+#   - Issue #1659: RFC: Replace pollers with unified monitor
 #
 # FR Traceability:
-#   FR-001: Scheduled monitor (*/5 cron) triggers AI PR loop within 300s
-#   FR-002: Deduplication via actions/cache seen-events JSON
+#   FR-001: Dual-source detection (agent-task CLI + events API)
+#   FR-002: Comment-based deduplication (replaces actions/cache)
 #   FR-003: Passes pr_number input to ai-pr-loop.yml
-#   FR-004: Only open, non-fork PRs without ai-pr-loop-ignore label
-#   FR-005: Sets trigger_reason=agent_session_finished
-#   FR-006: Supplements existing triggers, no modification to ai-pr-loop.yml
+#   FR-004: Copilot review detection via Reviews API
+#   FR-005: Dead code removal (squash-wait-scheduler, approval-monitor deleted)
 #   FR-007: Handles both copilot_work_finished and copilot_work_finished_failure
+#   FR-008: Write permissions for issues and pull-requests
+#   FR-009: Graceful fallback if agent-task list fails
 
 name: Agent Session Monitor
 
@@ -37,73 +39,60 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
+  pull-requests: write
   actions: write
-  issues: read
+  issues: write
 
 jobs:
   monitor-agent-sessions:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 6
     concurrency:
       group: agent-session-monitor
       cancel-in-progress: false
 
     steps:
-      - name: Restore seen-events cache
-        uses: actions/cache/restore@v4
-        with:
-          key: agent-monitor-seen-events-${{ github.run_id }}
-          restore-keys: agent-monitor-seen-events-
-          path: .cache/seen-events.json
-
       - name: Scan and dispatch
         id: scan
         env:
           GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
           DRY_RUN: ${{ vars.AGENT_MONITOR_DRY_RUN || '' }}
           AGENT_MONITOR_MAX_EVENT_AGE: ${{ vars.AGENT_MONITOR_MAX_EVENT_AGE || '' }}
+          AGENT_MONITOR_MAX_PRS_PER_CYCLE: ${{ vars.AGENT_MONITOR_MAX_PRS_PER_CYCLE || '50' }}
+          AGENT_MONITOR_MAX_TRACKED_SESSIONS: ${{ vars.AGENT_MONITOR_MAX_TRACKED_SESSIONS || '200' }}
         run: |
           set -uo pipefail
 
           # --- Initialization ---
           START_EPOCH=$(date +%s)
-          # Reserve ~30s of the 2-minute job timeout for cache save/final steps.
-          SCAN_BUDGET_SECONDS=90
+          # Reserve ~30s for final steps.
+          SCAN_BUDGET_SECONDS=330
           # Recency boundary: ignore events older than this many seconds.
-          # Default 600s (10 min = 2× the 5-min poll interval) prevents cold-start
-          # storms on first run or cache eviction (only recent events are dispatched).
           MAX_EVENT_AGE_SECONDS="${AGENT_MONITOR_MAX_EVENT_AGE:-600}"
-          # Validate MAX_EVENT_AGE_SECONDS is numeric; fall back to default if not
           if ! [[ "$MAX_EVENT_AGE_SECONDS" =~ ^[0-9]+$ ]]; then
             echo "::warning::AGENT_MONITOR_MAX_EVENT_AGE='$MAX_EVENT_AGE_SECONDS' is not numeric; defaulting to 600"
             MAX_EVENT_AGE_SECONDS=600
+          fi
+          MAX_PRS="${AGENT_MONITOR_MAX_PRS_PER_CYCLE:-50}"
+          MAX_TRACKED_SESSIONS="${AGENT_MONITOR_MAX_TRACKED_SESSIONS:-200}"
+          if ! [[ "$MAX_TRACKED_SESSIONS" =~ ^[0-9]+$ ]] || [ "$MAX_TRACKED_SESSIONS" -lt 1 ]; then
+            echo "::warning::AGENT_MONITOR_MAX_TRACKED_SESSIONS='$MAX_TRACKED_SESSIONS' is invalid; defaulting to 200"
+            MAX_TRACKED_SESSIONS=200
           fi
           DISPATCHES=0
           EVENTS_FOUND=0
           EVENTS_SKIPPED_STALE=0
           PRS_SCANNED=0
           SCAN_ERRORS=0
+          AGENT_TASK_AVAILABLE=true
+          TRACKER_MARKER="<!-- agent-session-tracker"
           TERMINAL_EVENTS="copilot_work_finished copilot_work_finished_failure"
-
-          mkdir -p .cache
-          if [ ! -f .cache/seen-events.json ]; then
-            echo '[]' > .cache/seen-events.json
-          fi
-
-          # Load seen events into a bash-friendly lookup
-          SEEN_EVENTS=$(cat .cache/seen-events.json)
-
-          # Helper: check if event ID is already seen
-          is_seen() {
-            echo "$SEEN_EVENTS" | jq -e --argjson id "$1" 'index($id) != null' > /dev/null 2>&1
-          }
 
           # Helper: structured log
           log_action() {
             local ts
             ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-            echo "ts=$ts $*"
+            echo "[agent-session-monitor] ts=$ts $*"
           }
 
           # Helper: parse explicit truthy values for DRY_RUN
@@ -125,9 +114,24 @@ jobs:
             [ $((now - START_EPOCH)) -ge $SCAN_BUDGET_SECONDS ]
           }
 
-          # --- List eligible open PRs (FR-004) ---
-          # Request open PRs from GitHub already sorted by updatedAt desc so the 500-item cap
-          # applies to the most recently updated PRs rather than an arbitrary subset.
+          # Helper: check if session ID is tracked in existing comment body
+          is_tracked() {
+            local session_id="$1"
+            local comment_body="$2"
+            echo "$comment_body" | grep -qF "| $session_id |"
+          }
+
+          # --- Detect agent tasks (FR-001, FR-009: graceful fallback) ---
+          AGENT_TASKS_JSON="[]"
+          if ! AGENT_TASKS_JSON=$(gh api "/repos/${GITHUB_REPOSITORY}/copilot/pull-requests/sessions" \
+            --jq '[.[] | {id: .id, status: .status, pullRequestNumber: .pull_request_number, createdAt: .created_at}]' 2>&1); then
+            log_action "action=warning reason=agent_task_list_failed error=\"$AGENT_TASKS_JSON\""
+            echo "::warning::Copilot sessions API (/copilot/pull-requests/sessions) failed; continuing with events-api + reviews-api only"
+            AGENT_TASKS_JSON="[]"
+            AGENT_TASK_AVAILABLE=false
+          fi
+
+          # --- List eligible open PRs ---
           REPO_OWNER=${GITHUB_REPOSITORY%/*}
           REPO_NAME=${GITHUB_REPOSITORY#*/}
           PR_PAGES=""
@@ -224,13 +228,12 @@ jobs:
             exit 1
           }
 
-          # Sort by updatedAt desc and evaluate eligibility inside the loop
-          PR_ROWS=$(echo "$PRS_JSON" | jq -c 'sort_by(.updatedAt) | reverse | .[]')
+          # Sort by updatedAt desc and limit to MAX_PRS per cycle (round-robin batching)
+          PR_ROWS=$(echo "$PRS_JSON" | jq -c "sort_by(.updatedAt) | reverse | .[:$MAX_PRS] | .[]")
 
           if [ -z "$PR_ROWS" ]; then
             log_action "action=complete reason=no_open_prs"
             echo "No open PRs found."
-            # Write summary
             {
               echo "## Agent Session Monitor"
               echo ""
@@ -251,7 +254,7 @@ jobs:
           while IFS= read -r pr_row; do
             [ -z "$pr_row" ] && continue
 
-            # Check scan budget (NFR-001)
+            # Check scan budget
             if budget_exceeded; then
               log_action "action=budget_exceeded prs_remaining=deferred"
               break
@@ -273,9 +276,22 @@ jobs:
               continue
             fi
 
-            # Per-PR error isolation (Phase 3, T027)
+            # Per-PR error isolation
             {
-              # Fetch issue events for this PR (FR-007)
+              # --- Read existing tracker comment for this PR (FR-002) ---
+              EXISTING_COMMENT_BODY=""
+              EXISTING_COMMENT_ID=""
+              COMMENTS_JSON=$(gh api "/repos/$OWNER/$REPO/issues/$pr/comments" \
+                --jq "[.[] | select(.body | startswith(\"$TRACKER_MARKER\"))]" 2>&1) || {
+                log_action "pr_number=$pr action=warning reason=comment_fetch_failed"
+                COMMENTS_JSON="[]"
+              }
+              if [ "$(echo "$COMMENTS_JSON" | jq 'length')" -gt 0 ]; then
+                EXISTING_COMMENT_BODY=$(echo "$COMMENTS_JSON" | jq -r '.[0].body')
+                EXISTING_COMMENT_ID=$(echo "$COMMENTS_JSON" | jq -r '.[0].id')
+              fi
+
+              # --- Source 1: Events API (FR-007) ---
               EVENTS_JSON=$(gh api "/repos/$OWNER/$REPO/issues/$pr/events" \
                 --paginate \
                 --jq "[.[] | select(.event == \"copilot_work_finished\" or .event == \"copilot_work_finished_failure\")]" \
@@ -286,14 +302,39 @@ jobs:
                 continue
               }
 
-              # Process each terminal event
+              # --- Source 2: Agent tasks for this PR (FR-001) ---
+              PR_AGENT_TASKS=$(echo "$AGENT_TASKS_JSON" | jq -c "[.[] | select(.pullRequestNumber == $pr)]")
+
+              # --- Source 3: Reviews API for Copilot reviews (FR-004) ---
+              REVIEWS_JSON=$(gh api "/repos/$OWNER/$REPO/pulls/$pr/reviews" \
+                --jq '[.[] | select(.user.login == "Copilot" or .user.login == "copilot-pull-request-reviewer[bot]") | select(.state == "APPROVED" or .state == "CHANGES_REQUESTED" or .state == "COMMENTED")]' \
+                2>&1) || {
+                log_action "pr_number=$pr action=warning reason=reviews_api_failed"
+                REVIEWS_JSON="[]"
+              }
+
+              # --- Process events and determine new sessions ---
+              NEW_SESSIONS_DISPATCHED=false
+              PR_DISPATCH_DONE=false  # Deduplicate: at most one dispatch per PR per tick
+              # Collect ALL session IDs for this PR (existing + new)
+              ALL_SESSION_IDS=""
+              # Extract existing session IDs from the comment body
+              if [ -n "$EXISTING_COMMENT_BODY" ]; then
+                while IFS= read -r existing_id; do
+                  [ -z "$existing_id" ] && continue
+                  ALL_SESSION_IDS="${ALL_SESSION_IDS}${ALL_SESSION_IDS:+ }${existing_id}"
+                done < <(echo "$EXISTING_COMMENT_BODY" | grep -oP '(event-\d+|task-[^\s|]+|review-\d+)' | sort -u)
+              fi
+
+              # Process events API sessions
               while IFS= read -r row; do
+                [ -z "$row" ] && continue
                 EVENT_ID=$(echo "$row" | jq '.id')
                 EVENT_TYPE=$(echo "$row" | jq -r '.event')
+                SESSION_ID="event-$EVENT_ID"
                 EVENTS_FOUND=$((EVENTS_FOUND + 1))
 
-                # Recency boundary: skip events older than MAX_EVENT_AGE_SECONDS.
-                # Prevents cold-start storms on first run or cache eviction.
+                # Recency boundary
                 EVENT_CREATED=$(echo "$row" | jq -r '.created_at // empty')
                 if [ -n "$EVENT_CREATED" ]; then
                   EVENT_EPOCH=$(date -d "$EVENT_CREATED" +%s 2>/dev/null || echo "0")
@@ -301,25 +342,27 @@ jobs:
                   if [ "$EVENT_AGE" -gt "$MAX_EVENT_AGE_SECONDS" ]; then
                     log_action "pr_number=$pr event_id=$EVENT_ID event_type=$EVENT_TYPE action=skipped reason=stale_event age=${EVENT_AGE}s max=${MAX_EVENT_AGE_SECONDS}s"
                     EVENTS_SKIPPED_STALE=$((EVENTS_SKIPPED_STALE + 1))
-                    # Still mark as seen so future runs don't re-evaluate (only if not already present)
-                    if ! is_seen "$EVENT_ID"; then
-                      SEEN_EVENTS=$(echo "$SEEN_EVENTS" | jq --argjson id "$EVENT_ID" '. + [$id]')
-                    fi
                     continue
                   fi
                 fi
 
-                # Deduplication check (FR-002)
-                if is_seen "$EVENT_ID"; then
-                  log_action "pr_number=$pr event_id=$EVENT_ID event_type=$EVENT_TYPE action=skipped reason=already_seen"
+                # Comment-based deduplication (FR-002)
+                if is_tracked "$SESSION_ID" "$EXISTING_COMMENT_BODY"; then
+                  log_action "pr_number=$pr event_id=$EVENT_ID event_type=$EVENT_TYPE action=skipped reason=already_tracked"
                   continue
                 fi
 
-                # Dispatch ai-pr-loop (FR-001, FR-003, FR-005)
+                # Dispatch ai-pr-loop (FR-003) — at most once per PR per tick
                 if is_truthy "${DRY_RUN:-}"; then
                   log_action "pr_number=$pr event_id=$EVENT_ID event_type=$EVENT_TYPE action=dispatched mode=dry_run"
-                  echo "[DRY_RUN] Would dispatch: gh workflow run ai-pr-loop.yml --repo $GITHUB_REPOSITORY --field pr_number=$pr --field trigger_reason=agent_session_finished"
                   DISPATCHES=$((DISPATCHES + 1))
+                  NEW_SESSIONS_DISPATCHED=true
+                  PR_DISPATCH_DONE=true
+                  ALL_SESSION_IDS="${ALL_SESSION_IDS}${ALL_SESSION_IDS:+ }${SESSION_ID}"
+                elif [ "$PR_DISPATCH_DONE" = "true" ]; then
+                  log_action "pr_number=$pr event_id=$EVENT_ID event_type=$EVENT_TYPE action=tracked reason=dispatch_already_queued"
+                  NEW_SESSIONS_DISPATCHED=true
+                  ALL_SESSION_IDS="${ALL_SESSION_IDS}${ALL_SESSION_IDS:+ }${SESSION_ID}"
                 else
                   if gh workflow run ai-pr-loop.yml \
                     --repo "$GITHUB_REPOSITORY" \
@@ -327,16 +370,130 @@ jobs:
                     --field trigger_reason=agent_session_finished; then
                     log_action "pr_number=$pr event_id=$EVENT_ID event_type=$EVENT_TYPE action=dispatched"
                     DISPATCHES=$((DISPATCHES + 1))
-                    # Add to seen events (FR-002)
-                    SEEN_EVENTS=$(echo "$SEEN_EVENTS" | jq --argjson id "$EVENT_ID" '. + [$id]')
+                    NEW_SESSIONS_DISPATCHED=true
+                    PR_DISPATCH_DONE=true
+                    ALL_SESSION_IDS="${ALL_SESSION_IDS}${ALL_SESSION_IDS:+ }${SESSION_ID}"
                   else
                     log_action "pr_number=$pr event_id=$EVENT_ID event_type=$EVENT_TYPE action=error reason=dispatch_failed"
                     echo "::error::Failed to dispatch ai-pr-loop for PR #$pr (event $EVENT_ID)"
                     SCAN_ERRORS=$((SCAN_ERRORS + 1))
-                    # Continue processing other events/PRs
                   fi
                 fi
               done < <(echo "$EVENTS_JSON" | jq -c '.[]')
+
+              # Process agent-task sessions
+              while IFS= read -r task_row; do
+                [ -z "$task_row" ] && continue
+                TASK_ID=$(echo "$task_row" | jq -r '.id')
+                TASK_STATUS=$(echo "$task_row" | jq -r '.status')
+                SESSION_ID="task-$TASK_ID"
+
+                # Only process completed tasks
+                if [ "$TASK_STATUS" != "completed" ] && [ "$TASK_STATUS" != "failed" ]; then
+                  continue
+                fi
+
+                # Comment-based deduplication (FR-002)
+                if is_tracked "$SESSION_ID" "$EXISTING_COMMENT_BODY"; then
+                  continue
+                fi
+
+                # Dispatch
+                if is_truthy "${DRY_RUN:-}"; then
+                  log_action "pr_number=$pr task_id=$TASK_ID action=dispatched mode=dry_run source=agent-task"
+                  DISPATCHES=$((DISPATCHES + 1))
+                  NEW_SESSIONS_DISPATCHED=true
+                  PR_DISPATCH_DONE=true
+                  ALL_SESSION_IDS="${ALL_SESSION_IDS}${ALL_SESSION_IDS:+ }${SESSION_ID}"
+                elif [ "$PR_DISPATCH_DONE" = "true" ]; then
+                  log_action "pr_number=$pr task_id=$TASK_ID action=tracked reason=dispatch_already_queued source=agent-task"
+                  NEW_SESSIONS_DISPATCHED=true
+                  ALL_SESSION_IDS="${ALL_SESSION_IDS}${ALL_SESSION_IDS:+ }${SESSION_ID}"
+                else
+                  if gh workflow run ai-pr-loop.yml \
+                    --repo "$GITHUB_REPOSITORY" \
+                    --field pr_number="$pr" \
+                    --field trigger_reason=agent_session_finished; then
+                    log_action "pr_number=$pr task_id=$TASK_ID action=dispatched source=agent-task"
+                    DISPATCHES=$((DISPATCHES + 1))
+                    NEW_SESSIONS_DISPATCHED=true
+                    PR_DISPATCH_DONE=true
+                    ALL_SESSION_IDS="${ALL_SESSION_IDS}${ALL_SESSION_IDS:+ }${SESSION_ID}"
+                  else
+                    log_action "pr_number=$pr task_id=$TASK_ID action=error reason=dispatch_failed source=agent-task"
+                    SCAN_ERRORS=$((SCAN_ERRORS + 1))
+                  fi
+                fi
+              done < <(echo "$PR_AGENT_TASKS" | jq -c '.[]')
+
+              # Process Copilot review completions (FR-004)
+              while IFS= read -r review_row; do
+                [ -z "$review_row" ] && continue
+                REVIEW_ID=$(echo "$review_row" | jq -r '.id')
+                SESSION_ID="review-$REVIEW_ID"
+
+                if is_tracked "$SESSION_ID" "$EXISTING_COMMENT_BODY"; then
+                  continue
+                fi
+
+                if is_truthy "${DRY_RUN:-}"; then
+                  log_action "pr_number=$pr review_id=$REVIEW_ID action=dispatched mode=dry_run source=reviews-api"
+                  DISPATCHES=$((DISPATCHES + 1))
+                  NEW_SESSIONS_DISPATCHED=true
+                  PR_DISPATCH_DONE=true
+                  ALL_SESSION_IDS="${ALL_SESSION_IDS}${ALL_SESSION_IDS:+ }${SESSION_ID}"
+                elif [ "$PR_DISPATCH_DONE" = "true" ]; then
+                  log_action "pr_number=$pr review_id=$REVIEW_ID action=tracked reason=dispatch_already_queued source=reviews-api"
+                  NEW_SESSIONS_DISPATCHED=true
+                  ALL_SESSION_IDS="${ALL_SESSION_IDS}${ALL_SESSION_IDS:+ }${SESSION_ID}"
+                else
+                  if gh workflow run ai-pr-loop.yml \
+                    --repo "$GITHUB_REPOSITORY" \
+                    --field pr_number="$pr" \
+                    --field trigger_reason=agent_session_finished; then
+                    log_action "pr_number=$pr review_id=$REVIEW_ID action=dispatched source=reviews-api"
+                    DISPATCHES=$((DISPATCHES + 1))
+                    NEW_SESSIONS_DISPATCHED=true
+                    PR_DISPATCH_DONE=true
+                    ALL_SESSION_IDS="${ALL_SESSION_IDS}${ALL_SESSION_IDS:+ }${SESSION_ID}"
+                  else
+                    log_action "pr_number=$pr review_id=$REVIEW_ID action=error reason=dispatch_failed source=reviews-api"
+                    SCAN_ERRORS=$((SCAN_ERRORS + 1))
+                  fi
+                fi
+              done < <(echo "$REVIEWS_JSON" | jq -c '.[]')
+
+              # --- Update tracker comment (FR-002, FR-007) ---
+              # Always upsert when there are tracked sessions (even without new dispatches)
+              # so that already-seen session IDs stay recorded for future dedup.
+              if [ -n "$ALL_SESSION_IDS" ] && ! is_truthy "${DRY_RUN:-}"; then
+                NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+                # Cap tracked sessions to avoid exceeding comment size limits.
+                read -r -a SESSION_ID_ARRAY <<< "$ALL_SESSION_IDS"
+                if [ "${#SESSION_ID_ARRAY[@]}" -gt "$MAX_TRACKED_SESSIONS" ]; then
+                  START_INDEX=$((${#SESSION_ID_ARRAY[@]} - MAX_TRACKED_SESSIONS))
+                  ALL_SESSION_IDS="${SESSION_ID_ARRAY[*]:$START_INDEX}"
+                fi
+                # Build tracker body with session ID table for grep-based dedup
+                SESSION_TABLE=""
+                for sid in $ALL_SESSION_IDS; do
+                  SESSION_TABLE+="| $sid | dispatched |"$'\n'
+                done
+                TRACKER_BODY="$(printf '%s\nlast_checked=%s\n-->\n## Agent Sessions for PR #%s\n\n_Last updated: %s_\n\n| Session ID | Status |\n|---|---|\n%s' \
+                  "$TRACKER_MARKER" "$NOW" "$pr" "$NOW" "$SESSION_TABLE")"
+
+                if [ -n "$EXISTING_COMMENT_ID" ]; then
+                  gh api "/repos/$OWNER/$REPO/issues/comments/$EXISTING_COMMENT_ID" \
+                    --method PATCH \
+                    --field body="$TRACKER_BODY" > /dev/null 2>&1 || \
+                    log_action "pr_number=$pr action=warning reason=comment_update_failed"
+                else
+                  gh api "/repos/$OWNER/$REPO/issues/$pr/comments" \
+                    --method POST \
+                    --field body="$TRACKER_BODY" > /dev/null 2>&1 || \
+                    log_action "pr_number=$pr action=warning reason=comment_create_failed"
+                fi
+              fi
             } || {
               SCAN_ERRORS=$((SCAN_ERRORS + 1))
               log_action "pr_number=$pr action=error reason=unexpected_failure"
@@ -344,17 +501,8 @@ jobs:
             }
           done <<< "$PR_ROWS"
 
-          if is_truthy "${DRY_RUN:-}"; then
-            echo "save_cache=false" >> "${GITHUB_OUTPUT:-/dev/null}"
-          else
-            # Deduplicate and prune seen events to last 500 entries (FR-002: bounded cache)
-            SEEN_EVENTS=$(echo "$SEEN_EVENTS" | jq 'unique | .[-500:]')
-            echo "$SEEN_EVENTS" > .cache/seen-events.json
-            echo "save_cache=true" >> "${GITHUB_OUTPUT:-/dev/null}"
-          fi
-
-          # --- Summary output (NFR-004) ---
-          log_action "action=complete prs_scanned=$PRS_SCANNED events_found=$EVENTS_FOUND events_skipped_stale=$EVENTS_SKIPPED_STALE dispatches=$DISPATCHES errors=$SCAN_ERRORS"
+          # --- Summary output ---
+          log_action "action=complete prs_scanned=$PRS_SCANNED events_found=$EVENTS_FOUND events_skipped_stale=$EVENTS_SKIPPED_STALE dispatches=$DISPATCHES errors=$SCAN_ERRORS agent_task_available=$AGENT_TASK_AVAILABLE"
 
           {
             echo "## Agent Session Monitor"
@@ -365,26 +513,11 @@ jobs:
             echo "| Events found | $EVENTS_FOUND |"
             echo "| Events skipped (stale) | $EVENTS_SKIPPED_STALE |"
             echo "| Dispatches issued | $DISPATCHES |"
+            echo "| Agent-task available | $AGENT_TASK_AVAILABLE |"
             echo "| Errors | $SCAN_ERRORS |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          # Record scan errors for final step (do not exit non-zero here
-          # so cache save can proceed)
           if [ "$SCAN_ERRORS" -gt 0 ]; then
-            echo "SCAN_ERRORS=$SCAN_ERRORS" >> "$GITHUB_ENV"
-          fi
-
-      - name: Save seen-events cache
-        if: always() && steps.scan.outputs.save_cache == 'true'
-        uses: actions/cache/save@v4
-        with:
-          key: agent-monitor-seen-events-${{ github.run_id }}
-          path: .cache/seen-events.json
-
-      - name: Check for scan errors
-        if: always()
-        run: |
-          if [ "${SCAN_ERRORS:-0}" -gt 0 ]; then
             echo "::error::Agent session monitor completed with $SCAN_ERRORS scan error(s). See logs above for details."
             exit 1
           fi

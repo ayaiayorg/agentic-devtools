@@ -440,7 +440,7 @@ def delete_squash_wait_marker(
     """Finalise the squash-wait marker after squash completes.
 
     Updates the marker comment to a completion note so that the
-    squash-wait-scheduler no longer re-triggers for this PR.
+    agent-session-monitor no longer re-triggers for this PR.
 
     Args:
         provider: CI platform provider for API calls.
