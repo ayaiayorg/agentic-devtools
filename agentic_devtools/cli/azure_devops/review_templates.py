@@ -4,7 +4,9 @@ Provides functions to generate and regenerate full markdown content for
 file summaries and the overall PR summary at each status.
 """
 
-from .review_attribution import format_status, render_attribution_line
+import re
+
+from .review_attribution import SHORT_HASH_LENGTH, format_status, render_attribution_line
 from .review_state import (
     ConsolidationStatus,
     FileEntry,
@@ -132,6 +134,7 @@ def render_file_summary(
     commit_hash: str | None = None,
     commit_url: str | None = None,
     boss_model: str | None = None,
+    is_subsequent: bool = False,
 ) -> str:
     """Render a file review summary in markdown format.
 
@@ -148,6 +151,8 @@ def render_file_summary(
             attribution line link.
         boss_model: Boss/consolidator model name. Passed through to
             ``render_model_review_progress_table()`` for consolidation attribution.
+        is_subsequent: When True, emit a compact ``### Commit:`` header instead
+            of the full ``## File Review Summary:`` title. Used for reply comments.
 
     Returns:
         Markdown string for the file review summary.
@@ -155,8 +160,13 @@ def render_file_summary(
     status = file_entry.status
     status_display = format_status(status, use_emoji=True)
 
+    if is_subsequent:
+        header = _build_subsequent_header(commit_hash, commit_url)
+    else:
+        header = f"## File Review Summary: {file_entry.fileName}"
+
     lines: list[str] = [
-        f"## File Review Summary: {file_entry.fileName}",
+        header,
         "",
     ]
 
@@ -223,6 +233,7 @@ def render_overall_summary(
     model_icon: str | None = None,
     commit_hash: str | None = None,
     commit_url: str | None = None,
+    is_subsequent: bool = False,
 ) -> str:
     """Render the overall PR review summary in markdown format.
 
@@ -240,6 +251,9 @@ def render_overall_summary(
             ``model_name``, an attribution line is prepended.
         commit_url: URL to the PR files tab at the reviewed commit. Used in the
             attribution line link.
+        is_subsequent: When True, emit a compact ``### Commit:`` header instead
+            of the full ``## Overall PR Review Summary`` title. Used for reply
+            comments.
 
     Returns:
         Markdown string for the overall PR review summary.
@@ -270,8 +284,13 @@ def render_overall_summary(
         use_emoji=True,
     )
 
+    if is_subsequent:
+        header = _build_subsequent_header(commit_hash, commit_url)
+    else:
+        header = "## Overall PR Review Summary"
+
     lines: list[str] = [
-        "## Overall PR Review Summary",
+        header,
         "",
     ]
 
@@ -334,3 +353,115 @@ def render_overall_summary(
     lines.append(narrative if narrative else "Awaiting review...")
 
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Subsequent-comment header utilities
+# ---------------------------------------------------------------------------
+
+# Regex matching the top-level summary heading lines that should be rewritten
+_SUMMARY_HEADING_RE = re.compile(r"^## (?:File Review Summary: .+|Overall PR Review Summary)\s*$")
+
+
+def _build_subsequent_header(commit_hash: str | None, commit_url: str | None) -> str:
+    """Build the compact ``### Commit:`` header for subsequent/reply comments.
+
+    Fallback chain (FR-008):
+      - Both hash and URL → ``### Commit: [<short_hash>](<commit_url>)``
+      - Hash only (no URL) → ``### Commit: <short_hash>``
+      - No hash → ``### Commit: unknown``
+    """
+    if commit_hash and commit_url:
+        short_hash = commit_hash[:SHORT_HASH_LENGTH]
+        return f"### Commit: [{short_hash}]({commit_url})"
+    elif commit_hash:
+        short_hash = commit_hash[:SHORT_HASH_LENGTH]
+        return f"### Commit: {short_hash}"
+    else:
+        return "### Commit: unknown"
+
+
+def rewrite_header_for_subsequent(
+    content: str,
+    commit_hash: str | None,
+    commit_url: str | None,
+) -> str:
+    """Rewrite the top heading of previously rendered summary content for use as a reply.
+
+    Replaces the first line matching ``## File Review Summary: ...`` or
+    ``## Overall PR Review Summary`` with the compact ``### Commit:`` header.
+    If the first line does not match a known summary heading, the content is
+    returned unchanged.
+
+    Args:
+        content: Previously rendered summary markdown content.
+        commit_hash: Full commit hash (first 7 chars used for display).
+        commit_url: URL to the commit. When ``None``, falls back per FR-008.
+
+    Returns:
+        Content with the heading replaced (or unchanged if no match).
+    """
+    if not content:
+        return content
+
+    lines = content.split("\n", 1)
+    first_line = lines[0]
+
+    if not _SUMMARY_HEADING_RE.match(first_line):
+        return content
+
+    new_header = _build_subsequent_header(commit_hash, commit_url)
+    if len(lines) > 1:
+        return new_header + "\n" + lines[1]
+    return new_header
+
+
+def validate_comment_header(content: str, is_subsequent: bool) -> bool:
+    """Validate whether a comment's header matches the expected format for its position.
+
+    Args:
+        content: The full markdown content of the comment.
+        is_subsequent: Whether this is a subsequent (reply) comment or a top-level comment.
+
+    Returns:
+        True if the header format is valid for the given position, False otherwise.
+    """
+    if not content:
+        return False
+
+    first_line = content.split("\n", 1)[0]
+
+    if is_subsequent:
+        # Subsequent comments must start with ### Commit:
+        return first_line.startswith("### Commit:")
+    else:
+        # Top-level comments must start with ## File Review Summary: or ## Overall PR Review Summary
+        return bool(_SUMMARY_HEADING_RE.match(first_line))
+
+
+def repair_subsequent_header(content: str, review_state: ReviewState) -> str:
+    """Repair an invalid subsequent-comment header using ReviewState metadata.
+
+    If the content starts with a top-level summary heading (``## ...``), replaces
+    it with the compact ``### Commit:`` format using commit metadata from
+    ``review_state``.
+
+    Args:
+        content: The markdown content with a potentially invalid header.
+        review_state: ReviewState providing ``commitHash`` as the source of truth.
+
+    Returns:
+        Content with the header repaired (or unchanged if already valid).
+    """
+    if not content:
+        return content
+
+    first_line = content.split("\n", 1)[0]
+
+    # Only repair if the header is a known top-level summary heading
+    if not _SUMMARY_HEADING_RE.match(first_line):
+        return content
+
+    commit_hash = review_state.commitHash if review_state.commitHash else None
+    # ReviewState does not carry a commit URL; use hash-only or unknown fallback
+    return rewrite_header_for_subsequent(content, commit_hash, None)

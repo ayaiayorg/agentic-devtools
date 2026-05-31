@@ -205,6 +205,15 @@ class TestRenderOverallSummary:
         assert "Medium" not in result
         assert "Low" not in result
 
+    def test_needs_work_unknown_severity_not_counted(self):
+        """Unknown severity values are silently ignored in severity counts."""
+        state = _make_state({"src": [("app.py", "needs-work")]})
+        state.files["/src/app.py"].suggestions = [_make_suggestion("critical")]
+        result = render_overall_summary(state, _BASE_URL)
+        assert "High" not in result
+        assert "Medium" not in result
+        assert "Low" not in result
+
     def test_mixed_statuses_all_sections_present(self):
         """Test all four section types appear with mixed file statuses."""
         state = _make_state(
@@ -547,3 +556,52 @@ class TestRenderOverallSummary:
         skipped_pos = result.index("*Skipped files:*")
         narrative_pos = result.index("### Review Narrative")
         assert skipped_pos < narrative_pos
+
+
+class TestRenderOverallSummarySubsequent:
+    """Tests for render_overall_summary with is_subsequent=True."""
+
+    def test_subsequent_uses_commit_header_with_hash_and_url(self):
+        """Subsequent comment uses ### Commit: [hash](url) header."""
+        state = _make_state({"src": [("app.py", "approved")]})
+        result = render_overall_summary(
+            state, _BASE_URL, commit_hash="abc1234def", commit_url="https://pr/files", is_subsequent=True
+        )
+        assert result.startswith("### Commit: [abc1234](https://pr/files)")
+        assert "## Overall PR Review Summary" not in result
+
+    def test_subsequent_hash_only_fallback(self):
+        """Subsequent comment with hash but no URL uses ### Commit: <hash>."""
+        state = _make_state({"src": [("app.py", "approved")]})
+        result = render_overall_summary(state, _BASE_URL, commit_hash="deadbeef123", is_subsequent=True)
+        assert result.startswith("### Commit: deadbee")
+
+    def test_subsequent_no_hash_uses_unknown(self):
+        """Subsequent comment with no hash uses ### Commit: unknown."""
+        state = _make_state()
+        result = render_overall_summary(state, _BASE_URL, is_subsequent=True)
+        assert result.startswith("### Commit: unknown")
+
+    def test_subsequent_preserves_body_content(self):
+        """Body content (status, sections, narrative) is preserved."""
+        state = _make_state({"src": [("app.py", "approved")]}, narrative="All good")
+        result = render_overall_summary(
+            state, _BASE_URL, commit_hash="abc1234def", commit_url="https://x", is_subsequent=True
+        )
+        assert "*Status:* ✅ Approved" in result
+        assert "All good" in result
+        assert "### Review Narrative" in result
+
+    def test_default_is_subsequent_false(self):
+        """Default is_subsequent=False keeps ## title."""
+        state = _make_state()
+        result = render_overall_summary(state, _BASE_URL)
+        assert "## Overall PR Review Summary" in result
+
+    def test_subsequent_deterministic(self):
+        """Same inputs always produce same output (NFR-001)."""
+        state = _make_state({"src": [("app.py", "approved")]})
+        kwargs = dict(commit_hash="abc1234", commit_url="https://url", is_subsequent=True)
+        r1 = render_overall_summary(state, _BASE_URL, **kwargs)
+        r2 = render_overall_summary(state, _BASE_URL, **kwargs)
+        assert r1 == r2

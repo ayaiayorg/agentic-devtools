@@ -20,57 +20,57 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Create test directory structure with `__init__.py` files for new test modules under `tests/unit/cli/azure_devops/review_templates/` (FR-010)
+- [x] T001 Create test directory structure with `__init__.py` files for new test modules under `tests/unit/cli/azure_devops/review_templates/` (FR-010)
 
 ---
 
 ## Phase 2: Foundational — Core Rendering Changes
 
-- [ ] T002 Add `is_subsequent: bool = False` parameter to `render_file_summary()` in `agentic_devtools/cli/azure_devops/review_templates.py` (FR-003)
-- [ ] T003 Add `is_subsequent: bool = False` parameter to `render_overall_summary()` in `agentic_devtools/cli/azure_devops/review_templates.py` (FR-003)
-- [ ] T004 Implement header selection logic in `render_file_summary()`: when `is_subsequent=True`, emit `### Commit: [<short_hash>](<commit_url>)` instead of `## File Review Summary: {fileName}`, with
+- [x] T002 Add `is_subsequent: bool = False` parameter to `render_file_summary()` in `agentic_devtools/cli/azure_devops/review_templates.py` (FR-003)
+- [x] T003 Add `is_subsequent: bool = False` parameter to `render_overall_summary()` in `agentic_devtools/cli/azure_devops/review_templates.py` (FR-003)
+- [x] T004 Implement header selection logic in `render_file_summary()`: when `is_subsequent=True`, emit `### Commit: [<short_hash>](<commit_url>)` instead of `## File Review Summary: {fileName}`, with
   FR-008 fallbacks (FR-001, FR-002, FR-004)
-- [ ] T005 Implement header selection logic in `render_overall_summary()`: when `is_subsequent=True`, emit `### Commit: [<short_hash>](<commit_url>)` instead of `## Overall PR Review Summary`, with
+- [x] T005 Implement header selection logic in `render_overall_summary()`: when `is_subsequent=True`, emit `### Commit: [<short_hash>](<commit_url>)` instead of `## Overall PR Review Summary`, with
   FR-008 fallbacks (FR-001, FR-002, FR-004)
-- [ ] T006 Add `rewrite_header_for_subsequent(content: str, commit_hash: str | None, commit_url: str | None) -> str` utility to
+- [x] T006 Add `rewrite_header_for_subsequent(content: str, commit_hash: str | None, commit_url: str | None) -> str` utility to
   `agentic_devtools/cli/azure_devops/review_templates.py` implementing FR-008 fallback chain
-- [ ] T007 Add `validate_comment_header(content: str, is_subsequent: bool) -> bool` to `agentic_devtools/cli/azure_devops/review_templates.py` (FR-005, FR-006)
-- [ ] T008 Add `repair_subsequent_header(content: str, review_state: ReviewState) -> str` to `agentic_devtools/cli/azure_devops/review_templates.py` (FR-007, FR-008)
+- [x] T007 Add `validate_comment_header(content: str, is_subsequent: bool) -> bool` to `agentic_devtools/cli/azure_devops/review_templates.py` (FR-005, FR-006)
+- [x] T008 Add `repair_subsequent_header(content: str, review_state: ReviewState) -> str` to `agentic_devtools/cli/azure_devops/review_templates.py` (FR-007, FR-008)
 
 ---
 
 ## Phase 3: User Story 1 — Compact Follow-Up Headers (P1)
 
-- [ ] T009 [P] [US1] Write happy-path tests for `render_file_summary(is_subsequent=True)` with full commit hash+URL (primary success scenario), plus hash-only and missing-hash fallback variants in
+- [x] T009 [P] [US1] Write happy-path tests for `render_file_summary(is_subsequent=True)` with full commit hash+URL (primary success scenario), plus hash-only and missing-hash fallback variants in
   `tests/unit/cli/azure_devops/review_templates/test_render_file_summary.py` (FR-003, FR-010)
-- [ ] T010 [P] [US1] Write happy-path tests for `render_file_summary(is_subsequent=False)` confirming existing `## File Review Summary:` title is unchanged
+- [x] T010 [P] [US1] Write happy-path tests for `render_file_summary(is_subsequent=False)` confirming existing `## File Review Summary:` title is unchanged
   (primary backward-compat success scenario) in
   `tests/unit/cli/azure_devops/review_templates/test_render_file_summary.py` (FR-001, FR-010)
-- [ ] T011 [P] [US1] Write happy-path tests for `render_overall_summary(is_subsequent=True)` with full commit hash+URL (primary success scenario) and all fallback variants in
+- [x] T011 [P] [US1] Write happy-path tests for `render_overall_summary(is_subsequent=True)` with full commit hash+URL (primary success scenario) and all fallback variants in
   `tests/unit/cli/azure_devops/review_templates/test_render_overall_summary.py` (FR-010)
-- [ ] T012 [P] [US1] Write tests for `render_overall_summary(is_subsequent=False)` confirming existing `## Overall PR Review Summary` title is unchanged in
+- [x] T012 [P] [US1] Write tests for `render_overall_summary(is_subsequent=False)` confirming existing `## Overall PR Review Summary` title is unchanged in
   `tests/unit/cli/azure_devops/review_templates/test_render_overall_summary.py` (FR-001, FR-010)
-- [ ] T013 [US1] Write tests for `rewrite_header_for_subsequent()` in `tests/unit/cli/azure_devops/review_templates/test_rewrite_header_for_subsequent.py` covering full-link, hash-only, and unknown
+- [x] T013 [US1] Write tests for `rewrite_header_for_subsequent()` in `tests/unit/cli/azure_devops/review_templates/test_rewrite_header_for_subsequent.py` covering full-link, hash-only, and unknown
   fallbacks (FR-002, FR-010)
-- [ ] T014 [US1] Update `_demote_main_comment()` in `agentic_devtools/cli/azure_devops/review_scaffold.py` to call `rewrite_header_for_subsequent()` on the old content before posting it as a reply
+- [x] T014 [US1] Update `_demote_main_comment()` in `agentic_devtools/cli/azure_devops/review_scaffold.py` to call `rewrite_header_for_subsequent()` on the old content before posting it as a reply
   (FR-002, FR-004)
-- [ ] T015 [US1] Verify that non-header body content is preserved unchanged when `is_subsequent=True` in both render functions (FR-004) — add assertion in existing test files
-- [ ] T016 [US1] Verify NFR-001 determinism: same inputs to render functions always produce same output — add parametrized test in
+- [x] T015 [US1] Verify that non-header body content is preserved unchanged when `is_subsequent=True` in both render functions (FR-004) — add assertion in existing test files
+- [x] T016 [US1] Verify NFR-001 determinism: same inputs to render functions always produce same output — add parametrized test in
   `tests/unit/cli/azure_devops/review_templates/test_render_file_summary.py` (FR-010)
 
 ---
 
 ## Phase 4: User Story 2 — Format Validation & Repair (P2)
 
-- [ ] T017 [P] [US2] Write tests for `validate_comment_header()` in `tests/unit/cli/azure_devops/review_templates/test_validate_comment_header.py` — top-level valid, subsequent with `## <title>`
+- [x] T017 [P] [US2] Write tests for `validate_comment_header()` in `tests/unit/cli/azure_devops/review_templates/test_validate_comment_header.py` — top-level valid, subsequent with `## <title>`
   invalid, subsequent with `### Commit:` valid (FR-005, FR-006, FR-010)
-- [ ] T018 [P] [US2] Write tests for `repair_subsequent_header()` in `tests/unit/cli/azure_devops/review_templates/test_repair_subsequent_header.py` — full repair, hash-only fallback, unknown fallback
+- [x] T018 [P] [US2] Write tests for `repair_subsequent_header()` in `tests/unit/cli/azure_devops/review_templates/test_repair_subsequent_header.py` — full repair, hash-only fallback, unknown fallback
   (FR-007, FR-008, FR-010)
 - [ ] T019 [US2] Add eligibility rules in `agentic_devtools/cli/azure_devops/finalization/classification.py` to identify demoted-summary replies in file-summary/overall-summary threads
 - [ ] T020 [US2] Integrate `validate_comment_header()` and `repair_subsequent_header()` into `agentic_devtools/cli/azure_devops/finalization/convergence.py` for eligible demoted-summary reply comments
   (FR-007)
-- [ ] T021 [US2] Ensure `_compute_file_summary_content()` and `_compute_overall_summary_content()` in convergence remain `is_subsequent=False` for top-level comment expectations (FR-001)
-- [ ] T022 [US2] Write integration tests verifying repair sources values from `ReviewState` (not comment content) in
+- [x] T021 [US2] Ensure `_compute_file_summary_content()` and `_compute_overall_summary_content()` in convergence remain `is_subsequent=False` for top-level comment expectations (FR-001)
+- [x] T022 [US2] Write integration tests verifying repair sources values from `ReviewState` (not comment content) in
   `tests/unit/cli/azure_devops/review_templates/test_repair_subsequent_header.py` (FR-007, FR-010)
 
 ---
