@@ -97,6 +97,8 @@ As a maintainer relying on repair dispatch, I need suppressed Copilot review com
 Without it, actionable Copilot feedback can be omitted from repair dispatch and
 the agent may leave review findings unaddressed.
 
+**Covers**: FR-001, FR-002, FR-003, FR-004, FR-006, FR-007, FR-008
+
 **Independent Test**: Can be tested by constructing a Copilot review fixture
 that contains both REST-visible inline comments and suppressed feedback in the review body HTML,
 running repair dispatch comment generation, and verifying the output includes
@@ -117,6 +119,8 @@ silently lost.
 
 **Why this priority**: A suppressed-only review is the highest-risk failure mode because dispatch would otherwise provide no review context at all despite Copilot having findings.
 
+**Covers**: FR-001, FR-002, FR-003
+
 **Independent Test**: Can be tested with a review fixture that has no
 REST-visible inline comments and only suppressed feedback in the review body, then verifying repair
 dispatch still emits an `@copilot` comment containing each suppressed entry and
@@ -135,6 +139,8 @@ be additive so reviews without suppressed comments continue to dispatch the same
 regular inline feedback as before.
 
 **Why this priority**: Preserving existing behavior prevents the bug fix from regressing the current inline-comment dispatch path that already works for non-suppressed feedback.
+
+**Covers**: FR-005
 
 **Independent Test**: Can be tested by running the existing regular-inline-comment
 repair dispatch fixture with no suppressed feedback and verifying the generated
