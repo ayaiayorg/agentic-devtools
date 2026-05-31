@@ -137,3 +137,117 @@ class TestListReviewComments:
         provider = GitHubActionsProvider(repo="owner/repo")
         result = provider.list_review_comments(10, 20)
         assert result[0].commit_id == ""
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_merges_suppressed_comments_from_review_body(self, mock_run_safe) -> None:
+        """Suppressed comments from review body are merged into the result."""
+        rest_response = [{"id": 1, "path": "a.py", "body": "Fix A", "html_url": "http://x"}]
+        review_body = (
+            "<details>\n"
+            "<summary>Comments suppressed due to low confidence (1)</summary>\n"
+            "\n"
+            "**b.py**: Fix B\n"
+            "\n"
+            "</details>"
+        )
+        review_response = {"body": review_body}
+        mock_run_safe.side_effect = [
+            _mock_run_safe_response(rest_response),
+            _mock_run_safe_response(review_response),
+        ]
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.list_review_comments(42, 100)
+        assert len(result) == 2
+        assert result[0].path == "a.py"
+        assert result[0].is_suppressed is False
+        assert result[1].path == "b.py"
+        assert result[1].is_suppressed is True
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_review_body_fetch_failure_returns_rest_only(self, mock_run_safe) -> None:
+        """When review body fetch fails, only REST comments are returned."""
+
+        class _FailResult:
+            returncode = 1
+            stdout = ""
+            stderr = "Not Found"
+
+        rest_response = [{"id": 1, "path": "a.py", "body": "Fix A", "html_url": "http://x"}]
+        mock_run_safe.side_effect = [
+            _mock_run_safe_response(rest_response),
+            _FailResult(),
+        ]
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.list_review_comments(42, 100)
+        assert len(result) == 1
+        assert result[0].path == "a.py"
+        assert result[0].is_suppressed is False
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_no_details_block_returns_rest_only(self, mock_run_safe) -> None:
+        """When review body has no <details> block, only REST comments returned."""
+        rest_response = [{"id": 1, "path": "a.py", "body": "Fix", "html_url": "http://x"}]
+        review_response = {"body": "Normal review without suppressed comments."}
+        mock_run_safe.side_effect = [
+            _mock_run_safe_response(rest_response),
+            _mock_run_safe_response(review_response),
+        ]
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.list_review_comments(42, 100)
+        assert len(result) == 1
+        assert result[0].is_suppressed is False
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_suppressed_only_review_returns_suppressed_entries(self, mock_run_safe) -> None:
+        """When REST comments are empty but review body has suppressed, return those."""
+        review_body = (
+            "<details>\n"
+            "<summary>Comments suppressed due to low confidence (1)</summary>\n"
+            "\n"
+            "**src/foo.py**: Some feedback\n"
+            "\n"
+            "</details>"
+        )
+        mock_run_safe.side_effect = [
+            _mock_run_safe_response([]),
+            _mock_run_safe_response({"body": review_body}),
+        ]
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.list_review_comments(42, 100)
+        assert len(result) == 1
+        assert result[0].path == "src/foo.py"
+        assert result[0].is_suppressed is True
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_deduplication_removes_suppressed_duplicate(self, mock_run_safe) -> None:
+        """When the same comment exists in both REST and suppressed, suppressed is dropped."""
+        rest_response = [{"id": 1, "path": "f.py", "body": "same comment", "html_url": "http://x"}]
+        review_body = (
+            "<details>\n"
+            "<summary>Comments suppressed due to low confidence (1)</summary>\n"
+            "\n"
+            "**f.py**: same comment\n"
+            "\n"
+            "</details>"
+        )
+        mock_run_safe.side_effect = [
+            _mock_run_safe_response(rest_response),
+            _mock_run_safe_response({"body": review_body}),
+        ]
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.list_review_comments(42, 100)
+        assert len(result) == 1
+        assert result[0].is_suppressed is False
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_review_id_zero_skips_review_body_fetch(self, mock_run_safe) -> None:
+        rest_response = [{"id": 1, "path": "a.py", "body": "Fix A", "html_url": "http://x"}]
+        mock_run_safe.return_value = _mock_run_safe_response(rest_response)
+
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.list_review_comments(42, 0)
+
+        assert len(result) == 1
+        assert result[0].path == "a.py"
+        assert result[0].is_suppressed is False
+        assert mock_run_safe.call_count == 1

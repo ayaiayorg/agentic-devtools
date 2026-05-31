@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from agentic_devtools.cli.ci.models import CheckRunStatus, PRMetadata, ReviewInfo
+from agentic_devtools.cli.ci.models import CheckRunStatus, PRMetadata, ReviewCommentInfo, ReviewInfo
 from agentic_devtools.cli.ci.pipeline.snapshot import (
     _evaluate_ci_status,
     build_pr_state_snapshot,
@@ -107,8 +107,15 @@ class TestBuildPrStateSnapshot:
             ReviewInfo(id=11, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old-sha-2"),
         ]
         provider.list_review_comments.side_effect = [
-            [MagicMock(), MagicMock()],
-            [MagicMock(), MagicMock(), MagicMock()],
+            [
+                ReviewCommentInfo(id=101, path="a.py", body="a", html_url=""),
+                ReviewCommentInfo(id=102, path="a.py", body="b", html_url=""),
+            ],
+            [
+                ReviewCommentInfo(id=201, path="a.py", body="c", html_url=""),
+                ReviewCommentInfo(id=202, path="a.py", body="d", html_url=""),
+                ReviewCommentInfo(id=203, path="a.py", body="e", html_url=""),
+            ],
         ]
         provider.list_pr_issue_events.return_value = []
         provider.count_commits_above_merge_base.return_value = 1
@@ -135,7 +142,10 @@ class TestBuildPrStateSnapshot:
             ReviewInfo(id=11, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old-sha-2"),
         ]
         provider.list_review_comments.side_effect = [
-            [MagicMock(), MagicMock()],
+            [
+                ReviewCommentInfo(id=101, path="a.py", body="a", html_url=""),
+                ReviewCommentInfo(id=102, path="a.py", body="b", html_url=""),
+            ],
             RuntimeError("boom"),
         ]
         provider.list_pr_issue_events.return_value = []

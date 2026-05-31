@@ -69,6 +69,35 @@ class TestBuildSnapshot:
         assert snapshot.has_sentinel is False
         assert snapshot.diff_text.startswith("diff --git")
 
+    @patch("agentic_devtools.cli.ci.evaluator.snapshot._get_review_thread_statuses")
+    @patch("agentic_devtools.cli.ci.evaluator.snapshot.check_lock_status")
+    def test_skips_suppressed_review_comments(self, mock_lock_status, mock_thread_status):
+        provider = MagicMock()
+        provider.find_comment.return_value = None
+        provider.get_pr_metadata.return_value = PRMetadata(
+            number=42,
+            title="PR",
+            head_branch="feature",
+            head_sha="head-sha",
+            base_branch="main",
+        )
+        provider.list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="COMMENTED", commit_sha="review-sha"),
+        ]
+        provider.list_review_comments.return_value = [
+            ReviewCommentInfo(id=-1, path="src/suppressed.py", body="suppressed", html_url="", is_suppressed=True),
+            ReviewCommentInfo(id=101, path="src/main.py", body="visible", html_url="https://example.test/comment/101"),
+        ]
+        provider.list_issue_comments.return_value = []
+        provider.get_commit_range_diff.return_value = ""
+        mock_thread_status.return_value = {101: (False, False)}
+        mock_lock_status.return_value = MagicMock(is_locked=False, is_stale=False, holder="", age_seconds=0.0)
+
+        snapshot = build_snapshot(provider, 42, "owner/repo")
+
+        assert len(snapshot.threads) == 1
+        assert snapshot.threads[0].comment_id == 101
+
     @patch("agentic_devtools.cli.ci.evaluator.snapshot._get_review_thread_statuses", return_value={})
     @patch("agentic_devtools.cli.ci.evaluator.snapshot.check_lock_status")
     def test_handles_missing_optional_sources(self, mock_lock_status, _mock_thread_status):
