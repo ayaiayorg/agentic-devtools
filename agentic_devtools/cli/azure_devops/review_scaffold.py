@@ -37,7 +37,7 @@ from .review_state import (
     normalize_file_path,
     save_review_state,
 )
-from .review_templates import render_file_summary, render_overall_summary
+from .review_templates import render_file_summary, render_overall_summary, rewrite_header_for_subsequent
 from .suggestion_verification import (
     categorize_all_suggestions,
     fetch_threads_lookup,
@@ -283,12 +283,16 @@ def _demote_main_comment(
     thread_id: int,
     comment_id: int,
     new_main_content: str,
+    commit_hash: str | None = None,
+    commit_url: str | None = None,
 ) -> int:
     """Read current main comment, post it as reply, PATCH main with new content.
 
     Steps:
       1. GET the thread to read current main comment content.
       2. POST current content as a reply (preserving it as history).
+         The reply header is rewritten from ``## ... Summary`` to
+         ``### Commit: ...`` using ``rewrite_header_for_subsequent()``.
       3. PATCH the main comment with ``new_main_content``.
 
     Args:
@@ -298,6 +302,9 @@ def _demote_main_comment(
         thread_id: Thread whose main comment is being demoted.
         comment_id: The main comment ID (usually 1).
         new_main_content: New content for the main comment.
+        commit_hash: Commit hash for the reply header. When provided,
+            the demoted reply uses a compact commit-scoped heading.
+        commit_url: Commit URL for the reply header link.
 
     Returns:
         The comment ID of the newly-created reply (the demoted content).
@@ -310,8 +317,9 @@ def _demote_main_comment(
             old_content = comment.get("content", "")
             break
 
-    # Step 2: Post old content as a reply
-    reply_id = _post_reply(requests_module, headers, threads_url, thread_id, old_content)
+    # Step 2: Post old content as a reply (with header rewritten for subsequent format)
+    reply_content = rewrite_header_for_subsequent(old_content, commit_hash, commit_url)
+    reply_id = _post_reply(requests_module, headers, threads_url, thread_id, reply_content)
 
     # Step 3: PATCH main comment with new content
     _patch_comment_content(requests_module, headers, threads_url, thread_id, comment_id, new_main_content)
@@ -1673,6 +1681,12 @@ def _incremental_rescaffold(
         f"{n_new} new, {n_mod} modified, {n_del} deleted, {n_unch} unchanged files."
     )
 
+    commit_url_pr = (
+        build_commit_pr_url(config.organization, config.project, repo_name, pull_request_id, latest_iteration_id)
+        if commit_hash and latest_iteration_id
+        else None
+    )
+
     # -------------------------------------------------------------------
     # Suggestion verification gate
     # -------------------------------------------------------------------
@@ -1719,6 +1733,8 @@ def _incremental_rescaffold(
                                 overall.threadId,
                                 overall.commentId,
                                 abort_summary,
+                                commit_hash=commit_hash,
+                                commit_url=commit_url_pr,
                             )
                         except Exception as exc:
                             print(f"Warning: Could not post abort summary: {exc}", file=sys.stderr)
@@ -1788,11 +1804,6 @@ def _incremental_rescaffold(
         return None
 
     # Process new files
-    commit_url_pr = (
-        build_commit_pr_url(config.organization, config.project, repo_name, pull_request_id, latest_iteration_id)
-        if commit_hash and latest_iteration_id
-        else None
-    )
     for file_path in changes.new_files:
         folder = _get_folder_for_path(file_path)
         file_name = _get_file_name(file_path)
@@ -1868,6 +1879,8 @@ def _incremental_rescaffold(
                         commit_hash=commit_hash,
                         commit_url=commit_url_file,
                     ),
+                    commit_hash=commit_hash,
+                    commit_url=commit_url_file,
                 )
             except Exception as exc:
                 print(f"Warning: Could not demote comment for {file_path}: {exc}", file=sys.stderr)
@@ -1894,6 +1907,7 @@ def _incremental_rescaffold(
                     fe.threadId,
                     fe.commentId,
                     removed_msg,
+                    commit_hash=commit_hash,
                 )
             except Exception as exc:
                 print(f"Warning: Could not demote comment for deleted {file_path}: {exc}", file=sys.stderr)
@@ -1934,6 +1948,8 @@ def _incremental_rescaffold(
                     overall.threadId,
                     overall.commentId,
                     new_summary,
+                    commit_hash=commit_hash,
+                    commit_url=commit_url_pr,
                 )
             except Exception as exc:
                 print(f"Warning: Could not update overall summary: {exc}", file=sys.stderr)
@@ -1952,6 +1968,8 @@ def _incremental_rescaffold(
                     overall.threadId,
                     overall.commentId,
                     new_summary,
+                    commit_hash=commit_hash,
+                    commit_url=commit_url_pr,
                 )
             except Exception as exc:
                 print(f"Warning: Could not update overall summary: {exc}", file=sys.stderr)

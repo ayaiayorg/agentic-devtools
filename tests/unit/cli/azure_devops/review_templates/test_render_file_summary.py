@@ -1,5 +1,7 @@
 """Tests for render_file_summary function."""
 
+from typing import Any
+
 from agentic_devtools.cli.azure_devops.review_state import (
     ConsolidationStatus,
     FileEntry,
@@ -13,14 +15,14 @@ from agentic_devtools.cli.azure_devops.review_templates import render_file_summa
 _BASE_URL = "https://dev.azure.com/org/proj/_git/repo/pullRequest/42"
 
 
-def _make_file_entry(**kwargs) -> FileEntry:
-    defaults = dict(threadId=1, commentId=2, folder="src", fileName="app.py")
+def _make_file_entry(**kwargs: Any) -> FileEntry:
+    defaults: dict[str, Any] = dict(threadId=1, commentId=2, folder="src", fileName="app.py")
     defaults.update(kwargs)
     return FileEntry(**defaults)
 
 
-def _make_suggestion(**kwargs) -> SuggestionEntry:
-    defaults = dict(
+def _make_suggestion(**kwargs: Any) -> SuggestionEntry:
+    defaults: dict[str, Any] = dict(
         threadId=10,
         commentId=20,
         line=1,
@@ -290,3 +292,76 @@ class TestRenderFileSummary:
         )
         result = render_file_summary(fe, [], _BASE_URL, boss_model="Boss Model")
         assert "*🔃 Consolidation underway by Boss Model*" in result
+
+
+class TestRenderFileSummarySubsequent:
+    """Tests for render_file_summary with is_subsequent=True."""
+
+    def test_subsequent_uses_commit_header_with_hash_and_url(self):
+        """Subsequent comment uses ### Commit: [hash](url) header."""
+        fe = _make_file_entry(status="approved", summary="LGTM")
+        result = render_file_summary(
+            fe, [], _BASE_URL, commit_hash="abc1234def", commit_url="https://commit/url", is_subsequent=True
+        )
+        assert result.startswith("### Commit: [abc1234](https://commit/url)")
+        assert "## File Review Summary:" not in result
+
+    def test_subsequent_hash_only_fallback(self):
+        """Subsequent comment with hash but no URL uses ### Commit: <hash>."""
+        fe = _make_file_entry(status="approved", summary="OK")
+        result = render_file_summary(fe, [], _BASE_URL, commit_hash="deadbeef123", is_subsequent=True)
+        assert result.startswith("### Commit: deadbee")
+        assert "## File Review Summary:" not in result
+
+    def test_subsequent_no_hash_uses_unknown(self):
+        """Subsequent comment with no hash uses ### Commit: unknown."""
+        fe = _make_file_entry(status="unreviewed")
+        result = render_file_summary(fe, [], _BASE_URL, is_subsequent=True)
+        assert result.startswith("### Commit: unknown")
+
+    def test_subsequent_preserves_body_content(self):
+        """Body content (status, summary, suggestions) is preserved."""
+        fe = _make_file_entry(status="approved", summary="Clean code")
+        result = render_file_summary(
+            fe, [], _BASE_URL, commit_hash="abc1234def", commit_url="https://x", is_subsequent=True
+        )
+        assert "*Status:* ✅ Approved" in result
+        assert "Clean code" in result
+        assert "### Summary of Changes" in result
+
+    def test_default_is_subsequent_false(self):
+        """Default is_subsequent=False keeps ## title."""
+        fe = _make_file_entry(status="unreviewed")
+        result = render_file_summary(fe, [], _BASE_URL)
+        assert "## File Review Summary: app.py" in result
+
+    def test_subsequent_deterministic(self):
+        """Same inputs always produce same output (NFR-001)."""
+        fe = _make_file_entry(status="approved", summary="Good")
+        kwargs = dict(commit_hash="abc1234", commit_url="https://url", is_subsequent=True)
+        r1 = render_file_summary(fe, [], _BASE_URL, **kwargs)
+        r2 = render_file_summary(fe, [], _BASE_URL, **kwargs)
+        assert r1 == r2
+
+
+class TestRenderFileSummaryEdgeCases:
+    """Edge-case tests to ensure full branch coverage."""
+
+    def test_unknown_status_renders_without_body_section(self):
+        """Unknown status value skips all status-specific branches."""
+        fe = _make_file_entry(status="unknown-custom-status")
+        result = render_file_summary(fe, [], _BASE_URL)
+        assert "## File Review Summary: app.py" in result
+        assert "Awaiting review..." not in result
+        assert "Review in progress..." not in result
+        assert "- None" not in result
+
+    def test_needs_work_unknown_severity_ignored_in_sections(self):
+        """Suggestions with an unknown severity are silently dropped from sections."""
+        fe = _make_file_entry(status="needs-work")
+        s = _make_suggestion(severity="critical", linkText="critical issue")
+        result = render_file_summary(fe, [s], _BASE_URL)
+        assert "critical issue" not in result
+        assert "Must Fix" not in result
+        assert "Should Fix" not in result
+        assert "Could Fix" not in result
