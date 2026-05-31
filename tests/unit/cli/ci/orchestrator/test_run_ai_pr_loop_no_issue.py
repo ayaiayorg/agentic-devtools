@@ -29,7 +29,7 @@ class TestRunAIPRLoopNoIssue:
         )
         provider.list_pr_files.return_value = ["src/cleanup.py"]
         provider.list_check_runs.return_value = [
-            CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="success")
+            CheckRunStatus(id=1, name="Run Targeted Checks", status="completed", conclusion="success")
         ]
         provider.list_reviews.return_value = [
             ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="APPROVED", body="lgtm")
