@@ -13,7 +13,7 @@ import os
 import re
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from agentic_devtools.cli.ci.exceptions import MalformedEventError
 from agentic_devtools.cli.ci.models import (
@@ -29,15 +29,41 @@ from agentic_devtools.cli.ci.models import (
     VerificationVerdict,
 )
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
+from agentic_devtools.cli.ci.resolution.engine import TieredResolutionEngine
+from agentic_devtools.cli.ci.resolution.github_adapter import (
+    GitHubResolutionContext,
+    GitHubReviewThread,
+    GitHubThreadComment,
+)
+from agentic_devtools.cli.ci.resolution.models import ResolutionVerdict, ThreadResolutionState, TierResult
+from agentic_devtools.cli.ci.resolution.protocols import EvaluationTier, ResolutionContext, ReviewThread
+from agentic_devtools.cli.ci.resolution.reply_formatter import ReplyFormatter
+from agentic_devtools.cli.ci.resolution.state_persistence import (
+    clear_resolution_state,
+    increment_iteration,
+    is_tentative_expired,
+    load_resolution_state,
+    mark_abandoned,
+    save_resolution_state,
+)
+from agentic_devtools.cli.ci.resolution.tiers.automation_markers import AutomationMarkerTier
+from agentic_devtools.cli.ci.resolution.tiers.outdated import OutdatedTier
+from agentic_devtools.cli.ci.resolution.tiers.sdk_evaluation import SdkEvaluationTier
 from agentic_devtools.cli.ci.retry import RetryableError, retry_with_backoff
 from agentic_devtools.cli.github.request_copilot_review import request_copilot_review as _request_copilot_review
 from agentic_devtools.cli.github.resolve_review_threads import resolve_review_threads as _resolve_review_threads
 from agentic_devtools.cli.subprocess_utils import run_safe
+from agentic_devtools.state import get_state_dir
 
 logger = logging.getLogger(__name__)
 
 _ADDRESSED_REPLY_BODY = "Addressed on the updated PR branch."
 _LEGACY_ADDRESSED_REPLY_PREFIXES = ("addressed by fix commit",)
+_RESOLUTION_TIER_MARKER_PREFIX = "<!-- agdt:resolution-tier:"
+_RESOLUTION_TIER_ABANDONED_MARKER = "<!-- agdt:resolution-tier:abandoned -->"
+_RESOLUTION_THREAD_RESOLVED_TEXT = "**thread resolved**"
+_RESOLUTION_THREAD_LEFT_OPEN_TEXT = "**thread left open**"
+_THREAD_RESOLUTION_STATE_DIRNAME = "thread-resolution"
 _REVIEW_THREADS_QUERY = """
 query($owner: String!, $repoName: String!, $prNumber: Int!, $threadsCursor: String) {
   repository(owner: $owner, name: $repoName) {
@@ -45,9 +71,20 @@ query($owner: String!, $repoName: String!, $prNumber: Int!, $threadsCursor: Stri
       reviewThreads(first: 100, after: $threadsCursor) {
         pageInfo { hasNextPage endCursor }
         nodes {
+          id
           isResolved
+          isOutdated
+          path
+          line
+          startLine
           comments(first: 100) {
-            nodes { databaseId }
+            nodes {
+              databaseId
+              body
+              createdAt
+              author { login }
+              commit { oid }
+            }
           }
         }
       }
@@ -304,6 +341,8 @@ def _parse_paginated_json(raw: str) -> Any:
         for r in results:
             if isinstance(r, list):
                 merged.extend(r)
+            else:  # pragma: no cover
+                pass
         return merged
 
     # For objects (e.g., check_runs wrapped response), merge array values.
@@ -348,6 +387,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 current repository context from ``gh``.
         """
         self._repo = repo
+        self._thread_signals_cache: dict[int, dict[int, tuple[bool | None, str]]] = {}
 
     def _repo_api(self, path: str) -> str:
         """Build a repository-scoped API path."""
@@ -587,7 +627,7 @@ class GitHubActionsProvider(CIPlatformProvider):
     @retry_with_backoff()
     def list_review_thread_states(self, pr_number: int) -> dict[int, tuple[bool, bool]]:
         """Return review comment -> (is_resolved, has_reply) mapping via GraphQL threads."""
-        owner, repo_name = self._repo.split("/", maxsplit=1)
+        owner, repo_name = self._resolve_repo().split("/", maxsplit=1)
         cursor: str | None = None
         status_map: dict[int, tuple[bool, bool]] = {}
 
@@ -622,6 +662,69 @@ class GitHubActionsProvider(CIPlatformProvider):
                 break
 
         return status_map
+
+    @retry_with_backoff()
+    def _fetch_thread_signals_by_comment_id(self, pr_number: int) -> dict[int, tuple[bool | None, str]]:
+        """Return thread-level signals keyed by review comment databaseId.
+
+        Maps each review comment ID to:
+        - thread isOutdated status
+        - latest thread comment body (used by automation-marker tier)
+        """
+        cached = self._thread_signals_cache.get(pr_number)
+        if cached is not None:
+            return cached
+
+        owner, repo_name = self._resolve_repo().split("/", maxsplit=1)
+        cursor: str | None = None
+        result: dict[int, tuple[bool | None, str]] = {}
+
+        while True:
+            variables: dict[str, Any] = {
+                "owner": owner,
+                "repoName": repo_name,
+                "prNumber": pr_number,
+            }
+            if cursor is not None:
+                variables["threadsCursor"] = cursor
+            response = _gh_api(
+                "graphql",
+                method="POST",
+                body={"query": _REVIEW_THREADS_QUERY, "variables": variables},
+            )
+            data = json.loads(response)
+            thread_data = data["data"]["repository"]["pullRequest"]["reviewThreads"]
+            for thread in thread_data.get("nodes", []):
+                is_outdated: bool | None = thread.get("isOutdated")
+                comment_nodes = thread.get("comments", {}).get("nodes", [])
+                latest_comment_body = ""
+                if comment_nodes:
+                    latest_comment_body = str(comment_nodes[-1].get("body") or "")
+                for node in comment_nodes:
+                    comment_id = node.get("databaseId")
+                    if isinstance(comment_id, int):
+                        result[comment_id] = (is_outdated, latest_comment_body)
+
+            page_info = thread_data.get("pageInfo", {})
+            if page_info.get("hasNextPage") is True and page_info.get("endCursor"):
+                cursor = page_info["endCursor"]
+            else:
+                break
+
+        self._thread_signals_cache[pr_number] = result
+        return result
+
+    @retry_with_backoff()
+    def _fetch_outdated_by_comment_id(self, pr_number: int) -> dict[int, bool | None]:
+        """Return isOutdated status per comment databaseId via GraphQL thread query."""
+        signals = self._fetch_thread_signals_by_comment_id(pr_number)
+        return {comment_id: is_outdated for comment_id, (is_outdated, _latest_body) in signals.items()}
+
+    @retry_with_backoff()
+    def _fetch_latest_thread_comment_body_by_comment_id(self, pr_number: int) -> dict[int, str]:
+        """Return the latest thread comment body per review comment databaseId."""
+        signals = self._fetch_thread_signals_by_comment_id(pr_number)
+        return {comment_id: latest_body for comment_id, (_is_outdated, latest_body) in signals.items()}
 
     @retry_with_backoff()
     def approve_pr(self, pr_number: int, head_sha: str, body: str) -> bool:
@@ -772,6 +875,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 line=c.get("line"),
                 position=c.get("position"),
                 diff_hunk=c.get("diff_hunk", ""),
+                commit_id=c.get("commit_id", ""),
             )
             for c in comments
         ]
@@ -869,17 +973,22 @@ class GitHubActionsProvider(CIPlatformProvider):
         return [int(c["id"]) for c in comments if c.get("id")]
 
     @retry_with_backoff()
-    def _reply_to_review_comment(self, pr_number: int, comment_id: int) -> None:
+    def _reply_to_review_comment(self, pr_number: int, comment_id: int, body: str = _ADDRESSED_REPLY_BODY) -> None:
         """Post addressed reply to a single review comment."""
         _gh_api(
             self._repo_api(f"/pulls/{pr_number}/comments/{comment_id}/replies"),
             method="POST",
-            body={"body": _ADDRESSED_REPLY_BODY},
+            body={"body": body},
         )
 
     @retry_with_backoff()
     def _list_addressed_reply_parent_comment_ids(self, pr_number: int) -> set[int]:
-        """Return parent comment IDs that already have an addressed reply."""
+        """Return parent comment IDs that already have an addressed reply.
+
+        Structured resolution-tier replies are considered addressed only when they
+        indicate a resolved outcome, so tentative/abandoned lifecycle replies do
+        not suppress the final resolved audit reply.
+        """
         response = _gh_api(
             self._repo_api(f"/pulls/{pr_number}/comments"),
             paginate=True,
@@ -892,7 +1001,52 @@ class GitHubActionsProvider(CIPlatformProvider):
             and (
                 str(comment.get("body", "")).strip().lower() == _ADDRESSED_REPLY_BODY.lower()
                 or str(comment.get("body", "")).strip().lower().startswith(_LEGACY_ADDRESSED_REPLY_PREFIXES)
+                or (
+                    _RESOLUTION_TIER_MARKER_PREFIX in str(comment.get("body", ""))
+                    and _RESOLUTION_THREAD_RESOLVED_TEXT in str(comment.get("body", "")).strip().lower()
+                )
             )
+        }
+
+    @retry_with_backoff()
+    def _list_abandoned_reply_parent_comment_ids(self, pr_number: int) -> set[int]:
+        """Return parent comment IDs that already have an abandoned-resolution reply.
+
+        Unlike :meth:`_list_addressed_reply_parent_comment_ids`, this method only
+        matches the specific abandoned marker so that an earlier tentative-resolution
+        reply does not suppress the abandoned notification on TTL expiry.
+        """
+        response = _gh_api(
+            self._repo_api(f"/pulls/{pr_number}/comments"),
+            paginate=True,
+        )
+        comments = _parse_paginated_json(response)
+        return {
+            int(comment["in_reply_to_id"])
+            for comment in comments
+            if comment.get("in_reply_to_id") and _RESOLUTION_TIER_ABANDONED_MARKER in str(comment.get("body", ""))
+        }
+
+    @retry_with_backoff()
+    def _list_unresolve_reply_parent_comment_ids(self, pr_number: int) -> set[int]:
+        """Return parent comment IDs that already have a 'Thread left open' reply.
+
+        Used to prevent posting duplicate UNRESOLVE audit replies on the same
+        thread across repeated AI PR Loop runs.  Only replies that contain both
+        the resolution-tier HTML marker and the "Thread left open" status text
+        are matched; tentative or resolved tier replies are excluded.
+        """
+        response = _gh_api(
+            self._repo_api(f"/pulls/{pr_number}/comments"),
+            paginate=True,
+        )
+        comments = _parse_paginated_json(response)
+        return {
+            int(comment["in_reply_to_id"])
+            for comment in comments
+            if comment.get("in_reply_to_id")
+            and _RESOLUTION_TIER_MARKER_PREFIX in str(comment.get("body", ""))
+            and _RESOLUTION_THREAD_LEFT_OPEN_TEXT in str(comment.get("body", "")).strip().lower()
         }
 
     def _has_existing_addressed_reply(
@@ -908,6 +1062,18 @@ class GitHubActionsProvider(CIPlatformProvider):
             else self._list_addressed_reply_parent_comment_ids(pr_number)
         )
         return comment_id in parent_comment_ids
+
+    def _resolution_state_dir(self) -> Path:
+        """Return the state directory for tentative thread lifecycle tracking."""
+        return get_state_dir() / _THREAD_RESOLUTION_STATE_DIRNAME
+
+    @staticmethod
+    def _model_id_for_tier_result(result: TierResult) -> str | None:
+        if result.tier_name == "sdk_evaluation":
+            return os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
+        if result.tier_name == "sdk_evaluation_fallback":
+            return os.environ.get("COPILOT_FALLBACK_MODEL", "claude-sonnet-4.6")
+        return None
 
     def _build_squash_commit_message(self, head_sha: str, commit_subjects: list[str]) -> str:
         """Build a deterministic squash commit message."""
@@ -1050,6 +1216,8 @@ class GitHubActionsProvider(CIPlatformProvider):
                         msg = getattr(getattr(event, "data", None), "message", None) or str(getattr(event, "data", ""))
                         error_messages.append(f"{event_type}: {msg}")
                         done.set()
+                    else:  # pragma: no cover
+                        pass
 
                 session.on(on_event)
                 await session.send(prompt)
@@ -1072,6 +1240,8 @@ class GitHubActionsProvider(CIPlatformProvider):
                         await session.disconnect()
                     except Exception:  # pragma: no cover - defensive cleanup
                         pass
+                else:  # pragma: no cover
+                    pass
                 if client is not None:
                     try:
                         await client.stop()
@@ -1156,6 +1326,8 @@ class GitHubActionsProvider(CIPlatformProvider):
                         msg = getattr(getattr(event, "data", None), "message", None) or str(getattr(event, "data", ""))
                         error_messages.append(f"{event_type}: {msg}")
                         done.set()
+                    else:  # pragma: no cover
+                        pass
 
                 session.on(on_event)
                 await session.send(prompt)
@@ -1187,6 +1359,8 @@ class GitHubActionsProvider(CIPlatformProvider):
                         await session.disconnect()
                     except Exception:  # pragma: no cover - defensive cleanup
                         pass
+                else:  # pragma: no cover
+                    pass
                 if client is not None:
                     try:
                         await client.stop()
@@ -1378,6 +1552,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             FinalizationResult with details about what was resolved/skipped.
         """
         repo = self._resolve_repo()
+        self._thread_signals_cache.pop(pr_number, None)
 
         # --- Commit Guard (FR-001/002/014) ---
         reviews = self.list_reviews(pr_number)
@@ -1419,6 +1594,13 @@ class GitHubActionsProvider(CIPlatformProvider):
         # duplicate replies while still requiring SDK verification before
         # resolving their threads.
         addressed_reply_parent_comment_ids = self._list_addressed_reply_parent_comment_ids(pr_number)
+        # Narrower check for abandoned replies: only suppress the abandoned notification
+        # if an abandoned-specific marker already exists. An earlier tentative reply with
+        # a different resolution-tier marker must NOT suppress the TTL-expiry notification.
+        abandoned_reply_parent_comment_ids = self._list_abandoned_reply_parent_comment_ids(pr_number)
+        # Suppress duplicate "Thread left open" audit replies for threads that were
+        # already evaluated as UNRESOLVE in a prior AI PR Loop run.
+        unresolve_reply_parent_comment_ids = self._list_unresolve_reply_parent_comment_ids(pr_number)
 
         comments_for_sdk: list[tuple[ReviewCommentInfo, str]] = []
         for comment in comments:
@@ -1436,20 +1618,117 @@ class GitHubActionsProvider(CIPlatformProvider):
             comment_context = self._build_comment_verification_context(comment, diff_context)
             comments_for_sdk.append((comment, comment_context))
 
+        state_dir: Path | None = None
+        reply_formatter = ReplyFormatter()
         if comments_for_sdk:
-            sdk_verdicts = self._verify_comments_via_sdk(
-                [(comment.id, comment.body, context) for comment, context in comments_for_sdk]
+            tier_results_by_comment_id: dict[int, TierResult] = {}
+            try:
+                is_outdated_by_id = self._fetch_outdated_by_comment_id(pr_number)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to fetch thread outdated status for PR #%d: %s — is_outdated will be None",
+                    pr_number,
+                    exc,
+                )
+                is_outdated_by_id = {}
+            try:
+                latest_thread_comment_body_by_id = self._fetch_latest_thread_comment_body_by_comment_id(pr_number)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to fetch latest thread comment body for PR #%d: %s",
+                    pr_number,
+                    exc,
+                )
+                latest_thread_comment_body_by_id = {}
+            sdk_verdicts = self._verify_comments_via_tiered_engine(
+                comments_for_sdk,
+                head_sha=head_sha,
+                is_outdated_by_id=is_outdated_by_id,
+                latest_thread_comment_body_by_id=latest_thread_comment_body_by_id,
+                tier_results_out=tier_results_by_comment_id,
             )
             for comment, _context in comments_for_sdk:
                 verdict = sdk_verdicts.get(comment.id, VerificationVerdict.COMMENT_UNRESOLVE)
+                tier_result = tier_results_by_comment_id.get(comment.id)
+                if tier_result is not None:
+                    if state_dir is None:
+                        state_dir = self._resolution_state_dir()
+                    thread_id = str(comment.id)
+                    if tier_result.verdict == ResolutionVerdict.TENTATIVE:
+                        state = load_resolution_state(thread_id, state_dir)
+                        if state is not None and state.verdict == ResolutionVerdict.ABANDONED:
+                            # Thread was previously abandoned; do not re-enter the lifecycle.
+                            # Retry posting the abandoned reply if it was not posted previously.
+                            if comment.id not in abandoned_reply_parent_comment_ids:
+                                self._reply_to_review_comment(
+                                    pr_number,
+                                    comment.id,
+                                    body=reply_formatter.format_abandoned_reply(),
+                                )
+                        else:
+                            is_new_state = state is None
+                            if state is None:
+                                state = ThreadResolutionState(
+                                    thread_id=thread_id,
+                                    verdict=ResolutionVerdict.TENTATIVE,
+                                    tier_name=tier_result.tier_name,
+                                    confidence=tier_result.confidence,
+                                )
+                                save_resolution_state(state, state_dir)
+                            else:
+                                state.verdict = ResolutionVerdict.TENTATIVE
+                                state.tier_name = tier_result.tier_name
+                                state.confidence = tier_result.confidence
+                                state = increment_iteration(state, state_dir)
+                            if is_tentative_expired(state):
+                                mark_abandoned(thread_id, state_dir)
+                                if comment.id not in abandoned_reply_parent_comment_ids:
+                                    self._reply_to_review_comment(
+                                        pr_number,
+                                        comment.id,
+                                        body=reply_formatter.format_abandoned_reply(),
+                                    )
+                            elif is_new_state and not self._has_existing_addressed_reply(
+                                pr_number, comment.id, addressed_reply_parent_comment_ids
+                            ):
+                                self._reply_to_review_comment(
+                                    pr_number,
+                                    comment.id,
+                                    body=reply_formatter.build_full_reply(
+                                        tier_result,
+                                        model_id=self._model_id_for_tier_result(tier_result),
+                                    ),
+                                )
+                    else:
+                        clear_resolution_state(thread_id, state_dir)
                 if verdict == VerificationVerdict.COMMENT_RESOLVE:
                     resolved_ids.append(comment.id)
                     if not self._has_existing_addressed_reply(
                         pr_number, comment.id, addressed_reply_parent_comment_ids
                     ):
-                        self._reply_to_review_comment(pr_number, comment.id)
+                        reply_body = _ADDRESSED_REPLY_BODY
+                        if tier_result is not None:
+                            reply_body = reply_formatter.build_full_reply(
+                                tier_result,
+                                model_id=self._model_id_for_tier_result(tier_result),
+                            )
+                        self._reply_to_review_comment(pr_number, comment.id, body=reply_body)
                     resolutions.append(CommentResolution(comment_id=comment.id, verdict=verdict))
                 else:
+                    if (
+                        verdict == VerificationVerdict.COMMENT_UNRESOLVE
+                        and tier_result is not None
+                        and tier_result.verdict == ResolutionVerdict.UNRESOLVE
+                        and comment.id not in unresolve_reply_parent_comment_ids
+                    ):
+                        self._reply_to_review_comment(
+                            pr_number,
+                            comment.id,
+                            body=reply_formatter.build_full_reply(
+                                tier_result,
+                                model_id=self._model_id_for_tier_result(tier_result),
+                            ),
+                        )
                     resolutions.append(CommentResolution(comment_id=comment.id, verdict=verdict))
 
         # Resolve threads only for comments that were verified as addressed
@@ -1598,26 +1877,130 @@ class GitHubActionsProvider(CIPlatformProvider):
             "- COMMENT_UNRESOLVE — if the diff does NOT address the review comment\n"
         )
 
+    def _verify_comments_via_tiered_engine(
+        self,
+        comments: list[tuple[ReviewCommentInfo, str]],
+        *,
+        head_sha: str,
+        is_outdated_by_id: dict[int, bool | None] | None = None,
+        latest_thread_comment_body_by_id: dict[int, str] | None = None,
+        tier_results_out: dict[int, TierResult] | None = None,
+    ) -> dict[int, VerificationVerdict]:
+        """Verify comments through the tiered resolution engine."""
+
+        from agentic_devtools.cli.ci.resolution.tiers.diff_heuristic import DiffHeuristicTier
+
+        engine = TieredResolutionEngine(
+            cast(
+                list[EvaluationTier],
+                [
+                    OutdatedTier(),
+                    AutomationMarkerTier(),
+                    DiffHeuristicTier(),
+                    SdkEvaluationTier(
+                        sdk_caller=self._run_prompt_via_sdk,
+                        fallback_caller=self._run_prompt_via_sdk_fallback,
+                    ),
+                ],
+            )
+        )
+
+        verdicts: dict[int, VerificationVerdict] = {}
+        for comment, diff_context in comments:
+            # FR-003 guard: if the comment was placed on the current HEAD commit,
+            # there are no newer changes to evaluate against — skip tier evaluation.
+            if comment.commit_id and comment.commit_id == head_sha:
+                verdicts[comment.id] = VerificationVerdict.COMMENT_UNRESOLVE
+                continue
+            latest_thread_comment_body = (
+                latest_thread_comment_body_by_id.get(comment.id)
+                if latest_thread_comment_body_by_id is not None
+                else None
+            )
+            thread_comments = [
+                GitHubThreadComment(
+                    body=comment.body,
+                    created_at="",
+                    author_login=None,
+                    database_id=comment.id,
+                )
+            ]
+            if latest_thread_comment_body and latest_thread_comment_body != comment.body:
+                thread_comments.append(
+                    GitHubThreadComment(
+                        body=latest_thread_comment_body,
+                        created_at="",
+                        author_login=None,
+                        database_id=None,
+                    )
+                )
+            thread = GitHubReviewThread(
+                thread_id=str(comment.id),
+                file_path=comment.path or None,
+                start_line=comment.start_line or comment.line,
+                end_line=comment.end_line or comment.line,
+                is_outdated=is_outdated_by_id.get(comment.id) if is_outdated_by_id is not None else None,
+                comments=thread_comments,
+                originating_review_commit_oid=comment.commit_id,
+            )
+            context = GitHubResolutionContext(diff_text=diff_context, head_commit_oid=head_sha)
+            result = engine.evaluate_thread(cast(ReviewThread, thread), cast(ResolutionContext, context))
+            if tier_results_out is not None:
+                tier_results_out[comment.id] = result
+            if result.verdict == ResolutionVerdict.RESOLVE:
+                verdicts[comment.id] = VerificationVerdict.COMMENT_RESOLVE
+            elif result.verdict == ResolutionVerdict.UNRESOLVE:
+                verdicts[comment.id] = VerificationVerdict.COMMENT_UNRESOLVE
+            elif result.verdict == ResolutionVerdict.TENTATIVE:
+                verdicts[comment.id] = VerificationVerdict.COMMENT_UNRESOLVE
+            else:  # pragma: no cover - exhaustive guard for future enum extension
+                raise ValueError(f"Unsupported resolution verdict: {result.verdict}")
+        return verdicts
+
     def _verify_comments_via_sdk(  # pragma: no cover - optional runtime SDK integration
         self,
-        comments: list[tuple[int, str, str]],
+        comments: list[tuple[int, str, str]] | list[tuple[ReviewCommentInfo, str]],
         timeout_seconds: int = 60,
+        *,
+        head_sha: str | None = None,
     ) -> dict[int, VerificationVerdict]:
         """Verify multiple comments in one SDK session to reduce startup overhead."""
         if not comments:
             return {}
 
+        normalized_comments: list[tuple[ReviewCommentInfo, str]] = []
+        for item in comments:
+            if isinstance(item[0], ReviewCommentInfo):
+                comment, diff_context = item
+                normalized_comments.append((comment, diff_context))
+            else:
+                comment_id, comment_body, diff_context = item
+                normalized_comments.append(
+                    (
+                        ReviewCommentInfo(
+                            id=comment_id,
+                            path="",
+                            body=comment_body,
+                            html_url="",
+                        ),
+                        diff_context,
+                    )
+                )
+
+        if head_sha:
+            return self._verify_comments_via_tiered_engine(normalized_comments, head_sha=head_sha)
+
         token = os.environ.get("COPILOT_GITHUB_TOKEN", "").strip()
         if not token:
             logger.warning("COPILOT_GITHUB_TOKEN not set — defaulting to COMMENT_UNRESOLVE (fail-safe)")
-            return {comment_id: VerificationVerdict.COMMENT_UNRESOLVE for comment_id, _body, _ctx in comments}
+            return {comment.id: VerificationVerdict.COMMENT_UNRESOLVE for comment, _diff_context in normalized_comments}
 
         try:
             from copilot import CopilotClient, SubprocessConfig
             from copilot.session import PermissionHandler
         except Exception as exc:
             logger.warning("Copilot SDK unavailable for comment verification: %s", exc)
-            return {comment_id: VerificationVerdict.COMMENT_UNRESOLVE for comment_id, _body, _ctx in comments}
+            return {comment.id: VerificationVerdict.COMMENT_UNRESOLVE for comment, _diff_context in normalized_comments}
 
         model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
 
@@ -1658,7 +2041,9 @@ class GitHubActionsProvider(CIPlatformProvider):
                 session.on(on_event)
 
                 verdicts: dict[int, VerificationVerdict] = {}
-                for comment_id, comment_body, diff_context in comments:
+                for comment, diff_context in normalized_comments:
+                    comment_id = comment.id
+                    comment_body = comment.body
                     if not diff_context:
                         logger.warning("Empty diff context — defaulting to COMMENT_UNRESOLVE")
                         verdicts[comment_id] = VerificationVerdict.COMMENT_UNRESOLVE
@@ -1697,50 +2082,49 @@ class GitHubActionsProvider(CIPlatformProvider):
                     except Exception:
                         pass
 
-        total_timeout = timeout_seconds * len(comments)
+        total_timeout = timeout_seconds * len(normalized_comments)
         try:
             return asyncio.run(asyncio.wait_for(_run(), timeout=total_timeout))
         except asyncio.TimeoutError:
             logger.warning("Copilot SDK comment batch verification timed out after %ds", total_timeout)
-            return {comment_id: VerificationVerdict.COMMENT_UNRESOLVE for comment_id, _body, _ctx in comments}
+            return {comment.id: VerificationVerdict.COMMENT_UNRESOLVE for comment, _diff_context in normalized_comments}
         except Exception as exc:
             logger.warning("Copilot SDK comment batch verification failed: %s", exc)
-            return {comment_id: VerificationVerdict.COMMENT_UNRESOLVE for comment_id, _body, _ctx in comments}
+            return {comment.id: VerificationVerdict.COMMENT_UNRESOLVE for comment, _diff_context in normalized_comments}
 
-    def _verify_comment_via_sdk(
+    def _run_prompt_via_sdk_fallback(self, prompt: str, timeout_seconds: int = 60) -> str:
+        """Run a single prompt via fallback model."""
+        return self._run_prompt_via_sdk(
+            prompt,
+            timeout_seconds=timeout_seconds,
+            model=os.environ.get("COPILOT_FALLBACK_MODEL", "claude-sonnet-4.6"),
+        )
+
+    def _run_prompt_via_sdk(
         self,
-        comment_body: str,
-        diff_context: str,
+        prompt: str,
         timeout_seconds: int = 60,
-    ) -> VerificationVerdict:
-        """Verify whether a review comment has been addressed by the diff via Copilot SDK.
-
-        Returns COMMENT_RESOLVE if addressed, COMMENT_UNRESOLVE otherwise.
-        Defaults to COMMENT_UNRESOLVE on any error (fail-safe).
-        """
+        *,
+        model: str | None = None,
+    ) -> str:
+        """Run a single prompt via Copilot SDK and return raw assistant output."""
         token = os.environ.get("COPILOT_GITHUB_TOKEN", "").strip()
         if not token:
-            logger.warning("COPILOT_GITHUB_TOKEN not set — defaulting to COMMENT_UNRESOLVE (fail-safe)")
-            return VerificationVerdict.COMMENT_UNRESOLVE
-
-        if not diff_context:
-            logger.warning("Empty diff context — defaulting to COMMENT_UNRESOLVE")
-            return VerificationVerdict.COMMENT_UNRESOLVE
+            raise RuntimeError("COPILOT_GITHUB_TOKEN not set")
 
         try:
             from copilot import CopilotClient, SubprocessConfig
             from copilot.session import PermissionHandler
         except Exception as exc:
-            logger.warning("Copilot SDK unavailable for comment verification: %s", exc)
-            return VerificationVerdict.COMMENT_UNRESOLVE
+            raise RuntimeError(f"Copilot SDK unavailable: {exc}") from exc
 
-        model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
-        prompt = self._build_comment_verification_prompt(comment_body, diff_context)
+        selected_model = model or os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
 
-        async def _run() -> VerificationVerdict:  # pragma: no cover - optional runtime SDK integration
+        async def _run() -> str:  # pragma: no cover - optional runtime SDK integration
             client = None
             session = None
             content_parts: list[str] = []
+            error_messages: list[str] = []
             done = asyncio.Event()
 
             try:
@@ -1748,7 +2132,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 await client.start()
                 try:
                     session = await client.create_session(
-                        model=model,
+                        model=selected_model,
                         on_permission_request=PermissionHandler.approve_all,
                         infinite_sessions={"enabled": False},
                         github_token=token,
@@ -1757,7 +2141,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                     if "unexpected keyword argument" not in str(exc) or "github_token" not in str(exc):
                         raise
                     session = await client.create_session(
-                        model=model,
+                        model=selected_model,
                         on_permission_request=PermissionHandler.approve_all,
                         infinite_sessions={"enabled": False},
                     )
@@ -1771,20 +2155,21 @@ class GitHubActionsProvider(CIPlatformProvider):
                     elif event_type == "session.idle":
                         done.set()
                     elif event_type in {"error", "session.error", "assistant.error"}:
+                        msg = getattr(getattr(event, "data", None), "message", None) or str(getattr(event, "data", ""))
+                        error_messages.append(f"{event_type}: {msg}")
                         done.set()
 
                 session.on(on_event)
                 await session.send(prompt)
-                await done.wait()
+                await asyncio.wait_for(done.wait(), timeout=timeout_seconds)
+
+                if error_messages:
+                    raise RuntimeError("; ".join(error_messages))
 
                 raw = (content_parts[-1] if content_parts else "").strip()
-                if "COMMENT_RESOLVE" in raw and "COMMENT_UNRESOLVE" not in raw:
-                    return VerificationVerdict.COMMENT_RESOLVE
-                return VerificationVerdict.COMMENT_UNRESOLVE
-
-            except Exception as exc:
-                logger.warning("Copilot SDK comment verification failed: %s", exc)
-                return VerificationVerdict.COMMENT_UNRESOLVE
+                if not raw:
+                    raise RuntimeError("empty SDK response")
+                return raw
             finally:
                 if session is not None:
                     try:
@@ -1798,13 +2183,39 @@ class GitHubActionsProvider(CIPlatformProvider):
                         pass
 
         try:
-            return asyncio.run(asyncio.wait_for(_run(), timeout=timeout_seconds))  # pragma: no cover
-        except asyncio.TimeoutError:  # pragma: no cover
-            logger.warning("Copilot SDK comment verification timed out after %ds", timeout_seconds)
-            return VerificationVerdict.COMMENT_UNRESOLVE
+            return asyncio.run(asyncio.wait_for(_run(), timeout=timeout_seconds))
+        except asyncio.TimeoutError as exc:  # pragma: no cover
+            raise RuntimeError(f"Copilot SDK prompt timed out after {timeout_seconds}s") from exc
+        except RuntimeError:
+            raise
         except Exception as exc:  # pragma: no cover
-            logger.warning("Copilot SDK comment verification unexpected error: %s", exc)
+            raise RuntimeError(f"Copilot SDK prompt failed: {exc}") from exc
+
+    def _verify_comment_via_sdk(
+        self,
+        comment_body: str,
+        diff_context: str,
+        timeout_seconds: int = 60,
+    ) -> VerificationVerdict:
+        """Verify whether a review comment has been addressed by the diff via Copilot SDK.
+
+        Returns COMMENT_RESOLVE if addressed, COMMENT_UNRESOLVE otherwise.
+        Defaults to COMMENT_UNRESOLVE on any error (fail-safe).
+        """
+        if not diff_context:
+            logger.warning("Empty diff context — defaulting to COMMENT_UNRESOLVE")
             return VerificationVerdict.COMMENT_UNRESOLVE
+
+        prompt = self._build_comment_verification_prompt(comment_body, diff_context)
+        try:
+            raw = self._run_prompt_via_sdk(prompt, timeout_seconds=timeout_seconds)
+        except RuntimeError as exc:
+            logger.warning("Copilot SDK comment verification failed: %s", exc)
+            return VerificationVerdict.COMMENT_UNRESOLVE
+
+        if "COMMENT_RESOLVE" in raw and "COMMENT_UNRESOLVE" not in raw:
+            return VerificationVerdict.COMMENT_RESOLVE
+        return VerificationVerdict.COMMENT_UNRESOLVE
 
     def squash_post_repair(
         self,

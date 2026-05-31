@@ -35,8 +35,18 @@ query($owner: String!, $repoName: String!, $prNumber: Int!, $threadsCursor: Stri
         nodes {
           id
           isResolved
+          isOutdated
+          path
+          line
+          startLine
           comments(first: 100) {
-            nodes { databaseId }
+            nodes {
+              databaseId
+              body
+              createdAt
+              author { login }
+              commit { oid }
+            }
           }
         }
       }

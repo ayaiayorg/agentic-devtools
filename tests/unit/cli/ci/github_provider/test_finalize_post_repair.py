@@ -14,6 +14,7 @@ from agentic_devtools.cli.ci.models import (
     ReviewInfo,
     VerificationVerdict,
 )
+from agentic_devtools.cli.ci.resolution.models import ResolutionVerdict, ThreadResolutionState, TierResult
 
 
 def _make_sdk_event(event_type: str, content: str | None = None) -> MagicMock:
@@ -83,9 +84,12 @@ def _build_sdk_client_for_response(response: str) -> tuple[MagicMock, MagicMock]
 class TestFinalizePostRepair:
     """Tests for post-repair finalization orchestration."""
 
-    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
     @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "list_review_comments")
     @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
@@ -96,10 +100,14 @@ class TestFinalizePostRepair:
         mock_build_diff,
         mock_list_comments,
         mock_addressed_parent_ids,
+        mock_abandoned,
         mock_reply,
         mock_resolve,
         mock_verify_batch,
+        mock_fetch_outdated,
+        mock_unresolve,
     ) -> None:
+        mock_fetch_outdated.return_value = {}
         mock_list_reviews.return_value = [
             ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha_123"),
         ]
@@ -109,6 +117,8 @@ class TestFinalizePostRepair:
             ReviewCommentInfo(id=202, path="bar.py", body="fix that", html_url="http://url2"),
         ]
         mock_addressed_parent_ids.return_value = set()
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
         mock_verify_batch.return_value = {
             101: VerificationVerdict.COMMENT_RESOLVE,
             202: VerificationVerdict.COMMENT_RESOLVE,
@@ -137,14 +147,17 @@ class TestFinalizePostRepair:
         assert mock_reply.call_count == 2
         mock_verify_batch.assert_called_once()
         verify_payloads = mock_verify_batch.call_args.args[0]
-        assert [comment_id for comment_id, _body, _context in verify_payloads] == [101, 202]
+        assert [comment.id for comment, _context in verify_payloads] == [101, 202]
         mock_resolve.assert_called_once_with(42, "owner/repo", comment_ids=[101, 202])
         assert result.resolutions[0].thread_id == "T1"
         assert result.resolutions[1].thread_id == "T2"
 
-    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
     @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "list_review_comments")
     @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
@@ -155,10 +168,14 @@ class TestFinalizePostRepair:
         mock_build_diff,
         mock_list_comments,
         mock_addressed_parent_ids,
+        mock_abandoned,
         mock_reply,
         mock_resolve,
         mock_verify_batch,
+        mock_fetch_outdated,
+        mock_unresolve,
     ) -> None:
+        mock_fetch_outdated.return_value = {}
         mock_list_reviews.return_value = [
             ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha_123"),
         ]
@@ -167,6 +184,8 @@ class TestFinalizePostRepair:
             ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
         ]
         mock_addressed_parent_ids.return_value = {101}
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
         mock_verify_batch.return_value = {101: VerificationVerdict.COMMENT_RESOLVE}
         mock_resolve.return_value = {
             "threadsResolved": 1,
@@ -188,9 +207,12 @@ class TestFinalizePostRepair:
         assert result.resolved_count == 1
         mock_resolve.assert_called_once_with(42, "owner/repo", comment_ids=[101])
 
-    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
     @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "list_review_comments")
     @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
@@ -201,10 +223,14 @@ class TestFinalizePostRepair:
         mock_build_diff,
         mock_list_comments,
         mock_addressed_parent_ids,
+        mock_abandoned,
         mock_reply,
         mock_resolve,
         mock_verify_batch,
+        mock_fetch_outdated,
+        mock_unresolve,
     ) -> None:
+        mock_fetch_outdated.return_value = {}
         mock_list_reviews.return_value = [
             ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha_123"),
         ]
@@ -215,6 +241,8 @@ class TestFinalizePostRepair:
             ReviewCommentInfo(id=303, path="baz.py", body="fix other", html_url="http://url3"),
         ]
         mock_addressed_parent_ids.return_value = {202}
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
         mock_verify_batch.return_value = {
             101: VerificationVerdict.COMMENT_RESOLVE,
             202: VerificationVerdict.COMMENT_RESOLVE,
@@ -240,16 +268,19 @@ class TestFinalizePostRepair:
         )
 
         assert mock_reply.call_count == 2
-        mock_reply.assert_any_call(42, 101)
-        mock_reply.assert_any_call(42, 303)
+        replied_comment_ids = {call.args[1] for call in mock_reply.call_args_list}
+        assert replied_comment_ids == {101, 303}
         verify_payloads = mock_verify_batch.call_args.args[0]
-        assert [comment_id for comment_id, _body, _context in verify_payloads] == [101, 202, 303]
+        assert [comment.id for comment, _context in verify_payloads] == [101, 202, 303]
         assert result.resolved_count == 3
         mock_resolve.assert_called_once_with(42, "owner/repo", comment_ids=[101, 202, 303])
 
-    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
     @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "list_review_comments")
     @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
@@ -260,10 +291,14 @@ class TestFinalizePostRepair:
         mock_build_diff,
         mock_list_comments,
         mock_addressed_parent_ids,
+        mock_abandoned,
         mock_reply,
         mock_resolve,
         mock_verify_batch,
+        mock_fetch_outdated,
+        mock_unresolve,
     ) -> None:
+        mock_fetch_outdated.return_value = {}
         mock_list_reviews.return_value = [
             ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha_123"),
         ]
@@ -272,6 +307,8 @@ class TestFinalizePostRepair:
             ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
         ]
         mock_addressed_parent_ids.return_value = set()
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
         mock_verify_batch.return_value = {101: VerificationVerdict.COMMENT_RESOLVE}
         mock_resolve.return_value = {
             "threadsResolved": 0,
@@ -349,9 +386,12 @@ class TestFinalizePostRepair:
         assert result.skipped is True
         assert result.reason == "unresolvable_review_commit_sha"
 
-    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
     @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "list_review_comments")
     @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
@@ -362,11 +402,15 @@ class TestFinalizePostRepair:
         mock_build_diff,
         mock_list_comments,
         mock_addressed_parent_ids,
+        mock_abandoned,
         mock_reply,
         mock_resolve,
         mock_verify_batch,
+        mock_fetch_outdated,
+        mock_unresolve,
     ) -> None:
         """FR-006/007: Only resolve threads if SDK responds COMMENT_RESOLVE."""
+        mock_fetch_outdated.return_value = {}
         mock_list_reviews.return_value = [
             ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha_123"),
         ]
@@ -375,6 +419,8 @@ class TestFinalizePostRepair:
             ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
         ]
         mock_addressed_parent_ids.return_value = set()
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
         mock_verify_batch.return_value = {101: VerificationVerdict.COMMENT_UNRESOLVE}
         provider = GitHubActionsProvider(repo="owner/repo")
 
@@ -391,9 +437,12 @@ class TestFinalizePostRepair:
         assert result.resolved_count == 0
         assert result.unresolved_count == 1
 
-    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
     @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "list_review_comments")
     @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
@@ -404,10 +453,14 @@ class TestFinalizePostRepair:
         mock_build_diff,
         mock_list_comments,
         mock_addressed_parent_ids,
+        mock_abandoned,
         mock_reply,
         mock_resolve,
         mock_verify_batch,
+        mock_fetch_outdated,
+        mock_unresolve,
     ) -> None:
+        mock_fetch_outdated.return_value = {}
         mock_list_reviews.return_value = [
             ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha_123"),
         ]
@@ -422,6 +475,8 @@ class TestFinalizePostRepair:
             ),
         ]
         mock_addressed_parent_ids.return_value = set()
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
         provider = GitHubActionsProvider(repo="owner/repo")
 
         result = provider.finalize_post_repair(
@@ -442,9 +497,12 @@ class TestFinalizePostRepair:
         assert result.resolutions[0].comment_id == 101
         assert result.resolutions[0].verdict == VerificationVerdict.COMMENT_UNRESOLVE
 
-    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
     @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "list_review_comments")
     @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
@@ -455,10 +513,14 @@ class TestFinalizePostRepair:
         mock_build_diff,
         mock_list_comments,
         mock_addressed_parent_ids,
+        mock_abandoned,
         mock_reply,
         mock_resolve,
         mock_verify_batch,
+        mock_fetch_outdated,
+        mock_unresolve,
     ) -> None:
+        mock_fetch_outdated.return_value = {}
         mock_list_reviews.return_value = [
             ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha_123"),
         ]
@@ -467,6 +529,8 @@ class TestFinalizePostRepair:
             ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
         ]
         mock_addressed_parent_ids.return_value = {101}
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
         mock_verify_batch.return_value = {101: VerificationVerdict.COMMENT_UNRESOLVE}
         provider = GitHubActionsProvider(repo="owner/repo")
 
@@ -659,6 +723,266 @@ class TestFinalizePostRepair:
         assert result[202] == VerificationVerdict.COMMENT_UNRESOLVE
         assert mock_copilot.SubprocessConfig.call_args.kwargs["github_token"] == "test-token"
 
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
+    def test_verify_comments_via_sdk_with_head_sha_uses_tiered_engine_for_legacy_tuples(self, mock_verify) -> None:
+        mock_verify.return_value = {
+            101: VerificationVerdict.COMMENT_RESOLVE,
+            202: VerificationVerdict.COMMENT_UNRESOLVE,
+        }
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        result = provider._verify_comments_via_sdk(
+            [
+                (101, "Comment one", ""),
+                (202, "Comment two", ""),
+            ],
+            head_sha="abc123",
+        )
+
+        assert result == {
+            101: VerificationVerdict.COMMENT_RESOLVE,
+            202: VerificationVerdict.COMMENT_UNRESOLVE,
+        }
+        called_comments = mock_verify.call_args.args[0]
+        assert len(called_comments) == 2
+        assert called_comments[0][0].id == 101
+        assert called_comments[0][0].body == "Comment one"
+        assert called_comments[0][1] == ""
+        assert called_comments[1][0].id == 202
+        assert called_comments[1][0].body == "Comment two"
+        assert called_comments[1][1] == ""
+        assert mock_verify.call_args.kwargs == {"head_sha": "abc123"}
+
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
+    def test_verify_comments_via_sdk_with_head_sha_uses_tiered_engine_for_review_comments(self, mock_verify) -> None:
+        mock_verify.return_value = {303: VerificationVerdict.COMMENT_RESOLVE}
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        result = provider._verify_comments_via_sdk(
+            [
+                (
+                    ReviewCommentInfo(
+                        id=303,
+                        path="src/example.py",
+                        body="Please rename this variable",
+                        html_url="https://github.com/owner/repo/pull/1#discussion_r303",
+                    ),
+                    "",
+                )
+            ],
+            head_sha="def456",
+        )
+
+        assert result == {303: VerificationVerdict.COMMENT_RESOLVE}
+        called_comments = mock_verify.call_args.args[0]
+        assert len(called_comments) == 1
+        assert called_comments[0][0].id == 303
+        assert called_comments[0][0].body == "Please rename this variable"
+        assert called_comments[0][1] == ""
+        assert mock_verify.call_args.kwargs == {"head_sha": "def456"}
+
+    def test_verify_comments_via_tiered_engine_uses_latest_thread_comment_body_for_automation_marker(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+        comment = ReviewCommentInfo(
+            id=901,
+            path="src/example.py",
+            body="Initial unresolved feedback",
+            html_url="https://github.com/owner/repo/pull/1#discussion_r901",
+        )
+
+        result = provider._verify_comments_via_tiered_engine(
+            [(comment, "diff --git a/src/example.py b/src/example.py\n+fix")],
+            head_sha="abc123",
+            latest_thread_comment_body_by_id={
+                901: "fix applied by automation",
+            },
+        )
+
+        assert result == {901: VerificationVerdict.COMMENT_RESOLVE}
+
+    def test_verify_comments_via_tiered_engine_uses_structured_sdk_tier(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+        comment = ReviewCommentInfo(
+            id=902,
+            path="src/example.py",
+            body="Please verify",
+            html_url="https://github.com/owner/repo/pull/1#discussion_r902",
+        )
+
+        with patch.object(
+            provider,
+            "_run_prompt_via_sdk",
+            side_effect=[
+                "VERDICT: AMBIGUOUS\nEXPLANATION: not sure",
+                "VERDICT: RESOLVE\nEXPLANATION: fixed",
+            ],
+        ):
+            tier_results: dict[int, TierResult] = {}
+            result = provider._verify_comments_via_tiered_engine(
+                [(comment, "diff --git a/src/example.py b/src/example.py\n+fix")],
+                head_sha="abc123",
+                tier_results_out=tier_results,
+            )
+
+        assert result == {902: VerificationVerdict.COMMENT_RESOLVE}
+        assert tier_results[902].verdict == ResolutionVerdict.RESOLVE
+
+    def test_verify_comments_via_tiered_engine_maps_explicit_unresolve(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+        comment = ReviewCommentInfo(
+            id=903,
+            path="src/example.py",
+            body="Please verify",
+            html_url="https://github.com/owner/repo/pull/1#discussion_r903",
+        )
+
+        with patch.object(
+            provider,
+            "_run_prompt_via_sdk",
+            return_value="VERDICT: UNRESOLVE\nEXPLANATION: not fixed",
+        ):
+            result = provider._verify_comments_via_tiered_engine(
+                [(comment, "diff --git a/src/example.py b/src/example.py\n+fix")],
+                head_sha="abc123",
+            )
+
+        assert result == {903: VerificationVerdict.COMMENT_UNRESOLVE}
+
+    def test_verify_comments_via_tiered_engine_maps_tentative_to_unresolve(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+        comment = ReviewCommentInfo(
+            id=904,
+            path="src/example.py",
+            body="Please verify",
+            html_url="https://github.com/owner/repo/pull/1#discussion_r904",
+        )
+
+        with patch.object(
+            provider,
+            "_run_prompt_via_sdk",
+            side_effect=[
+                "MALFORMED",
+                "ALSO MALFORMED",
+                "STILL MALFORMED",
+            ],
+        ):
+            result = provider._verify_comments_via_tiered_engine(
+                [(comment, "diff --git a/src/example.py b/src/example.py\n+fix")],
+                head_sha="abc123",
+            )
+
+        assert result == {904: VerificationVerdict.COMMENT_UNRESOLVE}
+
+    def test_verify_comments_via_tiered_engine_uses_distinct_fallback_runner(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+        comment = ReviewCommentInfo(
+            id=905,
+            path="src/example.py",
+            body="Please verify",
+            html_url="https://github.com/owner/repo/pull/1#discussion_r905",
+        )
+
+        with (
+            patch.object(
+                provider,
+                "_run_prompt_via_sdk",
+                side_effect=["MALFORMED", "ALSO MALFORMED"],
+            ),
+            patch.object(
+                provider,
+                "_run_prompt_via_sdk_fallback",
+                return_value="VERDICT: RESOLVE\nEXPLANATION: fallback fixed",
+            ),
+        ):
+            tier_results: dict[int, TierResult] = {}
+            result = provider._verify_comments_via_tiered_engine(
+                [(comment, "diff --git a/src/example.py b/src/example.py\n+fix")],
+                head_sha="abc123",
+                tier_results_out=tier_results,
+            )
+
+        assert result == {905: VerificationVerdict.COMMENT_RESOLVE}
+        assert tier_results[905].tier_name == "sdk_evaluation_fallback"
+
+    def test_verify_comments_via_tiered_engine_skips_comment_on_head_commit(self) -> None:
+        """FR-003: comments placed on the current HEAD commit are skipped without tier evaluation."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        comment = ReviewCommentInfo(
+            id=906,
+            path="src/example.py",
+            body="Review placed on this commit",
+            html_url="https://github.com/owner/repo/pull/1#discussion_r906",
+            commit_id="deadbeef",
+        )
+
+        with patch.object(provider, "_run_prompt_via_sdk") as mock_sdk:
+            result = provider._verify_comments_via_tiered_engine(
+                [(comment, "diff --git a/src/example.py b/src/example.py\n+fix")],
+                head_sha="deadbeef",
+            )
+
+        assert result == {906: VerificationVerdict.COMMENT_UNRESOLVE}
+        mock_sdk.assert_not_called()
+
+    def test_verify_comments_via_tiered_engine_evaluates_comment_on_different_commit(self) -> None:
+        """Comments placed on an older commit (not HEAD) are evaluated normally."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        comment = ReviewCommentInfo(
+            id=907,
+            path="src/example.py",
+            body="Old review",
+            html_url="https://github.com/owner/repo/pull/1#discussion_r907",
+            commit_id="oldcommit",
+        )
+
+        with patch.object(
+            provider,
+            "_run_prompt_via_sdk",
+            return_value="VERDICT: RESOLVE\nEXPLANATION: fixed",
+        ):
+            result = provider._verify_comments_via_tiered_engine(
+                [(comment, "diff --git a/src/example.py b/src/example.py\n+fix")],
+                head_sha="newcommit",
+            )
+
+        assert result == {907: VerificationVerdict.COMMENT_RESOLVE}
+
+    def test_run_prompt_via_sdk_reraises_runtime_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
+        mock_copilot, mock_session_module, _mock_session = _build_sdk_modules()
+
+        with patch.dict(sys.modules, {"copilot": mock_copilot, "copilot.session": mock_session_module}):
+            with patch("agentic_devtools.cli.ci.github_provider.asyncio.run", side_effect=RuntimeError("boom")):
+                provider = GitHubActionsProvider(repo="owner/repo")
+                with pytest.raises(RuntimeError, match="boom"):
+                    provider._run_prompt_via_sdk("prompt")
+
+    def test_run_prompt_via_sdk_fallback_uses_default_fallback_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("COPILOT_FALLBACK_MODEL", raising=False)
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        with patch.object(provider, "_run_prompt_via_sdk", return_value="COMMENT_RESOLVE") as mock_run:
+            result = provider._run_prompt_via_sdk_fallback("prompt", timeout_seconds=33)
+
+        assert result == "COMMENT_RESOLVE"
+        mock_run.assert_called_once_with(
+            "prompt",
+            timeout_seconds=33,
+            model="claude-sonnet-4.6",
+        )
+
+    def test_verify_comment_via_sdk_returns_unresolve_for_unresolve_response(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        with patch.object(
+            provider,
+            "_run_prompt_via_sdk",
+            return_value="COMMENT_UNRESOLVE",
+        ):
+            result = provider._verify_comment_via_sdk("Please fix", "diff --git a/x b/x\n+change")
+
+        assert result == VerificationVerdict.COMMENT_UNRESOLVE
+
     def test_verify_comment_via_sdk_happy_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
         mock_copilot, mock_session_module, mock_session = _build_sdk_modules()
@@ -767,6 +1091,30 @@ class TestFinalizePostRepair:
         provider = GitHubActionsProvider(repo="owner/repo")
         provider._reply_to_review_comment(42, 99)
         assert "Addressed on the updated PR branch." in str(mock_gh_api.call_args[1]["body"])
+
+    def test_model_id_for_tier_result_primary_and_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("COPILOT_MODEL", "claude-opus-4.7")  # type: ignore[attr-defined]
+        monkeypatch.setenv("COPILOT_FALLBACK_MODEL", "claude-sonnet-4.6")  # type: ignore[attr-defined]
+
+        primary = GitHubActionsProvider._model_id_for_tier_result(
+            TierResult(
+                verdict=ResolutionVerdict.RESOLVE,
+                confidence="high",
+                tier_name="sdk_evaluation",
+                explanation="ok",
+            )
+        )
+        fallback = GitHubActionsProvider._model_id_for_tier_result(
+            TierResult(
+                verdict=ResolutionVerdict.RESOLVE,
+                confidence="high",
+                tier_name="sdk_evaluation_fallback",
+                explanation="ok",
+            )
+        )
+
+        assert primary == "claude-opus-4.7"
+        assert fallback == "claude-sonnet-4.6"
 
     def test_build_squash_commit_message_variants(self) -> None:
         provider = GitHubActionsProvider(repo="owner/repo")
@@ -1103,9 +1451,12 @@ class TestFinalizePostRepairNoComments:
 class TestFinalizePostRepairThreadResolutionMissing:
     """Tests for thread_resolution_missing error path."""
 
-    @patch.object(GitHubActionsProvider, "_verify_comments_via_sdk")
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
     @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
     @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "list_review_comments")
     @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
@@ -1116,10 +1467,14 @@ class TestFinalizePostRepairThreadResolutionMissing:
         mock_build_diff,
         mock_list_comments,
         mock_addressed,
+        mock_abandoned,
         mock_reply,
         mock_resolve,
         mock_verify_batch,
+        mock_fetch_outdated,
+        mock_unresolve,
     ) -> None:
+        mock_fetch_outdated.return_value = {}
         mock_list_reviews.return_value = [
             ReviewInfo(
                 id=7,
@@ -1134,6 +1489,8 @@ class TestFinalizePostRepairThreadResolutionMissing:
             ReviewCommentInfo(id=101, path="foo.py", body="fix", html_url="url1"),
         ]
         mock_addressed.return_value = set()
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
         mock_verify_batch.return_value = {101: VerificationVerdict.COMMENT_RESOLVE}
         mock_resolve.return_value = {
             "verified": True,
@@ -1151,3 +1508,693 @@ class TestFinalizePostRepairThreadResolutionMissing:
 
         # The comment should have thread_resolution_missing error
         assert any("thread_resolution_missing" in e for e in result.errors)
+
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_finalize_mixed_resolve_unresolve_verdicts(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_addressed,
+        mock_abandoned,
+        mock_reply,
+        mock_resolve,
+        mock_verify_batch,
+        mock_fetch_outdated,
+        mock_unresolve,
+    ) -> None:
+        """Resolution loop handles COMMENT_UNRESOLVE verdicts alongside COMMENT_RESOLVE."""
+        mock_fetch_outdated.return_value = {}
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+            ReviewCommentInfo(id=202, path="bar.py", body="not fixed", html_url="http://url2"),
+        ]
+        mock_addressed.return_value = set()
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
+
+        def _verify_side_effect(*args, **kwargs):
+            kwargs["tier_results_out"][101] = TierResult(
+                verdict=ResolutionVerdict.RESOLVE,
+                confidence="high",
+                tier_name="outdated",
+                explanation="Thread is outdated on GitHub.",
+            )
+            kwargs["tier_results_out"][202] = TierResult(
+                verdict=ResolutionVerdict.UNRESOLVE,
+                confidence="medium",
+                tier_name="sdk_evaluation",
+                explanation="The requested fix is still missing.",
+            )
+            return {
+                101: VerificationVerdict.COMMENT_RESOLVE,
+                202: VerificationVerdict.COMMENT_UNRESOLVE,
+            }
+
+        mock_verify_batch.side_effect = _verify_side_effect
+        mock_resolve.return_value = {
+            "threadsResolved": 1,
+            "verified": True,
+            "details": [
+                {"threadId": "T1", "commentId": 101, "status": "resolved"},
+            ],
+        }
+
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha",
+            review_id=7,
+        )
+
+        assert result.resolved_count == 1
+        assert result.unresolved_count == 1
+        mock_resolve.assert_called_once_with(42, "owner/repo", comment_ids=[101])
+        assert mock_reply.call_count == 2
+        unresolved_reply_body = mock_reply.call_args_list[1].kwargs["body"]
+        assert "agdt:resolution-tier:sdk_evaluation" in unresolved_reply_body
+        assert "Thread left open" in unresolved_reply_body
+
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_finalize_suppresses_duplicate_unresolve_reply(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_addressed,
+        mock_abandoned,
+        mock_reply,
+        mock_resolve,
+        mock_verify_batch,
+        mock_fetch_outdated,
+        mock_unresolve,
+    ) -> None:
+        """UNRESOLVE reply is not posted when the thread already has a prior unresolve reply."""
+        mock_fetch_outdated.return_value = {}
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=202, path="bar.py", body="not fixed", html_url="http://url2"),
+        ]
+        mock_addressed.return_value = set()
+        mock_abandoned.return_value = set()
+        # Simulate prior 'Thread left open' reply for comment 202
+        mock_unresolve.return_value = {202}
+
+        def _verify_side_effect(*args, **kwargs):
+            kwargs["tier_results_out"][202] = TierResult(
+                verdict=ResolutionVerdict.UNRESOLVE,
+                confidence="medium",
+                tier_name="sdk_evaluation",
+                explanation="The requested fix is still missing.",
+            )
+            return {202: VerificationVerdict.COMMENT_UNRESOLVE}
+
+        mock_verify_batch.side_effect = _verify_side_effect
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha",
+            review_id=7,
+        )
+
+        # No reply posted because prior unresolve reply already exists for comment 202
+        mock_reply.assert_not_called()
+        mock_resolve.assert_not_called()
+        assert result.resolved_count == 0
+        assert result.unresolved_count == 1
+
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    def test_finalize_uses_empty_outdated_map_when_fetch_fails(
+        self,
+        mock_fetch_outdated,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_addressed,
+        mock_abandoned,
+        mock_reply,
+        mock_resolve,
+        mock_verify_batch,
+        mock_unresolve,
+    ) -> None:
+        """When _fetch_outdated_by_comment_id raises, finalize gracefully falls back to empty map."""
+        mock_fetch_outdated.side_effect = RuntimeError("GraphQL failure")
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+        ]
+        mock_addressed.return_value = set()
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
+        mock_verify_batch.return_value = {101: VerificationVerdict.COMMENT_RESOLVE}
+        mock_resolve.return_value = {
+            "threadsResolved": 1,
+            "verified": True,
+            "details": [
+                {"threadId": "T1", "commentId": 101, "status": "resolved"},
+            ],
+        }
+
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha",
+            review_id=7,
+        )
+
+        # Despite the fetch failure, the engine is still called and resolves the comment
+        mock_verify_batch.assert_called_once()
+        assert result.resolved_count == 1
+
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch("agentic_devtools.cli.ci.github_provider.save_resolution_state")
+    @patch("agentic_devtools.cli.ci.github_provider.load_resolution_state")
+    @patch("agentic_devtools.cli.ci.github_provider.is_tentative_expired")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_finalize_persists_tentative_state_and_posts_structured_reply(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_addressed,
+        mock_abandoned,
+        mock_reply,
+        mock_fetch_outdated,
+        mock_verify_batch,
+        mock_is_expired,
+        mock_load_state,
+        mock_save_state,
+        mock_unresolve,
+    ) -> None:
+        mock_fetch_outdated.return_value = {}
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+        ]
+        mock_addressed.return_value = set()
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
+        mock_load_state.return_value = None
+        mock_is_expired.return_value = False
+
+        def _verify_side_effect(*args, **kwargs):
+            kwargs["tier_results_out"][101] = TierResult(
+                verdict=ResolutionVerdict.TENTATIVE,
+                confidence="low",
+                tier_name="engine",
+                explanation="Needs more evidence",
+            )
+            return {101: VerificationVerdict.COMMENT_UNRESOLVE}
+
+        mock_verify_batch.side_effect = _verify_side_effect
+
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha",
+            review_id=7,
+        )
+
+        assert result.resolved_count == 0
+        assert result.unresolved_count == 1
+        mock_save_state.assert_called_once()
+        mock_reply.assert_called_once()
+        reply_body = mock_reply.call_args.kwargs["body"]
+        assert "agdt:resolution-tier:engine" in reply_body
+
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch("agentic_devtools.cli.ci.github_provider.clear_resolution_state")
+    @patch("agentic_devtools.cli.ci.github_provider.mark_abandoned")
+    @patch("agentic_devtools.cli.ci.github_provider.increment_iteration")
+    @patch("agentic_devtools.cli.ci.github_provider.load_resolution_state")
+    @patch("agentic_devtools.cli.ci.github_provider.is_tentative_expired")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_finalize_updates_existing_tentative_and_handles_expiry(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_addressed,
+        mock_abandoned,
+        mock_reply,
+        mock_fetch_outdated,
+        mock_resolve,
+        mock_verify_batch,
+        mock_is_expired,
+        mock_load_state,
+        mock_increment,
+        mock_mark_abandoned,
+        mock_clear_state,
+        mock_unresolve,
+    ) -> None:
+        mock_fetch_outdated.return_value = {}
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+            ReviewCommentInfo(id=202, path="bar.py", body="fix this too", html_url="http://url2"),
+        ]
+        mock_addressed.return_value = set()
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
+
+        existing_state = ThreadResolutionState(
+            thread_id="101",
+            verdict=ResolutionVerdict.TENTATIVE,
+            tier_name="engine",
+            confidence="low",
+            iteration_count=1,
+        )
+        mock_load_state.return_value = existing_state
+        mock_increment.return_value = existing_state
+        mock_is_expired.return_value = True
+
+        def _verify_side_effect(*args, **kwargs):
+            kwargs["tier_results_out"][101] = TierResult(
+                verdict=ResolutionVerdict.TENTATIVE,
+                confidence="low",
+                tier_name="engine",
+                explanation="Still uncertain",
+            )
+            kwargs["tier_results_out"][202] = TierResult(
+                verdict=ResolutionVerdict.RESOLVE,
+                confidence="medium",
+                tier_name="sdk_evaluation_fallback",
+                explanation="Fallback validated fix",
+            )
+            return {
+                101: VerificationVerdict.COMMENT_UNRESOLVE,
+                202: VerificationVerdict.COMMENT_RESOLVE,
+            }
+
+        mock_verify_batch.side_effect = _verify_side_effect
+        mock_resolve.return_value = {
+            "threadsResolved": 1,
+            "verified": True,
+            "details": [{"threadId": "T2", "commentId": 202, "status": "resolved"}],
+        }
+
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha",
+            review_id=7,
+        )
+
+        assert result.resolved_count == 1
+        assert result.unresolved_count == 1
+        mock_increment.assert_called_once()
+        mock_mark_abandoned.assert_called_once()
+        mock_clear_state.assert_called_once()
+        abandoned_body = mock_reply.call_args_list[0].kwargs["body"]
+        resolved_body = mock_reply.call_args_list[1].kwargs["body"]
+        assert "agdt:resolution-tier:abandoned" in abandoned_body
+        assert "agdt:resolution-tier:sdk_evaluation_fallback" in resolved_body
+
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch("agentic_devtools.cli.ci.github_provider.save_resolution_state")
+    @patch("agentic_devtools.cli.ci.github_provider.load_resolution_state")
+    @patch("agentic_devtools.cli.ci.github_provider.is_tentative_expired")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_finalize_tentative_skips_reply_when_addressed_reply_exists(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_addressed,
+        mock_abandoned,
+        mock_reply,
+        mock_fetch_outdated,
+        mock_verify_batch,
+        mock_is_expired,
+        mock_load_state,
+        mock_save_state,
+        mock_unresolve,
+    ) -> None:
+        mock_fetch_outdated.return_value = {}
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+            ReviewCommentInfo(id=202, path="bar.py", body="fix this too", html_url="http://url2"),
+        ]
+        mock_addressed.return_value = {101, 202}
+        # Comment 101 already has an abandoned reply — expiry notification suppressed.
+        mock_abandoned.return_value = {101}
+        mock_unresolve.return_value = set()
+        mock_load_state.side_effect = [
+            ThreadResolutionState(
+                thread_id="101",
+                verdict=ResolutionVerdict.TENTATIVE,
+                tier_name="engine",
+                confidence="low",
+            ),
+            None,
+        ]
+        mock_is_expired.side_effect = [True, False]
+
+        def _verify_side_effect(*args, **kwargs):
+            kwargs["tier_results_out"][101] = TierResult(
+                verdict=ResolutionVerdict.TENTATIVE,
+                confidence="low",
+                tier_name="engine",
+                explanation="Still uncertain",
+            )
+            kwargs["tier_results_out"][202] = TierResult(
+                verdict=ResolutionVerdict.TENTATIVE,
+                confidence="low",
+                tier_name="engine",
+                explanation="Need another pass",
+            )
+            return {
+                101: VerificationVerdict.COMMENT_UNRESOLVE,
+                202: VerificationVerdict.COMMENT_UNRESOLVE,
+            }
+
+        mock_verify_batch.side_effect = _verify_side_effect
+
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha",
+            review_id=7,
+        )
+
+        assert result.resolved_count == 0
+        assert result.unresolved_count == 2
+        mock_save_state.assert_called_once()
+        mock_reply.assert_not_called()
+
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch("agentic_devtools.cli.ci.github_provider.mark_abandoned")
+    @patch("agentic_devtools.cli.ci.github_provider.increment_iteration")
+    @patch("agentic_devtools.cli.ci.github_provider.load_resolution_state")
+    @patch("agentic_devtools.cli.ci.github_provider.is_tentative_expired")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_finalize_tentative_posts_abandoned_reply_when_only_tentative_reply_exists(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_addressed,
+        mock_abandoned,
+        mock_reply,
+        mock_fetch_outdated,
+        mock_verify_batch,
+        mock_is_expired,
+        mock_load_state,
+        mock_increment,
+        mock_mark_abandoned,
+        mock_unresolve,
+    ) -> None:
+        """Expiry notification is posted even when a tentative reply already exists.
+
+        ``_list_addressed_reply_parent_comment_ids`` returns the comment because an
+        earlier tentative pass posted a resolution-tier reply.  However,
+        ``_list_abandoned_reply_parent_comment_ids`` returns an empty set because no
+        abandoned reply has been posted yet.  The abandoned notification must be
+        posted on TTL expiry regardless of the tentative reply.
+        """
+        mock_fetch_outdated.return_value = {}
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+        ]
+        # Comment 101 has a tentative (non-abandoned) reply: covered by addressed set.
+        mock_addressed.return_value = {101}
+        # No abandoned reply exists yet.
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
+
+        existing_state = ThreadResolutionState(
+            thread_id="101",
+            verdict=ResolutionVerdict.TENTATIVE,
+            tier_name="engine",
+            confidence="low",
+            iteration_count=1,
+        )
+        mock_load_state.return_value = existing_state
+        mock_increment.return_value = existing_state
+        mock_is_expired.return_value = True
+
+        def _verify_side_effect(*args, **kwargs):
+            kwargs["tier_results_out"][101] = TierResult(
+                verdict=ResolutionVerdict.TENTATIVE,
+                confidence="low",
+                tier_name="engine",
+                explanation="Still uncertain",
+            )
+            return {101: VerificationVerdict.COMMENT_UNRESOLVE}
+
+        mock_verify_batch.side_effect = _verify_side_effect
+
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha",
+            review_id=7,
+        )
+
+        assert result.resolved_count == 0
+        assert result.unresolved_count == 1
+        mock_mark_abandoned.assert_called_once()
+        mock_reply.assert_called_once()
+        abandoned_body = mock_reply.call_args.kwargs["body"]
+        assert "agdt:resolution-tier:abandoned" in abandoned_body
+
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch("agentic_devtools.cli.ci.github_provider.save_resolution_state")
+    @patch("agentic_devtools.cli.ci.github_provider.mark_abandoned")
+    @patch("agentic_devtools.cli.ci.github_provider.load_resolution_state")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_finalize_tentative_skips_lifecycle_for_already_abandoned_thread(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_addressed,
+        mock_abandoned,
+        mock_reply,
+        mock_fetch_outdated,
+        mock_verify_batch,
+        mock_load_state,
+        mock_mark_abandoned,
+        mock_save_state,
+        mock_unresolve,
+    ) -> None:
+        """When an existing state has ABANDONED verdict, the tentative lifecycle is not re-entered."""
+        mock_fetch_outdated.return_value = {}
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+        ]
+        mock_addressed.return_value = set()
+        mock_abandoned.return_value = {101}
+        mock_unresolve.return_value = set()
+        mock_load_state.return_value = ThreadResolutionState(
+            thread_id="101",
+            verdict=ResolutionVerdict.ABANDONED,
+            tier_name="engine",
+            confidence="low",
+        )
+
+        def _verify_side_effect(*args, **kwargs):
+            kwargs["tier_results_out"][101] = TierResult(
+                verdict=ResolutionVerdict.TENTATIVE,
+                confidence="low",
+                tier_name="engine",
+                explanation="Needs more evidence",
+            )
+            return {101: VerificationVerdict.COMMENT_UNRESOLVE}
+
+        mock_verify_batch.side_effect = _verify_side_effect
+
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha",
+            review_id=7,
+        )
+
+        assert result.resolved_count == 0
+        assert result.unresolved_count == 1
+        mock_save_state.assert_not_called()
+        mock_mark_abandoned.assert_not_called()
+        mock_reply.assert_not_called()
+
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch("agentic_devtools.cli.ci.github_provider.save_resolution_state")
+    @patch("agentic_devtools.cli.ci.github_provider.mark_abandoned")
+    @patch("agentic_devtools.cli.ci.github_provider.load_resolution_state")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_finalize_tentative_retries_abandoned_reply_for_already_abandoned_thread(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_addressed,
+        mock_abandoned,
+        mock_reply,
+        mock_fetch_outdated,
+        mock_verify_batch,
+        mock_load_state,
+        mock_mark_abandoned,
+        mock_save_state,
+        mock_unresolve,
+    ) -> None:
+        """When existing state is ABANDONED and no marker exists, retry abandoned reply."""
+        mock_fetch_outdated.return_value = {}
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+        ]
+        mock_addressed.return_value = set()
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
+        mock_load_state.return_value = ThreadResolutionState(
+            thread_id="101",
+            verdict=ResolutionVerdict.ABANDONED,
+            tier_name="engine",
+            confidence="low",
+        )
+
+        def _verify_side_effect(*args, **kwargs):
+            kwargs["tier_results_out"][101] = TierResult(
+                verdict=ResolutionVerdict.TENTATIVE,
+                confidence="low",
+                tier_name="engine",
+                explanation="Needs more evidence",
+            )
+            return {101: VerificationVerdict.COMMENT_UNRESOLVE}
+
+        mock_verify_batch.side_effect = _verify_side_effect
+
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha",
+            review_id=7,
+        )
+
+        assert result.resolved_count == 0
+        assert result.unresolved_count == 1
+        mock_save_state.assert_not_called()
+        mock_mark_abandoned.assert_not_called()
+        mock_reply.assert_called_once()
+        abandoned_body = mock_reply.call_args.kwargs["body"]
+        assert "agdt:resolution-tier:abandoned" in abandoned_body

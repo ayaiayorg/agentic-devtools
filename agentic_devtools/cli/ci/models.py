@@ -142,6 +142,7 @@ class ReviewCommentInfo:
         line: Line number the comment targets (None if PR-level).
         position: Diff position the comment targets (None if PR-level).
         diff_hunk: Diff hunk context from the API (empty if not available).
+        commit_id: SHA of the commit the comment was placed on (empty if not available).
     """
 
     id: int
@@ -154,6 +155,7 @@ class ReviewCommentInfo:
     line: int | None = None
     position: int | None = None
     diff_hunk: str = ""
+    commit_id: str = ""
 
 
 @dataclass(frozen=True)

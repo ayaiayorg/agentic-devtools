@@ -108,3 +108,32 @@ class TestListReviewComments:
         provider = GitHubActionsProvider(repo="owner/repo")
         result = provider.list_review_comments(42, 7)
         assert result == []
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_commit_id_is_populated_from_api_response(self, mock_run_safe) -> None:
+        """commit_id from the API response is carried into ReviewCommentInfo."""
+        mock_run_safe.return_value = _mock_run_safe_response(
+            [
+                {
+                    "id": 7,
+                    "path": "src/foo.py",
+                    "body": "fix this",
+                    "html_url": "https://example.test",
+                    "commit_id": "abc123def456",
+                },
+            ]
+        )
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.list_review_comments(10, 20)
+        assert len(result) == 1
+        assert result[0].commit_id == "abc123def456"
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_commit_id_defaults_to_empty_string_when_absent(self, mock_run_safe) -> None:
+        """commit_id falls back to empty string when not present in the API response."""
+        mock_run_safe.return_value = _mock_run_safe_response(
+            [{"id": 8, "path": "src/foo.py", "body": "fix", "html_url": "https://example.test"}]
+        )
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.list_review_comments(10, 20)
+        assert result[0].commit_id == ""

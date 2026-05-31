@@ -304,3 +304,23 @@ class TestParseEvent:
         assert result.title_changed is False
         assert result.body_changed is False
         assert result.base_changed is False
+
+    def test_workflow_run_with_no_pull_requests(self) -> None:
+        """workflow_run event with empty pull_requests defaults to pr_number=0."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "action": "completed",
+            "workflow_run": {
+                "id": 9876543,
+                "name": "CI",
+                "head_branch": "feature/new-feature",
+                "head_sha": "abc123",
+                "conclusion": "success",
+                "pull_requests": [],
+            },
+            "repository": {"full_name": "owner/repo"},
+        }
+        result = provider.parse_event(payload, "workflow_run")
+        assert result.pr_number == 0
+        assert result.head_branch == "feature/new-feature"
+        assert result.base_branch == ""

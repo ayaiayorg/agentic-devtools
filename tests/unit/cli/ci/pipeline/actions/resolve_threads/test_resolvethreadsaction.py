@@ -19,21 +19,23 @@ class TestResolveThreadsAction:
         result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.EXECUTE
 
-    def test_skip_when_copilot_review_pending(self) -> None:
+    def test_proceeds_when_copilot_review_pending(self) -> None:
+        """Pending review no longer blocks thread resolution (FR-002)."""
         snapshot = PRStateSnapshot(pr_number=1, ci_status="passing", copilot_review_pending=True, unresolved_threads=3)
         derived = DerivedState(snapshot)
         action = ResolveThreadsAction()
         result = action.evaluate(snapshot, derived)
-        assert result.decision == ActionDecision.SKIP
-        assert "pending" in result.details.lower()
+        assert result.decision == ActionDecision.EXECUTE
+        assert "no_pending_review" not in result.preconditions
 
-    def test_skip_when_ci_not_passing(self) -> None:
+    def test_proceeds_when_ci_not_passing(self) -> None:
+        """CI status no longer blocks thread resolution (FR-002)."""
         snapshot = PRStateSnapshot(pr_number=1, ci_status="failing", unresolved_threads=3)
         derived = DerivedState(snapshot)
         action = ResolveThreadsAction()
         result = action.evaluate(snapshot, derived)
-        assert result.decision == ActionDecision.SKIP
-        assert "ci is failing" in result.details.lower()
+        assert result.decision == ActionDecision.EXECUTE
+        assert "ci_passing" not in result.preconditions
 
     def test_skip_when_no_threads(self) -> None:
         snapshot = PRStateSnapshot(pr_number=1, ci_status="passing", unresolved_threads=0)
@@ -56,14 +58,17 @@ class TestResolveThreadsAction:
         result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.EXECUTE
 
-    def test_skip_when_derived_pending_review_is_true(self) -> None:
-        snapshot = PRStateSnapshot(pr_number=1, ci_status="passing", copilot_review_pending=False, unresolved_threads=3)
+    def test_only_has_unresolved_threads_precondition(self) -> None:
+        """Only has_unresolved_threads remains as a precondition (FR-002, FR-003)."""
+        snapshot = PRStateSnapshot(pr_number=1, ci_status="failing", copilot_review_pending=True, unresolved_threads=5)
         derived = DerivedState(snapshot)
         derived.set("copilot_review_pending", True)
         action = ResolveThreadsAction()
         result = action.evaluate(snapshot, derived)
-        assert result.decision == ActionDecision.SKIP
-        assert "pending" in result.details.lower()
+        assert result.decision == ActionDecision.EXECUTE
+        assert "has_unresolved_threads" in result.preconditions
+        assert "ci_passing" not in result.preconditions
+        assert "no_pending_review" not in result.preconditions
 
     def test_execute_calls_finalize(self) -> None:
         snapshot = PRStateSnapshot(
@@ -148,6 +153,28 @@ class TestResolveThreadsAction:
         action.execute(provider, snapshot, derived)
         # Derived state must reflect the post-resolution count, not the snapshot count.
         assert derived.unresolved_threads == 1
+
+    def test_execute_preserves_unprocessed_unresolved_threads(self) -> None:
+        """execute() preserves unresolved threads outside processed prior reviews."""
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            head_sha="head123",
+            base_branch="main",
+            head_branch="feature",
+            unresolved_threads=3,
+            reviews=[
+                ReviewInfo(id=10, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old123"),
+            ],
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.finalize_post_repair.return_value = FinalizationResult(resolved_count=1, unresolved_count=0)
+        action = ResolveThreadsAction()
+
+        result = action.execute(provider, snapshot, derived)
+
+        assert result.details == "Resolved 1 thread(s), 2 left open"
+        assert derived.unresolved_threads == 2
 
     def test_execute_reports_skipped_prior_reviews(self) -> None:
         snapshot = PRStateSnapshot(
