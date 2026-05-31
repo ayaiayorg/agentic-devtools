@@ -61,6 +61,8 @@ instead of repeating the full title, so that thread history is easier to scan.
 
 **Why this priority**: This is the direct behavior change requested by issue #1518.
 
+**Covers**: FR-001, FR-002, FR-003, FR-004, FR-010
+
 **Independent Test**: Render initial and follow-up comments for both
 `render_file_summary(...)` and `render_overall_summary(...)`; verify follow-ups
 contain `### Commit: [<short_hash>](<commit_url>)` and do not include `## <title>`.
@@ -88,6 +90,8 @@ so that repair flows enforce consistent formatting.
 **Why this priority**: Without position-aware validation, repair logic can reintroduce
 the old repeated-title format.
 
+**Covers**: FR-005, FR-006, FR-007, FR-008
+
 **Independent Test**: Run validation on both top-level and reply-style comments and
 verify position-specific pass/fail outcomes.
 
@@ -108,6 +112,8 @@ changes do not break observability.
 **Why this priority**: The change should be constrained to comment formatting only.
 `_format_activity_log_entry()` and its `### Review Session —` format are explicitly
 excluded from any modifications.
+
+**Covers**: FR-009
 
 **Independent Test**: Compare activity log fields before and after applying the
 formatting update for equivalent operations.
