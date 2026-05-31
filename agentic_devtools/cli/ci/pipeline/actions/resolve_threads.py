@@ -15,9 +15,11 @@ class ResolveThreadsAction:
     """Resolve unresolved Copilot review threads from prior commits.
 
     Preconditions:
-    - CI passing
-    - No pending Copilot review on HEAD
     - Unresolved threads exist from prior commits
+
+    Thread resolution is independent of CI status and pending review state.
+    Whether a code change addresses a review comment is logically independent
+    of whether CI passes or whether a new review has been requested.
 
     Idempotency: Already-resolved threads are skipped (per-thread).
     """
@@ -29,27 +31,6 @@ class ResolveThreadsAction:
     def evaluate(self, snapshot: PRStateSnapshot, derived: DerivedState) -> ActionResult:
         """Evaluate whether thread resolution should be attempted."""
         preconditions: dict[str, bool] = {}
-
-        # CI must be passing before finalization
-        preconditions["ci_passing"] = snapshot.ci_status == "passing"
-        if snapshot.ci_status != "passing":
-            return ActionResult(
-                name=self.name,
-                decision=ActionDecision.SKIP,
-                preconditions=preconditions,
-                details=f"CI is {snapshot.ci_status} — deferring thread resolution",
-            )
-
-        # No pending review on HEAD
-        pending_review = derived.copilot_review_pending
-        preconditions["no_pending_review"] = not pending_review
-        if pending_review:
-            return ActionResult(
-                name=self.name,
-                decision=ActionDecision.SKIP,
-                preconditions=preconditions,
-                details="Copilot review is pending on HEAD",
-            )
 
         # Unresolved threads exist
         has_threads = snapshot.unresolved_threads > 0
@@ -140,9 +121,15 @@ class ResolveThreadsAction:
         # Update derived state so downstream actions (approve, merge) see the
         # post-resolution count within the same pipeline run without a
         # re-query.
-        derived.set("unresolved_threads", unresolved)
+        #
+        # finalize_post_repair() only evaluates unresolved threads associated
+        # with the reviewed commit(s) being processed. Preserve unresolved
+        # threads that were outside those prior reviews by never dropping below
+        # (snapshot.unresolved_threads - resolved).
+        unresolved_total = max(unresolved, snapshot.unresolved_threads - resolved, 0)
+        derived.set("unresolved_threads", unresolved_total)
 
-        details = f"Resolved {resolved} thread(s), {unresolved} left open"
+        details = f"Resolved {resolved} thread(s), {unresolved_total} left open"
         if skipped_reviews:
             details = f"{details}; skipped {skipped_reviews} prior review(s)"
 

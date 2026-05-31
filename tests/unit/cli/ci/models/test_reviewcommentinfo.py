@@ -53,3 +53,17 @@ class TestReviewCommentInfo:
         a = ReviewCommentInfo(id=1, path="f.py", body="x", html_url="http://x", is_suppressed=False)
         b = ReviewCommentInfo(id=1, path="f.py", body="x", html_url="http://x", is_suppressed=True)
         assert a != b
+
+    def test_default_commit_id_empty_string(self) -> None:
+        comment = ReviewCommentInfo(id=1, path="f.py", body="x", html_url="http://x")
+        assert comment.commit_id == ""
+
+    def test_commit_id_set(self) -> None:
+        comment = ReviewCommentInfo(
+            id=1,
+            path="f.py",
+            body="x",
+            html_url="http://x",
+            commit_id="abc123def",
+        )
+        assert comment.commit_id == "abc123def"

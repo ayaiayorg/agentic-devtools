@@ -39,3 +39,19 @@ class TestPublishPR:
 
         with pytest.raises(RuntimeError, match="gh error from stdout"):
             provider.publish_pr(42)
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_publish_pr_without_repo_omits_repo_flag(self, mock_run_safe) -> None:
+        class _Result:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        mock_run_safe.return_value = _Result()
+
+        provider = GitHubActionsProvider(repo="")
+        provider.publish_pr(7)
+
+        args = mock_run_safe.call_args[0][0]
+        assert "--repo" not in args
+        assert args == ["gh", "pr", "ready", "7"]
