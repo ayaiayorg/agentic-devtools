@@ -1,12 +1,5 @@
 {
-  "findings": [
-    {
-      "key": "TASK:unmapped-test-task",
-      "severity": "LOW",
-      "description": "20 test task(s) lack both an FR reference and a valid [USn] label: T003, T004, T005, T006, T007, T008, T009, T011, T012, T015, T016, T017, T018, T019, T020, T021, T073, T076, T079, T080.",
-      "recommendation": "Add explicit FR-NNN references or [USn] labels to these tasks so they can be mapped to requirements."
-    }
-  ],
+  "findings": [],
   "coverage": {
     "FR-004": {
       "fr_id": "FR-004",
@@ -15,6 +8,7 @@
       "is_covered": true,
       "has_happy_path": true,
       "test_task_ids": [
+        "T005",
         "T035",
         "T036",
         "T039",
@@ -23,7 +17,8 @@
         "T043"
       ],
       "test_types": [
-        "happy-path"
+        "happy-path",
+        "negative"
       ]
     },
     "FR-009": {
@@ -33,13 +28,17 @@
       "is_covered": true,
       "has_happy_path": false,
       "test_task_ids": [
+        "T006",
+        "T008",
         "T058",
         "T059",
         "T060",
         "T061",
         "T066",
         "T067",
-        "T072"
+        "T072",
+        "T079",
+        "T080"
       ],
       "test_types": []
     },
@@ -53,7 +52,8 @@
         "T046",
         "T047",
         "T048",
-        "T051"
+        "T051",
+        "T076"
       ],
       "test_types": []
     },
@@ -64,6 +64,19 @@
       "is_covered": true,
       "has_happy_path": true,
       "test_task_ids": [
+        "T003",
+        "T004",
+        "T007",
+        "T009",
+        "T011",
+        "T012",
+        "T015",
+        "T016",
+        "T017",
+        "T018",
+        "T019",
+        "T020",
+        "T021",
         "T030",
         "T031",
         "T032",
@@ -72,8 +85,8 @@
       ],
       "test_types": [
         "negative",
-        "integration",
-        "happy-path"
+        "happy-path",
+        "integration"
       ]
     },
     "FR-002": {
@@ -83,6 +96,19 @@
       "is_covered": true,
       "has_happy_path": true,
       "test_task_ids": [
+        "T003",
+        "T004",
+        "T007",
+        "T009",
+        "T011",
+        "T012",
+        "T015",
+        "T016",
+        "T017",
+        "T018",
+        "T019",
+        "T020",
+        "T021",
         "T030",
         "T031",
         "T032",
@@ -91,8 +117,8 @@
       ],
       "test_types": [
         "negative",
-        "integration",
-        "happy-path"
+        "happy-path",
+        "integration"
       ]
     },
     "FR-003": {
@@ -102,6 +128,7 @@
       "is_covered": true,
       "has_happy_path": true,
       "test_task_ids": [
+        "T005",
         "T035",
         "T036",
         "T039",
@@ -110,7 +137,8 @@
         "T043"
       ],
       "test_types": [
-        "happy-path"
+        "happy-path",
+        "negative"
       ]
     },
     "FR-010": {
@@ -120,6 +148,9 @@
       "is_covered": true,
       "has_happy_path": true,
       "test_task_ids": [
+        "T005",
+        "T006",
+        "T008",
         "T035",
         "T036",
         "T039",
@@ -132,10 +163,13 @@
         "T061",
         "T066",
         "T067",
-        "T072"
+        "T072",
+        "T079",
+        "T080"
       ],
       "test_types": [
-        "happy-path"
+        "happy-path",
+        "negative"
       ]
     },
     "FR-005": {
@@ -148,7 +182,8 @@
         "T046",
         "T047",
         "T048",
-        "T051"
+        "T051",
+        "T076"
       ],
       "test_types": []
     },
@@ -162,7 +197,8 @@
         "T052",
         "T053",
         "T056",
-        "T057"
+        "T057",
+        "T073"
       ],
       "test_types": []
     },
@@ -177,20 +213,21 @@
         "T052",
         "T053",
         "T056",
-        "T057"
+        "T057",
+        "T073"
       ],
       "test_types": [
         "negative"
       ]
     }
   },
-  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-004 | US2 | T035, T036, T039, T040, T041, T043 | happy-path | \u2705 Covered |\n| FR-009 | US5 | T058, T059, T060, T061, T066, T067, T072 | None | \u2705 Covered |\n| FR-008 | US3 | T046, T047, T048, T051 | None | \u2705 Covered |\n| FR-001 | US1 | T030, T031, T032, T033, T034 | negative, integration, happy-path | \u2705 Covered |\n| FR-002 | US1 | T030, T031, T032, T033, T034 | negative, integration, happy-path | \u2705 Covered |\n| FR-003 | US2 | T035, T036, T039, T040, T041, T043 | happy-path | \u2705 Covered |\n| FR-010 | US2 | T035, T036, T039, T040, T041, T043, T058, T059, T060, T061, T066, T067, T072 | happy-path | \u2705 Covered |\n| FR-005 | US3 | T046, T047, T048, T051 | None | \u2705 Covered |\n| FR-006 | US4 | T052, T053, T056, T057 | None | \u2705 Covered |\n| FR-007 | US4 | T041, T052, T053, T056, T057 | negative | \u2705 Covered |\n",
+  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-004 | US2 | T005, T035, T036, T039, T040, T041, T043 | happy-path, negative | \u2705 Covered |\n| FR-009 | US5 | T006, T008, T058, T059, T060, T061, T066, T067, T072, T079, T080 | None | \u2705 Covered |\n| FR-008 | US3 | T046, T047, T048, T051, T076 | None | \u2705 Covered |\n| FR-001 | US1 | T003, T004, T007, T009, T011, T012, T015, T016, T017, T018, T019, T020, T021, T030, T031, T032, T033, T034 | negative, happy-path, integration | \u2705 Covered |\n| FR-002 | US1 | T003, T004, T007, T009, T011, T012, T015, T016, T017, T018, T019, T020, T021, T030, T031, T032, T033, T034 | negative, happy-path, integration | \u2705 Covered |\n| FR-003 | US2 | T005, T035, T036, T039, T040, T041, T043 | happy-path, negative | \u2705 Covered |\n| FR-010 | US2 | T005, T006, T008, T035, T036, T039, T040, T041, T043, T058, T059, T060, T061, T066, T067, T072, T079, T080 | happy-path, negative | \u2705 Covered |\n| FR-005 | US3 | T046, T047, T048, T051, T076 | None | \u2705 Covered |\n| FR-006 | US4 | T052, T053, T056, T057, T073 | None | \u2705 Covered |\n| FR-007 | US4 | T041, T052, T053, T056, T057, T073 | negative | \u2705 Covered |\n",
   "summary": {
     "total_frs": 10,
     "covered_frs": 10,
     "uncovered_frs": 0,
-    "total_test_tasks": 48,
-    "unmapped_test_tasks": 20,
-    "total_findings": 1
+    "total_test_tasks": 46,
+    "unmapped_test_tasks": 0,
+    "total_findings": 0
   }
 }

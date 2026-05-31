@@ -23,12 +23,12 @@
 
 - [ ] T001 Create package directory `agentic_devtools/segments/` with `__init__.py`
 - [ ] T002 Create CLI package directory `agentic_devtools/cli/segments/` with `__init__.py`
-- [ ] T003 Create tests directory tree `tests/unit/segments/models/` with `__init__.py` at each level
-- [ ] T004 Create tests directory tree `tests/unit/segments/manager/` with `__init__.py` at each level
-- [ ] T005 Create tests directory tree `tests/unit/segments/reconciler/` with `__init__.py` at each level
-- [ ] T006 Create tests directory tree `tests/unit/segments/cleanup/` with `__init__.py` at each level
-- [ ] T007 Create tests directory tree `tests/unit/segments/errors/` with `__init__.py` at each level
-- [ ] T008 Create tests directory tree `tests/unit/cli/segments/commands/` with `__init__.py` at each level
+- [ ] T003 [US1] Create tests directory tree `tests/unit/segments/models/` with `__init__.py` at each level
+- [ ] T004 [US1] Create tests directory tree `tests/unit/segments/manager/` with `__init__.py` at each level
+- [ ] T005 [US2] Create tests directory tree `tests/unit/segments/reconciler/` with `__init__.py` at each level
+- [ ] T006 [US5] Create tests directory tree `tests/unit/segments/cleanup/` with `__init__.py` at each level
+- [ ] T007 [US1] Create tests directory tree `tests/unit/segments/errors/` with `__init__.py` at each level
+- [ ] T008 [US5] Create tests directory tree `tests/unit/cli/segments/commands/` with `__init__.py` at each level
 
 ---
 
@@ -36,7 +36,7 @@
 
 ### Errors Module
 
-- [ ] T009 Write failing tests for `SegmentError`, `SegmentNotFoundError`, `SegmentLifecycleError`, `ReconciliationError` in `tests/unit/segments/errors/test_segmenterror.py`,
+- [ ] T009 [US1] Write failing tests for `SegmentError`, `SegmentNotFoundError`, `SegmentLifecycleError`, `ReconciliationError` in `tests/unit/segments/errors/test_segmenterror.py`,
   `test_segmentnotfounderror.py`, `test_segmentlifecycleerror.py`, `test_reconciliationerror.py`
   - Depends on: T007
 - [ ] T010 [P] Implement custom exceptions in `agentic_devtools/segments/errors.py` — `SegmentError` (base), `SegmentNotFoundError`, `SegmentLifecycleError`, `ReconciliationError`
@@ -44,9 +44,9 @@
 
 ### Models Module
 
-- [ ] T011 Write failing tests for `SegmentStatus` enum in `tests/unit/segments/models/test_segmentstatus.py` — test values (`active`, `completed`, `failed`), terminal state property
+- [ ] T011 [US1] Write failing tests for `SegmentStatus` enum in `tests/unit/segments/models/test_segmentstatus.py` — test values (`active`, `completed`, `failed`), terminal state property
   - Depends on: T003
-- [ ] T012 Write failing tests for `StateSegment` dataclass in `tests/unit/segments/models/test_statesegment.py` — test construction, `to_dict()`, `from_dict()`, round-trip serialization, field
+- [ ] T012 [US1] Write failing tests for `StateSegment` dataclass in `tests/unit/segments/models/test_statesegment.py` — test construction, `to_dict()`, `from_dict()`, round-trip serialization, field
   defaults
   - Depends on: T003
 - [ ] T013 [P] Implement `SegmentStatus` enum in `agentic_devtools/segments/models.py` — values: `active`, `completed`, `failed`
@@ -57,19 +57,19 @@
 
 ### Manager Module
 
-- [ ] T015 Write failing test for `get_segments_dir()` in `tests/unit/segments/manager/test_get_segments_dir.py`
+- [ ] T015 [US1] Write failing test for `get_segments_dir()` in `tests/unit/segments/manager/test_get_segments_dir.py`
   - Depends on: T004
-- [ ] T016 Write failing test for `create_segment()` in `tests/unit/segments/manager/test_create_segment.py` — test file creation, UUID4 ID, initial `active` status, atomic write
+- [ ] T016 [US1] Write failing test for `create_segment()` in `tests/unit/segments/manager/test_create_segment.py` — test file creation, UUID4 ID, initial `active` status, atomic write
   - Depends on: T004
-- [ ] T017 Write failing test for `read_segment()` in `tests/unit/segments/manager/test_read_segment.py` — test read, missing file raises `SegmentNotFoundError`
+- [ ] T017 [US1] Write failing test for `read_segment()` in `tests/unit/segments/manager/test_read_segment.py` — test read, missing file raises `SegmentNotFoundError`
   - Depends on: T004
-- [ ] T018 Write failing test for `write_segment_data()` in `tests/unit/segments/manager/test_write_segment_data.py` — test key/value update, atomic write
+- [ ] T018 [US1] Write failing test for `write_segment_data()` in `tests/unit/segments/manager/test_write_segment_data.py` — test key/value update, atomic write
   - Depends on: T004
-- [ ] T019 Write failing test for `complete_segment()` in `tests/unit/segments/manager/test_complete_segment.py` — test transition to `completed`, sets `completed_utc`, rejects non-active segments
+- [ ] T019 [US1] Write failing test for `complete_segment()` in `tests/unit/segments/manager/test_complete_segment.py` — test transition to `completed`, sets `completed_utc`, rejects non-active segments
   - Depends on: T004
-- [ ] T020 Write failing test for `fail_segment()` in `tests/unit/segments/manager/test_fail_segment.py` — test transition to `failed`, optional error message, rejects non-active segments
+- [ ] T020 [US1] Write failing test for `fail_segment()` in `tests/unit/segments/manager/test_fail_segment.py` — test transition to `failed`, optional error message, rejects non-active segments
   - Depends on: T004
-- [ ] T021 Write failing test for `list_segments()` in `tests/unit/segments/manager/test_list_segments.py` — test all/filtered listing, empty directory
+- [ ] T021 [US1] Write failing test for `list_segments()` in `tests/unit/segments/manager/test_list_segments.py` — test all/filtered listing, empty directory
   - Depends on: T004
 - [ ] T022 Implement `get_segments_dir()` in `agentic_devtools/segments/manager.py` — resolves `{state_dir}/segments/`, creates directory if missing
   - Depends on: T015, T014, T010
@@ -238,7 +238,7 @@
 
 ### Logging & Diagnostics (NFR-003)
 
-- [ ] T073 Write failing test for structured logging in `tests/unit/segments/manager/test_logging.py` — verify log output includes `worker_id`, `segment_id`, operation stage (NFR-003, SC-006)
+- [ ] T073 [US4] Write failing test for structured logging in `tests/unit/segments/manager/test_logging.py` — verify log output includes `worker_id`, `segment_id`, operation stage (NFR-003, SC-006)
   - Depends on: T029
 - [ ] T074 Add structured logging throughout `agentic_devtools/segments/manager.py`, `reconciler.py`, `cleanup.py` using Python `logging` module with per-module loggers
   - Depends on: T073
@@ -247,7 +247,7 @@
 
 ### Performance Validation (NFR-004)
 
-- [ ] T076 Write performance baseline test — benchmark serial workflow latency before/after changes using `time.perf_counter()`, assert ≤5% p95 regression when parallel mode is not active (NFR-004)
+- [ ] T076 [US3] Write performance baseline test — benchmark serial workflow latency before/after changes using `time.perf_counter()`, assert ≤5% p95 regression when parallel mode is not active (NFR-004)
   - Depends on: T057, T051
 
 ### Documentation
@@ -260,9 +260,9 @@
 
 ### Final Validation
 
-- [ ] T079 Run full test suite (`agdt-test && agdt-task-wait`) — verify zero regressions, 100% branch coverage on new files (SC-001 through SC-006)
+- [ ] T079 [US5] Run full test suite (`agdt-test && agdt-task-wait`) — verify zero regressions, 100% branch coverage on new files (SC-001 through SC-006)
   - Depends on: T076, T078
-- [ ] T080 Run `python scripts/validate_test_structure.py` — verify 1:1:1 test structure compliance for all new test files
+- [ ] T080 [US5] Run `python scripts/validate_test_structure.py` — verify 1:1:1 test structure compliance for all new test files
   - Depends on: T079
 - [ ] T081 Run targeted checks (`bash scripts/targeted-checks.sh`) — ruff format, ruff check, mypy, markdownlint, per-file coverage
   - Depends on: T080
