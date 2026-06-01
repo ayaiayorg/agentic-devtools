@@ -1,6 +1,6 @@
 """Tests for run_pipeline."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from agentic_devtools.cli.ci.pipeline.actions import (
     ApproveAction,
@@ -270,7 +270,8 @@ class TestRunPipeline:
     def test_runs_after_invalidation_actions_proceed_after_snapshot_invalidation(self) -> None:
         """Actions with runs_after_invalidation=True execute; others are skipped."""
         provider = MagicMock()
-        snapshot = PRStateSnapshot(pr_number=1)
+        snapshot = PRStateSnapshot(pr_number=1, head_sha="oldsha")
+        refreshed_snapshot = PRStateSnapshot(pr_number=1, head_sha="newsha")
 
         class _InvalidatingAction:
             @property
@@ -297,6 +298,8 @@ class TestRunPipeline:
                 return True
 
             def evaluate(self, snapshot, derived) -> ActionResult:
+                assert snapshot.head_sha == "newsha"
+                derived.set("opt_in_ran", True)
                 return ActionResult(name="resolve_threads", decision=ActionDecision.EXECUTE)
 
             def execute(self, provider, snapshot, derived) -> ActionResult:
@@ -313,11 +316,148 @@ class TestRunPipeline:
             def execute(self, provider, snapshot, derived) -> ActionResult:
                 return ActionResult(name="merge", decision=ActionDecision.EXECUTE)
 
-        summary = run_pipeline(provider, snapshot, [_InvalidatingAction(), _OptInAction(), _RegularAction()])
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.runner.build_pr_state_snapshot",
+            return_value=refreshed_snapshot,
+        ) as mock_refresh:
+            summary = run_pipeline(provider, snapshot, [_InvalidatingAction(), _OptInAction(), _RegularAction()])
+
+        mock_refresh.assert_called_once_with(provider, 1)
         assert summary.results[0].decision == ActionDecision.EXECUTE  # squash executed
         assert summary.results[1].decision == ActionDecision.EXECUTE  # resolve_threads proceeded
         assert summary.results[2].decision == ActionDecision.SKIP  # merge halted
         assert "rerun required" in summary.results[2].details.lower()
+        assert summary.snapshot is not None
+        assert summary.snapshot.head_sha == "newsha"
+
+    def test_runs_after_invalidation_actions_share_refreshed_derived_state(self) -> None:
+        """All opt-in actions after invalidation share refreshed snapshot/derived state."""
+        provider = MagicMock()
+        snapshot = PRStateSnapshot(pr_number=1, head_sha="oldsha")
+        refreshed_snapshot = PRStateSnapshot(pr_number=1, head_sha="newsha")
+        observed: list[str] = []
+
+        class _InvalidatingAction:
+            @property
+            def name(self):
+                return "squash"
+
+            def evaluate(self, snapshot, derived) -> ActionResult:
+                return ActionResult(name="squash", decision=ActionDecision.EXECUTE)
+
+            def execute(self, provider, snapshot, derived) -> ActionResult:
+                return ActionResult(name="squash", decision=ActionDecision.EXECUTE, invalidates_snapshot=True)
+
+        class _FirstOptInAction:
+            @property
+            def name(self):
+                return "resolve_threads"
+
+            @property
+            def runs_after_invalidation(self):
+                return True
+
+            def evaluate(self, snapshot, derived) -> ActionResult:
+                observed.append(snapshot.head_sha)
+                derived.set("marker", "set-by-first-optin")
+                return ActionResult(name="resolve_threads", decision=ActionDecision.EXECUTE)
+
+            def execute(self, provider, snapshot, derived) -> ActionResult:
+                return ActionResult(name="resolve_threads", decision=ActionDecision.EXECUTE)
+
+        class _SecondOptInAction:
+            @property
+            def name(self):
+                return "request_review"
+
+            @property
+            def runs_after_invalidation(self):
+                return True
+
+            def evaluate(self, snapshot, derived) -> ActionResult:
+                observed.append(snapshot.head_sha)
+                assert derived.marker == "set-by-first-optin"
+                return ActionResult(name="request_review", decision=ActionDecision.EXECUTE)
+
+            def execute(self, provider, snapshot, derived) -> ActionResult:
+                return ActionResult(name="request_review", decision=ActionDecision.EXECUTE)
+
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.runner.build_pr_state_snapshot",
+            return_value=refreshed_snapshot,
+        ) as mock_refresh:
+            summary = run_pipeline(
+                provider,
+                snapshot,
+                [_InvalidatingAction(), _FirstOptInAction(), _SecondOptInAction()],
+            )
+
+        mock_refresh.assert_called_once_with(provider, 1)
+        assert observed == ["newsha", "newsha"]
+        assert [r.decision for r in summary.results] == [
+            ActionDecision.EXECUTE,
+            ActionDecision.EXECUTE,
+            ActionDecision.EXECUTE,
+        ]
+
+    def test_runs_after_invalidation_fails_when_snapshot_refresh_raises(self) -> None:
+        """Refresh failures on opt-in actions fail closed and halt remaining actions."""
+        provider = MagicMock()
+        snapshot = PRStateSnapshot(pr_number=1, head_sha="oldsha")
+
+        class _InvalidatingAction:
+            @property
+            def name(self):
+                return "squash"
+
+            def evaluate(self, snapshot, derived) -> ActionResult:
+                return ActionResult(name="squash", decision=ActionDecision.EXECUTE)
+
+            def execute(self, provider, snapshot, derived) -> ActionResult:
+                return ActionResult(name="squash", decision=ActionDecision.EXECUTE, invalidates_snapshot=True)
+
+        class _OptInAction:
+            @property
+            def name(self):
+                return "resolve_threads"
+
+            @property
+            def runs_after_invalidation(self):
+                return True
+
+            def evaluate(self, snapshot, derived) -> ActionResult:
+                return ActionResult(name="resolve_threads", decision=ActionDecision.EXECUTE)
+
+            def execute(self, provider, snapshot, derived) -> ActionResult:
+                return ActionResult(name="resolve_threads", decision=ActionDecision.EXECUTE)
+
+        class _FollowingAction:
+            @property
+            def name(self):
+                return "request_review"
+
+            def evaluate(self, snapshot, derived) -> ActionResult:
+                return ActionResult(name="request_review", decision=ActionDecision.EXECUTE)
+
+            def execute(self, provider, snapshot, derived) -> ActionResult:
+                return ActionResult(name="request_review", decision=ActionDecision.EXECUTE)
+
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.runner.build_pr_state_snapshot",
+            side_effect=RuntimeError("refresh failed"),
+        ) as mock_refresh:
+            summary = run_pipeline(
+                provider,
+                snapshot,
+                [_InvalidatingAction(), _OptInAction(), _FollowingAction()],
+            )
+
+        mock_refresh.assert_called_once_with(provider, 1)
+        assert summary.results[0].decision == ActionDecision.EXECUTE
+        assert summary.results[1].decision == ActionDecision.FAILED
+        assert "Failed to refresh snapshot" in summary.results[1].details
+        assert summary.results[2].decision == ActionDecision.SKIP
+        assert "halted" in summary.results[2].details.lower()
 
     def test_skip_actions_not_blocked_after_failure(self) -> None:
         """All actions after a failure are halted (exec_failed_by gate is before evaluate)."""

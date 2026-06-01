@@ -15,7 +15,7 @@ from agentic_devtools.cli.ci.pipeline.models import (
     ActionResult,
     PipelineRunSummary,
 )
-from agentic_devtools.cli.ci.pipeline.snapshot import DerivedState, PRStateSnapshot
+from agentic_devtools.cli.ci.pipeline.snapshot import DerivedState, PRStateSnapshot, build_pr_state_snapshot
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
 
 logger = logging.getLogger(__name__)
@@ -61,13 +61,15 @@ def run_pipeline(
     Returns:
         PipelineRunSummary with all action results.
     """
-    derived = DerivedState(snapshot)
+    current_snapshot = snapshot
+    derived = DerivedState(current_snapshot)
     results: list[ActionResult] = []
     guard_blocked = False
     guard_block_reason = ""
     # Name of the first side-effecting action that returned FAILED; empty when none.
     exec_failed_by = ""
     snapshot_invalidated_by = ""
+    refreshed_after_invalidation = False
 
     for action in actions:
         action_name = action.name
@@ -105,24 +107,48 @@ def run_pipeline(
             _log_endgroup()
             continue
 
-        if snapshot_invalidated_by and not getattr(action, "runs_after_invalidation", False):
-            result = ActionResult(
-                name=action_name,
-                decision=ActionDecision.SKIP,
-                details=(f"Pipeline halted: '{snapshot_invalidated_by}' changed PR HEAD; rerun required"),
-            )
-            logger.info(
-                "Action '%s': SKIP (halted by snapshot invalidation in '%s')",
-                action_name,
-                snapshot_invalidated_by,
-            )
-            results.append(result)
-            _log_endgroup()
-            continue
+        if snapshot_invalidated_by:
+            if not getattr(action, "runs_after_invalidation", False):
+                result = ActionResult(
+                    name=action_name,
+                    decision=ActionDecision.SKIP,
+                    details=(f"Pipeline halted: '{snapshot_invalidated_by}' changed PR HEAD; rerun required"),
+                )
+                logger.info(
+                    "Action '%s': SKIP (halted by snapshot invalidation in '%s')",
+                    action_name,
+                    snapshot_invalidated_by,
+                )
+                results.append(result)
+                _log_endgroup()
+                continue
+
+            if not refreshed_after_invalidation:
+                try:
+                    current_snapshot = build_pr_state_snapshot(provider, current_snapshot.pr_number)
+                    derived = DerivedState(current_snapshot)
+                    refreshed_after_invalidation = True
+                except Exception as exc:
+                    logger.error(
+                        "Action '%s': failed to refresh snapshot after invalidation by '%s': %s",
+                        action_name,
+                        snapshot_invalidated_by,
+                        exc,
+                    )
+                    result = ActionResult(
+                        name=action_name,
+                        decision=ActionDecision.FAILED,
+                        error=str(exc),
+                        details=f"Failed to refresh snapshot after '{snapshot_invalidated_by}'",
+                    )
+                    results.append(result)
+                    exec_failed_by = action_name
+                    _log_endgroup()
+                    continue
 
         # Evaluate preconditions
         try:
-            eval_result = action.evaluate(snapshot, derived)
+            eval_result = action.evaluate(current_snapshot, derived)
         except Exception as exc:
             logger.error("Action '%s' evaluation raised exception: %s", action_name, exc)
             result = ActionResult(
@@ -167,7 +193,7 @@ def run_pipeline(
 
         # Execute the action
         try:
-            exec_result = action.execute(provider, snapshot, derived)
+            exec_result = action.execute(provider, current_snapshot, derived)
             logger.info(
                 "Action '%s': executed → %s (details: %s)",
                 action_name,
@@ -200,7 +226,7 @@ def run_pipeline(
 
     return PipelineRunSummary(
         results=results,
-        snapshot=snapshot,
+        snapshot=current_snapshot,
         run_url=_get_run_url(),
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
