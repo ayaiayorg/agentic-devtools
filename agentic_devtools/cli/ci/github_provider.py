@@ -323,7 +323,7 @@ def _build_repair_comment(
 
             if comment.is_suppressed:
                 body = _format_suppressed_body(comment.body)
-                parts.append(f'- Comment #{nc} - {filename} ({nf}): "{body}" (suppressed comment)')
+                parts.append(f'- `Comment #{nc}` - `{filename} ({nf})`: "{body}" (suppressed comment)')
             else:
                 label = f"Comment #{nc} - {filename} ({nf})"
                 if comment.html_url:

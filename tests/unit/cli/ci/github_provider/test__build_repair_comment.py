@@ -111,7 +111,7 @@ class TestBuildRepairComment:
             review_comments=[_COMMENT_1, _SUPPRESSED],
         )
         # Suppressed: no link, body quoted, "(suppressed comment)" suffix
-        assert '- Comment #2 - baz.py (1): "Subjective style preference" (suppressed comment)' in body
+        assert '- `Comment #2` - `baz.py (1)`: "Subjective style preference" (suppressed comment)' in body
         # Non-suppressed: link format
         assert "- [Comment #1 - foo.py (1)]" in body
         # Suppressed comment URL should NOT appear as a link
@@ -132,7 +132,7 @@ class TestBuildRepairComment:
             failed_checks=[],
             review_comments=[suppressed],
         )
-        assert '- Comment #1 - baz.py (1): "First line Second \\"quoted\\" line" (suppressed comment)' in body
+        assert '- `Comment #1` - `baz.py (1)`: "First line Second \\"quoted\\" line" (suppressed comment)' in body
 
     def test_suppressed_comment_body_is_truncated(self) -> None:
         """Suppressed comment body is truncated to keep trigger comment compact."""
