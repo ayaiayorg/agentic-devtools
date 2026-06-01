@@ -76,6 +76,20 @@ class TestRunPipeline:
         assert summary.results[0].decision == ActionDecision.EXECUTE
         assert "exec_approve" in summary.results[0].details
 
+    def test_non_guard_blocked_does_not_guard_block_following_actions(self) -> None:
+        """Non-guards BLOCKED result should not trigger guard-block behavior."""
+        provider = MagicMock()
+        snapshot = PRStateSnapshot(pr_number=1)
+        actions = [
+            _MockAction("publish", ActionDecision.BLOCKED),
+            _MockAction("merge", ActionDecision.EXECUTE),
+        ]
+
+        summary = run_pipeline(provider, snapshot, actions)
+
+        assert summary.results[0].decision == ActionDecision.BLOCKED
+        assert summary.results[1].decision == ActionDecision.EXECUTE
+
     def test_exception_in_evaluation(self) -> None:
         """Exception during evaluate() → FAILED."""
         provider = MagicMock()
@@ -226,6 +240,27 @@ class TestRunPipeline:
         assert summary.results[0].decision == ActionDecision.FAILED
         assert summary.results[1].decision == ActionDecision.SKIP
         assert "halted" in summary.results[1].details.lower()
+
+    def test_guards_execute_exception_does_not_halt_subsequent_actions(self) -> None:
+        """guards execute exception should not set non-guard failure gate."""
+        provider = MagicMock()
+        snapshot = PRStateSnapshot(pr_number=1)
+
+        class _ExplodingGuards:
+            @property
+            def name(self):
+                return "guards"
+
+            def evaluate(self, snapshot, derived) -> ActionResult:
+                return ActionResult(name="guards", decision=ActionDecision.EXECUTE)
+
+            def execute(self, provider, snapshot, derived) -> ActionResult:
+                raise RuntimeError("guards exploded")
+
+        actions: list[Action] = [_ExplodingGuards(), _MockAction("publish", ActionDecision.EXECUTE)]
+        summary = run_pipeline(provider, snapshot, actions)
+        assert summary.results[0].decision == ActionDecision.FAILED
+        assert summary.results[1].decision == ActionDecision.EXECUTE
 
     def test_head_changing_action_halts_subsequent_actions_until_rerun(self) -> None:
         """A fresh snapshot is required after an action force-pushes a new HEAD."""
@@ -500,10 +535,25 @@ class TestRunPipeline:
         assert summary.run_url == "https://github.com/org/repo/actions/runs/12345"
         assert summary.timestamp != ""
 
+    def test_no_log_group_annotations_outside_github_actions(self, monkeypatch, capsys) -> None:
+        """No ::group:: annotations should be emitted outside GitHub Actions."""
+        monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+
+        summary = run_pipeline(
+            MagicMock(),
+            PRStateSnapshot(pr_number=1),
+            [_MockAction("publish", ActionDecision.EXECUTE)],
+        )
+        captured = capsys.readouterr()
+        assert summary.results[0].decision == ActionDecision.EXECUTE
+        assert "::group::" not in captured.err
+        assert "::endgroup::" not in captured.err
+
     def test_summary_has_empty_run_url_without_actions_env(self, monkeypatch) -> None:
         """Run URL is empty when GitHub Actions environment is incomplete."""
         monkeypatch.delenv("GITHUB_REPOSITORY", raising=False)
         monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+        monkeypatch.delenv("TRIGGER_REASON", raising=False)
         summary = run_pipeline(MagicMock(), PRStateSnapshot(pr_number=1), [])
         assert summary.run_url == ""
 
@@ -558,6 +608,18 @@ class TestRunPipeline:
         assert "guards exploded" in summary.results[0].error
         # exec_failed_by is not set for guards, so publish still runs
         assert summary.results[1].decision == ActionDecision.EXECUTE
+
+    def test_summary_includes_trigger_reason_from_env(self, monkeypatch) -> None:
+        """Summary captures TRIGGER_REASON from environment."""
+        monkeypatch.setenv("TRIGGER_REASON", "agent_session_finished")
+        summary = run_pipeline(MagicMock(), PRStateSnapshot(pr_number=1), [])
+        assert summary.trigger_reason == "agent_session_finished"
+
+    def test_summary_has_empty_trigger_reason_when_env_not_set(self, monkeypatch) -> None:
+        """trigger_reason is empty when TRIGGER_REASON env var is not set."""
+        monkeypatch.delenv("TRIGGER_REASON", raising=False)
+        summary = run_pipeline(MagicMock(), PRStateSnapshot(pr_number=1), [])
+        assert summary.trigger_reason == ""
 
     def test_all_8_actions_evaluated_on_ci_completion(self) -> None:
         """All 8 actions evaluated on a CI completion event."""

@@ -17,6 +17,7 @@ class TestPipelineRunSummary:
         assert summary.snapshot is None
         assert summary.run_url == ""
         assert summary.timestamp == ""
+        assert summary.trigger_reason == ""
 
     def test_full_construction(self) -> None:
         snapshot = PRStateSnapshot(pr_number=42, head_sha="abc123")
@@ -26,8 +27,10 @@ class TestPipelineRunSummary:
             snapshot=snapshot,
             run_url="https://github.com/org/repo/actions/runs/123",
             timestamp="2024-01-01T00:00:00Z",
+            trigger_reason="ci_completion",
         )
         assert len(summary.results) == 1
         assert summary.snapshot is not None
         assert summary.snapshot.pr_number == 42
         assert summary.run_url.endswith("/123")
+        assert summary.trigger_reason == "ci_completion"

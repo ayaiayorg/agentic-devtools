@@ -29,6 +29,48 @@ class TestRenderSummaryComment:
         assert "View Logs" in comment
         assert "12345" in comment
 
+    def test_header_without_trigger_reason_or_url(self) -> None:
+        summary = PipelineRunSummary()
+        comment = render_summary_comment(summary)
+        assert "#### 🤖 AI PR Loop Run" in comment
+        assert "Trigger Reason" not in comment
+        assert "View Logs" not in comment
+
+    def test_header_with_trigger_reason(self) -> None:
+        summary = PipelineRunSummary(trigger_reason="ci_completion")
+        comment = render_summary_comment(summary)
+        assert "#### 🤖 AI PR Loop Run — Trigger Reason: ci_completion" in comment
+
+    def test_header_with_trigger_reason_and_url(self) -> None:
+        summary = PipelineRunSummary(
+            trigger_reason="agent_session_finished",
+            run_url="https://github.com/org/repo/actions/runs/99",
+        )
+        comment = render_summary_comment(summary)
+        assert "#### 🤖 AI PR Loop Run — Trigger Reason: agent_session_finished — [View Logs](" in comment
+
+    def test_header_trigger_reason_is_single_line_and_html_escaped(self) -> None:
+        summary = PipelineRunSummary(trigger_reason="ci_done\n<details>pwn</details>\r\nnext")
+        comment = render_summary_comment(summary)
+        assert "Trigger Reason: ci_done &lt;details&gt;pwn&lt;/details&gt; next" in comment
+        assert "Trigger Reason: ci_done\n" not in comment
+
+    def test_header_run_url_strips_newlines(self) -> None:
+        summary = PipelineRunSummary(run_url="https://github.com/org/repo/actions/runs/99\n\r")
+        comment = render_summary_comment(summary)
+        assert "[View Logs](https://github.com/org/repo/actions/runs/99)" in comment
+        assert "\n\r" not in comment
+
+    def test_actions_table_is_collapsed(self) -> None:
+        results = [
+            ActionResult(name="guards", decision=ActionDecision.EXECUTE, details="All guards passed"),
+        ]
+        summary = PipelineRunSummary(results=results)
+        comment = render_summary_comment(summary)
+        assert "<details><summary>Actions table</summary>" in comment
+        assert "| Action | Preconditions | Result |" in comment
+        assert "</details>" in comment
+
     def test_contains_action_table(self) -> None:
         results = [
             ActionResult(name="guards", decision=ActionDecision.EXECUTE, details="All guards passed"),
@@ -55,6 +97,7 @@ class TestRenderSummaryComment:
         )
         summary = PipelineRunSummary(snapshot=snapshot)
         comment = render_summary_comment(summary)
+        assert "<details><summary>State snapshot</summary>" in comment
         assert "abc1234" in comment
         assert "Commits above merge-base: 2" in comment
         assert "CI: passing" in comment
@@ -118,9 +161,6 @@ class TestRenderSummaryComment:
         # The detail text must appear in the Result column, but not duplicated in Preconditions
         assert "some detail text" in comment
         # Preconditions column should show '—', not the detail text
-        # The table row: | guards | ⬜ — | skipped (some detail...) |
-        # Verify '—' is present and the detail text is not in the preconditions position
-        # by checking the row structure: precond cell must be '⬜ —'
         assert "⬜ —" in comment
 
     def test_format_preconditions_all_passed_rendered(self) -> None:

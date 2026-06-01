@@ -56,7 +56,7 @@ def run_pipeline(
     Args:
         provider: CI platform provider for API interactions.
         snapshot: Immutable PR state snapshot.
-        actions: Ordered list of actions to evaluate and execute.
+        actions: Ordered actions to evaluate and execute.
 
     Returns:
         PipelineRunSummary with all action results.
@@ -229,4 +229,5 @@ def run_pipeline(
         snapshot=current_snapshot,
         run_url=_get_run_url(),
         timestamp=datetime.now(timezone.utc).isoformat(),
+        trigger_reason=os.environ.get("TRIGGER_REASON", ""),
     )

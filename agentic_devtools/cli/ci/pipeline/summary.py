@@ -5,7 +5,6 @@ from __future__ import annotations
 import html
 import logging
 import os
-import re
 
 from agentic_devtools.cli.ci.pipeline.models import (
     ActionDecision,
@@ -19,7 +18,10 @@ logger = logging.getLogger(__name__)
 
 SUMMARY_SENTINEL = "<!-- agdt:ai-pr-loop-summary -->"
 SUMMARY_COLLAPSED_SENTINEL = "<!-- agdt:ai-pr-loop-summary-collapsed -->"
-SUMMARY_FALLBACK_MARKER = f"{SUMMARY_SENTINEL}\n\n**🤖 AI PR Loop Run"
+SUMMARY_FALLBACK_MARKERS = (
+    f"{SUMMARY_SENTINEL}\n\n#### 🤖 AI PR Loop Run",
+    f"{SUMMARY_SENTINEL}\n\n**🤖 AI PR Loop Run**",
+)
 
 
 def _sanitize_cell(value: str) -> str:
@@ -34,11 +36,16 @@ def _sanitize_cell(value: str) -> str:
     return escaped.replace("|", "\\|").replace("\n", "<br>")
 
 
-def _normalize_summary_header_text(value: str) -> str:
-    """Normalize markdown-heavy header content for HTML <summary> text."""
-    normalized = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r"\1: \2", value)
-    normalized = normalized.replace("**", "").replace("`", "")
-    return html.escape(normalized.strip(), quote=False)
+def _sanitize_single_line(value: str) -> str:
+    """Sanitize text inserted into single-line header content."""
+    normalized = value.replace("\r\n", "\n").replace("\r", "\n")
+    single_line = " ".join(part for part in normalized.split("\n") if part)
+    return html.escape(single_line.strip(), quote=False)
+
+
+def _sanitize_run_url(url: str) -> str:
+    """Normalize run URL by stripping line breaks and surrounding whitespace."""
+    return url.replace("\r", "").replace("\n", "").strip()
 
 
 def _is_editable_summary_comment_author(*, author: str, actor: str) -> bool:
@@ -75,8 +82,8 @@ def render_summary_comment(summary: PipelineRunSummary) -> str:
     """Render the pipeline run summary as a markdown comment.
 
     Includes:
-    - Link to workflow run
-    - Action evaluation table
+    - Header with trigger reason and link to workflow run
+    - Action evaluation table (collapsed)
     - Collapsed state snapshot details
     """
     lines: list[str] = []
@@ -85,14 +92,20 @@ def render_summary_comment(summary: PipelineRunSummary) -> str:
     lines.append(SUMMARY_SENTINEL)
     lines.append("")
 
-    # Header with link
-    if summary.run_url:
-        lines.append(f"**🤖 AI PR Loop Run** — [View Logs]({summary.run_url})")
-    else:
-        lines.append("**🤖 AI PR Loop Run**")
+    # Header with trigger reason and link
+    header = "#### 🤖 AI PR Loop Run"
+    trigger_reason = _sanitize_single_line(summary.trigger_reason)
+    run_url = _sanitize_run_url(summary.run_url)
+    if trigger_reason:
+        header += f" — Trigger Reason: {trigger_reason}"
+    if run_url:
+        header += f" — [View Logs]({run_url})"
+    lines.append(header)
     lines.append("")
 
-    # Action table
+    # Action table (collapsed)
+    lines.append("<details><summary>Actions table</summary>")
+    lines.append("")
     lines.append("| Action | Preconditions | Result |")
     lines.append("|--------|--------------|--------|")
 
@@ -114,6 +127,8 @@ def render_summary_comment(summary: PipelineRunSummary) -> str:
         detail_text = f" ({'; '.join(detail_parts)})" if detail_parts else ""
         lines.append(f"| {_sanitize_cell(result.name)} | {icon} {precond_text} | {label}{detail_text} |")
 
+    lines.append("")
+    lines.append("</details>")
     lines.append("")
 
     # State snapshot (collapsed)
@@ -177,8 +192,8 @@ def _render_state_snapshot(snapshot: PRStateSnapshot) -> str:
 def collapse_prior_summaries(provider: CIPlatformProvider, pr_number: int) -> int:
     """Find and collapse prior summary comments.
 
-    Finds comments with the active sentinel and wraps them in <details>
-    blocks, replacing the sentinel with the collapsed sentinel.
+    Finds comments with the active sentinel and replaces it with the
+    collapsed sentinel. The internal structure remains identical.
 
     Returns:
         Number of comments collapsed.
@@ -207,31 +222,24 @@ def collapse_prior_summaries(provider: CIPlatformProvider, pr_number: int) -> in
             if not _is_editable_summary_comment_author(author=author, actor=actor):
                 logger.info("PR #%d: Skipping non-bot summary marker comment %d", pr_number, comment.id)
                 continue
-            collapsed_body = body.replace(SUMMARY_SENTINEL, SUMMARY_COLLAPSED_SENTINEL)
-            header_line = "AI PR Loop Run (prior)"
-            for line in collapsed_body.split("\n"):
-                if "AI PR Loop Run" in line:
-                    header_line = _normalize_summary_header_text(line)
-                    break
-            wrapped_body = (
-                f"{SUMMARY_COLLAPSED_SENTINEL}\n"
-                f"<details><summary>{header_line}</summary>\n\n"
-                f"{collapsed_body.replace(SUMMARY_COLLAPSED_SENTINEL, '').strip()}\n"
-                f"</details>"
-            )
+            collapsed_body = body.replace(SUMMARY_SENTINEL, SUMMARY_COLLAPSED_SENTINEL, 1)
             try:
-                provider.update_comment(comment.id, wrapped_body)
+                provider.update_comment(comment.id, collapsed_body)
                 collapsed_count += 1
             except Exception as exc:
                 logger.warning("PR #%d: Failed to collapse comment %d: %s", pr_number, comment.id, exc)
         return collapsed_count
 
     # Fallback: use provider's find_comment to locate summaries.
-    # Use a stricter marker than SUMMARY_SENTINEL to avoid false-positives on
-    # unrelated comments that merely quote/include the sentinel text.
+    # Search for concrete summary header variants to stay format-agnostic
+    # while avoiding broad sentinel-only substring matches.
     # We may need to iterate; find_comment returns first match
     while True:
-        found = provider.find_comment(pr_number, SUMMARY_FALLBACK_MARKER)
+        found: tuple[int, str] | None = None
+        for marker in SUMMARY_FALLBACK_MARKERS:
+            found = provider.find_comment(pr_number, marker)
+            if found is not None:
+                break
         if found is None:
             break
 
@@ -248,24 +256,11 @@ def collapse_prior_summaries(provider: CIPlatformProvider, pr_number: int) -> in
             )
             break
 
-        # Replace sentinel and wrap in details
-        collapsed_body = body.replace(SUMMARY_SENTINEL, SUMMARY_COLLAPSED_SENTINEL)
-        # Extract the header for the details summary
-        header_line = "AI PR Loop Run (prior)"
-        for line in collapsed_body.split("\n"):
-            if "AI PR Loop Run" in line:
-                header_line = _normalize_summary_header_text(line)
-                break
-
-        wrapped_body = (
-            f"{SUMMARY_COLLAPSED_SENTINEL}\n"
-            f"<details><summary>{header_line}</summary>\n\n"
-            f"{collapsed_body.replace(SUMMARY_COLLAPSED_SENTINEL, '').strip()}\n"
-            f"</details>"
-        )
+        # Replace sentinel only
+        collapsed_body = body.replace(SUMMARY_SENTINEL, SUMMARY_COLLAPSED_SENTINEL, 1)
 
         try:
-            provider.update_comment(comment_id, wrapped_body)
+            provider.update_comment(comment_id, collapsed_body)
             collapsed_count += 1
         except Exception as exc:
             logger.warning("PR #%d: Failed to collapse comment %d: %s", pr_number, comment_id, exc)
