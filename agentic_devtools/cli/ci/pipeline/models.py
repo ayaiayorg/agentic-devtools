@@ -57,9 +57,11 @@ class PipelineRunSummary:
         snapshot: The PR state snapshot used for this run.
         run_url: URL to the GitHub Actions workflow run.
         timestamp: ISO 8601 timestamp of the run.
+        trigger_reason: Human-readable reason why this pipeline run was triggered.
     """
 
     results: list[ActionResult] = field(default_factory=list)
     snapshot: PRStateSnapshot | None = None
     run_url: str = ""
     timestamp: str = ""
+    trigger_reason: str = ""
