@@ -53,6 +53,8 @@ from agentic_devtools.cli.ci.retry import RetryableError, retry_with_backoff
 from agentic_devtools.cli.github.request_copilot_review import request_copilot_review as _request_copilot_review
 from agentic_devtools.cli.github.resolve_review_threads import (
     resolve_review_threads as _resolve_review_threads,
+)
+from agentic_devtools.cli.github.resolve_review_threads import (
     unresolve_review_threads as _unresolve_review_threads,
 )
 from agentic_devtools.cli.subprocess_utils import run_safe

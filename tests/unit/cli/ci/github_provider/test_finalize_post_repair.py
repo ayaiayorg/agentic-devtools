@@ -2447,6 +2447,7 @@ class TestFinalizePostRepairUnconfirmedReevaluation:
         mock_parse.return_value = [
             {"in_reply_to_id": 10, "body": "<!-- agdt:resolution-tier:unconfirmed-commit-change -->"},
             {"in_reply_to_id": "20", "body": "<!-- agdt:resolution-tier:unconfirmed-commit-change -->"},
+            {"in_reply_to_id": "bad-id", "body": "<!-- agdt:resolution-tier:unconfirmed-commit-change -->"},
             {"in_reply_to_id": 30, "body": "<!-- agdt:resolution-tier:sdk_evaluation -->"},
             {"body": "<!-- agdt:resolution-tier:unconfirmed-commit-change -->"},
         ]

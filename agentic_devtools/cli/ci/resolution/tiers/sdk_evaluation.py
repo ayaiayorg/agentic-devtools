@@ -155,9 +155,7 @@ class SdkEvaluationTier:
         self._timeout_seconds = max(0.0, float(timeout_seconds))
 
     def _call_with_timeout(self, caller: Callable[..., str], prompt: str) -> str:
-        timeout_arg: float | int = (
-            int(self._timeout_seconds) if self._timeout_seconds >= 1 else self._timeout_seconds
-        )
+        timeout_arg: float | int = int(self._timeout_seconds) if self._timeout_seconds >= 1 else self._timeout_seconds
         try:
             from inspect import Parameter, signature
 
