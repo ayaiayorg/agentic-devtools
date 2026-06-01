@@ -83,6 +83,7 @@ class TestBuildPrStateSnapshot:
             ReviewInfo(id=10, user="Copilot", state="COMMENTED", commit_sha="old-sha"),
         ]
         provider.list_review_comments.side_effect = RuntimeError("boom")
+        provider.list_review_thread_states.return_value = {}
         provider.list_pr_issue_events.return_value = []
         provider.count_commits_above_merge_base.return_value = 1
 
@@ -117,6 +118,14 @@ class TestBuildPrStateSnapshot:
                 ReviewCommentInfo(id=203, path="a.py", body="e", html_url=""),
             ],
         ]
+        # All comments are unresolved
+        provider.list_review_thread_states.return_value = {
+            101: (False, False),
+            102: (False, False),
+            201: (False, False),
+            202: (False, False),
+            203: (False, False),
+        }
         provider.list_pr_issue_events.return_value = []
         provider.count_commits_above_merge_base.return_value = 1
 
@@ -148,12 +157,107 @@ class TestBuildPrStateSnapshot:
             ],
             RuntimeError("boom"),
         ]
+        # Both comments from first review are unresolved
+        provider.list_review_thread_states.return_value = {
+            101: (False, False),
+            102: (False, False),
+        }
         provider.list_pr_issue_events.return_value = []
         provider.count_commits_above_merge_base.return_value = 1
 
         snapshot = build_pr_state_snapshot(provider, 1)
 
         assert snapshot.unresolved_threads == 3
+
+    def test_unresolved_threads_excludes_resolved_threads(self) -> None:
+        """Only threads with isResolved=False should be counted."""
+        provider = MagicMock()
+        provider.get_pr_metadata.return_value = PRMetadata(
+            number=1,
+            title="Test",
+            head_branch="feature",
+            head_sha="head-sha",
+            base_branch="main",
+            requested_reviewers=[],
+        )
+        provider.list_pr_files.return_value = ["a.py"]
+        provider.list_check_runs.return_value = []
+        provider.list_reviews.return_value = [
+            ReviewInfo(id=10, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old-sha"),
+        ]
+        provider.list_review_comments.return_value = [
+            ReviewCommentInfo(id=101, path="a.py", body="fix this", html_url=""),
+            ReviewCommentInfo(id=102, path="a.py", body="also this", html_url=""),
+            ReviewCommentInfo(id=103, path="a.py", body="and this", html_url=""),
+        ]
+        # 101 is unresolved, 102 is resolved, 103 is unresolved
+        provider.list_review_thread_states.return_value = {
+            101: (False, False),
+            102: (True, False),
+            103: (False, True),
+        }
+        provider.list_pr_issue_events.return_value = []
+        provider.count_commits_above_merge_base.return_value = 1
+
+        snapshot = build_pr_state_snapshot(provider, 1)
+
+        assert snapshot.unresolved_threads == 2  # Only 101 and 103
+
+    def test_unresolved_threads_falls_back_when_thread_states_unavailable(self) -> None:
+        """When list_review_thread_states raises, fall back to counting all comments."""
+        provider = MagicMock()
+        provider.get_pr_metadata.return_value = PRMetadata(
+            number=1,
+            title="Test",
+            head_branch="feature",
+            head_sha="head-sha",
+            base_branch="main",
+            requested_reviewers=[],
+        )
+        provider.list_pr_files.return_value = ["a.py"]
+        provider.list_check_runs.return_value = []
+        provider.list_reviews.return_value = [
+            ReviewInfo(id=10, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old-sha"),
+        ]
+        provider.list_review_comments.return_value = [
+            ReviewCommentInfo(id=101, path="a.py", body="fix", html_url=""),
+            ReviewCommentInfo(id=102, path="a.py", body="fix2", html_url=""),
+        ]
+        provider.list_review_thread_states.side_effect = RuntimeError("API error")
+        provider.list_pr_issue_events.return_value = []
+        provider.count_commits_above_merge_base.return_value = 1
+
+        snapshot = build_pr_state_snapshot(provider, 1)
+
+        assert snapshot.unresolved_threads == 2  # Falls back to counting all
+
+    def test_unresolved_threads_falls_back_without_thread_state_method(self) -> None:
+        """When thread-state lookup is unavailable, count non-synthetic comments."""
+        provider = MagicMock()
+        provider.get_pr_metadata.return_value = PRMetadata(
+            number=1,
+            title="Test",
+            head_branch="feature",
+            head_sha="head-sha",
+            base_branch="main",
+            requested_reviewers=[],
+        )
+        provider.list_pr_files.return_value = ["a.py"]
+        provider.list_check_runs.return_value = []
+        provider.list_reviews.return_value = [
+            ReviewInfo(id=10, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old-sha"),
+        ]
+        provider.list_review_comments.return_value = [
+            ReviewCommentInfo(id=-1, path="a.py", body="review body", html_url=""),
+            ReviewCommentInfo(id=101, path="a.py", body="fix", html_url=""),
+        ]
+        provider.list_review_thread_states = None
+        provider.list_pr_issue_events.return_value = []
+        provider.count_commits_above_merge_base.return_value = 1
+
+        snapshot = build_pr_state_snapshot(provider, 1)
+
+        assert snapshot.unresolved_threads == 1
 
     def test_count_commits_error_propagates_as_metadata_failure(self) -> None:
         """When count_commits_above_merge_base raises, build_pr_state_snapshot raises too.
