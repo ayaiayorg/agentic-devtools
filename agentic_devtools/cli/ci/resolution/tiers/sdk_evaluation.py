@@ -139,15 +139,35 @@ class SdkEvaluationTier:
 
     def __init__(
         self,
-        sdk_caller: Callable[[str], str] | None = None,
-        fallback_caller: Callable[[str], str] | None = None,
+        sdk_caller: Callable[..., str] | None = None,
+        fallback_caller: Callable[..., str] | None = None,
     ) -> None:
         self._sdk_caller = sdk_caller
         self._fallback_caller = fallback_caller
+        self._timeout_seconds: float = 45.0
 
     @property
     def name(self) -> str:
         return "sdk_evaluation"
+
+    def set_timeout_seconds(self, timeout_seconds: float) -> None:
+        """Set per-call timeout budget for SDK and fallback calls."""
+        self._timeout_seconds = max(0.0, float(timeout_seconds))
+
+    def _call_with_timeout(self, caller: Callable[..., str], prompt: str) -> str:
+        timeout_arg: float | int = int(self._timeout_seconds) if self._timeout_seconds >= 1 else self._timeout_seconds
+        try:
+            from inspect import Parameter, signature
+
+            sig = signature(caller)
+        except (TypeError, ValueError):
+            # Some callables (builtins, mocks, functools.partial, etc.) may not have an inspectable signature.
+            return caller(prompt)
+        has_timeout_param = "timeout_seconds" in sig.parameters
+        has_var_keyword = any(p.kind == Parameter.VAR_KEYWORD for p in sig.parameters.values())
+        if has_timeout_param or has_var_keyword:
+            return caller(prompt, timeout_seconds=timeout_arg)
+        return caller(prompt)
 
     def evaluate(self, thread: ReviewThread, context: ResolutionContext) -> TierResult | None:
         """Evaluate thread via SDK with retry and fallback."""
@@ -158,7 +178,7 @@ class SdkEvaluationTier:
         # First attempt
         prompt = _build_evaluation_prompt(thread, context)
         try:
-            raw_response = self._sdk_caller(prompt)
+            raw_response = self._call_with_timeout(self._sdk_caller, prompt)
         except Exception as exc:
             logger.error("SDK call failed for thread %s: %s", thread.thread_id, exc)
             return self._try_fallback(thread, context)
@@ -185,7 +205,7 @@ class SdkEvaluationTier:
             )
         retry_prompt = _build_reformulated_prompt(thread, context)
         try:
-            raw_response = self._sdk_caller(retry_prompt)
+            raw_response = self._call_with_timeout(self._sdk_caller, retry_prompt)
         except Exception as exc:
             logger.error("SDK retry failed for thread %s: %s", thread.thread_id, exc)
             return self._try_fallback(thread, context)
@@ -211,7 +231,7 @@ class SdkEvaluationTier:
 
         prompt = _build_fallback_prompt(thread, context)
         try:
-            raw_response = self._fallback_caller(prompt)
+            raw_response = self._call_with_timeout(self._fallback_caller, prompt)
         except Exception as exc:
             logger.error("Fallback call failed for thread %s: %s", thread.thread_id, exc)
             return None

@@ -51,7 +51,12 @@ from agentic_devtools.cli.ci.resolution.tiers.outdated import OutdatedTier
 from agentic_devtools.cli.ci.resolution.tiers.sdk_evaluation import SdkEvaluationTier
 from agentic_devtools.cli.ci.retry import RetryableError, retry_with_backoff
 from agentic_devtools.cli.github.request_copilot_review import request_copilot_review as _request_copilot_review
-from agentic_devtools.cli.github.resolve_review_threads import resolve_review_threads as _resolve_review_threads
+from agentic_devtools.cli.github.resolve_review_threads import (
+    resolve_review_threads as _resolve_review_threads,
+)
+from agentic_devtools.cli.github.resolve_review_threads import (
+    unresolve_review_threads as _unresolve_review_threads,
+)
 from agentic_devtools.cli.subprocess_utils import run_safe
 from agentic_devtools.state import get_state_dir
 
@@ -61,6 +66,7 @@ _ADDRESSED_REPLY_BODY = "Addressed on the updated PR branch."
 _LEGACY_ADDRESSED_REPLY_PREFIXES = ("addressed by fix commit",)
 _RESOLUTION_TIER_MARKER_PREFIX = "<!-- agdt:resolution-tier:"
 _RESOLUTION_TIER_ABANDONED_MARKER = "<!-- agdt:resolution-tier:abandoned -->"
+_RESOLUTION_UNCONFIRMED_MARKER = "<!-- agdt:resolution-tier:unconfirmed-commit-change -->"
 _RESOLUTION_THREAD_RESOLVED_TEXT = "**thread resolved**"
 _RESOLUTION_THREAD_LEFT_OPEN_TEXT = "**thread left open**"
 _THREAD_RESOLUTION_STATE_DIRNAME = "thread-resolution"
@@ -1244,6 +1250,38 @@ class GitHubActionsProvider(CIPlatformProvider):
             and _RESOLUTION_THREAD_LEFT_OPEN_TEXT in str(comment.get("body", "")).strip().lower()
         }
 
+    @retry_with_backoff()
+    def _list_unconfirmed_resolved_comment_ids(self, pr_number: int) -> set[int]:
+        """Return parent comment IDs that have an unconfirmed-commit-change marker reply.
+
+        These threads were resolved by default because HEAD changed but the SDK
+        could not confirm resolution. They are eligible for re-evaluation on
+        subsequent loop iterations.
+        """
+        response = _gh_api(
+            self._repo_api(f"/pulls/{pr_number}/comments"),
+            paginate=True,
+        )
+        comments = _parse_paginated_json(response)
+        # Only treat a thread as unconfirmed when the *latest* reply on that parent contains the marker.
+        # Determine "latest" by created_at to avoid relying on API ordering.
+        latest_reply_by_parent: dict[int, dict] = {}
+        for comment in comments:
+            parent_id = comment.get("in_reply_to_id")
+            if parent_id is None:
+                continue
+            pid = int(parent_id)
+            created_at = str(comment.get("created_at", ""))
+            prev = latest_reply_by_parent.get(pid)
+            prev_created_at = str(prev.get("created_at", "")) if prev is not None else ""
+            if prev is None or prev_created_at <= created_at:
+                latest_reply_by_parent[pid] = comment
+        return {
+            parent_id
+            for parent_id, comment in latest_reply_by_parent.items()
+            if _RESOLUTION_UNCONFIRMED_MARKER in str(comment.get("body", ""))
+        }
+
     def _has_existing_addressed_reply(
         self,
         pr_number: int,
@@ -1257,6 +1295,35 @@ class GitHubActionsProvider(CIPlatformProvider):
             else self._list_addressed_reply_parent_comment_ids(pr_number)
         )
         return comment_id in parent_comment_ids
+
+    def _fetch_review_comment_by_id(self, pr_number: int, comment_id: int) -> ReviewCommentInfo | None:
+        """Fetch a single review comment by its ID for re-evaluation purposes."""
+        try:
+            response = _gh_api(
+                self._repo_api(f"/pulls/comments/{comment_id}"),
+            )
+            c = json.loads(response)
+            return ReviewCommentInfo(
+                id=int(c["id"]),
+                path=c.get("path", ""),
+                body=c.get("body", ""),
+                html_url=c.get("html_url", ""),
+                is_suppressed=_comment_is_suppressed(c),
+                start_line=c.get("start_line") if c.get("start_line") is not None else c.get("line"),
+                end_line=c.get("line"),
+                line=c.get("line"),
+                position=c.get("position"),
+                diff_hunk=c.get("diff_hunk", ""),
+                commit_id=c.get("commit_id", ""),
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to fetch review comment %d for PR #%d: %s",
+                comment_id,
+                pr_number,
+                exc,
+            )
+            return None
 
     def _resolution_state_dir(self) -> Path:
         """Return the state directory for tentative thread lifecycle tracking."""
@@ -1782,6 +1849,7 @@ class GitHubActionsProvider(CIPlatformProvider):
         diff_context = self._build_verification_context_diff(review.commit_sha, head_sha)
 
         resolved_ids: list[int] = []
+        unconfirmed_unresolve_ids: list[int] = []
         resolutions: list[CommentResolution] = []
         errors: list[str] = []
 
@@ -1812,6 +1880,33 @@ class GitHubActionsProvider(CIPlatformProvider):
 
             comment_context = self._build_comment_verification_context(comment, diff_context)
             comments_for_sdk.append((comment, comment_context))
+
+        # Include previously unconfirmed-resolved threads for re-evaluation
+        existing_comment_ids = {comment.id for comment, _ in comments_for_sdk}
+        reevaluated_unconfirmed_comment_ids: set[int] = set()
+        try:
+            unconfirmed_ids = self._list_unconfirmed_resolved_comment_ids(pr_number)
+        except Exception as exc:
+            logger.warning(
+                "Failed to fetch unconfirmed resolved comment IDs for PR #%d: %s",
+                pr_number,
+                exc,
+            )
+            unconfirmed_ids = set()
+        for unconfirmed_id in unconfirmed_ids:
+            if unconfirmed_id in existing_comment_ids:
+                # Already in-scope for SDK verification, but still needs special handling
+                # (confirmation replies / unresolve) as an unconfirmed-resolved thread.
+                reevaluated_unconfirmed_comment_ids.add(unconfirmed_id)
+                continue
+            unconfirmed_comment = self._fetch_review_comment_by_id(pr_number, unconfirmed_id)
+            if unconfirmed_comment is None:
+                continue
+            if unconfirmed_comment.is_suppressed:
+                continue
+            comment_context = self._build_comment_verification_context(unconfirmed_comment, diff_context)
+            comments_for_sdk.append((unconfirmed_comment, comment_context))
+            reevaluated_unconfirmed_comment_ids.add(unconfirmed_comment.id)
 
         state_dir: Path | None = None
         reply_formatter = ReplyFormatter()
@@ -1845,6 +1940,38 @@ class GitHubActionsProvider(CIPlatformProvider):
             for comment, _context in comments_for_sdk:
                 verdict = sdk_verdicts.get(comment.id, VerificationVerdict.COMMENT_UNRESOLVE)
                 tier_result = tier_results_by_comment_id.get(comment.id)
+                if tier_result is None and comment.id not in sdk_verdicts:
+                    # Engine returned no result and no verdict was produced for
+                    # this comment. Construct a fallback result and resolve by
+                    # default since HEAD has changed.
+                    logger.warning(
+                        "Comment %d on PR #%d: tier evaluation produced no result — "
+                        "resolving by default with unconfirmed marker",
+                        comment.id,
+                        pr_number,
+                    )
+                    tier_result = TierResult(
+                        verdict=ResolutionVerdict.RESOLVE,
+                        confidence="low",
+                        tier_name="engine_fallback",
+                        explanation="SDK evaluation could not produce a verdict "
+                        "— resolved by default due to HEAD change.",
+                    )
+                    verdict = VerificationVerdict.COMMENT_RESOLVE
+                elif (
+                    verdict == VerificationVerdict.COMMENT_RESOLVE
+                    and tier_result is not None
+                    and tier_result.verdict == ResolutionVerdict.TENTATIVE
+                ):
+                    # Resolve-by-default outcomes should bypass tentative lifecycle
+                    # persistence/replies. Keep an explicit engine_fallback marker
+                    # so the thread can be re-evaluated later.
+                    tier_result = TierResult(
+                        verdict=ResolutionVerdict.RESOLVE,
+                        confidence=tier_result.confidence,
+                        tier_name="engine_fallback",
+                        explanation=tier_result.explanation,
+                    )
                 if tier_result is not None:
                     if state_dir is None:
                         state_dir = self._resolution_state_dir()
@@ -1898,15 +2025,27 @@ class GitHubActionsProvider(CIPlatformProvider):
                         clear_resolution_state(thread_id, state_dir)
                 if verdict == VerificationVerdict.COMMENT_RESOLVE:
                     resolved_ids.append(comment.id)
-                    if not self._has_existing_addressed_reply(
+                    has_existing_addressed_reply = self._has_existing_addressed_reply(
                         pr_number, comment.id, addressed_reply_parent_comment_ids
-                    ):
-                        reply_body = _ADDRESSED_REPLY_BODY
-                        if tier_result is not None:
+                    )
+                    post_confirmation_reply = (
+                        comment.id in reevaluated_unconfirmed_comment_ids
+                        and tier_result is not None
+                        and "fallback" not in (tier_result.tier_name or "")
+                    )
+                    if post_confirmation_reply or not has_existing_addressed_reply:
+                        if tier_result is not None and "fallback" in (tier_result.tier_name or ""):
+                            reply_body = reply_formatter.format_unconfirmed_commit_change_reply(
+                                tier_result,
+                                model_id=self._model_id_for_tier_result(tier_result),
+                            )
+                        elif post_confirmation_reply and tier_result is not None:
                             reply_body = reply_formatter.build_full_reply(
                                 tier_result,
                                 model_id=self._model_id_for_tier_result(tier_result),
                             )
+                        else:
+                            reply_body = _ADDRESSED_REPLY_BODY
                         self._reply_to_review_comment(pr_number, comment.id, body=reply_body)
                     resolutions.append(CommentResolution(comment_id=comment.id, verdict=verdict))
                 else:
@@ -1924,7 +2063,26 @@ class GitHubActionsProvider(CIPlatformProvider):
                                 model_id=self._model_id_for_tier_result(tier_result),
                             ),
                         )
+                    if (
+                        verdict == VerificationVerdict.COMMENT_UNRESOLVE
+                        and comment.id in reevaluated_unconfirmed_comment_ids
+                    ):
+                        unconfirmed_unresolve_ids.append(comment.id)
                     resolutions.append(CommentResolution(comment_id=comment.id, verdict=verdict))
+
+        # Unresolve threads that were previously resolved with the unconfirmed marker
+        # but are now vetoed by the SDK on re-evaluation
+        if unconfirmed_unresolve_ids:
+            unresolve_result = _unresolve_review_threads(
+                pr_number,
+                repo,
+                comment_ids=sorted(unconfirmed_unresolve_ids),
+            )
+            if not bool(unresolve_result.get("verified", False)):
+                errors.append("thread_unresolve_unverified")
+            threads_failed = int(unresolve_result.get("threadsFailed", 0) or 0)
+            if threads_failed > 0:
+                errors.append(f"thread_unresolve_failed:{threads_failed}")
 
         # Resolve threads only for comments that were verified as addressed
         if resolved_ids:
@@ -2147,9 +2305,16 @@ class GitHubActionsProvider(CIPlatformProvider):
             elif result.verdict == ResolutionVerdict.UNRESOLVE:
                 verdicts[comment.id] = VerificationVerdict.COMMENT_UNRESOLVE
             elif result.verdict == ResolutionVerdict.TENTATIVE:
-                verdicts[comment.id] = VerificationVerdict.COMMENT_UNRESOLVE
+                verdicts[comment.id] = VerificationVerdict.COMMENT_RESOLVE
             else:  # pragma: no cover - exhaustive guard for future enum extension
                 raise ValueError(f"Unsupported resolution verdict: {result.verdict}")
+            logger.debug(
+                "Comment %d: tier verdict %s → verification %s (tier=%s)",
+                comment.id,
+                result.verdict.value,
+                verdicts[comment.id].value,
+                result.tier_name,
+            )
         return verdicts
 
     def _verify_comments_via_sdk(  # pragma: no cover - optional runtime SDK integration

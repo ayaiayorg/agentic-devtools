@@ -64,6 +64,35 @@ class ReplyFormatter:
             model_id=model_id,
         )
 
+    def format_unconfirmed_commit_change_reply(
+        self,
+        tier_result: TierResult,
+        model_id: str | None = None,
+    ) -> str:
+        """Format a reply for threads resolved by default due to HEAD change.
+
+        Used when the SDK could not confirm resolution (unreachable, timeout,
+        malformed, or ambiguous response) but HEAD has changed since the review.
+        These threads are eligible for re-evaluation on subsequent runs.
+
+        Args:
+            tier_result: The tier result carrying the actual tier name,
+                confidence, and explanation to include in the reply.
+            model_id: Optional model identifier (for SDK tier).
+        """
+        parts: list[str] = [
+            "<!-- agdt:resolution-tier:unconfirmed-commit-change -->",
+            f"🔄 **Thread resolved** (unconfirmed) [{tier_result.confidence}]",
+            "",
+            f"**Tier**: {tier_result.tier_name}",
+            f"**Rationale**: {tier_result.explanation}",
+        ]
+        if model_id:
+            parts.append(f"**Model**: {model_id}")
+        parts.append("")
+        parts.append("_This thread will be re-evaluated in subsequent iterations._")
+        return "\n".join(parts)
+
     def format_abandoned_reply(self) -> str:
         """Format a reply for threads whose tentative resolution has expired."""
         return (

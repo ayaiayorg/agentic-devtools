@@ -71,13 +71,17 @@ class _ErrorTier:
 class _BlockingSdkTier:
     def __init__(self, stop_event: threading.Event) -> None:
         self._stop_event = stop_event
+        self._timeout_seconds = 5.0
 
     @property
     def name(self) -> str:
         return "sdk_evaluation"
 
+    def set_timeout_seconds(self, timeout_seconds: float) -> None:
+        self._timeout_seconds = timeout_seconds
+
     def evaluate(self, thread, context) -> TierResult | None:  # pragma: no cover
-        self._stop_event.wait(timeout=5.0)
+        self._stop_event.wait(timeout=self._timeout_seconds)
         return None
 
 
@@ -88,6 +92,53 @@ class _ErrorSdkTier:
 
     def evaluate(self, thread, context) -> TierResult | None:
         raise RuntimeError("sdk exploded")
+
+
+class _ResolveSdkTier:
+    def __init__(self) -> None:
+        self.evaluated_in_thread: threading.Thread | None = None
+
+    @property
+    def name(self) -> str:
+        return "sdk_evaluation"
+
+    def evaluate(self, thread, context) -> TierResult:
+        self.evaluated_in_thread = threading.current_thread()
+        return TierResult(
+            verdict=ResolutionVerdict.RESOLVE,
+            confidence="medium",
+            tier_name=self.name,
+            explanation="SDK confirmed fix.",
+        )
+
+
+class _NoneSdkTier:
+    @property
+    def name(self) -> str:
+        return "sdk_evaluation"
+
+    def evaluate(self, thread, context) -> TierResult | None:
+        return None
+
+
+class _TimeoutAwareResolveTier:
+    def __init__(self) -> None:
+        self.seen_timeouts: list[float] = []
+
+    @property
+    def name(self) -> str:
+        return "timeout_aware"
+
+    def set_timeout_seconds(self, timeout_seconds: float) -> None:
+        self.seen_timeouts.append(timeout_seconds)
+
+    def evaluate(self, thread, context) -> TierResult:
+        return TierResult(
+            verdict=ResolutionVerdict.RESOLVE,
+            confidence="high",
+            tier_name=self.name,
+            explanation="resolved",
+        )
 
 
 @dataclass(frozen=True)
@@ -254,8 +305,8 @@ class TestTieredResolutionEngine:
         # running, but the call must have been made — verified via the future object).
         assert len(cancelled_futures) == 1
 
-    def test_timeout_during_sdk_tier_execution_uses_hard_subprocess_timeout(self) -> None:
-        """SDK tier timeout returns quickly without waiting for a blocked worker thread."""
+    def test_timeout_during_sdk_tier_execution_honors_sdk_timeout_budget(self) -> None:
+        """SDK tier receives the remaining timeout budget and returns TENTATIVE."""
         stop_event = threading.Event()
         with patch("agentic_devtools.cli.ci.resolution.engine._TOTAL_TIMEOUT_SECONDS", 0.05):
             engine = TieredResolutionEngine([_BlockingSdkTier(stop_event)])
@@ -264,6 +315,41 @@ class TestTieredResolutionEngine:
         stop_event.set()
         assert result.verdict == ResolutionVerdict.TENTATIVE
         assert result.tier_name == "engine"
+
+    def test_sdk_tier_runs_through_executor_and_returns_result(self) -> None:
+        """SDK tier runs through the executor and returns a RESOLVE verdict."""
+        sdk_tier = _ResolveSdkTier()
+        engine = TieredResolutionEngine([sdk_tier])
+        result = engine.evaluate_thread(_MockThread(), _MockContext())
+
+        assert result.verdict == ResolutionVerdict.RESOLVE
+        assert result.tier_name == "sdk_evaluation"
+        assert sdk_tier.evaluated_in_thread is not None
+
+    def test_sdk_tier_error_produces_tentative(self) -> None:
+        """SDK tier errors fall through to a TENTATIVE engine verdict."""
+        engine = TieredResolutionEngine([_ErrorSdkTier()])
+        result = engine.evaluate_thread(_MockThread(), _MockContext())
+
+        assert result.verdict == ResolutionVerdict.TENTATIVE
+        assert result.tier_name == "engine"
+
+    def test_sdk_tier_none_produces_tentative(self) -> None:
+        """SDK tier returning None produces a TENTATIVE engine verdict."""
+        engine = TieredResolutionEngine([_NoneSdkTier()])
+        result = engine.evaluate_thread(_MockThread(), _MockContext())
+
+        assert result.verdict == ResolutionVerdict.TENTATIVE
+        assert result.tier_name == "engine"
+
+    def test_sets_timeout_budget_for_timeout_aware_tier(self) -> None:
+        tier = _TimeoutAwareResolveTier()
+        with patch("agentic_devtools.cli.ci.resolution.engine._TOTAL_TIMEOUT_SECONDS", 3.0):
+            result = TieredResolutionEngine([tier]).evaluate_thread(_MockThread(), _MockContext())
+
+        assert result.verdict == ResolutionVerdict.RESOLVE
+        assert len(tier.seen_timeouts) == 1
+        assert 0 < tier.seen_timeouts[0] <= 3.0
 
     def test_batch_unhandled_evaluate_thread_error(self) -> None:
         """Unhandled errors raised by evaluate_thread produce TENTATIVE in batch."""

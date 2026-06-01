@@ -78,3 +78,36 @@ class TestReplyFormatter:
         full_reply = formatter.build_full_reply(result)
         assert full_reply.startswith("<!-- agdt:resolution-tier:outdated -->")
         assert "Thread resolved" in full_reply
+
+    def test_format_unconfirmed_commit_change_reply(self) -> None:
+        formatter = ReplyFormatter()
+        result = TierResult(
+            verdict=ResolutionVerdict.RESOLVE,
+            confidence="low",
+            tier_name="engine_fallback",
+            explanation="SDK evaluation could not produce a verdict — resolved by default due to HEAD change.",
+        )
+        reply = formatter.format_unconfirmed_commit_change_reply(result)
+        assert "<!-- agdt:resolution-tier:unconfirmed-commit-change -->" in reply
+        assert "**Thread resolved** (unconfirmed)" in reply
+        assert "[low]" in reply
+        assert "**Tier**: engine_fallback" in reply
+        assert "HEAD change" in reply
+        assert "re-evaluated" in reply
+
+    def test_format_unconfirmed_commit_change_reply_with_real_tier(self) -> None:
+        formatter = ReplyFormatter()
+        result = TierResult(
+            verdict=ResolutionVerdict.RESOLVE,
+            confidence="medium",
+            tier_name="sdk_evaluation_fallback",
+            explanation="SDK fallback produced an ambiguous result.",
+        )
+        reply = formatter.format_unconfirmed_commit_change_reply(result, model_id="claude-sonnet-4.6")
+        assert "<!-- agdt:resolution-tier:unconfirmed-commit-change -->" in reply
+        assert "**Thread resolved** (unconfirmed)" in reply
+        assert "[medium]" in reply
+        assert "**Tier**: sdk_evaluation_fallback" in reply
+        assert "SDK fallback produced an ambiguous result." in reply
+        assert "**Model**: claude-sonnet-4.6" in reply
+        assert "re-evaluated" in reply

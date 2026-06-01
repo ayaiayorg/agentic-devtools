@@ -1,6 +1,9 @@
 """Tests for SdkEvaluationTier."""
 
 from dataclasses import dataclass, field
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from agentic_devtools.cli.ci.resolution.models import ResolutionVerdict
 from agentic_devtools.cli.ci.resolution.tiers.sdk_evaluation import SdkEvaluationTier
@@ -179,3 +182,77 @@ def test_fallback_malformed_returns_none_with_pr_level_thread() -> None:
     thread = _MockThread(file_path=None, start_line=None, end_line=None, comments=[_MockComment()])
     result = tier.evaluate(thread, _MockContext())
     assert result is None
+
+
+def test_timeout_budget_forwarded_to_timeout_aware_callers() -> None:
+    seen_timeouts: list[float] = []
+
+    def sdk_caller(prompt: str, timeout_seconds: float = 0.0) -> str:
+        seen_timeouts.append(timeout_seconds)
+        raise RuntimeError("SDK unavailable")
+
+    def fallback_caller(prompt: str, timeout_seconds: float = 0.0) -> str:
+        seen_timeouts.append(timeout_seconds)
+        return "VERDICT: RESOLVE\nEXPLANATION: fallback resolved"
+
+    tier = SdkEvaluationTier(sdk_caller=sdk_caller, fallback_caller=fallback_caller)
+    tier.set_timeout_seconds(7.8)
+    thread = _MockThread(comments=[_MockComment()])
+    result = tier.evaluate(thread, _MockContext())
+
+    assert result is not None
+    assert result.verdict == ResolutionVerdict.RESOLVE
+    # _call_with_timeout truncates to int when >= 1, so 7.8 becomes 7
+    assert seen_timeouts == [7, 7]
+
+
+def test_non_timeout_typeerror_from_timeout_aware_caller_is_raised() -> None:
+    def sdk_caller(prompt: str, timeout_seconds: int = 0) -> str:
+        raise TypeError("boom")
+
+    tier = SdkEvaluationTier(sdk_caller=sdk_caller)
+
+    with pytest.raises(TypeError, match="boom"):
+        tier._call_with_timeout(sdk_caller, "prompt")
+
+
+def test_typeerror_mentioning_timeout_seconds_is_not_swallowed() -> None:
+    def sdk_caller(prompt: str, timeout_seconds: int = 0) -> str:
+        raise TypeError("timeout_seconds must be int")
+
+    tier = SdkEvaluationTier(sdk_caller=sdk_caller)
+
+    with pytest.raises(TypeError, match="timeout_seconds must be int"):
+        tier._call_with_timeout(sdk_caller, "prompt")
+
+
+def test_call_with_timeout_falls_back_when_signature_uninspectable() -> None:
+    """When signature() raises TypeError/ValueError, fall back to calling without timeout."""
+
+    mock_caller = MagicMock(return_value="response")
+
+    tier = SdkEvaluationTier(sdk_caller=mock_caller)
+    tier.set_timeout_seconds(10.0)
+
+    with patch("inspect.signature", side_effect=ValueError("uninspectable")):
+        result = tier._call_with_timeout(mock_caller, "test prompt")
+
+    assert result == "response"
+    mock_caller.assert_called_once_with("test prompt")
+
+
+def test_call_with_timeout_forwards_timeout_to_var_keyword_caller() -> None:
+    """Callables with **kwargs should receive timeout_seconds even without an explicit param."""
+    seen_kwargs: list[dict] = []
+
+    def kwargs_caller(prompt: str, **kwargs: object) -> str:
+        seen_kwargs.append(dict(kwargs))
+        return "response"
+
+    tier = SdkEvaluationTier(sdk_caller=kwargs_caller)
+    tier.set_timeout_seconds(5.0)
+
+    result = tier._call_with_timeout(kwargs_caller, "test prompt")
+
+    assert result == "response"
+    assert seen_kwargs == [{"timeout_seconds": 5}]
