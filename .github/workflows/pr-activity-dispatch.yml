@@ -77,4 +77,5 @@ jobs:
           GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
         run: |
           gh workflow run agent-session-monitor.yml \
-            --repo "$GITHUB_REPOSITORY"
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main
