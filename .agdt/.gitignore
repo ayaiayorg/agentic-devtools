@@ -1,0 +1,5 @@
+# Managed by agentic-devtools — do not edit manually.
+# Ignores runtime state; tracked config/scripts remain visible.
+runtime-bootstrap.json
+identity.json
+workflows/

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Pre-push hook for agentic-devtools
 # Delegates to the Python checks module for cross-platform, fast validation.
 # Full coverage runs in CI after Copilot review; full suite runs post-merge.
@@ -10,9 +10,24 @@
 
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
-# Run checks with format auto-fix (-u = unbuffered so output streams through tee)
-python -u -m agentic_devtools.cli.checks --format-fix 2>&1 | tee .pre-push-output.log
-rc=${PIPESTATUS[0]}
+# Run checks with format auto-fix (-u = unbuffered so output streams through tee).
+# Use a temp file to relay the Python exit code across the pipe (POSIX-portable).
+_rc_file=$(mktemp 2>/dev/null) || _rc_file=$(mktemp -t agdt-pre-push.XXXXXX 2>/dev/null) || _rc_file=""
+if [ -z "$_rc_file" ]; then
+    echo "❌ Failed to create temporary file for pre-push exit code capture."
+    exit 1
+fi
+
+cleanup() {
+    rm -f "$_rc_file"
+}
+trap cleanup 0 HUP INT TERM
+
+(python -u -m agentic_devtools.cli.checks --format-fix; echo $? > "$_rc_file") 2>&1 | tee .pre-push-output.log
+if ! rc=$(cat "$_rc_file" 2>/dev/null); then
+    echo "❌ Failed to read pre-push check exit code."
+    exit 1
+fi
 
 # Exit code 10 = ruff reformatted files — require explicit save-work flow
 if [ "$rc" -eq 10 ]; then

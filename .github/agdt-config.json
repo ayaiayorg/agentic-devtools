@@ -1,0 +1,11 @@
+{
+  "platform": {
+    "issue_adapter": "github",
+    "code_hosting": "github",
+    "jira": {},
+    "github": {
+      "repo": "ayaiayorg/agentic-devtools"
+    },
+    "azure_devops": {}
+  }
+}
