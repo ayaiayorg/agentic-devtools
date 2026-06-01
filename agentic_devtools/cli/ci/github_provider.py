@@ -276,6 +276,9 @@ def _build_repair_comment(
     but don't begin with @copilot have been observed to trigger agent
     sessions unreliably.
 
+    Output uses collapsible ``<details>`` blocks to keep PR page real estate
+    compact while still providing full context on expansion.
+
     Args:
         head_sha: Current HEAD SHA for context.
         repair_type: ``"review"``, ``"ci"``, or ``"both"``.
@@ -289,24 +292,70 @@ def _build_repair_comment(
     Returns:
         Comment body string beginning with ``@copilot``.
     """
-    parts: list[str] = ["@copilot"]
-
     has_review = repair_type in ("review", "both")
     has_review_comments = has_review and bool(review_comments)
     has_ci = repair_type in ("ci", "both") and bool(failed_checks)
 
+    # --- First line: @copilot with inline summary ---
+    review_url = ""
+    if has_review and review_id and repository_full_name and "/" in repository_full_name and pr_number:
+        review_url = f"https://github.com/{repository_full_name}/pull/{pr_number}#pullrequestreview-{review_id}"
+
+    if has_review and review_url:
+        parts: list[str] = [
+            f"@copilot - The Code Review Agent just left this [Review]({review_url})"
+            " that needs to be evaluated and addressed."
+        ]
+    elif has_ci:
+        parts = ["@copilot - CI failures detected that need to be addressed."]
+    else:
+        parts = ["@copilot"]
+
+    # --- Dedup marker ---
     if has_review and review_id:
-        # Dedup marker so the agent can identify which review triggered this
+        parts.append("")
         parts.append(f"<!-- copilot-trigger:{review_id} -->")
 
-        if repository_full_name and "/" in repository_full_name and pr_number and review_id:
-            review_url = f"https://github.com/{repository_full_name}/pull/{pr_number}#pullrequestreview-{review_id}"
-            parts.append("")
-            parts.append(f"[Review]({review_url})")
+    # --- Fallback for empty context ---
+    has_review_context = has_review and bool(review_id)
+    if not review_comments and not failed_checks and not has_review_context:
+        parts.append("")
+        parts.append(f"Please review the PR and fix any issues found. Current HEAD: `{head_sha[:8]}`.")
+        parts.append("")
+        parts.append("---")
+        parts.append(f"*Automated repair dispatch for commit `{head_sha[:8]}` (type: {repair_type})*")
+        return "\n".join(parts)
 
+    # --- Instructions <details> block ---
+    if repair_type == "ci":
+        skill = "agdt.address-copilot-review.ci-repair.agent.md"
+        prompt_skill = "agdt.address-copilot-review.ci-repair.prompt.md"
+    else:
+        skill = "agdt.address-copilot-review.evaluate-and-respond.agent.md"
+        prompt_skill = "agdt.address-copilot-review.evaluate-and-respond.prompt.md"
+
+    if repository_full_name and "/" in repository_full_name:
+        agent_url = f"https://github.com/{repository_full_name}/blob/main/.github/agents/{skill}"
+        prompt_url = f"https://github.com/{repository_full_name}/blob/main/.github/prompts/{prompt_skill}"
+        agent_link = f"[`.github/agents/{skill}`]({agent_url})"
+        prompt_link = f"[`.github/prompts/{prompt_skill}`]({prompt_url})"
+    else:
+        agent_link = f"`.github/agents/{skill}`"
+        prompt_link = f"`.github/prompts/{prompt_skill}`"
+
+    parts.append("")
+    parts.append("<details>")
+    parts.append("     <summary>Instructions</summary>")
+    parts.append("")
+    parts.append(f"You are an {agent_link} agent, your prompt can be found here: {prompt_link}.")
+    parts.append("")
+    parts.append("</details>")
+
+    # --- Comments <details> block ---
     if has_review_comments:
         parts.append("")
-        parts.append("## Comments")
+        parts.append("<details>")
+        parts.append("     <summary>Comments</summary>")
         parts.append("")
 
         basename_paths: dict[str, set[str]] = {}
@@ -331,39 +380,21 @@ def _build_repair_comment(
                 else:
                     parts.append(f"- {label}")
 
+        parts.append("</details>")
+
+    # --- CI Failures <details> block ---
     if has_ci:
         parts.append("")
-        parts.append("## CI Failures")
+        parts.append("<details>")
+        parts.append("     <summary>CI Failures</summary>")
         parts.append("")
         for check in failed_checks:
-            # Only use html_url from the API response — the check run ID does not
-            # match the Actions workflow run ID, so omit the link entirely when
-            # html_url is absent to avoid emitting a broken /runs/{id} URL.
             job_url = check.html_url
             if job_url:
                 parts.append(f"- ❌ [{check.name}]({job_url}) — `{check.conclusion}`")
             else:
                 parts.append(f"- ❌ {check.name} — `{check.conclusion}`")
-
-    has_review_context = has_review and bool(review_id)
-    if not review_comments and not failed_checks and not has_review_context:
-        parts.append("")
-        parts.append(f"Please review the PR and fix any issues found. Current HEAD: `{head_sha[:8]}`.")
-        parts.append("")
-        parts.append("---")
-        parts.append(f"*Automated repair dispatch for commit `{head_sha[:8]}` (type: {repair_type})*")
-        return "\n".join(parts)
-
-    # Choose the appropriate skill based on what triggered the repair
-    if repair_type == "ci":
-        skill = "agdt.address-copilot-review.ci-repair.agent.md"
-    else:
-        skill = "agdt.address-copilot-review.evaluate-and-respond.agent.md"
-
-    parts.append("")
-    parts.append("## Instructions")
-    parts.append("")
-    parts.append(f"Follow `.github/agents/{skill}`")
+        parts.append("</details>")
 
     return "\n".join(parts)
 
