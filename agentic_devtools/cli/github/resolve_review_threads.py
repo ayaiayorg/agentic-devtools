@@ -63,6 +63,14 @@ mutation($threadId: ID!) {
 }
 """
 
+_UNRESOLVE_THREAD_MUTATION = """
+mutation($threadId: ID!) {
+  unresolveReviewThread(input: {threadId: $threadId}) {
+    thread { id isResolved }
+  }
+}
+"""
+
 _MAX_FETCH_RETRIES = 2
 _RETRY_DELAY_SECONDS = 10
 
@@ -259,6 +267,46 @@ def _resolve_thread(thread_id: str) -> bool:
         return False
 
 
+def _unresolve_thread(thread_id: str) -> bool:
+    """Unresolve a single review thread via GraphQL mutation.
+
+    Returns ``True`` if the thread is unresolved after the call, ``False``
+    otherwise (including on errors).
+    """
+    cmd = [
+        "gh",
+        "api",
+        "graphql",
+        "-f",
+        f"query={_UNRESOLVE_THREAD_MUTATION}",
+        "-f",
+        f"threadId={thread_id}",
+    ]
+    try:
+        result = run_safe(cmd, capture_output=True, text=True, shell=False)
+    except OSError as exc:
+        print(
+            f"Warning: unresolveReviewThread failed for {thread_id}: {exc}",
+            file=sys.stderr,
+        )
+        return False
+    if result.returncode != 0:
+        print(
+            f"Warning: unresolveReviewThread mutation failed for {thread_id}: {result.stderr.strip()}",
+            file=sys.stderr,
+        )
+        return False
+    try:
+        data = json.loads(result.stdout)
+        return not bool(data["data"]["unresolveReviewThread"]["thread"]["isResolved"])
+    except (json.JSONDecodeError, KeyError, TypeError):
+        print(
+            f"Warning: unexpected mutation response for {thread_id}",
+            file=sys.stderr,
+        )
+        return False
+
+
 def _resolve_and_verify(
     pr_number: int,
     owner: str,
@@ -354,6 +402,93 @@ def _resolve_and_verify(
     }
 
 
+def _unresolve_and_verify(
+    pr_number: int,
+    owner: str,
+    repo_name: str,
+    target_comment_ids: set[int],
+    max_retries: int = 2,
+) -> dict:
+    """Orchestrate the full unresolve → verify → retry cycle."""
+    threads = _fetch_review_threads(pr_number, owner, repo_name)
+    mapped = _map_comments_to_threads(threads, target_comment_ids)
+
+    already_unresolved = [t for t in mapped if not t["isResolved"]]
+    to_unresolve = [t for t in mapped if t["isResolved"]]
+
+    status_map: dict[str, dict] = {}
+    for t in already_unresolved:
+        status_map[t["threadId"]] = {
+            "threadId": t["threadId"],
+            "commentId": t["commentId"],
+            "status": "already_unresolved",
+        }
+
+    still_pending: list[dict] = []
+    for t in to_unresolve:
+        ok = _unresolve_thread(t["threadId"])
+        if ok:
+            status_map[t["threadId"]] = {
+                "threadId": t["threadId"],
+                "commentId": t["commentId"],
+                "status": "unresolved",
+            }
+        else:
+            still_pending.append(t)
+
+    for _retry in range(max_retries):
+        if not still_pending:
+            break
+
+        # Verify immediately (no upfront sleep); retries will re-fetch thread state as needed.
+        threads = _fetch_review_threads(pr_number, owner, repo_name)
+        refreshed = _map_comments_to_threads(threads, target_comment_ids)
+        refreshed_map = {t["threadId"]: t for t in refreshed}
+
+        next_pending: list[dict] = []
+        for t in still_pending:
+            rt = refreshed_map.get(t["threadId"])
+            if rt and not rt["isResolved"]:
+                status_map[t["threadId"]] = {
+                    "threadId": t["threadId"],
+                    "commentId": t["commentId"],
+                    "status": "unresolved",
+                }
+            else:
+                ok = _unresolve_thread(t["threadId"])
+                if ok:
+                    status_map[t["threadId"]] = {
+                        "threadId": t["threadId"],
+                        "commentId": t["commentId"],
+                        "status": "unresolved",
+                    }
+                else:
+                    next_pending.append(t)
+        still_pending = next_pending
+
+    for t in still_pending:
+        status_map[t["threadId"]] = {
+            "threadId": t["threadId"],
+            "commentId": t["commentId"],
+            "status": "failed",
+            "error": "Thread still resolved after retries",
+        }
+
+    details = list(status_map.values())
+    threads_unresolved = sum(1 for d in details if d["status"] == "unresolved")
+    threads_failed = sum(1 for d in details if d["status"] == "failed")
+    already_unresolved_count = sum(1 for d in details if d["status"] == "already_unresolved")
+
+    return {
+        "threadsUnresolved": threads_unresolved,
+        "threadsFailed": threads_failed,
+        "alreadyUnresolved": already_unresolved_count,
+        "totalTargeted": len(details),
+        "details": details,
+        "verified": threads_failed == 0,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -416,6 +551,50 @@ def resolve_review_threads(
     set_value("github.threads_resolution_verified", result["verified"])
 
     return result
+
+
+def unresolve_review_threads(
+    pr_number: int,
+    repo: str,
+    comment_ids: list[int],
+) -> dict:
+    """Unresolve targeted review threads on a GitHub PR.
+
+    Maps *comment_ids* to their GraphQL thread IDs, then calls the
+    ``unresolveReviewThread`` mutation for each resolved thread.
+
+    Returns a result dict with ``threadsUnresolved``, ``threadsFailed``,
+    ``alreadyUnresolved``, ``totalTargeted``, ``details``, and ``verified``.
+
+    Raises:
+        RuntimeError: On unrecoverable fetch failures.
+    """
+    owner, repo_name = repo.split("/")
+
+    if not comment_ids:
+        return {
+            "prNumber": pr_number,
+            "repo": repo,
+            "threadsUnresolved": 0,
+            "threadsFailed": 0,
+            "alreadyUnresolved": 0,
+            "totalTargeted": 0,
+            "details": [],
+            "verified": True,
+        }
+
+    result = _unresolve_and_verify(pr_number, owner, repo_name, set(comment_ids))
+
+    return {
+        "prNumber": pr_number,
+        "repo": repo,
+        "threadsUnresolved": result["threadsUnresolved"],
+        "threadsFailed": result["threadsFailed"],
+        "alreadyUnresolved": result["alreadyUnresolved"],
+        "totalTargeted": result["totalTargeted"],
+        "details": result["details"],
+        "verified": result["verified"],
+    }
 
 
 # ---------------------------------------------------------------------------
