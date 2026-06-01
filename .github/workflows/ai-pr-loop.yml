@@ -1,23 +1,14 @@
 name: AI PR Loop
 
 on:
-  pull_request:
-    # PR edit filtering (title vs body-only) is handled in Python orchestrator code,
-    # not in workflow-level `if:` conditions. See check_edit_relevance() in guards.py.
-    types: [opened, reopened, edited]
-  issue_comment:
-    types: [created]
-  workflow_run:
-    workflows: ["PR Targeted Checks", "Copilot Review Gate", "PR Smart Module Tests", "Workflow Integration Tests"]
-    types: [completed]
   workflow_dispatch:
     inputs:
       pr_number:
-        description: 'PR number to process (for agent-session-monitor invocations)'
-        required: false
+        description: 'PR number to process (scheduler-driven)'
+        required: true
         type: string
       trigger_reason:
-        description: 'Reason for manual dispatch'
+        description: 'Reason for dispatch (e.g. scheduler_oldest_eligible)'
         required: false
         type: string
 permissions:
@@ -30,41 +21,15 @@ env:
   AGDT_USE_PYTHON_ORCHESTRATOR: "1"
   AGDT_USE_PIPELINE_V2: "1"
 concurrency:
-  group: ai-pr-loop-${{ github.event.pull_request.number || github.event.issue.number || github.event.workflow_run.pull_requests[0].number || github.event.inputs.pr_number || github.run_id }}
+  group: ai-pr-loop-${{ github.event.inputs.pr_number }}
   cancel-in-progress: false
 jobs:
   ai-pr-loop:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    if: >
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.pr_number != '') ||
-      ((github.event_name == 'pull_request' &&
-        github.event.pull_request.head.repo.full_name == github.repository) ||
-       (github.event_name == 'issue_comment' &&
-         github.event.issue.pull_request &&
-         (github.event.comment.user.login == 'copilot[bot]' ||
-          github.event.comment.user.login == 'Copilot' ||
-          github.event.comment.user.login == 'copilot-pull-request-reviewer[bot]')) ||
-       (github.event_name == 'workflow_run' &&
-         github.event.workflow_run.event == 'pull_request' &&
-         github.event.workflow_run.head_repository.full_name == github.repository &&
-         github.event.workflow_run.conclusion != 'cancelled' &&
-         github.event.workflow_run.pull_requests[0].number != null))
+    if: github.event.inputs.pr_number != ''
     steps:
-      - name: Resolve PR head ref for issue_comment trigger
-        if: github.event_name == 'issue_comment'
-        id: issue-comment-pr
-        env:
-          GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
-        run: |
-          pr_json="$(gh pr view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json headRefName,isCrossRepository)"
-          head_ref="$(echo "$pr_json" | jq -r '.headRefName')"
-          is_cross_repo="$(echo "$pr_json" | jq -r '.isCrossRepository')"
-          same_repo="$( [ "$is_cross_repo" = "true" ] && echo "false" || echo "true" )"
-          echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
-          echo "same_repo=$same_repo" >> "$GITHUB_OUTPUT"
-      - name: Resolve PR head ref for workflow_dispatch trigger
-        if: github.event_name == 'workflow_dispatch'
+      - name: Resolve PR head ref
         id: dispatch-pr
         env:
           GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
@@ -78,34 +43,26 @@ jobs:
           pr_json="$(gh pr view "$pr_number" --repo "${{ github.repository }}" --json headRefName)"
           head_ref="$(echo "$pr_json" | jq -r '.headRefName')"
           echo "head_ref=$head_ref" >> "$GITHUB_OUTPUT"
-      - name: Skip issue_comment from cross-repository PR
-        if: github.event_name == 'issue_comment' && steps.issue-comment-pr.outputs.same_repo != 'true'
-        run: echo "Skipping issue_comment event for cross-repository PR."
       - name: Checkout repository
-        if: github.event_name != 'issue_comment' || steps.issue-comment-pr.outputs.same_repo == 'true'
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref || github.event.workflow_run.head_branch || steps.issue-comment-pr.outputs.head_ref || steps.dispatch-pr.outputs.head_ref }}
+          ref: ${{ steps.dispatch-pr.outputs.head_ref }}
           fetch-depth: 0
           token: ${{ secrets.AGDT_PR_APPROVER_PAT }}
       - name: Configure git identity
-        if: github.event_name != 'issue_comment' || steps.issue-comment-pr.outputs.same_repo == 'true'
         run: |
           git config user.name "acmarsn-agdt"
           git config user.email "269151600+acmarsn-agdt@users.noreply.github.com"
       - name: Set up Python
-        if: github.event_name != 'issue_comment' || steps.issue-comment-pr.outputs.same_repo == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - name: Install agentic-devtools
-        if: github.event_name != 'issue_comment' || steps.issue-comment-pr.outputs.same_repo == 'true'
         run: |
           python -m pip install --upgrade pip
           python -m pip install github-copilot-sdk
           python -m pip install agentic-devtools
       - name: Run AI PR loop orchestrator
-        if: github.event_name != 'issue_comment' || steps.issue-comment-pr.outputs.same_repo == 'true'
         env:
           GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}

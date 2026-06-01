@@ -44,7 +44,6 @@ class TestMinimizedCiWorkflows:
         content = AI_PR_LOOP.read_text(encoding="utf-8")
         assert 'git config user.name "acmarsn-agdt"' in content
         assert 'git config user.email "269151600+acmarsn-agdt@users.noreply.github.com"' in content
-        assert "Configure git identity\n        if: github.event_name != 'issue_comment'" in content
 
     def test_speckit_trigger_has_required_setup_steps(self) -> None:
         content = SPECKIT_TRIGGER.read_text(encoding="utf-8")
@@ -56,19 +55,14 @@ class TestMinimizedCiWorkflows:
     def test_ai_pr_loop_has_concurrency_group(self) -> None:
         content = AI_PR_LOOP.read_text(encoding="utf-8")
         assert "concurrency:" in content
-        assert "github.event.pull_request.number" in content
-        assert "github.event.issue.number" in content
-        assert "github.event.workflow_run.pull_requests" in content
+        assert "github.event.inputs.pr_number" in content
 
-    def test_ai_pr_loop_uses_pull_request_and_ci_completion_triggers(self) -> None:
+    def test_ai_pr_loop_uses_workflow_dispatch_only(self) -> None:
         content = AI_PR_LOOP.read_text(encoding="utf-8")
-        assert "pull_request:" in content
-        assert "issue_comment:" in content
-        assert "workflow_run:" in content
-
-    def test_ai_pr_loop_does_not_have_pull_request_review_trigger(self) -> None:
-        content = AI_PR_LOOP.read_text(encoding="utf-8")
-        assert "pull_request_review:" not in content
+        assert "workflow_dispatch:" in content
+        assert "pull_request:" not in content
+        assert "issue_comment:" not in content
+        assert "workflow_run:" not in content
 
     def test_redundant_ai_pr_loop_workflows_are_removed(self) -> None:
         assert not AI_PR_LOOP_LINT.exists()
