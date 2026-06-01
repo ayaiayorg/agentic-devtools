@@ -24,15 +24,6 @@ class Action(Protocol):
         """
         ...
 
-    @property
-    def runs_after_invalidation(self) -> bool:
-        """Whether this action may proceed after snapshot invalidation.
-
-        Defaults to False. Actions that are safe to run on a stale snapshot
-        (e.g., resolve_threads, request_review) should override to return True.
-        """
-        return False
-
     def execute(
         self,
         provider: CIPlatformProvider,

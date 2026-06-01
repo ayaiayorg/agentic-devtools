@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from collections.abc import Sequence
 from datetime import datetime, timezone
 
 from agentic_devtools.cli.ci.logging_config import is_github_actions
@@ -45,7 +46,7 @@ def _get_run_url() -> str:
 def run_pipeline(
     provider: CIPlatformProvider,
     snapshot: PRStateSnapshot,
-    actions: list[Action],
+    actions: Sequence[Action],
 ) -> PipelineRunSummary:
     """Execute the action pipeline sequentially.
 

@@ -113,7 +113,7 @@ class TestRunPipeline:
             def execute(self, provider, snapshot, derived):
                 return ActionResult(name="request_review", decision=ActionDecision.EXECUTE)
 
-        actions = [_BrokenAction(), _MockAction("merge", ActionDecision.EXECUTE)]
+        actions: list[Action] = [_BrokenAction(), _MockAction("merge", ActionDecision.EXECUTE)]
         summary = run_pipeline(provider, snapshot, actions)
         assert summary.results[0].decision == ActionDecision.FAILED
         assert summary.results[1].decision == ActionDecision.SKIP
@@ -148,7 +148,7 @@ class TestRunPipeline:
             def execute(self, provider, snapshot, derived) -> ActionResult:
                 return ActionResult(name="merge", decision=ActionDecision.EXECUTE)
 
-        actions = [_FailingAction(), _SentinelAction()]
+        actions: list[Action] = [_FailingAction(), _SentinelAction()]
         run_pipeline(provider, snapshot, actions)
         assert evaluate_called == [], "evaluate() should not be called on halted action"
 
@@ -168,7 +168,7 @@ class TestRunPipeline:
             def execute(self, provider, snapshot, derived):
                 return ActionResult(name="guards", decision=ActionDecision.EXECUTE)
 
-        actions = [_BrokenGuards(), _MockAction("publish", ActionDecision.EXECUTE)]
+        actions: list[Action] = [_BrokenGuards(), _MockAction("publish", ActionDecision.EXECUTE)]
         summary = run_pipeline(provider, snapshot, actions)
         assert summary.results[0].decision == ActionDecision.BLOCKED
         assert "guard error" in summary.results[0].details
@@ -190,7 +190,7 @@ class TestRunPipeline:
             def execute(self, provider, snapshot, derived) -> ActionResult:
                 return ActionResult(name="publish", decision=ActionDecision.FAILED, details="publish failed")
 
-        actions = [
+        actions: list[Action] = [
             _FailingAction(),
             _MockAction("approve", ActionDecision.EXECUTE),
             _MockAction("merge", ActionDecision.EXECUTE),
@@ -218,7 +218,7 @@ class TestRunPipeline:
             def execute(self, provider, snapshot, derived) -> ActionResult:
                 raise RuntimeError("git error")
 
-        actions = [
+        actions: list[Action] = [
             _ExplodingAction(),
             _MockAction("merge", ActionDecision.EXECUTE),
         ]
@@ -313,9 +313,7 @@ class TestRunPipeline:
             def execute(self, provider, snapshot, derived) -> ActionResult:
                 return ActionResult(name="merge", decision=ActionDecision.EXECUTE)
 
-        summary = run_pipeline(
-            provider, snapshot, [_InvalidatingAction(), _OptInAction(), _RegularAction()]
-        )
+        summary = run_pipeline(provider, snapshot, [_InvalidatingAction(), _OptInAction(), _RegularAction()])
         assert summary.results[0].decision == ActionDecision.EXECUTE  # squash executed
         assert summary.results[1].decision == ActionDecision.EXECUTE  # resolve_threads proceeded
         assert summary.results[2].decision == ActionDecision.SKIP  # merge halted
@@ -337,7 +335,7 @@ class TestRunPipeline:
             def execute(self, provider, snapshot, derived) -> ActionResult:
                 return ActionResult(name="publish", decision=ActionDecision.FAILED)
 
-        actions = [
+        actions: list[Action] = [
             _FailingAction(),
             _MockAction("request_review", ActionDecision.SKIP),
         ]
@@ -351,7 +349,7 @@ class TestRunPipeline:
         """Summary includes run_url and timestamp."""
         provider = MagicMock()
         snapshot = PRStateSnapshot(pr_number=1)
-        actions = []
+        actions: list[Action] = []
 
         # Set env vars for run URL
         monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.com")
@@ -368,6 +366,58 @@ class TestRunPipeline:
         monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
         summary = run_pipeline(MagicMock(), PRStateSnapshot(pr_number=1), [])
         assert summary.run_url == ""
+
+    def test_log_helpers_noop_outside_github_actions(self, monkeypatch) -> None:
+        """When not in GitHub Actions, _log_group/_log_endgroup are no-ops."""
+        monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
+        provider = MagicMock()
+        snapshot = PRStateSnapshot(pr_number=1)
+        actions = [_MockAction("approve", ActionDecision.EXECUTE)]
+        summary = run_pipeline(provider, snapshot, actions)
+        assert summary.results[0].decision == ActionDecision.EXECUTE
+
+    def test_non_guards_blocked_does_not_set_guard_block(self) -> None:
+        """A non-guards action returning BLOCKED does not set guard_blocked."""
+        provider = MagicMock()
+        snapshot = PRStateSnapshot(pr_number=1)
+
+        class _BlockingAction:
+            @property
+            def name(self):
+                return "publish"
+
+            def evaluate(self, snapshot, derived) -> ActionResult:
+                return ActionResult(name="publish", decision=ActionDecision.BLOCKED, details="blocked")
+
+            def execute(self, provider, snapshot, derived) -> ActionResult:
+                return ActionResult(name="publish", decision=ActionDecision.EXECUTE)
+
+        summary = run_pipeline(provider, snapshot, [_BlockingAction(), _MockAction("approve", ActionDecision.EXECUTE)])
+        assert summary.results[0].decision == ActionDecision.BLOCKED
+        # Subsequent actions are NOT blocked by guard
+        assert summary.results[1].decision == ActionDecision.EXECUTE
+
+    def test_guards_execute_exception_does_not_halt_pipeline(self) -> None:
+        """Guards execute() exception → FAILED but exec_failed_by not set."""
+        provider = MagicMock()
+        snapshot = PRStateSnapshot(pr_number=1)
+
+        class _ExplodingGuards:
+            @property
+            def name(self):
+                return "guards"
+
+            def evaluate(self, snapshot, derived) -> ActionResult:
+                return ActionResult(name="guards", decision=ActionDecision.EXECUTE)
+
+            def execute(self, provider, snapshot, derived) -> ActionResult:
+                raise RuntimeError("guards exploded")
+
+        summary = run_pipeline(provider, snapshot, [_ExplodingGuards(), _MockAction("publish", ActionDecision.EXECUTE)])
+        assert summary.results[0].decision == ActionDecision.FAILED
+        assert "guards exploded" in summary.results[0].error
+        # exec_failed_by is not set for guards, so publish still runs
+        assert summary.results[1].decision == ActionDecision.EXECUTE
 
     def test_all_8_actions_evaluated_on_ci_completion(self) -> None:
         """All 8 actions evaluated on a CI completion event."""
