@@ -53,8 +53,6 @@ from agentic_devtools.cli.ci.retry import RetryableError, retry_with_backoff
 from agentic_devtools.cli.github.request_copilot_review import request_copilot_review as _request_copilot_review
 from agentic_devtools.cli.github.resolve_review_threads import (
     resolve_review_threads as _resolve_review_threads,
-)
-from agentic_devtools.cli.github.resolve_review_threads import (
     unresolve_review_threads as _unresolve_review_threads,
 )
 from agentic_devtools.cli.subprocess_utils import run_safe
@@ -1270,7 +1268,10 @@ class GitHubActionsProvider(CIPlatformProvider):
             parent_id = comment.get("in_reply_to_id")
             if parent_id is None:
                 continue
-            pid = int(parent_id)
+            try:
+                pid = int(parent_id)
+            except (TypeError, ValueError):
+                continue
             created_at = str(comment.get("created_at", ""))
             prev = latest_reply_by_parent.get(pid)
             prev_created_at = str(prev.get("created_at", "")) if prev is not None else ""
