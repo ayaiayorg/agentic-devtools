@@ -1,0 +1,9 @@
+{
+  "jira_project_keys": "",
+  "jira_base_url": "",
+  "corporate_network_test_host": "",
+  "vpn_url": "",
+  "vpn_hostnames": "",
+  "default_copilot_model": "claude-opus-4.6",
+  "agdt_version": "0.2.144"
+}

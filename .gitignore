@@ -55,7 +55,11 @@ htmlcov/
 
 # State files
 .agdt-temp/
-.agdt/
+.agdt/*
+!.agdt/config/
+!.agdt/config/project.json
+!.agdt/agentic-devtools-*.py
+!.agdt/.gitignore
 .agdt-*-output.json
 .agdt-*-output.txt
 *.log
