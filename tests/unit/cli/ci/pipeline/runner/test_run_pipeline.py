@@ -267,6 +267,60 @@ class TestRunPipeline:
         assert "rerun required" in summary.results[1].details.lower()
         assert evaluate_called == []
 
+    def test_runs_after_invalidation_actions_proceed_after_snapshot_invalidation(self) -> None:
+        """Actions with runs_after_invalidation=True execute; others are skipped."""
+        provider = MagicMock()
+        snapshot = PRStateSnapshot(pr_number=1)
+
+        class _InvalidatingAction:
+            @property
+            def name(self):
+                return "squash"
+
+            def evaluate(self, snapshot, derived) -> ActionResult:
+                return ActionResult(name="squash", decision=ActionDecision.EXECUTE)
+
+            def execute(self, provider, snapshot, derived) -> ActionResult:
+                return ActionResult(
+                    name="squash",
+                    decision=ActionDecision.EXECUTE,
+                    invalidates_snapshot=True,
+                )
+
+        class _OptInAction:
+            @property
+            def name(self):
+                return "resolve_threads"
+
+            @property
+            def runs_after_invalidation(self):
+                return True
+
+            def evaluate(self, snapshot, derived) -> ActionResult:
+                return ActionResult(name="resolve_threads", decision=ActionDecision.EXECUTE)
+
+            def execute(self, provider, snapshot, derived) -> ActionResult:
+                return ActionResult(name="resolve_threads", decision=ActionDecision.EXECUTE)
+
+        class _RegularAction:
+            @property
+            def name(self):
+                return "merge"
+
+            def evaluate(self, snapshot, derived) -> ActionResult:
+                return ActionResult(name="merge", decision=ActionDecision.EXECUTE)
+
+            def execute(self, provider, snapshot, derived) -> ActionResult:
+                return ActionResult(name="merge", decision=ActionDecision.EXECUTE)
+
+        summary = run_pipeline(
+            provider, snapshot, [_InvalidatingAction(), _OptInAction(), _RegularAction()]
+        )
+        assert summary.results[0].decision == ActionDecision.EXECUTE  # squash executed
+        assert summary.results[1].decision == ActionDecision.EXECUTE  # resolve_threads proceeded
+        assert summary.results[2].decision == ActionDecision.SKIP  # merge halted
+        assert "rerun required" in summary.results[2].details.lower()
+
     def test_skip_actions_not_blocked_after_failure(self) -> None:
         """All actions after a failure are halted (exec_failed_by gate is before evaluate)."""
         provider = MagicMock()

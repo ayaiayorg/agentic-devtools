@@ -28,6 +28,10 @@ class ResolveThreadsAction:
     def name(self) -> str:
         return "resolve_threads"
 
+    @property
+    def runs_after_invalidation(self) -> bool:
+        return True
+
     def evaluate(self, snapshot: PRStateSnapshot, derived: DerivedState) -> ActionResult:
         """Evaluate whether thread resolution should be attempted."""
         preconditions: dict[str, bool] = {}

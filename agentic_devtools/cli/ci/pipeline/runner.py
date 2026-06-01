@@ -104,7 +104,7 @@ def run_pipeline(
             _log_endgroup()
             continue
 
-        if snapshot_invalidated_by:
+        if snapshot_invalidated_by and not getattr(action, "runs_after_invalidation", False):
             result = ActionResult(
                 name=action_name,
                 decision=ActionDecision.SKIP,

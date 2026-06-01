@@ -11,6 +11,11 @@ from agentic_devtools.cli.ci.pipeline.snapshot import DerivedState, PRStateSnaps
 class TestResolveThreadsAction:
     """Tests for resolve threads action."""
 
+    def test_runs_after_invalidation(self) -> None:
+        """ResolveThreadsAction opts in to run after snapshot invalidation."""
+        action = ResolveThreadsAction()
+        assert action.runs_after_invalidation is True
+
     def test_proceeds_when_active_session(self) -> None:
         """Active session no longer blocks thread resolution."""
         snapshot = PRStateSnapshot(pr_number=1, active_session=True, ci_status="passing", unresolved_threads=5)
