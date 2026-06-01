@@ -34,6 +34,10 @@ class RequestReviewAction:
     def name(self) -> str:
         return "request_review"
 
+    @property
+    def runs_after_invalidation(self) -> bool:
+        return True
+
     def evaluate(self, snapshot: PRStateSnapshot, derived: DerivedState) -> ActionResult:
         """Evaluate whether Copilot review should be requested."""
         preconditions: dict[str, bool] = {}

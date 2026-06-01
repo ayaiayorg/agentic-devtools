@@ -12,6 +12,11 @@ _PATCH_DETECTOR = "agentic_devtools.cli.ci.pipeline.actions.request_review.is_co
 class TestRequestReviewAction:
     """Tests for request review action evaluation and execution."""
 
+    def test_runs_after_invalidation(self) -> None:
+        """RequestReviewAction opts in to run after snapshot invalidation."""
+        action = RequestReviewAction()
+        assert action.runs_after_invalidation is True
+
     def test_skip_when_draft(self) -> None:
         snapshot = PRStateSnapshot(pr_number=1, is_draft=True)
         derived = DerivedState(snapshot)
