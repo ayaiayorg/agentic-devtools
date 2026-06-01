@@ -8,34 +8,26 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 
 **Automated AI PR Fix → Review → Merge Loop**
 
-- Runs on: `pull_request` (`opened`, `reopened`, `synchronize`),
-  `issue_comment` (Copilot completion — exits immediately, no squash), `workflow_run` (CI completion),
-  and `workflow_dispatch` (agent-session-monitor invocations)
+- Runs on: `workflow_dispatch` only (scheduler-driven)
 - Purpose: Fully autonomous PR handling — inspect failed checks and review comments, repair issues, approve, and merge
 
 **How it works**:
 
-1. **Safe direct trigger**: Even on `pull_request`, the workflow only checks out `main` and installs
-   `agentic-devtools` from PyPI, so it does not execute untrusted PR code
-2. **Trigger Guards**: Prevents redundant runs — if triggered by Copilot review but checks are still pending,
-   polls every 30 seconds for up to 10 minutes (skips on timeout);
-   if a Copilot review on the head commit has `CHANGES_REQUESTED` state, blocks merge until resolved
-3. **Exclusion Labels**: `ai-pr-loop-ignore` skips entirely; missing `ai-auto-merge-allowed` prevents merge but allows fixes/approval
-4. **Repair dispatch**: Uses failed PR checks and Copilot review state to decide when to request fixes
-5. **Amend & Push**: Amends fixes into the last commit with `--force-with-lease`
-6. **Copilot Review Handling**: Detects outstanding Copilot review comments and blocks merge until resolved
-7. **Approve & Merge**: When all checks pass, Copilot review is clean, and no outstanding comments, approves and squash-merges
-8. **Stale Review Re-request**: Re-requests Copilot review if >30 minutes stale
-9. **Cycle Tracking**: Maximum 50 outer cycles before posting exhaustion notice
+1. **Scheduler-only trigger**: The workflow is invoked exclusively via `workflow_dispatch` by the
+   agent-session-monitor scheduler, which selects exactly one PR per 5-minute cycle
+2. **Exclusion Labels**: `ai-pr-loop-ignore` skips entirely; missing `ai-auto-merge-allowed` prevents merge but allows fixes/approval
+3. **Repair dispatch**: Uses failed PR checks and Copilot review state to decide when to request fixes
+4. **Amend & Push**: Amends fixes into the last commit with `--force-with-lease`
+5. **Copilot Review Handling**: Detects outstanding Copilot review comments and blocks merge until resolved
+6. **Approve & Merge**: When all checks pass, Copilot review is clean, and no outstanding comments, approves and squash-merges
+7. **Stale Review Re-request**: Re-requests Copilot review if >30 minutes stale
+8. **Cycle Tracking**: Maximum 50 outer cycles before posting exhaustion notice
 
 **Post-repair squash flow** (handled by Pipeline v2):
 
 After Copilot pushes a repair commit and CI passes, the squash is handled inline by the Pipeline v2
 `SquashAction` which evaluates conditions each time `ai-pr-loop` runs — no external scheduler needed.
-The agent-session-monitor detects completed sessions and dispatches `ai-pr-loop` via `workflow_dispatch`.
-
-`issue_comment` events from Copilot are now ignored for squash purposes — they return immediately
-with no action. The squash always happens via `workflow_run` or `workflow_dispatch` triggers.
+The scheduler dispatches `ai-pr-loop` via `workflow_dispatch` every 5 minutes for the oldest eligible PR.
 
 **Required Permissions**:
 
@@ -49,12 +41,24 @@ with no action. The squash always happens via `workflow_run` or `workflow_dispat
 
 ### agent-session-monitor.yml
 
-**Agent Session Monitor**
+**PR Scheduler — Oldest-Eligible PR Dispatch**
 
 - Runs on: `schedule` (every 5 minutes, `*/5 * * * *`) and `workflow_dispatch` (manual)
-- Purpose: Detects completed Copilot sessions (coding and review) via dual-source detection
-  (agent-task CLI + events API + reviews API) and triggers `ai-pr-loop.yml` for processing.
-  Uses durable per-PR marker comments for deduplication (replaces fragile actions/cache).
+- Purpose: Selects the oldest eligible open PR and dispatches `ai-pr-loop.yml` for it.
+  At most one PR is processed per 5-minute cycle.
+
+**Selection logic**:
+
+1. Lists open PRs ordered by creation date ascending (oldest first)
+2. Skips fork PRs
+3. Skips PRs with `ai-pr-loop-ignore` exclusion label
+4. Detects human-blocked PRs (merge-ready but missing `ai-auto-merge-allowed`) and skips them
+5. Dispatches `ai-pr-loop.yml` for the first AI-actionable PR found
+6. Exits cleanly if no eligible PR exists
+
+**Human-blocked definition**: A PR is human-blocked when it has passing CI, an approval,
+but does NOT have the `ai-auto-merge-allowed` label. Such PRs are skipped so they do not
+stall the queue.
 
 **Required Permissions**:
 
