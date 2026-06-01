@@ -24,7 +24,7 @@ permissions:
 
 concurrency:
   group: pr-activity-dispatch
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   dispatch-monitor:
@@ -39,17 +39,26 @@ jobs:
           set -euo pipefail
 
           COOLDOWN_SECONDS=60
+          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
 
-          # Get the most recent run of agent-session-monitor (any status)
-          LAST_RUN_JSON=$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/agent-session-monitor.yml/runs?per_page=1" \
+          # Get the most recent run of agent-session-monitor on the default branch (any status)
+          LAST_RUN_JSON=$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/agent-session-monitor.yml/runs?per_page=1&branch=${DEFAULT_BRANCH}" \
             --jq '.workflow_runs[0] // {}')
 
           LAST_RUN_STATUS=$(echo "$LAST_RUN_JSON" | jq -r '.status // empty')
+          LAST_RUN_CONCLUSION=$(echo "$LAST_RUN_JSON" | jq -r '.conclusion // empty')
           LAST_RUN_END=$(echo "$LAST_RUN_JSON" | jq -r '.updated_at // empty')
 
           if [ -n "$LAST_RUN_STATUS" ] && [ "$LAST_RUN_STATUS" != "completed" ]; then
             echo "::notice::Throttled — agent-session-monitor is currently ${LAST_RUN_STATUS}"
             echo "throttled=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # If the last run completed but did not succeed, allow immediate retry.
+          if [ -n "$LAST_RUN_CONCLUSION" ] && [ "$LAST_RUN_CONCLUSION" != "success" ]; then
+            echo "Last monitor run concluded as '${LAST_RUN_CONCLUSION}' — proceeding with dispatch (no cooldown)."
+            echo "throttled=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [ -z "$LAST_RUN_END" ]; then
