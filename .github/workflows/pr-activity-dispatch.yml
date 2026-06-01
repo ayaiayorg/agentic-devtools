@@ -34,7 +34,7 @@ jobs:
       - name: Throttle check
         id: throttle
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
         run: |
           set -euo pipefail
 
@@ -83,7 +83,7 @@ jobs:
       - name: Dispatch Agent Session Monitor
         if: steps.throttle.outputs.throttled != 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
         run: |
           gh workflow run agent-session-monitor.yml \
             --repo "$GITHUB_REPOSITORY" \
