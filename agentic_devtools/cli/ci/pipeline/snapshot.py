@@ -253,7 +253,8 @@ def _count_unresolved_prior_threads(
     """Count unresolved Copilot review threads from commits before HEAD.
 
     Returns the count of review comments from prior-commit Copilot reviews
-    that would be eligible for resolution.
+    whose threads are actually unresolved per the GitHub API. If thread-state
+    data is unavailable, falls back to counting all non-synthetic comments.
     """
     prior_copilot_reviews = [
         r
@@ -266,15 +267,35 @@ def _count_unresolved_prior_threads(
     if not prior_copilot_reviews:
         return 0
 
+    # Fetch actual thread resolution states from GitHub GraphQL API
+    thread_statuses: dict[int, tuple[bool, bool]] | None = None
+    list_thread_states = getattr(provider, "list_review_thread_states", None)
+    if callable(list_thread_states):
+        try:
+            thread_statuses = list_thread_states(pr_number)
+        except Exception:
+            # Fail closed: if we can't determine resolution status, fall
+            # through to counting all comments (existing behavior).
+            thread_statuses = None
+
+    # Count only comments whose thread is NOT resolved (when status is known)
     total_unresolved = 0
     for prior_review in prior_copilot_reviews:
         try:
             comments = provider.list_review_comments(pr_number, prior_review.id)
-            # Exclude synthetic review-body entries — they have no real GitHub
-            # thread and must not inflate the unresolved count.
-            total_unresolved += sum(1 for c in comments if c.id >= 0)
+            for c in comments:
+                if c.id < 0:
+                    continue  # Skip synthetic review-body entries
+                if thread_statuses is not None:
+                    is_resolved, _has_reply = thread_statuses.get(c.id, (False, False))
+                    if not is_resolved:
+                        total_unresolved += 1
+                else:
+                    # Fallback: no thread status info, count all
+                    total_unresolved += 1
         except Exception:
-            return max(1, total_unresolved + 1)
+            # Fail closed for this review: count 1 unknown thread
+            total_unresolved += 1
     return total_unresolved
 
 
