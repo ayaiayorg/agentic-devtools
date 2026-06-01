@@ -440,7 +440,7 @@ def _unresolve_and_verify(
         if not still_pending:
             break
 
-        time.sleep(_RETRY_DELAY_SECONDS)
+        # Verify immediately (no upfront sleep); retries will re-fetch thread state as needed.
         threads = _fetch_review_threads(pr_number, owner, repo_name)
         refreshed = _map_comments_to_threads(threads, target_comment_ids)
         refreshed_map = {t["threadId"]: t for t in refreshed}
