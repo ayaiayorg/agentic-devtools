@@ -7,6 +7,7 @@ using the ``gh`` CLI for API calls consistent with existing codebase patterns.
 from __future__ import annotations
 
 import asyncio
+import importlib
 import json
 import logging
 import os
@@ -51,16 +52,14 @@ from agentic_devtools.cli.ci.resolution.tiers.outdated import OutdatedTier
 from agentic_devtools.cli.ci.resolution.tiers.sdk_evaluation import SdkEvaluationTier
 from agentic_devtools.cli.ci.retry import RetryableError, retry_with_backoff
 from agentic_devtools.cli.github.request_copilot_review import request_copilot_review as _request_copilot_review
-from agentic_devtools.cli.github.resolve_review_threads import (
-    resolve_review_threads as _resolve_review_threads,
-)
-from agentic_devtools.cli.github.resolve_review_threads import (
-    unresolve_review_threads as _unresolve_review_threads,
-)
 from agentic_devtools.cli.subprocess_utils import run_safe
 from agentic_devtools.state import get_state_dir
 
 logger = logging.getLogger(__name__)
+
+_resolve_review_threads_module = importlib.import_module("agentic_devtools.cli.github.resolve_review_threads")
+_resolve_review_threads = _resolve_review_threads_module.resolve_review_threads
+_unresolve_review_threads = _resolve_review_threads_module.unresolve_review_threads
 
 _ADDRESSED_REPLY_BODY = "Addressed on the updated PR branch."
 _LEGACY_ADDRESSED_REPLY_PREFIXES = ("addressed by fix commit",)
