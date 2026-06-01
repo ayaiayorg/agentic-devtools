@@ -48,8 +48,13 @@ class TestSquashAction:
         assert result.decision == ActionDecision.SKIP
         assert "repair dispatched" in result.details.lower()
 
-    def test_skip_when_ci_not_passing(self) -> None:
-        snapshot = PRStateSnapshot(pr_number=1, commit_count=3, ci_status="failing")
+    def test_execute_when_multiple_commits(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            commit_count=3,
+            ci_status="pending",
+            copilot_review_pending=False,
+        )
         derived = DerivedState(snapshot)
         action = SquashAction()
         with patch(
@@ -57,16 +62,21 @@ class TestSquashAction:
             return_value=False,
         ):
             result = action.evaluate(snapshot, derived)
-        assert result.decision == ActionDecision.SKIP
-        assert "failing" in result.details.lower()
+        assert result.decision == ActionDecision.EXECUTE
 
-    def test_execute_when_multiple_commits_and_ci_passing(self) -> None:
-        snapshot = PRStateSnapshot(
-            pr_number=1,
-            commit_count=3,
-            ci_status="passing",
-            copilot_review_pending=False,
-        )
+    def test_execute_when_ci_pending(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=1, commit_count=3, ci_status="pending")
+        derived = DerivedState(snapshot)
+        action = SquashAction()
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.actions.squash.is_copilot_session_active_via_agent_task",
+            return_value=False,
+        ):
+            result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.EXECUTE
+
+    def test_execute_when_ci_failing(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=1, commit_count=3, ci_status="failing")
         derived = DerivedState(snapshot)
         action = SquashAction()
         with patch(
