@@ -17,9 +17,39 @@
 >   changes — this is not "executing a PR-sourced script/binary".
 > - If `AGDT_CI_REPAIR_MODE=1` is set, these constraints are mandatory
 >   (defense-in-depth).
+>
+> **⚠️ COPILOT CLOUD AGENT RESTRICTIONS**:
+>
+> - Do NOT force-push (`git push --force` or `git push --force-with-lease`).
+> - Do NOT attempt to resolve PR review comment threads — the post-push automation handles this.
+> - Do NOT attempt to re-request Copilot review — the post-push automation handles this.
+> - Do NOT merge the PR.
 
 You are a senior software engineer addressing feedback from a GitHub Copilot pull request
 review. Follow this workflow systematically, completing each phase before proceeding.
+
+---
+
+## Pre-push Hook & Linting
+
+> ⚠️ **Git hooks are pre-configured** via `copilot-setup-steps.yml`. You do NOT need to
+> set up hooks or run linting/formatting manually.
+>
+> After running `git push`, the pre-push hook automatically runs targeted checks
+> (ruff format, ruff check, per-file coverage, mypy, test structure validation).
+> This can take up to **2 minutes**. Do NOT interrupt the push or re-push during this time.
+> You can monitor progress by:
+>
+> - Checking `.pre-push-output.log` in the repo root
+> - Running status commands in a separate terminal
+>
+> If the push is rejected because ruff reformatted files (look for
+> "❌ Files were reformatted by ruff" in the output or `.pre-push-output.log`),
+> stage the reformatted files, amend the commit, and push again.
+>
+> You do NOT need to manually run `ruff format`, `ruff check`, or `mypy` before pushing.
+> The pre-push hook handles all of this automatically. Focus only on code changes that
+> address the review feedback.
 
 ---
 
@@ -30,16 +60,13 @@ review. Follow this workflow systematically, completing each phase before procee
 | Operation | Preferred (agdt-*) | Fallback (raw) |
 |-----------|-------------------|----------------|
 | Reply to review comments | `agdt-gh-reply-to-review-comments` | `gh api .../comments/{id}/replies` per comment |
-| Resolve review threads | `agdt-gh-resolve-review-threads` | GraphQL `resolveReviewThread` mutation per thread |
-| Request Copilot re-review | `agdt-gh-request-copilot-review` | `gh api .../requested_reviewers -X POST` |
-| Run targeted tests | `agdt-test-pattern`, `agdt-test-file` | Install `agentic-devtools` from PyPI (not the PR branch: `pip install agentic-devtools`), then use `agdt-test-pattern` |
+| Run targeted tests | `agdt-test-pattern`, `agdt-test-file` | Install `agentic-devtools[dev]` from PyPI (not the PR branch: `pip install 'agentic-devtools[dev]'`), then use `agdt-test-pattern` |
 | Stage changes | `agdt-git-stage` | `git add` |
-| Commit & push | `agdt-git-save-work` | Install `agentic-devtools` from PyPI (not the PR branch: `pip install agentic-devtools`), then use `agdt-git-save-work` |
-| Force push | `agdt-git-force-push` | `git push --force-with-lease` |
+| Commit & push | `agdt-git-save-work` | Install `agentic-devtools[dev]` from PyPI (not the PR branch: `pip install 'agentic-devtools[dev]'`), then use `agdt-git-save-work` |
 
 > **CI Repair Note**: This workflow requires `agentic-devtools` commands to be
 > available. If they are not installed, install from a trusted source —
-> **not** from the PR branch (`pip install agentic-devtools`). Do **not** fall
+> **not** from the PR branch (`pip install 'agentic-devtools[dev]'`). Do **not** fall
 > back to running `pytest` directly or using raw `git commit`/`git push`; both
 > violate project policy (see `.github/copilot-instructions.md`).
 
@@ -52,25 +79,31 @@ Extract identifiers from the `@copilot` trigger comment.
 ### Trigger Comment Format
 
 ```text
-@copilot
+@copilot - The Code Review Agent just left this [Review](https://github.com/{owner}/{repo}/pull/{pr_number}#pullrequestreview-{review_id}) that needs to be evaluated and addressed.
+
 <!-- copilot-trigger:{review_id} -->
 
-[Review](https://github.com/{owner}/{repo}/pull/{pr_number}#pullrequestreview-{review_id})
+<details>
+     <summary>Instructions</summary>
 
-## Comments
+You are an [`.github/agents/agdt.address-copilot-review.evaluate-and-respond.agent.md`](https://github.com/{owner}/{repo}/blob/main/.github/agents/agdt.address-copilot-review.evaluate-and-respond.agent.md) agent, your prompt can be found here: [`.github/prompts/agdt.address-copilot-review.evaluate-and-respond.prompt.md`](https://github.com/{owner}/{repo}/blob/main/.github/prompts/agdt.address-copilot-review.evaluate-and-respond.prompt.md).
+
+</details>
+
+<details>
+     <summary>Comments</summary>
 
 - [Comment #1 - filename.py (1)](https://github.com/{owner}/{repo}/pull/{pr_number}#pullreviewcomment-{id})
 - [Comment #2 - filename.py (2)](https://github.com/{owner}/{repo}/pull/{pr_number}#pullreviewcomment-{id})
 - Comment #3 - models.py (1): "body text" (suppressed comment)
+</details>
 
-## CI Failures
+<details>
+     <summary>CI Failures</summary>
 
 - ❌ [check-name](https://github.com/{owner}/{repo}/actions/runs/{run_id}/jobs/{job_id}) — `conclusion`
 - ❌ check-name-without-url — `conclusion`
-
-## Instructions
-
-Follow `.github/agents/agdt.address-copilot-review.evaluate-and-respond.agent.md`
+</details>
 ```
 
 ### Parse Out
@@ -83,7 +116,7 @@ Follow `.github/agents/agdt.address-copilot-review.evaluate-and-respond.agent.md
 | `review_id` | `<!-- copilot-trigger:... -->` marker or Review URL fragment | `4019856282` |
 | `visible_comments` | `[Comment #N - file (F)](url)` list items | List of `{nc, file, nf, url, comment_id}` |
 | `suppressed_comments` | `Comment #N - file (F): "body" (suppressed comment)` items | List of `{nc, file, nf, body}` |
-| `ci_failures` | `## CI Failures` section (if present) | List of `{name, url (optional), conclusion}` |
+| `ci_failures` | `<summary>CI Failures</summary>` section (if present) | List of `{name, url (optional), conclusion}` |
 
 Extract `comment_id` from each visible comment URL:
 `https://github.com/{owner}/{repo}/pull/{pr_number}#pullreviewcomment-{comment_id}`
@@ -92,8 +125,8 @@ Extract `comment_id` from each visible comment URL:
 
 - If the trigger comment is malformed or missing identifiers, check environment
   variables `REPAIR_PR_NUMBER`, `REPAIR_REVIEW_URL`, and `REPAIR_HEAD_SHA`.
-- If the `## CI Failures` section is absent, treat `ci_failures` as empty.
-- If `review_id` is present but there are no comment links under `## Comments`,
+- If the CI Failures `<details>` section is absent, treat `ci_failures` as empty.
+- If `review_id` is present but there are no comment links under Comments,
   fetch review comments directly:
   `gh api "repos/{owner}/{repo}/pulls/{pr_number}/reviews/{review_id}/comments"` and
   continue using that list (`id`, `path`, `body`, `diff_hunk`).
@@ -113,7 +146,7 @@ gh api "repos/{owner}/{repo}/pulls/comments/{comment_id}" \
 
 | Field | Use |
 |-------|-----|
-| `id` | Database ID — needed for replying and resolving threads |
+| `id` | Database ID — needed for replying |
 | `path` | File path the comment is on |
 | `line` | Line number (may be `null` for file-level comments) |
 | `body` | Full comment text (the reviewer's feedback) |
@@ -185,7 +218,7 @@ Assign a confidence level for each suggestion:
 
 ## Phase 5: Handle CI Failures (if present)
 
-If the `## CI Failures` section is present in the trigger comment, address those failures
+If the CI Failures section is present in the trigger comment, address those failures
 before making code changes for review comments.
 
 The CI pipeline gates are:
@@ -292,6 +325,14 @@ agdt-git-save-work --skip-stage
 agdt-task-wait
 ```
 
+> ⚠️ After `git push`, the pre-push hook runs targeted checks automatically. This can
+> take up to **2 minutes**. Do NOT interrupt or re-push during this time. Check
+> `.pre-push-output.log` or use a separate terminal to monitor progress.
+>
+> If the push is rejected because ruff reformatted files (look for "❌ Files were
+> reformatted by ruff" in the output or `.pre-push-output.log`), stage the reformatted
+> files, amend the commit, and push again.
+
 Choose the commit **type** based on the nature of the changes:
 
 | Type | When to use |
@@ -309,18 +350,10 @@ COMMIT_FULL=$(git log -1 --format="%H")
 COMMIT_SHORT=$(git log -1 --format="%h")
 ```
 
-### Verify Push Was Successful
-
-```bash
-REMOTE_SHA=$(gh pr view {pr_number} --repo {owner}/{repo} --json headRefOid --jq '.headRefOid')
-```
-
-If `REMOTE_SHA` ≠ `COMMIT_FULL`, run `agdt-git-force-push` + `agdt-task-wait`, then re-verify.
-
 ### Edge Case: No Addressable Comments and No CI Failures
 
 If every comment was ❌ and there are no CI failures, skip the commit step and proceed
-directly to Phase 7 (replies).
+directly to Phase 7 (summary comment).
 
 ---
 
@@ -341,7 +374,7 @@ The comment MUST:
 6. Present CI failure resolutions in a separate table (if applicable)
 
 Include commit metadata and the commit link only when code changes were made.
-Include the CI section only when the trigger comment contained `## CI Failures`.
+Include the CI section only when the trigger comment contained CI Failures.
 
 ```markdown
 <!-- copilot-agent-result -->
@@ -388,7 +421,7 @@ Use exactly these decision labels (emoji + keyword) for programmatic parsing:
 
 ### CI Failures Table Rules
 
-- Only include the `### CI Failures Addressed` section if the trigger comment contained a `## CI Failures` section
+- Only include the `### CI Failures Addressed` section if the trigger comment contained a CI Failures section
 - Status values: `✅ Fixed` or `⚠️ Unable to fix` (with explanation)
 - If no CI failures existed, omit this section entirely
 
@@ -441,31 +474,13 @@ agdt-gh-reply-to-review-comments --pr {pr_number} --repo {owner}/{repo} \
 
 ---
 
-## Phase 9: Resolve Review Threads
-
-```bash
-agdt-gh-resolve-review-threads --pr {pr_number} --repo {owner}/{repo} \
-  --review-id {review_id}
-```
-
----
-
-## Phase 10: Re-request Copilot Review
-
-```bash
-agdt-gh-request-copilot-review --pr {pr_number} --repo {owner}/{repo}
-```
-
-If `verified` is `false`, retry once after 10 seconds.
-
----
-
 ## Error Handling
 
 - **Command failures**: If any `agdt-gh-*` command exits with a non-zero code, print
   stderr and handle as described in the relevant phase.
-- **Thread already resolved**: `agdt-gh-resolve-review-threads` handles this silently.
 - **Comment reply fails**: `agdt-gh-reply-to-review-comments` handles retries internally.
+- **Push rejected by hook**: If the push fails because ruff reformatted files (indicated
+  by "❌ Files were reformatted by ruff" in the hook output), stage the reformatted
+  files, amend the commit, and push again.
 - **No visible comments and no CI failures**: If the review has zero visible comments
-  and no CI failures, post the summary comment with suppressed-only rows if applicable,
-  then proceed to Phase 9 and 10.
+  and no CI failures, post the summary comment with suppressed-only rows if applicable.

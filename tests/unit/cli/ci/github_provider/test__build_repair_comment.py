@@ -67,7 +67,8 @@ class TestBuildRepairComment:
             review_id=456,
         )
         assert "@copilot" in body
-        assert "## Comments" in body
+        assert "<details>" in body
+        assert "<summary>Comments</summary>" in body
         # Comment #1 - first comment on foo.py → foo.py (1)
         assert "[Comment #1 - foo.py (1)]" in body
         assert _COMMENT_1.html_url in body
@@ -79,7 +80,7 @@ class TestBuildRepairComment:
         assert _COMMENT_OTHER.html_url in body
 
     def test_review_repair_includes_review_link(self) -> None:
-        """Trigger comment includes a direct link to the parent review."""
+        """Trigger comment includes a direct link to the parent review in first line."""
         body = _build_repair_comment(
             head_sha="abc123def456",
             repair_type="review",
@@ -182,7 +183,7 @@ class TestBuildRepairComment:
         assert "Comment #3" in body  # next visible comment
 
     def test_ci_repair_lists_failed_checks(self) -> None:
-        """CI failures are listed with ❌ markers."""
+        """CI failures are listed with ❌ markers in a details block."""
         checks = [
             CheckRunStatus(id=1, name="Targeted Checks ✅", status="completed", conclusion="failure"),
             CheckRunStatus(id=2, name="Smart Module Tests ✅", status="completed", conclusion="failure"),
@@ -194,7 +195,7 @@ class TestBuildRepairComment:
             review_comments=[],
         )
         assert "@copilot" in body
-        assert "## CI Failures" in body
+        assert "<summary>CI Failures</summary>" in body
         assert "❌ Targeted Checks ✅" in body
         assert "❌ Smart Module Tests ✅" in body
 
@@ -250,7 +251,7 @@ class TestBuildRepairComment:
         assert "`failure`" in body
 
     def test_both_repair_includes_review_and_ci_sections(self) -> None:
-        """Combined repair includes both ## Comments and ## CI Failures sections."""
+        """Combined repair includes both Comments and CI Failures details blocks."""
         checks = [CheckRunStatus(id=1, name="tests", status="completed", conclusion="failure")]
         body = _build_repair_comment(
             head_sha="abc123def456",
@@ -258,8 +259,8 @@ class TestBuildRepairComment:
             failed_checks=checks,
             review_comments=[_COMMENT_1],
         )
-        assert "## Comments" in body
-        assert "## CI Failures" in body
+        assert "<summary>Comments</summary>" in body
+        assert "<summary>CI Failures</summary>" in body
 
     def test_empty_context_includes_fallback(self) -> None:
         """When no comments and no failures, a fallback message is shown with SHA."""
@@ -285,7 +286,7 @@ class TestBuildRepairComment:
         )
         assert "<!-- copilot-trigger:456 -->" in body
         assert "[Review](https://github.com/owner/repo/pull/42#pullrequestreview-456)" in body
-        assert "## Instructions" in body
+        assert "<summary>Instructions</summary>" in body
         assert "agdt.address-copilot-review.evaluate-and-respond.agent.md" in body
 
     def test_fallback_does_not_include_skill_reference(self) -> None:
@@ -296,7 +297,7 @@ class TestBuildRepairComment:
             failed_checks=[],
             review_comments=[],
         )
-        assert "## Instructions" not in body
+        assert "<summary>Instructions</summary>" not in body
 
     def test_review_only_references_evaluate_and_respond_skill(self) -> None:
         """Review-only repair references the evaluate-and-respond skill."""
@@ -334,15 +335,15 @@ class TestBuildRepairComment:
         assert "agdt.address-copilot-review.ci-repair.agent.md" not in body
 
     def test_instructions_section_present_when_context_exists(self) -> None:
-        """## Instructions section appears when there are comments or CI failures."""
+        """Instructions details block appears when there are comments or CI failures."""
         body = _build_repair_comment(
             head_sha="abc123def456",
             repair_type="review",
             failed_checks=[],
             review_comments=[_COMMENT_1],
         )
-        assert "## Instructions" in body
-        assert "Follow `.github/agents/" in body
+        assert "<summary>Instructions</summary>" in body
+        assert "`.github/agents/" in body
 
     def test_per_file_counter_resets_for_each_file(self) -> None:
         """nF counter resets to 1 for each new file path."""
@@ -370,7 +371,7 @@ class TestBuildRepairComment:
         assert "Comment #2 - pkg_b/__init__.py (1)" in body
 
     def test_no_old_section_headers_in_new_format(self) -> None:
-        """Old-style headers (## Copilot Review Feedback, ## CI Failure Context) are gone."""
+        """Old-style ## headers are replaced by <details> blocks."""
         checks = [CheckRunStatus(id=1, name="lint", status="completed", conclusion="failure")]
         body_ci = _build_repair_comment(
             head_sha="abc123def456",
@@ -387,3 +388,44 @@ class TestBuildRepairComment:
         assert "## Copilot Review Feedback" not in body_review
         assert "## CI Failure Context" not in body_ci
         assert "### Comment" not in body_review
+        assert "## Comments" not in body_review
+        assert "## CI Failures" not in body_ci
+        assert "## Instructions" not in body_review
+
+    def test_ci_only_first_line_mentions_ci_failures(self) -> None:
+        """CI-only repair starts with @copilot mentioning CI failures."""
+        checks = [CheckRunStatus(id=1, name="lint", status="completed", conclusion="failure")]
+        body = _build_repair_comment(
+            head_sha="abc123def456",
+            repair_type="ci",
+            failed_checks=checks,
+            review_comments=[],
+        )
+        assert body.startswith("@copilot - CI failures detected")
+
+    def test_review_first_line_mentions_review(self) -> None:
+        """Review repair starts with @copilot mentioning the review."""
+        body = _build_repair_comment(
+            head_sha="abc123def456",
+            repair_type="review",
+            failed_checks=[],
+            review_comments=[_COMMENT_1],
+            repository_full_name="owner/repo",
+            pr_number=42,
+            review_id=456,
+        )
+        assert body.startswith("@copilot - The Code Review Agent just left this [Review]")
+
+    def test_instructions_contains_links_when_repo_provided(self) -> None:
+        """Instructions block contains full URL links when repository_full_name is provided."""
+        body = _build_repair_comment(
+            head_sha="abc123def456",
+            repair_type="review",
+            failed_checks=[],
+            review_comments=[_COMMENT_1],
+            repository_full_name="owner/repo",
+            pr_number=42,
+            review_id=456,
+        )
+        assert "https://github.com/owner/repo/blob/main/.github/agents/" in body
+        assert "https://github.com/owner/repo/blob/main/.github/prompts/" in body

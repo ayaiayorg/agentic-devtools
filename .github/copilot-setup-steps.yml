@@ -1,0 +1,3 @@
+steps:
+  - run: pip install 'agentic-devtools[dev]'
+  - run: git config core.hooksPath .githooks
