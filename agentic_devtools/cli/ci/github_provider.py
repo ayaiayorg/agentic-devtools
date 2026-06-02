@@ -847,6 +847,7 @@ class GitHubActionsProvider(CIPlatformProvider):
         Maps each review comment ID to:
         - thread isOutdated status
         - latest thread comment body (used by automation-marker tier)
+        - latest thread comment author login (used by SWE-agent-reply tier)
         """
         cached = self._thread_signals_cache.get(pr_number)
         if cached is not None:
@@ -2398,7 +2399,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                     database_id=comment.id,
                 )
             ]
-            if latest_thread_comment_body and latest_thread_comment_body != comment.body:
+            if latest_thread_comment_body:
                 thread_comments.append(
                     GitHubThreadComment(
                         body=latest_thread_comment_body,
