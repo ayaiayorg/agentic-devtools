@@ -21,6 +21,7 @@ from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     CommentResolution,
     COPILOT_LOGINS,
+    COPILOT_SESSION_EVENT_STARTED,
     EventPayload,
     FinalizationResult,
     IssueCommentInfo,
@@ -1972,8 +1973,6 @@ class GitHubActionsProvider(CIPlatformProvider):
                 swe_agent_commented_on_pr = any(
                     c.author in COPILOT_LOGINS for c in issue_comments
                 )
-                from agentic_devtools.cli.ci.models import COPILOT_SESSION_EVENT_STARTED  # noqa: PLC0415
-
                 started_events = [e for e in issue_events if e.event == COPILOT_SESSION_EVENT_STARTED]
                 if started_events and review.submitted_at:
                     # Compare the review submission timestamp against each started
@@ -2328,10 +2327,12 @@ class GitHubActionsProvider(CIPlatformProvider):
 
         verdicts: dict[int, VerificationVerdict] = {}
         for comment, diff_context in comments:
-            # FR-003 guard: if the comment was originally placed on the current HEAD commit,
-            # there are no newer changes to evaluate against — skip tier evaluation.
-            # Use original_commit_id (the commit when the comment was first posted) rather
-            # than commit_id, which GitHub may remap to HEAD after a squash/force-push.
+            # FR-003 guard: if the comment was originally placed on what is now the
+            # current HEAD commit (i.e., no commits have been pushed since the comment
+            # was posted), there are no newer changes to evaluate against — skip tier
+            # evaluation. Use original_commit_id (the commit when the comment was first
+            # posted) rather than commit_id, which GitHub may remap to HEAD after a
+            # squash/force-push.
             effective_commit_id = comment.original_commit_id or comment.commit_id
             if effective_commit_id and effective_commit_id == head_sha:
                 verdicts[comment.id] = VerificationVerdict.COMMENT_UNRESOLVE
