@@ -38,9 +38,11 @@ except ImportError as e:
         check=False,
     )
     print(f"Error: Copilot SDK import failed: {e}", file=sys.stderr)
-    print(f"pip show github-copilot-sdk:\n{pip_show.stdout or '(not installed)'}", file=sys.stderr)
-    if pip_show_wrong.stdout:
-        print(f"⚠ Conflicting 'copilot' package detected:\n{pip_show_wrong.stdout}", file=sys.stderr)
+    sdk_info = (pip_show.stdout or pip_show.stderr or "").strip() or "(not installed)"
+    wrong_info = (pip_show_wrong.stdout or pip_show_wrong.stderr or "").strip()
+    print(f"pip show github-copilot-sdk:\n{sdk_info}", file=sys.stderr)
+    if wrong_info:
+        print(f"⚠ Conflicting 'copilot' package detected:\n{wrong_info}", file=sys.stderr)
     print(
         "Ensure 'github-copilot-sdk' is installed and no conflicting 'copilot' package is present.",
         file=sys.stderr,
