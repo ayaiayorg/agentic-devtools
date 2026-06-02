@@ -19,8 +19,29 @@ import asyncio
 import os
 import sys
 
-from copilot import CopilotClient, SubprocessConfig
-from copilot.session import PermissionHandler
+try:
+    from copilot import CopilotClient, SubprocessConfig
+    from copilot.session import PermissionHandler
+except ImportError as e:
+    import subprocess
+
+    pip_show = subprocess.run(
+        ["pip", "show", "github-copilot-sdk"],
+        capture_output=True, text=True,
+    )
+    pip_show_wrong = subprocess.run(
+        ["pip", "show", "copilot"],
+        capture_output=True, text=True,
+    )
+    print(f"Error: Copilot SDK import failed: {e}", file=sys.stderr)
+    print(f"pip show github-copilot-sdk:\n{pip_show.stdout or '(not installed)'}", file=sys.stderr)
+    if pip_show_wrong.stdout:
+        print(f"⚠ Conflicting 'copilot' package detected:\n{pip_show_wrong.stdout}", file=sys.stderr)
+    print(
+        "Ensure 'github-copilot-sdk' is installed and no conflicting 'copilot' package is present.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
 
 
 async def main() -> int:
