@@ -280,14 +280,20 @@ def _count_unresolved_prior_threads(
 
     # Count only comments whose thread is NOT resolved (when status is known)
     total_unresolved = 0
+    counted_comment_ids: set[int] = set()  # Prevent double-counting across reviews
     for prior_review in prior_copilot_reviews:
         try:
             comments = provider.list_review_comments(pr_number, prior_review.id)
             for c in comments:
                 if c.id < 0:
                     continue  # Skip synthetic review-body entries
+                if c.id in counted_comment_ids:
+                    continue  # Already counted via another review
+                counted_comment_ids.add(c.id)
                 if thread_statuses is not None:
-                    is_resolved, _has_reply = thread_statuses.get(c.id, (False, False))
+                    if c.id not in thread_statuses:
+                        continue  # Not in thread data — thread may be deleted/outdated; skip
+                    is_resolved, _has_reply = thread_statuses[c.id]
                     if not is_resolved:
                         total_unresolved += 1
                 else:

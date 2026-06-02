@@ -259,6 +259,65 @@ class TestBuildPrStateSnapshot:
 
         assert snapshot.unresolved_threads == 1
 
+    def test_unresolved_threads_deduplicates_same_comment_id_across_reviews(self) -> None:
+        """Same comment ID appearing in multiple prior reviews is only counted once."""
+        provider = MagicMock()
+        provider.get_pr_metadata.return_value = PRMetadata(
+            number=1,
+            title="Test",
+            head_branch="feature",
+            head_sha="head-sha",
+            base_branch="main",
+            requested_reviewers=[],
+        )
+        provider.list_pr_files.return_value = ["a.py"]
+        provider.list_check_runs.return_value = []
+        provider.list_reviews.return_value = [
+            ReviewInfo(id=10, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old-sha-1"),
+            ReviewInfo(id=11, user="Copilot", state="COMMENTED", commit_sha="old-sha-2"),
+        ]
+        # Both reviews return the same comment ID 101 (e.g. a reply appearing in both)
+        provider.list_review_comments.side_effect = [
+            [ReviewCommentInfo(id=101, path="a.py", body="fix this", html_url="")],
+            [ReviewCommentInfo(id=101, path="a.py", body="fix this", html_url="")],
+        ]
+        provider.list_review_thread_states.return_value = {101: (False, False)}
+        provider.list_pr_issue_events.return_value = []
+        provider.count_commits_above_merge_base.return_value = 1
+
+        snapshot = build_pr_state_snapshot(provider, 1)
+
+        assert snapshot.unresolved_threads == 1  # Counted once, not twice
+
+    def test_unresolved_threads_skips_comments_not_in_thread_statuses(self) -> None:
+        """Comments not found in thread status data are skipped rather than fail-closed."""
+        provider = MagicMock()
+        provider.get_pr_metadata.return_value = PRMetadata(
+            number=1,
+            title="Test",
+            head_branch="feature",
+            head_sha="head-sha",
+            base_branch="main",
+            requested_reviewers=[],
+        )
+        provider.list_pr_files.return_value = ["a.py"]
+        provider.list_check_runs.return_value = []
+        provider.list_reviews.return_value = [
+            ReviewInfo(id=10, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old-sha"),
+        ]
+        provider.list_review_comments.return_value = [
+            ReviewCommentInfo(id=101, path="a.py", body="unresolved", html_url=""),
+            ReviewCommentInfo(id=102, path="a.py", body="not in thread data", html_url=""),
+        ]
+        # 102 is absent from thread_statuses (e.g. deleted thread or reply in already-counted thread)
+        provider.list_review_thread_states.return_value = {101: (False, False)}
+        provider.list_pr_issue_events.return_value = []
+        provider.count_commits_above_merge_base.return_value = 1
+
+        snapshot = build_pr_state_snapshot(provider, 1)
+
+        assert snapshot.unresolved_threads == 1  # 102 skipped, not fail-closed
+
     def test_count_commits_error_propagates_as_metadata_failure(self) -> None:
         """When count_commits_above_merge_base raises, build_pr_state_snapshot raises too.
 
