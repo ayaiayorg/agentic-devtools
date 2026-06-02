@@ -801,7 +801,6 @@ class GitHubActionsProvider(CIPlatformProvider):
             if comment.get("id")
         ]
 
-    @retry_with_backoff()
     def list_review_thread_states(self, pr_number: int) -> dict[int, tuple[bool, bool]]:
         """Return review comment -> (is_resolved, has_reply) mapping via GraphQL threads."""
         signals = self._fetch_thread_signals_by_comment_id(pr_number)

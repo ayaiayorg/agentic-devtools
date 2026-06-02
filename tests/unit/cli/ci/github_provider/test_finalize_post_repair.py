@@ -991,6 +991,7 @@ class TestFinalizePostRepair:
         ]
 
         provider = GitHubActionsProvider(repo="owner/repo")
+        provider.list_review_thread_states = MagicMock(return_value={})
         provider.finalize_post_repair(
             pr_number=42,
             base_branch="main",
