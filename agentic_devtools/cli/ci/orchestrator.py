@@ -39,6 +39,7 @@ from agentic_devtools.cli.ci.guards import (
     delete_squash_wait_marker,
     get_dedup_writer_token,
     increment_cycle_count,
+    is_duplicate_trigger,
     read_squash_wait_marker,
     write_squash_wait_marker,
 )
@@ -86,6 +87,15 @@ def _emit_decision_summary(summary: dict[str, Any]) -> None:
         json.dump(summary, sys.stdout, indent=2)
         sys.stdout.write("\n")
         sys.stdout.flush()
+
+
+def _repair_summary_decision(exit_code: int) -> str:
+    """Map repair-dispatch exit codes to a summary decision string."""
+    if exit_code == EXIT_REPAIR_DISPATCHED:
+        return "repair_dispatched"
+    if exit_code == EXIT_GUARD_BLOCKED:
+        return "blocked"
+    return "repair_failed"
 
 
 # Exit codes used by the AI PR loop orchestrator.
@@ -350,7 +360,7 @@ def _run_squash_wait_step(
             logger.info("PR #%d squash-wait outcome=success — squashing now", pr_number)
             do_squash = True
             sw_summary["squash_reason"] = "outcome_success_catch_up"
-        elif copilot_session_outcome == "failure":
+        else:  # outcome == "failure"; read_squash_wait_marker ensures only "success"/"failure" reach here
             if attempt >= SQUASH_WAIT_MAX_ATTEMPTS:
                 logger.info(
                     "PR #%d squash-wait outcome=failure at attempt %d — recovery squash",
@@ -874,10 +884,10 @@ def run_ai_pr_loop(
                     prior_review_id,
                     commit_count,
                 )
-                result = _run_squash_wait_step(provider, pr_number, pr_meta, prior_review_id, summary)
+                squash_wait_exit_code = _run_squash_wait_step(provider, pr_number, pr_meta, prior_review_id, summary)
                 _log_endgroup()
                 _emit_decision_summary(summary)
-                return result
+                return squash_wait_exit_code
             else:
                 logger.info(
                     "PR #%d prior actionable review found but commit_count=%d ≤ 1 — skipping squash-wait, "
@@ -1195,7 +1205,7 @@ def run_ai_pr_loop(
             }
             _log_endgroup()
             ci_repair_failure_reason: list[str] = []
-            result = _dispatch_repair(
+            repair_dispatch_exit_code = _dispatch_repair(
                 provider=provider,
                 pr_number=pr_number,
                 head_sha=pr_meta.head_sha,
@@ -1204,18 +1214,18 @@ def run_ai_pr_loop(
                 dedup_count_before_dispatch=(None if dedup_bypassed else dedup_count),
                 dedup_writer_token=dedup_writer_token,
             )
-            if result == EXIT_REPAIR_DISPATCHED:
+            if repair_dispatch_exit_code == EXIT_REPAIR_DISPATCHED:
                 try:
                     cycle_count = increment_cycle_count(provider, pr_number)
                     summary["repair_cycle"] = {"count": cycle_count}
                 except Exception as exc:
                     logger.error("Failed to increment cycle tracker for PR #%d: %s", pr_number, exc)
-            summary["decision"] = "repair_dispatched" if result == EXIT_REPAIR_DISPATCHED else "repair_failed"
+            summary["decision"] = _repair_summary_decision(repair_dispatch_exit_code)
             if ci_repair_failure_reason:
                 summary["reason"] = ci_repair_failure_reason[0]
-            summary["exit_code"] = result
+            summary["exit_code"] = repair_dispatch_exit_code
             _emit_decision_summary(summary)
-            return result
+            return repair_dispatch_exit_code
 
         if copilot_actionable_review and copilot_review_id:
             _log_endgroup()
@@ -1279,7 +1289,7 @@ def run_ai_pr_loop(
             if prior_review.state == "CHANGES_REQUESTED":
                 prior_actionable = True
                 prior_review_id = prior_review.id
-            elif prior_review.state == "COMMENTED":
+            else:  # state == "COMMENTED" (enforced by prior_copilot_reviews filter)
                 try:
                     comments = provider.list_review_comments(pr_number, prior_review.id)
                     if comments:
@@ -1444,7 +1454,7 @@ def run_ai_pr_loop(
         }
         _log_endgroup()
         repair_failure_reason: list[str] = []
-        result = _dispatch_repair(
+        repair_dispatch_exit_code = _dispatch_repair(
             provider=provider,
             pr_number=pr_number,
             head_sha=pr_meta.head_sha,
@@ -1453,18 +1463,18 @@ def run_ai_pr_loop(
             dedup_count_before_dispatch=(None if dedup_bypassed else dedup_count),
             dedup_writer_token=dedup_writer_token,
         )
-        if result == EXIT_REPAIR_DISPATCHED:
+        if repair_dispatch_exit_code == EXIT_REPAIR_DISPATCHED:
             try:
                 cycle_count = increment_cycle_count(provider, pr_number)
                 summary["repair_cycle"] = {"count": cycle_count}
             except Exception as exc:
                 logger.error("Failed to increment cycle tracker for PR #%d: %s", pr_number, exc)
-        summary["decision"] = "repair_dispatched" if result == EXIT_REPAIR_DISPATCHED else "repair_failed"
+        summary["decision"] = _repair_summary_decision(repair_dispatch_exit_code)
         if repair_failure_reason:
             summary["reason"] = repair_failure_reason[0]
-        summary["exit_code"] = result
+        summary["exit_code"] = repair_dispatch_exit_code
         _emit_decision_summary(summary)
-        return result
+        return repair_dispatch_exit_code
     logger.info("PR #%d no repair needed", pr_number)
     summary["repair"] = {"needed": False}
     _log_endgroup()
@@ -1726,9 +1736,28 @@ def _dispatch_repair(
 
     Returns:
         EXIT_REPAIR_DISPATCHED on success, EXIT_MERGE_BLOCKED on dispatch
-        failure, or EXIT_GUARD_BLOCKED when a pre-dispatch dedup race is
+        failure, or EXIT_GUARD_BLOCKED when a duplicate trigger for the
+        current review_id is detected or when a pre-dispatch dedup race is
         detected.
     """
+    # Review-ID level deduplication (FR-012): block if a trigger comment
+    # already exists for this review cycle.
+    if decision.review_id > 0 and decision.repair_type in ("review", "both"):
+        try:
+            if is_duplicate_trigger(provider, pr_number, decision.review_id):
+                logger.info(
+                    "PR #%d: Trigger comment already exists for review_id=%d — skipping",
+                    pr_number,
+                    decision.review_id,
+                )
+                if failure_reason_out is not None:
+                    failure_reason_out.append("duplicate_trigger_review_id")
+                return EXIT_GUARD_BLOCKED
+        except Exception as exc:
+            logger.warning("PR #%d: Review-ID dedup check failed: %s", pr_number, exc)
+            # Fail-open: proceed with dispatch on transient API failures; the
+            # review-ID dedup guard is best-effort and should not block repair.
+
     # Collect rich review comment data when review repair is needed.
     # For COMMENTED reviews the comments were already fetched during detection
     # and are stored in decision.review_comments — reuse them to avoid a

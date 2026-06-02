@@ -20,6 +20,7 @@ class TestDispatchRepair:
     def test_dispatches_review_repair(self) -> None:
         """FR-001: Posts @copilot comment for review repair."""
         provider = MagicMock()
+        provider.find_comment.return_value = None
         provider.list_review_comments.return_value = [_COMMENT]
         provider.dispatch_repair.return_value = 300
 
@@ -50,6 +51,7 @@ class TestDispatchRepair:
     def test_pre_fetched_review_comments_not_refetched(self) -> None:
         """When decision already has review_comments, list_review_comments is not called."""
         provider = MagicMock()
+        provider.find_comment.return_value = None
         provider.dispatch_repair.return_value = 304
 
         decision = RepairDecision(
@@ -101,6 +103,7 @@ class TestDispatchRepair:
     def test_dispatches_both_repair_with_review_and_ci(self) -> None:
         """Combined review + CI repair dispatches with both contexts."""
         provider = MagicMock()
+        provider.find_comment.return_value = None
         provider.list_review_comments.return_value = [_COMMENT]
         provider.dispatch_repair.return_value = 302
 
@@ -142,6 +145,7 @@ class TestDispatchRepair:
     def test_review_comment_fetch_failure_still_dispatches(self) -> None:
         """If review comment fetch fails, repair is still dispatched with empty comments."""
         provider = MagicMock()
+        provider.find_comment.return_value = None
         provider.list_review_comments.side_effect = RuntimeError("timeout")
         provider.dispatch_repair.return_value = 303
 
@@ -229,6 +233,151 @@ class TestDispatchRepair:
             head_sha="abc123",
             decision=decision,
             dedup_count_before_dispatch=1,
+        )
+        assert result == EXIT_REPAIR_DISPATCHED
+        provider.dispatch_repair.assert_called_once()
+
+    def test_dedup_recheck_allows_dispatch_when_marker_unchanged(self) -> None:
+        """Unchanged marker should not be treated as a dedup race."""
+        provider = MagicMock()
+        provider.find_comment.return_value = (100, "<!-- repair-dispatch:abc123:1:this-run -->\nDispatch tracking")
+        provider.dispatch_repair.return_value = 1001
+
+        decision = RepairDecision(
+            repair_needed=True,
+            repair_type="ci",
+            review_id=0,
+            failed_checks=(),
+        )
+        result = _dispatch_repair(
+            provider=provider,
+            pr_number=42,
+            head_sha="abc123",
+            decision=decision,
+            dedup_count_before_dispatch=1,
+            dedup_writer_token="this-run",
+        )
+        assert result == EXIT_REPAIR_DISPATCHED
+        provider.dispatch_repair.assert_called_once()
+
+    def test_dedup_recheck_ignores_non_matching_marker_body(self) -> None:
+        """A comment without dedup marker format should not block dispatch."""
+        provider = MagicMock()
+        provider.find_comment.return_value = (100, "Dispatch tracking without marker")
+        provider.dispatch_repair.return_value = 1002
+
+        decision = RepairDecision(
+            repair_needed=True,
+            repair_type="ci",
+            review_id=0,
+            failed_checks=(),
+        )
+        result = _dispatch_repair(
+            provider=provider,
+            pr_number=42,
+            head_sha="abc123",
+            decision=decision,
+            dedup_count_before_dispatch=1,
+        )
+        assert result == EXIT_REPAIR_DISPATCHED
+        provider.dispatch_repair.assert_called_once()
+
+    def test_review_id_dedup_blocks_dispatch(self) -> None:
+        """FR-012: Existing trigger comment for same review_id blocks dispatch."""
+        provider = MagicMock()
+        provider.find_comment.return_value = (
+            500,
+            "@copilot\n\n<!-- copilot-trigger:100 -->\n",
+        )
+
+        decision = RepairDecision(
+            repair_needed=True,
+            repair_type="review",
+            review_id=100,
+            failed_checks=(),
+        )
+        result = _dispatch_repair(
+            provider=provider,
+            pr_number=42,
+            head_sha="abc123",
+            decision=decision,
+        )
+        assert result == EXIT_GUARD_BLOCKED
+        provider.list_review_comments.assert_not_called()
+        provider.dispatch_repair.assert_not_called()
+
+    def test_review_id_dedup_populates_failure_reason_out(self) -> None:
+        """FR-012: Duplicate trigger appends reason to failure_reason_out."""
+        provider = MagicMock()
+        provider.find_comment.return_value = (
+            500,
+            "@copilot\n\n<!-- copilot-trigger:100 -->\n",
+        )
+
+        decision = RepairDecision(
+            repair_needed=True,
+            repair_type="review",
+            review_id=100,
+            failed_checks=(),
+        )
+        failure_reason_out: list[str] = []
+        result = _dispatch_repair(
+            provider=provider,
+            pr_number=42,
+            head_sha="abc123",
+            decision=decision,
+            failure_reason_out=failure_reason_out,
+        )
+        assert result == EXIT_GUARD_BLOCKED
+        assert "duplicate_trigger_review_id" in failure_reason_out
+
+    def test_review_id_dedup_exception_proceeds_fail_open(self) -> None:
+        """Exception from is_duplicate_trigger fails open — dispatch still proceeds."""
+        provider = MagicMock()
+        # find_comment raises, simulating is_duplicate_trigger failing.
+        # dedup_count_before_dispatch defaults to None so the SHA-level recheck
+        # block is skipped, meaning find_comment is only called once (for is_duplicate_trigger).
+        provider.find_comment.side_effect = RuntimeError("API timeout")
+        provider.list_review_comments.return_value = []
+        provider.dispatch_repair.return_value = 100
+
+        decision = RepairDecision(
+            repair_needed=True,
+            repair_type="review",
+            review_id=100,
+            failed_checks=(),
+        )
+        failure_reason_out: list[str] = []
+        result = _dispatch_repair(
+            provider=provider,
+            pr_number=42,
+            head_sha="abc123",
+            decision=decision,
+            failure_reason_out=failure_reason_out,
+            dedup_count_before_dispatch=None,
+        )
+        assert result == EXIT_REPAIR_DISPATCHED
+        assert "duplicate_trigger_guard_failed" not in failure_reason_out
+        provider.dispatch_repair.assert_called_once()
+
+    def test_review_id_dedup_exception_proceeds_fail_open_without_reason_out(self) -> None:
+        """Exception from is_duplicate_trigger fails open when reason list not provided."""
+        provider = MagicMock()
+        provider.find_comment.side_effect = RuntimeError("API timeout")
+        provider.list_review_comments.return_value = []
+        provider.dispatch_repair.return_value = 100
+
+        decision = RepairDecision(
+            repair_needed=True,
+            repair_type="review",
+            review_id=100,
+            failed_checks=(),
+        )
+        result = _dispatch_repair(
+            provider=provider,
+            pr_number=42,
+            head_sha="abc123",
+            decision=decision,
         )
         assert result == EXIT_REPAIR_DISPATCHED
         provider.dispatch_repair.assert_called_once()

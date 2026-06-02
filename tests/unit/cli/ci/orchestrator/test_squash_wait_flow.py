@@ -1,5 +1,6 @@
 """Tests for the squash-wait state machine in run_ai_pr_loop()."""
 
+from typing import Any
 from unittest.mock import MagicMock
 
 from agentic_devtools.cli.ci.guards import SQUASH_WAIT_MARKER_PREFIX, SQUASH_WAIT_MAX_ATTEMPTS
@@ -19,7 +20,7 @@ from agentic_devtools.cli.ci.orchestrator import (
 
 
 def _make_pr_meta(**kwargs) -> PRMetadata:
-    defaults = dict(
+    defaults: dict[str, Any] = dict(
         number=42,
         title="feat: test",
         head_branch="feature/test",
@@ -358,6 +359,51 @@ class TestSquashWaitFlow:
 
         assert result == EXIT_SUCCESS
         provider.squash_post_repair.assert_called_once()
+
+    def test_second_visit_ignores_time_filter_when_head_pushed_at_invalid(self) -> None:
+        """Invalid head_pushed_at should skip scoped filtering and still detect terminal events."""
+        marker = _make_marker_body(
+            sha="abc123",
+            attempt=2,
+            head_pushed_at="not-a-timestamp",
+            copilot_session_terminal=False,
+            copilot_session_outcome="pending",
+        )
+        finished_event = IssueEvent(
+            id=1005,
+            event="copilot_work_finished",
+            created_at="2026-05-20T06:59:00+00:00",
+        )
+        provider = _make_provider(
+            reviews=[_make_prior_review()],
+            commit_count=2,
+            marker_body=marker,
+            issue_events=[finished_event],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+
+        result = run_ai_pr_loop(provider, payload)
+
+        assert result == EXIT_SUCCESS
+        provider.squash_post_repair.assert_called_once()
+
+    def test_subsequent_visit_terminal_unknown_outcome_waits(self) -> None:
+        """Unknown terminal outcome should defer and keep waiting."""
+        marker = _make_marker_body(
+            sha="abc123", attempt=5, copilot_session_terminal=True, copilot_session_outcome="unknown"
+        )
+        provider = _make_provider(
+            reviews=[_make_prior_review()],
+            commit_count=2,
+            marker_body=marker,
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+
+        result = run_ai_pr_loop(provider, payload)
+
+        assert result == EXIT_SUCCESS
+        provider.squash_post_repair.assert_not_called()
+        provider.update_comment.assert_called()
 
     def test_subsequent_visit_ignores_terminal_events_before_latest_started(self) -> None:
         """A terminal event before the latest started event must not trigger squash."""
