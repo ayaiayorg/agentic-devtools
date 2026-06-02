@@ -45,3 +45,32 @@ class TestListReviews:
         result = provider.list_reviews(1)
 
         assert result == []
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_submitted_at_is_populated_from_api_response(self, mock_run_safe) -> None:
+        """submitted_at from the API response is carried into ReviewInfo."""
+        mock_run_safe.return_value = _mock_run_safe_response(
+            [
+                {
+                    "id": 10,
+                    "user": {"login": "Copilot"},
+                    "state": "CHANGES_REQUESTED",
+                    "body": "Fix this",
+                    "submitted_at": "2026-05-01T10:00:00Z",
+                },
+            ]
+        )
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.list_reviews(42)
+        assert len(result) == 1
+        assert result[0].submitted_at == "2026-05-01T10:00:00Z"
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_submitted_at_defaults_to_empty_string_when_absent(self, mock_run_safe) -> None:
+        """submitted_at falls back to empty string when not present in the API response."""
+        mock_run_safe.return_value = _mock_run_safe_response(
+            [{"id": 11, "user": {"login": "bot"}, "state": "APPROVED", "body": "LGTM"}]
+        )
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.list_reviews(42)
+        assert result[0].submitted_at == ""

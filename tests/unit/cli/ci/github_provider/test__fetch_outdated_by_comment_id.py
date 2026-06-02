@@ -211,7 +211,11 @@ class TestFetchOutdatedByCommentId:
                                         "comments": {
                                             "nodes": [
                                                 {"databaseId": 10, "body": "first"},
-                                                {"databaseId": 11, "body": "latest"},
+                                                {
+                                                    "databaseId": 11,
+                                                    "body": "latest",
+                                                    "author": {"login": "copilot[bot]"},
+                                                },
                                             ]
                                         },
                                     }
@@ -226,7 +230,9 @@ class TestFetchOutdatedByCommentId:
 
         outdated = provider._fetch_outdated_by_comment_id(42)
         latest = provider._fetch_latest_thread_comment_body_by_comment_id(42)
+        latest_author = provider._fetch_latest_thread_comment_author_login_by_comment_id(42)
 
         assert outdated == {10: True, 11: True}
         assert latest == {10: "latest", 11: "latest"}
+        assert latest_author == {10: "copilot[bot]", 11: "copilot[bot]"}
         assert mock_run_safe.call_count == 1

@@ -18,6 +18,8 @@ from typing import Any, cast
 
 from agentic_devtools.cli.ci.exceptions import MalformedEventError
 from agentic_devtools.cli.ci.models import (
+    COPILOT_COMMENT_LOGINS,
+    COPILOT_SESSION_EVENT_STARTED,
     CheckRunStatus,
     CommentResolution,
     EventPayload,
@@ -561,7 +563,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 current repository context from ``gh``.
         """
         self._repo = repo
-        self._thread_signals_cache: dict[int, dict[int, tuple[bool | None, str]]] = {}
+        self._thread_signals_cache: dict[int, dict[int, tuple[bool, bool, bool | None, str, str | None]]] = {}
 
     def _repo_api(self, path: str) -> str:
         """Build a repository-scoped API path."""
@@ -748,6 +750,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 state=r["state"],
                 body=r.get("body") or "",
                 commit_sha=r.get("commit_id") or "",
+                submitted_at=r.get("submitted_at") or "",
             )
             for r in reviews
         ]
@@ -798,12 +801,40 @@ class GitHubActionsProvider(CIPlatformProvider):
             if comment.get("id")
         ]
 
-    @retry_with_backoff()
     def list_review_thread_states(self, pr_number: int) -> dict[int, tuple[bool, bool]]:
         """Return review comment -> (is_resolved, has_reply) mapping via GraphQL threads."""
+        signals = self._fetch_thread_signals_by_comment_id(pr_number)
+        return {
+            comment_id: (is_resolved, has_reply)
+            for comment_id, (
+                is_resolved,
+                has_reply,
+                _is_outdated,
+                _latest_body,
+                _latest_author_login,
+            ) in signals.items()
+        }
+
+    @retry_with_backoff()
+    def _fetch_thread_signals_by_comment_id(
+        self, pr_number: int
+    ) -> dict[int, tuple[bool, bool, bool | None, str, str | None]]:
+        """Return thread-level signals keyed by review comment databaseId.
+
+        Maps each review comment ID to:
+        - thread isResolved status
+        - whether thread has replies
+        - thread isOutdated status
+        - latest thread comment body (used by automation-marker tier)
+        - latest thread comment author login (used by SWE-agent-reply tier)
+        """
+        cached = self._thread_signals_cache.get(pr_number)
+        if cached is not None:
+            return cached
+
         owner, repo_name = self._resolve_repo().split("/", maxsplit=1)
         cursor: str | None = None
-        status_map: dict[int, tuple[bool, bool]] = {}
+        result: dict[int, tuple[bool, bool, bool | None, str, str | None]] = {}
 
         while True:
             variables: dict[str, Any] = {
@@ -822,62 +853,24 @@ class GitHubActionsProvider(CIPlatformProvider):
             thread_data = data["data"]["repository"]["pullRequest"]["reviewThreads"]
             for thread in thread_data.get("nodes", []):
                 is_resolved = bool(thread.get("isResolved", False))
-                comment_nodes = thread.get("comments", {}).get("nodes", [])
-                has_reply = len(comment_nodes) > 1
-                for node in comment_nodes:
-                    comment_id = node.get("databaseId")
-                    if isinstance(comment_id, int):
-                        status_map[comment_id] = (is_resolved, has_reply)
-
-            page_info = thread_data.get("pageInfo", {})
-            if page_info.get("hasNextPage") is True and page_info.get("endCursor"):
-                cursor = page_info["endCursor"]
-            else:
-                break
-
-        return status_map
-
-    @retry_with_backoff()
-    def _fetch_thread_signals_by_comment_id(self, pr_number: int) -> dict[int, tuple[bool | None, str]]:
-        """Return thread-level signals keyed by review comment databaseId.
-
-        Maps each review comment ID to:
-        - thread isOutdated status
-        - latest thread comment body (used by automation-marker tier)
-        """
-        cached = self._thread_signals_cache.get(pr_number)
-        if cached is not None:
-            return cached
-
-        owner, repo_name = self._resolve_repo().split("/", maxsplit=1)
-        cursor: str | None = None
-        result: dict[int, tuple[bool | None, str]] = {}
-
-        while True:
-            variables: dict[str, Any] = {
-                "owner": owner,
-                "repoName": repo_name,
-                "prNumber": pr_number,
-            }
-            if cursor is not None:
-                variables["threadsCursor"] = cursor
-            response = _gh_api(
-                "graphql",
-                method="POST",
-                body={"query": _REVIEW_THREADS_QUERY, "variables": variables},
-            )
-            data = json.loads(response)
-            thread_data = data["data"]["repository"]["pullRequest"]["reviewThreads"]
-            for thread in thread_data.get("nodes", []):
                 is_outdated: bool | None = thread.get("isOutdated")
                 comment_nodes = thread.get("comments", {}).get("nodes", [])
+                has_reply = len(comment_nodes) > 1
                 latest_comment_body = ""
+                latest_comment_author_login: str | None = None
                 if comment_nodes:
                     latest_comment_body = str(comment_nodes[-1].get("body") or "")
+                    latest_comment_author_login = ((comment_nodes[-1].get("author") or {}).get("login")) or None
                 for node in comment_nodes:
                     comment_id = node.get("databaseId")
                     if isinstance(comment_id, int):
-                        result[comment_id] = (is_outdated, latest_comment_body)
+                        result[comment_id] = (
+                            is_resolved,
+                            has_reply,
+                            is_outdated,
+                            latest_comment_body,
+                            latest_comment_author_login,
+                        )
 
             page_info = thread_data.get("pageInfo", {})
             if page_info.get("hasNextPage") is True and page_info.get("endCursor"):
@@ -892,13 +885,46 @@ class GitHubActionsProvider(CIPlatformProvider):
     def _fetch_outdated_by_comment_id(self, pr_number: int) -> dict[int, bool | None]:
         """Return isOutdated status per comment databaseId via GraphQL thread query."""
         signals = self._fetch_thread_signals_by_comment_id(pr_number)
-        return {comment_id: is_outdated for comment_id, (is_outdated, _latest_body) in signals.items()}
+        return {
+            comment_id: is_outdated
+            for comment_id, (
+                _is_resolved,
+                _has_reply,
+                is_outdated,
+                _latest_body,
+                _latest_author_login,
+            ) in signals.items()
+        }
 
     @retry_with_backoff()
     def _fetch_latest_thread_comment_body_by_comment_id(self, pr_number: int) -> dict[int, str]:
         """Return the latest thread comment body per review comment databaseId."""
         signals = self._fetch_thread_signals_by_comment_id(pr_number)
-        return {comment_id: latest_body for comment_id, (_is_outdated, latest_body) in signals.items()}
+        return {
+            comment_id: latest_body
+            for comment_id, (
+                _is_resolved,
+                _has_reply,
+                _is_outdated,
+                latest_body,
+                _latest_author_login,
+            ) in signals.items()
+        }
+
+    @retry_with_backoff()
+    def _fetch_latest_thread_comment_author_login_by_comment_id(self, pr_number: int) -> dict[int, str | None]:
+        """Return the latest thread comment author login per review comment databaseId."""
+        signals = self._fetch_thread_signals_by_comment_id(pr_number)
+        return {
+            comment_id: latest_author_login
+            for comment_id, (
+                _is_resolved,
+                _has_reply,
+                _is_outdated,
+                _latest_body,
+                latest_author_login,
+            ) in signals.items()
+        }
 
     @retry_with_backoff()
     def approve_pr(self, pr_number: int, head_sha: str, body: str) -> bool:
@@ -1055,7 +1081,8 @@ class GitHubActionsProvider(CIPlatformProvider):
                 line=c.get("line"),
                 position=c.get("position"),
                 diff_hunk=c.get("diff_hunk", ""),
-                commit_id=c.get("commit_id", ""),
+                commit_id=c.get("commit_id") or "",
+                original_commit_id=c.get("original_commit_id") or "",
             )
             for c in comments
         ]
@@ -1316,7 +1343,8 @@ class GitHubActionsProvider(CIPlatformProvider):
                 line=c.get("line"),
                 position=c.get("position"),
                 diff_hunk=c.get("diff_hunk", ""),
-                commit_id=c.get("commit_id", ""),
+                commit_id=c.get("commit_id") or "",
+                original_commit_id=c.get("original_commit_id") or "",
             )
         except Exception as exc:
             logger.warning(
@@ -1867,8 +1895,31 @@ class GitHubActionsProvider(CIPlatformProvider):
         # already evaluated as UNRESOLVE in a prior AI PR Loop run.
         unresolve_reply_parent_comment_ids = self._list_unresolve_reply_parent_comment_ids(pr_number)
 
+        # --- Pre-filter already-resolved threads ---
+        # Fetch thread resolution states to skip threads already resolved
+        # (e.g., manually resolved by the user). Avoids wasted tier evaluations
+        # and prevents counting manually-resolved threads as "unresolved".
+        try:
+            thread_states = self.list_review_thread_states(pr_number)
+        except Exception as exc:
+            logger.warning(
+                "Failed to fetch thread resolution states for PR #%d: %s — will evaluate all comments",
+                pr_number,
+                exc,
+            )
+            thread_states = {}
+
         comments_for_sdk: list[tuple[ReviewCommentInfo, str]] = []
         for comment in comments:
+            # Skip threads already resolved (e.g., manually resolved by a user).
+            if thread_states.get(comment.id, (False, False))[0]:
+                logger.debug(
+                    "Comment %d on PR #%d is already resolved — skipping tier evaluation",
+                    comment.id,
+                    pr_number,
+                )
+                continue
+
             # Suppressed comments are intentionally left unresolved, but must still
             # be recorded so result counts/summaries reflect remaining open threads.
             if comment.is_suppressed:
@@ -1932,12 +1983,75 @@ class GitHubActionsProvider(CIPlatformProvider):
                     exc,
                 )
                 latest_thread_comment_body_by_id = {}
+            try:
+                latest_thread_comment_author_login_by_id = self._fetch_latest_thread_comment_author_login_by_comment_id(
+                    pr_number
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to fetch latest thread comment author login for PR #%d: %s",
+                    pr_number,
+                    exc,
+                )
+                latest_thread_comment_author_login_by_id = {}
+            # Compute SWE agent context flags for the SWE agent reply tier (Bug 3).
+            # swe_session_started_after_review: a copilot_work_started event exists
+            # with created_at timestamp strictly after the review's submission time.
+            # swe_agent_commented_on_pr: the SWE agent posted at least one issue comment
+            # on the PR (catches both @copilot dispatch and "Fix with Copilot" button flows).
+            swe_session_started_after_review = False
+            swe_agent_commented_on_pr = False
+            try:
+                from datetime import datetime, timezone
+
+                def _parse_ts(value: str | None) -> datetime | None:
+                    if not isinstance(value, str) or not value:
+                        return None
+                    try:
+                        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                    except (ValueError, TypeError, AttributeError):
+                        return None
+                    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+                issue_events = self.list_pr_issue_events(pr_number)
+                issue_comments = self.list_issue_comments(pr_number)
+                started_events = [e for e in issue_events if e.event == COPILOT_SESSION_EVENT_STARTED]
+
+                review_submitted_at = _parse_ts(review.submitted_at) if review.submitted_at else None
+                if review_submitted_at is not None:
+                    swe_session_started_after_review = any(
+                        (event_ts := _parse_ts(e.created_at)) is not None and event_ts > review_submitted_at
+                        for e in started_events
+                    )
+                    swe_agent_commented_on_pr = any(
+                        c.author in COPILOT_COMMENT_LOGINS
+                        and (comment_ts := _parse_ts(c.created_at)) is not None
+                        and comment_ts > review_submitted_at
+                        for c in issue_comments
+                    )
+                else:
+                    # No review timestamp available — cannot reliably correlate.
+                    # Keep session flag False (fail closed) and retain the broad comment signal for logging/debug.
+                    swe_session_started_after_review = False
+                    swe_agent_commented_on_pr = any(c.author in COPILOT_COMMENT_LOGINS for c in issue_comments)
+            except Exception as exc:
+                logger.warning(
+                    "Failed to compute SWE agent context flags for PR #%d: %s",
+                    pr_number,
+                    exc,
+                )
             sdk_verdicts = self._verify_comments_via_tiered_engine(
                 comments_for_sdk,
                 head_sha=head_sha,
                 is_outdated_by_id=is_outdated_by_id,
+                has_reply_by_id={
+                    comment_id: has_reply for comment_id, (_is_resolved, has_reply) in thread_states.items()
+                },
                 latest_thread_comment_body_by_id=latest_thread_comment_body_by_id,
+                latest_thread_comment_author_login_by_id=latest_thread_comment_author_login_by_id,
                 tier_results_out=tier_results_by_comment_id,
+                swe_session_started_after_review=swe_session_started_after_review,
+                swe_agent_commented_on_pr=swe_agent_commented_on_pr,
             )
             for comment, _context in comments_for_sdk:
                 verdict = sdk_verdicts.get(comment.id, VerificationVerdict.COMMENT_UNRESOLVE)
@@ -2238,12 +2352,17 @@ class GitHubActionsProvider(CIPlatformProvider):
         *,
         head_sha: str,
         is_outdated_by_id: dict[int, bool | None] | None = None,
+        has_reply_by_id: dict[int, bool] | None = None,
         latest_thread_comment_body_by_id: dict[int, str] | None = None,
+        latest_thread_comment_author_login_by_id: dict[int, str | None] | None = None,
         tier_results_out: dict[int, TierResult] | None = None,
+        swe_session_started_after_review: bool = False,
+        swe_agent_commented_on_pr: bool = False,
     ) -> dict[int, VerificationVerdict]:
         """Verify comments through the tiered resolution engine."""
 
         from agentic_devtools.cli.ci.resolution.tiers.diff_heuristic import DiffHeuristicTier
+        from agentic_devtools.cli.ci.resolution.tiers.swe_agent_reply import SweAgentReplyTier
 
         engine = TieredResolutionEngine(
             cast(
@@ -2251,6 +2370,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 [
                     OutdatedTier(),
                     AutomationMarkerTier(),
+                    SweAgentReplyTier(),
                     DiffHeuristicTier(),
                     SdkEvaluationTier(
                         sdk_caller=self._run_prompt_via_sdk,
@@ -2262,9 +2382,14 @@ class GitHubActionsProvider(CIPlatformProvider):
 
         verdicts: dict[int, VerificationVerdict] = {}
         for comment, diff_context in comments:
-            # FR-003 guard: if the comment was placed on the current HEAD commit,
-            # there are no newer changes to evaluate against — skip tier evaluation.
-            if comment.commit_id and comment.commit_id == head_sha:
+            # FR-003 guard: if the comment was originally placed on what is now the
+            # current HEAD commit (i.e., no commits have been pushed since the comment
+            # was posted), there are no newer changes to evaluate against — skip tier
+            # evaluation. Use original_commit_id (the commit when the comment was first
+            # posted) rather than commit_id, which GitHub may remap to HEAD after a
+            # squash/force-push.
+            effective_commit_id = comment.original_commit_id or comment.commit_id
+            if effective_commit_id and effective_commit_id == head_sha:
                 verdicts[comment.id] = VerificationVerdict.COMMENT_UNRESOLVE
                 continue
             latest_thread_comment_body = (
@@ -2272,6 +2397,12 @@ class GitHubActionsProvider(CIPlatformProvider):
                 if latest_thread_comment_body_by_id is not None
                 else None
             )
+            latest_thread_comment_author_login = (
+                latest_thread_comment_author_login_by_id.get(comment.id)
+                if latest_thread_comment_author_login_by_id is not None
+                else None
+            )
+            has_reply = has_reply_by_id.get(comment.id, False) if has_reply_by_id is not None else False
             thread_comments = [
                 GitHubThreadComment(
                     body=comment.body,
@@ -2280,12 +2411,12 @@ class GitHubActionsProvider(CIPlatformProvider):
                     database_id=comment.id,
                 )
             ]
-            if latest_thread_comment_body and latest_thread_comment_body != comment.body:
+            if latest_thread_comment_body and has_reply:
                 thread_comments.append(
                     GitHubThreadComment(
                         body=latest_thread_comment_body,
                         created_at="",
-                        author_login=None,
+                        author_login=latest_thread_comment_author_login,
                         database_id=None,
                     )
                 )
@@ -2298,7 +2429,12 @@ class GitHubActionsProvider(CIPlatformProvider):
                 comments=thread_comments,
                 originating_review_commit_oid=comment.commit_id,
             )
-            context = GitHubResolutionContext(diff_text=diff_context, head_commit_oid=head_sha)
+            context = GitHubResolutionContext(
+                diff_text=diff_context,
+                head_commit_oid=head_sha,
+                swe_session_started_after_review=swe_session_started_after_review,
+                swe_agent_commented_on_pr=swe_agent_commented_on_pr,
+            )
             result = engine.evaluate_thread(cast(ReviewThread, thread), cast(ResolutionContext, context))
             if tier_results_out is not None:
                 tier_results_out[comment.id] = result

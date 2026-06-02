@@ -139,6 +139,37 @@ class TestListReviewComments:
         assert result[0].commit_id == ""
 
     @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_original_commit_id_is_populated_from_api_response(self, mock_run_safe) -> None:
+        """original_commit_id from the API response is carried into ReviewCommentInfo."""
+        mock_run_safe.return_value = _mock_run_safe_response(
+            [
+                {
+                    "id": 9,
+                    "path": "src/foo.py",
+                    "body": "fix this",
+                    "html_url": "https://example.test",
+                    "commit_id": "5008f6e",
+                    "original_commit_id": "83bf0725",
+                },
+            ]
+        )
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.list_review_comments(10, 20)
+        assert len(result) == 1
+        assert result[0].commit_id == "5008f6e"
+        assert result[0].original_commit_id == "83bf0725"
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
+    def test_original_commit_id_defaults_to_empty_string_when_absent(self, mock_run_safe) -> None:
+        """original_commit_id falls back to empty string when not present in the API response."""
+        mock_run_safe.return_value = _mock_run_safe_response(
+            [{"id": 10, "path": "src/foo.py", "body": "fix", "html_url": "https://example.test"}]
+        )
+        provider = GitHubActionsProvider(repo="owner/repo")
+        result = provider.list_review_comments(10, 20)
+        assert result[0].original_commit_id == ""
+
+    @patch("agentic_devtools.cli.ci.github_provider.run_safe")
     def test_merges_suppressed_comments_from_review_body(self, mock_run_safe) -> None:
         """Suppressed comments from review body are merged into the result."""
         rest_response = [{"id": 1, "path": "a.py", "body": "Fix A", "html_url": "http://x"}]

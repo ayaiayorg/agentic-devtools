@@ -110,6 +110,7 @@ class ReviewInfo:
         state: Review state (e.g., "APPROVED", "CHANGES_REQUESTED", "COMMENTED").
         body: Review body text.
         commit_sha: Commit SHA that this review targets.
+        submitted_at: ISO 8601 timestamp when the review was submitted (empty if unknown).
     """
 
     id: int
@@ -117,6 +118,7 @@ class ReviewInfo:
     state: str
     body: str = ""
     commit_sha: str = ""
+    submitted_at: str = ""
 
 
 # Copilot login names used in review detection (provider-agnostic)
@@ -143,6 +145,10 @@ class ReviewCommentInfo:
         position: Diff position the comment targets (None if PR-level).
         diff_hunk: Diff hunk context from the API (empty if not available).
         commit_id: SHA of the commit the comment was placed on (empty if not available).
+            GitHub may remap this to the current HEAD after squash/force-push.
+        original_commit_id: The original commit SHA the comment was placed on, before
+            any remapping by GitHub (empty if not available). Use this for guards that
+            compare whether the comment predates the current HEAD.
     """
 
     id: int
@@ -156,6 +162,7 @@ class ReviewCommentInfo:
     position: int | None = None
     diff_hunk: str = ""
     commit_id: str = ""
+    original_commit_id: str = ""
 
 
 @dataclass(frozen=True)
