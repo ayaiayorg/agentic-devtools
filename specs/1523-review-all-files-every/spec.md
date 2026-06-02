@@ -111,7 +111,7 @@ runs.
 As a user, I want unchanged files with valid prior review state to inherit their prior status, so
 that repeat runs remain efficient and consistent without losing previous decisions.
 
-**Related FRs:** FR-004, FR-005, FR-006, FR-011
+**Related FRs:** FR-004, FR-005, FR-006, FR-011, FR-012
 
 **Acceptance Scenarios**:
 
