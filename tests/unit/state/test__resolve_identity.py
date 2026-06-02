@@ -316,3 +316,14 @@ class TestResolveIdentityEdgeCases:
             result = state._resolve_identity(tmp_path)
 
         assert result == "default"
+
+    def test_ignores_non_directory_entries_under_workflows(self, tmp_path):
+        """Non-directory workflow entries are ignored safely."""
+        workflows_dir = tmp_path / ".agdt" / "workflows"
+        workflows_dir.mkdir(parents=True, exist_ok=True)
+        (workflows_dir / "README.txt").write_text("not a directory", encoding="utf-8")
+
+        with patch("agentic_devtools.state.subprocess.run", return_value=_mock_git_email("albert.marsnik@example.com")):
+            result = state._resolve_identity(tmp_path)
+
+        assert result == "ama"

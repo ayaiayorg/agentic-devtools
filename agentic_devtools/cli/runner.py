@@ -422,6 +422,15 @@ COMMAND_MAP = {
     ),
     # Multi-model review pipeline
     "agdt-review": ("agentic_devtools.cli.review", "main"),
+    # Segment management
+    "agdt-segments-status": (
+        "agentic_devtools.cli.segments.commands",
+        "segments_status_command",
+    ),
+    "agdt-segments-clean": (
+        "agentic_devtools.cli.segments.commands",
+        "segments_clean_command",
+    ),
     # NOTE: agdt-mcp-server is intentionally NOT in COMMAND_MAP.
     # It is wired directly to agentic_devtools.mcp.server:main in
     # pyproject.toml because the MCP stdio transport requires direct

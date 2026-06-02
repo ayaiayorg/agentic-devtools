@@ -331,6 +331,14 @@ class TestSetValueBootstrapPriorityAware:
         mock_update.assert_called_once_with("PR25858")
 
 
+def test_set_value_nested_uses_existing_dict(temp_state_dir):
+    """Nested set_value traverses existing dict path without reinitializing it."""
+    state.save_state({"jira": {"existing": 1}})
+    state.set_value("jira.issue_key", "PROJ-1")
+    assert state.get_value("jira.existing") == 1
+    assert state.get_value("jira.issue_key") == "PROJ-1"
+
+
 class TestSetValueBootstrapPriorityAwareNonDictJira:
     """Tests for defensive handling of non-dict state['jira'] in the priority guard.
 

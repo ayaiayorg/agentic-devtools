@@ -19,12 +19,14 @@ Key design decisions:
 - Background task tracking via background.recentTasks namespace
 """
 
+import contextlib
 import json
 import os
 import re
 import subprocess
 import sys
 import tempfile
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -164,7 +166,7 @@ def _resolve_identity(git_root: Path | None = None, *, _email: str | None = None
     second_idx = 2 if len(name_parts) > 1 else 3  # chars consumed from second name
 
     max_iters = len(first) + len(second) + 10  # safety bound
-    for _ in range(max_iters):
+    for _ in range(max_iters):  # pragma: no branch
         opt_a: str | None = None
         opt_b: str | None = None
 
@@ -994,6 +996,68 @@ def save_state_locked(state: dict[str, Any], lock_timeout: float = DEFAULT_LOCK_
         Path to the state file
     """
     return save_state(state, use_locking=True, lock_timeout=lock_timeout)
+
+
+@contextlib.contextmanager
+def read_modify_write_state(
+    lock_timeout: float = DEFAULT_LOCK_TIMEOUT,
+) -> Iterator[dict[str, Any]]:
+    """Load, mutate, and save state under an exclusive lock.
+
+    Holds an exclusive lock across the entire load → mutate → save cycle
+    so that concurrent processes cannot interleave reads and writes.
+
+    Usage::
+
+        with read_modify_write_state() as state:
+            state["key"] = "value"
+
+    If the caller raises an exception inside the context, the save is
+    skipped and the exception propagates.  The lock is always released.
+
+    Args:
+        lock_timeout: Maximum time to wait for lock in seconds.
+
+    Yields:
+        The loaded state dictionary for in-place mutation.
+
+    Raises:
+        FileLockError: If the exclusive lock cannot be acquired.
+    """
+    state_dir = get_state_dir()
+    path = state_dir / STATE_FILENAME
+
+    wrote = False
+    with locked_state_file(path, timeout=lock_timeout) as f:
+        content = f.read()
+        try:
+            loaded = json.loads(content) if content.strip() else {}
+        except json.JSONDecodeError:
+            loaded = {}
+        state: dict[str, Any] = loaded if isinstance(loaded, dict) else {}
+        original_content = json.dumps(state, indent=2, ensure_ascii=False)
+        yield state
+
+        # Save in-place (still under the exclusive lock)
+        new_content = json.dumps(state, indent=2, ensure_ascii=False)
+        if new_content != original_content:
+            f.seek(0)
+            f.write(new_content)
+            f.truncate()
+            f.flush()
+            os.fsync(f.fileno())
+            wrote = True
+
+    if wrote:
+        # Signal that workflow state has been mutated. The CLI runner calls
+        # persist_if_dirty() after every command to commit pending changes to
+        # the -agdt branch automatically.
+        try:
+            from .cli.git.agdt_branch import mark_dirty
+
+            mark_dirty()
+        except ImportError:  # pragma: no cover
+            pass  # agdt_branch not available (e.g., minimal install)
 
 
 def get_value(key: str, required: bool = False) -> Any | None:

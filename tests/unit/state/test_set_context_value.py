@@ -94,6 +94,13 @@ class TestSetContextValue:
         assert state.get_value("pull_request_id") == 12345
         assert state.get_value("jira.issue_key") is None
 
+    def test_set_context_value_handles_non_dict_nested_counterpart(self, temp_state_dir):
+        """Counterpart nested delete is a no-op when parent exists but is non-dict."""
+        state.save_state({"jira": "not-a-dict", "pull_request_id": 1})
+        state.set_context_value("pull_request_id", 2, verbose=False)
+        assert state.get_value("pull_request_id") == 2
+        assert state.get_value("jira") == "not-a-dict"
+
     def test_set_context_value_single_save_cycle(self, temp_state_dir):
         """Test that set + counterpart delete happen in a single save_state call."""
         state.set_value("pull_request_id", 12345)

@@ -203,6 +203,18 @@ class TestSetBootstrapStateNormalization:
         data = json.loads((agdt / "runtime-bootstrap.json").read_text(encoding="utf-8"))
         assert "worktree_key" not in data
 
+    def test_non_string_worktree_key_clears_existing(self, tmp_path):
+        """Non-string worktree_key is treated as deletion when provided explicitly."""
+        agdt = tmp_path / ".agdt"
+        agdt.mkdir(parents=True)
+        (agdt / "runtime-bootstrap.json").write_text(json.dumps({"worktree_key": "OLD-1"}), encoding="utf-8")
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            with patch.object(state, "_get_git_email", return_value="u@e.com"):
+                state.set_bootstrap_state(identity="ama", worktree_key=123)  # type: ignore[arg-type]
+
+        data = json.loads((agdt / "runtime-bootstrap.json").read_text(encoding="utf-8"))
+        assert "worktree_key" not in data
+
     def test_non_str_identity_falls_back_to_resolve(self, tmp_path):
         """Non-string identity (e.g., int) is treated as None → auto-resolve."""
         with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
@@ -215,6 +227,52 @@ class TestSetBootstrapStateNormalization:
         assert "identity" not in data
         cache = json.loads((tmp_path / ".agdt" / "identity.json").read_text(encoding="utf-8"))
         assert cache["identity"] == "resolved"
+
+    def test_handles_existing_bootstrap_json_array(self, tmp_path):
+        """Existing bootstrap JSON array is treated as empty dict."""
+        agdt = tmp_path / ".agdt"
+        agdt.mkdir(parents=True, exist_ok=True)
+        (agdt / "runtime-bootstrap.json").write_text("[]", encoding="utf-8")
+
+        with (
+            patch.object(state, "_get_git_repo_root", return_value=tmp_path),
+            patch.object(state, "_get_git_email", return_value=""),
+        ):
+            state.set_bootstrap_state(identity="ama", worktree_key=None)
+
+        data = json.loads((agdt / "runtime-bootstrap.json").read_text(encoding="utf-8"))
+        assert data == {}
+        assert not (agdt / "workflows" / "ama" / state.IDENTITY_OWNER_FILENAME).exists()
+
+    def test_ignores_non_string_preserved_worktree_key(self, tmp_path):
+        """Existing non-string worktree_key is ignored during bootstrap readback."""
+        agdt = tmp_path / ".agdt"
+        agdt.mkdir(parents=True, exist_ok=True)
+        (agdt / "runtime-bootstrap.json").write_text(json.dumps({"worktree_key": 123}), encoding="utf-8")
+
+        with (
+            patch.object(state, "_get_git_repo_root", return_value=tmp_path),
+            patch.object(state, "_get_git_email", return_value="u@e.com"),
+        ):
+            state.set_bootstrap_state(identity="ama", worktree_key=None)
+
+        data = json.loads((agdt / "runtime-bootstrap.json").read_text(encoding="utf-8"))
+        assert "worktree_key" not in data
+
+    def test_ignores_blank_preserved_worktree_key(self, tmp_path):
+        """Existing blank worktree_key is ignored during bootstrap readback."""
+        agdt = tmp_path / ".agdt"
+        agdt.mkdir(parents=True, exist_ok=True)
+        (agdt / "runtime-bootstrap.json").write_text(json.dumps({"worktree_key": "   "}), encoding="utf-8")
+
+        with (
+            patch.object(state, "_get_git_repo_root", return_value=tmp_path),
+            patch.object(state, "_get_git_email", return_value="u@e.com"),
+        ):
+            state.set_bootstrap_state(identity="ama", worktree_key=None)
+
+        data = json.loads((agdt / "runtime-bootstrap.json").read_text(encoding="utf-8"))
+        assert "worktree_key" not in data
 
     def test_handles_corrupted_existing_bootstrap(self, tmp_path):
         """Corrupted (non-UTF-8) existing bootstrap is treated as empty, not an error."""

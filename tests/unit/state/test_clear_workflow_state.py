@@ -67,6 +67,13 @@ class TestClearWorkflowStatePinCleanup:
 
         assert pin_path.exists()
 
+    def test_completing_workflow_without_pin_file(self, tmp_path, temp_state_dir):
+        """Conditional pin cleanup no-ops when pin file does not exist."""
+        state.set_workflow_state(name="test", status="active")
+        with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+            state.clear_workflow_state(completing_workflow="pull-request-review")
+        assert state.get_workflow_state() is None
+
     def test_no_pin_cleanup_when_no_flags(self, tmp_path, temp_state_dir):
         """Default call (no flags) does not delete pin file."""
         agdt_dir = tmp_path / ".agdt"
