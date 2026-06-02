@@ -20,6 +20,7 @@ from agentic_devtools.cli.ci.exceptions import MalformedEventError
 from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     CommentResolution,
+    COPILOT_LOGINS,
     EventPayload,
     FinalizationResult,
     IssueCommentInfo,
@@ -748,6 +749,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 state=r["state"],
                 body=r.get("body") or "",
                 commit_sha=r.get("commit_id") or "",
+                submitted_at=r.get("submitted_at") or "",
             )
             for r in reviews
         ]
@@ -1056,6 +1058,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 position=c.get("position"),
                 diff_hunk=c.get("diff_hunk", ""),
                 commit_id=c.get("commit_id", ""),
+                original_commit_id=c.get("original_commit_id", ""),
             )
             for c in comments
         ]
@@ -1317,6 +1320,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 position=c.get("position"),
                 diff_hunk=c.get("diff_hunk", ""),
                 commit_id=c.get("commit_id", ""),
+                original_commit_id=c.get("original_commit_id", ""),
             )
         except Exception as exc:
             logger.warning(
@@ -1867,8 +1871,31 @@ class GitHubActionsProvider(CIPlatformProvider):
         # already evaluated as UNRESOLVE in a prior AI PR Loop run.
         unresolve_reply_parent_comment_ids = self._list_unresolve_reply_parent_comment_ids(pr_number)
 
+        # --- Pre-filter already-resolved threads ---
+        # Fetch thread resolution states to skip threads already resolved
+        # (e.g., manually resolved by the user). Avoids wasted tier evaluations
+        # and prevents counting manually-resolved threads as "unresolved".
+        try:
+            thread_states = self.list_review_thread_states(pr_number)
+        except Exception as exc:
+            logger.warning(
+                "Failed to fetch thread resolution states for PR #%d: %s — will evaluate all comments",
+                pr_number,
+                exc,
+            )
+            thread_states = {}
+
         comments_for_sdk: list[tuple[ReviewCommentInfo, str]] = []
         for comment in comments:
+            # Skip threads already resolved (e.g., manually resolved by a user).
+            if thread_states.get(comment.id, (False, False))[0]:
+                logger.debug(
+                    "Comment %d on PR #%d is already resolved — skipping tier evaluation",
+                    comment.id,
+                    pr_number,
+                )
+                continue
+
             # Suppressed comments are intentionally left unresolved, but must still
             # be recorded so result counts/summaries reflect remaining open threads.
             if comment.is_suppressed:
@@ -1932,12 +1959,47 @@ class GitHubActionsProvider(CIPlatformProvider):
                     exc,
                 )
                 latest_thread_comment_body_by_id = {}
+            # Compute SWE agent context flags for the SWE agent reply tier (Bug 3).
+            # swe_session_started_after_review: a copilot_work_started event exists
+            # with created_at timestamp strictly after the review's submission time.
+            # swe_agent_commented_on_pr: the SWE agent posted at least one issue comment
+            # on the PR (catches both @copilot dispatch and "Fix with Copilot" button flows).
+            swe_session_started_after_review = False
+            swe_agent_commented_on_pr = False
+            try:
+                issue_events = self.list_pr_issue_events(pr_number)
+                issue_comments = self.list_issue_comments(pr_number)
+                swe_agent_commented_on_pr = any(
+                    c.author in COPILOT_LOGINS for c in issue_comments
+                )
+                from agentic_devtools.cli.ci.models import COPILOT_SESSION_EVENT_STARTED  # noqa: PLC0415
+
+                started_events = [e for e in issue_events if e.event == COPILOT_SESSION_EVENT_STARTED]
+                if started_events and review.submitted_at:
+                    # Compare the review submission timestamp against each started
+                    # event's created_at. If any session started after the review
+                    # was submitted, it was dispatched to address this review.
+                    swe_session_started_after_review = any(
+                        e.created_at > review.submitted_at for e in started_events
+                    )
+                elif started_events and not review.submitted_at:
+                    # No review timestamp available — fall back to any session started
+                    # event as a conservative signal (review was necessarily before HEAD).
+                    swe_session_started_after_review = True
+            except Exception as exc:
+                logger.warning(
+                    "Failed to compute SWE agent context flags for PR #%d: %s",
+                    pr_number,
+                    exc,
+                )
             sdk_verdicts = self._verify_comments_via_tiered_engine(
                 comments_for_sdk,
                 head_sha=head_sha,
                 is_outdated_by_id=is_outdated_by_id,
                 latest_thread_comment_body_by_id=latest_thread_comment_body_by_id,
                 tier_results_out=tier_results_by_comment_id,
+                swe_session_started_after_review=swe_session_started_after_review,
+                swe_agent_commented_on_pr=swe_agent_commented_on_pr,
             )
             for comment, _context in comments_for_sdk:
                 verdict = sdk_verdicts.get(comment.id, VerificationVerdict.COMMENT_UNRESOLVE)
@@ -2240,10 +2302,13 @@ class GitHubActionsProvider(CIPlatformProvider):
         is_outdated_by_id: dict[int, bool | None] | None = None,
         latest_thread_comment_body_by_id: dict[int, str] | None = None,
         tier_results_out: dict[int, TierResult] | None = None,
+        swe_session_started_after_review: bool = False,
+        swe_agent_commented_on_pr: bool = False,
     ) -> dict[int, VerificationVerdict]:
         """Verify comments through the tiered resolution engine."""
 
         from agentic_devtools.cli.ci.resolution.tiers.diff_heuristic import DiffHeuristicTier
+        from agentic_devtools.cli.ci.resolution.tiers.swe_agent_reply import SweAgentReplyTier
 
         engine = TieredResolutionEngine(
             cast(
@@ -2251,6 +2316,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 [
                     OutdatedTier(),
                     AutomationMarkerTier(),
+                    SweAgentReplyTier(),
                     DiffHeuristicTier(),
                     SdkEvaluationTier(
                         sdk_caller=self._run_prompt_via_sdk,
@@ -2262,9 +2328,12 @@ class GitHubActionsProvider(CIPlatformProvider):
 
         verdicts: dict[int, VerificationVerdict] = {}
         for comment, diff_context in comments:
-            # FR-003 guard: if the comment was placed on the current HEAD commit,
+            # FR-003 guard: if the comment was originally placed on the current HEAD commit,
             # there are no newer changes to evaluate against — skip tier evaluation.
-            if comment.commit_id and comment.commit_id == head_sha:
+            # Use original_commit_id (the commit when the comment was first posted) rather
+            # than commit_id, which GitHub may remap to HEAD after a squash/force-push.
+            effective_commit_id = comment.original_commit_id or comment.commit_id
+            if effective_commit_id and effective_commit_id == head_sha:
                 verdicts[comment.id] = VerificationVerdict.COMMENT_UNRESOLVE
                 continue
             latest_thread_comment_body = (
@@ -2298,7 +2367,12 @@ class GitHubActionsProvider(CIPlatformProvider):
                 comments=thread_comments,
                 originating_review_commit_oid=comment.commit_id,
             )
-            context = GitHubResolutionContext(diff_text=diff_context, head_commit_oid=head_sha)
+            context = GitHubResolutionContext(
+                diff_text=diff_context,
+                head_commit_oid=head_sha,
+                swe_session_started_after_review=swe_session_started_after_review,
+                swe_agent_commented_on_pr=swe_agent_commented_on_pr,
+            )
             result = engine.evaluate_thread(cast(ReviewThread, thread), cast(ResolutionContext, context))
             if tier_results_out is not None:
                 tier_results_out[comment.id] = result

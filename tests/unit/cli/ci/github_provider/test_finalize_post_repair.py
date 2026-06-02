@@ -2908,3 +2908,202 @@ class TestFinalizePostRepairUnconfirmedReevaluation:
 
         mock_unresolve_threads.assert_called_once_with(42, "owner/repo", comment_ids=[202])
         assert "thread_unresolve_failed:2" in result.errors
+
+
+class TestFinalizePostRepairAlreadyResolvedFilter:
+    """Tests that already-resolved threads are skipped by finalize_post_repair."""
+
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_thread_states")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_already_resolved_thread_is_excluded_from_tier_evaluation(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_thread_states,
+        mock_addressed_parent_ids,
+        mock_abandoned,
+        mock_reply,
+        mock_resolve,
+        mock_verify_batch,
+        mock_unresolve,
+    ) -> None:
+        """Threads already resolved (e.g., manually) are skipped by finalize_post_repair."""
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha"),
+        ]
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+            ReviewCommentInfo(id=202, path="bar.py", body="fix that", html_url="http://url2"),
+        ]
+        # Comment 101 is already resolved, comment 202 is not
+        mock_thread_states.return_value = {
+            101: (True, True),   # is_resolved=True
+            202: (False, False),  # is_resolved=False
+        }
+        mock_addressed_parent_ids.return_value = set()
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
+        mock_verify_batch.return_value = {
+            202: VerificationVerdict.COMMENT_RESOLVE,
+        }
+        mock_resolve.return_value = {
+            "threadsResolved": 1,
+            "verified": True,
+            "details": [{"threadId": "T2", "commentId": 202, "status": "resolved"}],
+        }
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha",
+            review_id=7,
+        )
+
+        # Only comment 202 should be sent to the tiered engine
+        verify_payloads = mock_verify_batch.call_args.args[0]
+        sent_ids = [c.id for c, _ in verify_payloads]
+        assert 101 not in sent_ids
+        assert 202 in sent_ids
+        # Comment 101 should NOT be counted as unresolved
+        assert result.resolved_count == 1
+        assert result.unresolved_count == 0
+
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_thread_states")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_all_threads_evaluated_when_none_resolved(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_thread_states,
+        mock_addressed_parent_ids,
+        mock_abandoned,
+        mock_reply,
+        mock_resolve,
+        mock_verify_batch,
+        mock_unresolve,
+    ) -> None:
+        """When no threads are pre-resolved, all are sent through the tiered engine."""
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha"),
+        ]
+        mock_build_diff.return_value = "diff"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+            ReviewCommentInfo(id=202, path="bar.py", body="fix that", html_url="http://url2"),
+        ]
+        # Neither thread is resolved
+        mock_thread_states.return_value = {
+            101: (False, False),
+            202: (False, False),
+        }
+        mock_addressed_parent_ids.return_value = set()
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
+        mock_verify_batch.return_value = {
+            101: VerificationVerdict.COMMENT_RESOLVE,
+            202: VerificationVerdict.COMMENT_RESOLVE,
+        }
+        mock_resolve.return_value = {
+            "threadsResolved": 2,
+            "verified": True,
+            "details": [
+                {"threadId": "T1", "commentId": 101, "status": "resolved"},
+                {"threadId": "T2", "commentId": 202, "status": "resolved"},
+            ],
+        }
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha",
+            review_id=7,
+        )
+
+        verify_payloads = mock_verify_batch.call_args.args[0]
+        sent_ids = [c.id for c, _ in verify_payloads]
+        assert 101 in sent_ids
+        assert 202 in sent_ids
+        assert result.resolved_count == 2
+        assert result.unresolved_count == 0
+
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_review_thread_states")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_thread_states_failure_gracefully_evaluates_all(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_thread_states,
+        mock_addressed_parent_ids,
+        mock_abandoned,
+        mock_reply,
+        mock_resolve,
+        mock_verify_batch,
+        mock_unresolve,
+    ) -> None:
+        """When list_review_thread_states raises, all comments are evaluated (fail-safe)."""
+        mock_list_reviews.return_value = [
+            ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha"),
+        ]
+        mock_build_diff.return_value = "diff"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+        ]
+        mock_thread_states.side_effect = RuntimeError("GraphQL unavailable")
+        mock_addressed_parent_ids.return_value = set()
+        mock_abandoned.return_value = set()
+        mock_unresolve.return_value = set()
+        mock_verify_batch.return_value = {
+            101: VerificationVerdict.COMMENT_RESOLVE,
+        }
+        mock_resolve.return_value = {
+            "threadsResolved": 1,
+            "verified": True,
+            "details": [{"threadId": "T1", "commentId": 101, "status": "resolved"}],
+        }
+        provider = GitHubActionsProvider(repo="owner/repo")
+
+        result = provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha",
+            review_id=7,
+        )
+
+        # Despite the failure, comment 101 was still evaluated
+        verify_payloads = mock_verify_batch.call_args.args[0]
+        sent_ids = [c.id for c, _ in verify_payloads]
+        assert 101 in sent_ids
+        assert result.resolved_count == 1

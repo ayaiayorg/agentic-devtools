@@ -43,3 +43,16 @@ class TestReviewInfo:
         r1 = ReviewInfo(id=1, user="u", state="APPROVED")
         r2 = ReviewInfo(id=1, user="u", state="APPROVED")
         assert r1 == r2
+
+    def test_default_submitted_at_empty_string(self) -> None:
+        review = ReviewInfo(id=1, user="bot", state="COMMENTED")
+        assert review.submitted_at == ""
+
+    def test_submitted_at_set(self) -> None:
+        review = ReviewInfo(
+            id=1,
+            user="Copilot",
+            state="CHANGES_REQUESTED",
+            submitted_at="2026-05-01T12:00:00Z",
+        )
+        assert review.submitted_at == "2026-05-01T12:00:00Z"

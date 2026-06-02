@@ -42,6 +42,8 @@ class GitHubResolutionContext:
 
     diff_text: str
     head_commit_oid: str
+    swe_session_started_after_review: bool = False
+    swe_agent_commented_on_pr: bool = False
 
 
 class GitHubThreadAdapter:
