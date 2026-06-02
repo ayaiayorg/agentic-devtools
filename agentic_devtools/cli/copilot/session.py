@@ -156,6 +156,8 @@ class CopilotSessionResult:
             when this object is returned).
         process: The :class:`subprocess.Popen` handle for non-interactive
             sessions; ``None`` for interactive sessions.
+        log_file: Absolute path to the session log file for non-interactive
+            sessions; ``None`` for interactive sessions.
     """
 
     session_id: str
@@ -164,6 +166,7 @@ class CopilotSessionResult:
     start_time: str
     pid: int | None = field(default=None)
     process: subprocess.Popen | None = field(default=None, repr=False)  # type: ignore[type-arg]
+    log_file: str | None = field(default=None)
 
 
 # ---------------------------------------------------------------------------
@@ -175,17 +178,25 @@ def _get_copilot_binary() -> str | None:
     """Return the path to the copilot binary, or ``None`` if not found.
 
     Checks (in order):
-    1. The standalone ``copilot`` binary on the system ``PATH``.
-    2. The managed install at ``~/.agdt/bin/copilot[.exe]``.
+    1. The managed install at ``~/.agdt/bin/copilot[.exe]``.
+    2. The standalone ``copilot`` binary on the system ``PATH``.
+
+    The managed install is preferred because it is a direct executable that
+    avoids the ``.bat`` → ``copilot.ps1`` indirection used by the VS Code
+    Copilot Chat extension's bundled CLI.  On Windows, that ``.ps1`` file can
+    be temporarily locked by the extension during activation, causing transient
+    ``ERROR_SHARING_VIOLATION`` failures that are invisible to
+    ``subprocess.run`` (they manifest as non-zero exit codes from the batch
+    wrapper rather than ``OSError``).
 
     Returns:
         Absolute path string when found, ``None`` otherwise.
     """
+    if _MANAGED_COPILOT.is_file():
+        return str(_MANAGED_COPILOT)
     system_path = shutil.which("copilot")
     if system_path:
         return system_path
-    if _MANAGED_COPILOT.is_file():
-        return str(_MANAGED_COPILOT)
     return None
 
 
@@ -921,6 +932,7 @@ def start_copilot_session(
             start_time=start_time,
             pid=process.pid,
             process=process,
+            log_file=str(log_file_path),
         )
 
     _persist_session_state(result, model=model)
