@@ -1073,10 +1073,8 @@ class GitHubActionsProvider(CIPlatformProvider):
                 end_line=c.get("line"),
                 line=c.get("line"),
                 position=c.get("position"),
-                diff_hunk=c.get("diff_hunk", ""),
-                commit_id=c.get("commit_id", ""),
-                original_commit_id=c.get("original_commit_id", ""),
-            )
+                commit_id=c.get("commit_id") or "",
+                original_commit_id=c.get("original_commit_id") or "",
             for c in comments
         ]
 
@@ -1334,11 +1332,8 @@ class GitHubActionsProvider(CIPlatformProvider):
                 start_line=c.get("start_line") if c.get("start_line") is not None else c.get("line"),
                 end_line=c.get("line"),
                 line=c.get("line"),
-                position=c.get("position"),
-                diff_hunk=c.get("diff_hunk", ""),
-                commit_id=c.get("commit_id", ""),
-                original_commit_id=c.get("original_commit_id", ""),
-            )
+                commit_id=c.get("commit_id") or "",
+                original_commit_id=c.get("original_commit_id") or "",
         except Exception as exc:
             logger.warning(
                 "Failed to fetch review comment %d for PR #%d: %s",
