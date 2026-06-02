@@ -42,3 +42,10 @@ class TestMypyCheckFiles:
         mypy_check_files(["a.py"])
         args = mock_run.call_args[0][0]
         assert "--ignore-missing-imports" in args
+
+    @patch(f"{MODULE}.subprocess.run")
+    def test_passes_follow_imports_silent(self, mock_run):
+        mock_run.return_value = CompletedProcess(args=[], returncode=0, stdout="", stderr="")
+        mypy_check_files(["a.py"])
+        args = mock_run.call_args[0][0]
+        assert "--follow-imports=silent" in args
