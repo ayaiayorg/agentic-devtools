@@ -17,14 +17,13 @@ Exit Codes:
 
 import asyncio
 import os
+import subprocess
 import sys
 
 try:
     from copilot import CopilotClient, SubprocessConfig
     from copilot.session import PermissionHandler
 except ImportError as e:
-    import subprocess
-
     pip_show = subprocess.run(
         [sys.executable, "-m", "pip", "show", "github-copilot-sdk"],
         capture_output=True,
