@@ -27,11 +27,13 @@ except ImportError as e:
 
     pip_show = subprocess.run(
         ["pip", "show", "github-copilot-sdk"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     pip_show_wrong = subprocess.run(
         ["pip", "show", "copilot"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     print(f"Error: Copilot SDK import failed: {e}", file=sys.stderr)
     print(f"pip show github-copilot-sdk:\n{pip_show.stdout or '(not installed)'}", file=sys.stderr)
