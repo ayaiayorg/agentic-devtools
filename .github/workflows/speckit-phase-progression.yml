@@ -10,10 +10,11 @@ on:
         required: true
         type: number
       phase:
-        description: 'The phase to generate (2-5)'
+        description: 'The phase to generate (1-5)'
         required: true
         type: choice
         options:
+          - '1'
           - '2'
           - '3'
           - '4'
@@ -264,7 +265,7 @@ jobs:
               }
             }
 
-      # For phases 2-5, proceed with generating next phase artifacts
+      # For phases 1-5, proceed with generating phase artifacts
       - name: Checkout Repository (Post-Merge Main)
         if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0'
         uses: actions/checkout@v4
@@ -455,12 +456,19 @@ jobs:
         if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true'
         env:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          SPECKIT_PR_TOKEN: ${{ secrets.SPECKIT_PR_TOKEN }}
         run: |
           if [[ -z "$COPILOT_GITHUB_TOKEN" ]]; then
-            echo "::error::COPILOT_GITHUB_TOKEN secret is not set. This PAT is required for Copilot SDK authentication and PR creation. Configure the COPILOT_GITHUB_TOKEN secret with a PAT that has Copilot API access and repo permissions."
+            echo "::error::COPILOT_GITHUB_TOKEN secret is not set. This PAT is required for Copilot SDK authentication. For PR creation, SPECKIT_PR_TOKEN is preferred and COPILOT_GITHUB_TOKEN is the fallback. Configure COPILOT_GITHUB_TOKEN with a PAT that has Copilot API access and repo permissions."
             exit 1
           fi
           echo "✓ COPILOT_GITHUB_TOKEN is set"
+
+          if [[ -n "$SPECKIT_PR_TOKEN" ]]; then
+            echo "✓ SPECKIT_PR_TOKEN is set (will be used for PR creation)"
+          else
+            echo "✓ SPECKIT_PR_TOKEN is not set; COPILOT_GITHUB_TOKEN will be used for PR creation"
+          fi
 
       - name: Set up Python
         if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true'

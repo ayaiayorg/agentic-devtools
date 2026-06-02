@@ -29,10 +29,10 @@ class TestMinimizedCiWorkflows:
         assert 'AGDT_USE_PYTHON_ORCHESTRATOR: "1"' in content
         assert content.count("agdt-ai-pr-loop") == 1
 
-    def test_speckit_trigger_uses_single_command_with_feature_flag(self) -> None:
+    def test_speckit_trigger_dispatches_to_phase_progression(self) -> None:
         content = SPECKIT_TRIGGER.read_text(encoding="utf-8")
-        assert "AGDT_USE_PYTHON_ORCHESTRATOR:" in content
-        assert content.count("agdt-speckit-trigger") == 1
+        assert "gh api" in content
+        assert "speckit-phase-progression.yml" in content
 
     def test_ai_pr_loop_has_required_setup_steps(self) -> None:
         content = AI_PR_LOOP.read_text(encoding="utf-8")
@@ -45,12 +45,12 @@ class TestMinimizedCiWorkflows:
         assert 'git config user.name "acmarsn-agdt"' in content
         assert 'git config user.email "269151600+acmarsn-agdt@users.noreply.github.com"' in content
 
-    def test_speckit_trigger_has_required_setup_steps(self) -> None:
+    def test_speckit_trigger_is_dispatch_only(self) -> None:
         content = SPECKIT_TRIGGER.read_text(encoding="utf-8")
-        assert "timeout-minutes: 30" in content
-        assert "actions/setup-python" in content
-        assert "pip install" in content
-        assert "actions/checkout" in content
+        assert "timeout-minutes: 5" in content
+        assert "actions/setup-python" not in content
+        assert "pip install" not in content
+        assert "actions/checkout" not in content
 
     def test_ai_pr_loop_has_concurrency_group(self) -> None:
         content = AI_PR_LOOP.read_text(encoding="utf-8")
