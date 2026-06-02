@@ -2395,7 +2395,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 if latest_thread_comment_author_login_by_id is not None
                 else None
             )
-            has_reply = has_reply_by_id.get(comment.id, True) if has_reply_by_id is not None else True
+            has_reply = has_reply_by_id.get(comment.id, False) if has_reply_by_id is not None else False
             thread_comments = [
                 GitHubThreadComment(
                     body=comment.body,

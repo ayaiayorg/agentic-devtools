@@ -793,6 +793,7 @@ class TestFinalizePostRepair:
         result = provider._verify_comments_via_tiered_engine(
             [(comment, "diff --git a/src/example.py b/src/example.py\n+fix")],
             head_sha="abc123",
+            has_reply_by_id={901: True},
             latest_thread_comment_body_by_id={
                 901: "fix applied by automation",
             },
@@ -812,6 +813,7 @@ class TestFinalizePostRepair:
         result = provider._verify_comments_via_tiered_engine(
             [(comment, "diff --git a/src/example.py b/src/example.py\n+fix")],
             head_sha="abc123",
+            has_reply_by_id={1901: True},
             latest_thread_comment_body_by_id={1901: "Applied fix"},
             latest_thread_comment_author_login_by_id={1901: "copilot[bot]"},
         )
@@ -848,6 +850,38 @@ class TestFinalizePostRepair:
             )
 
         assert result == {2001: VerificationVerdict.COMMENT_UNRESOLVE}
+        mock_sdk.assert_called_once()
+
+    def test_verify_comments_via_tiered_engine_skips_synthetic_latest_when_reply_state_missing(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+        comment = ReviewCommentInfo(
+            id=2002,
+            path="src/example.py",
+            body="Initial unresolved feedback",
+            html_url="https://github.com/owner/repo/pull/1#discussion_r2002",
+        )
+
+        with (
+            patch.object(
+                provider,
+                "_run_prompt_via_sdk",
+                return_value="VERDICT: UNRESOLVE\nEXPLANATION: Not addressed yet.",
+            ) as mock_sdk,
+            patch.object(
+                provider,
+                "_run_prompt_via_sdk_fallback",
+                return_value="VERDICT: UNRESOLVE\nEXPLANATION: Not addressed yet.",
+            ),
+        ):
+            result = provider._verify_comments_via_tiered_engine(
+                [(comment, "diff --git a/src/example.py b/src/example.py\n+fix")],
+                head_sha="abc123",
+                has_reply_by_id={},
+                latest_thread_comment_body_by_id={2002: "Initial unresolved feedback"},
+                latest_thread_comment_author_login_by_id={2002: "copilot-pull-request-reviewer[bot]"},
+            )
+
+        assert result == {2002: VerificationVerdict.COMMENT_UNRESOLVE}
         mock_sdk.assert_called_once()
 
     @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
