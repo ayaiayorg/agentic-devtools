@@ -49,11 +49,20 @@ _STATE_KEY = "copilot"
 _TRIGGERED_RUNS_KEY = "auto_start_triggered_runs"
 _MODEL_KEY = "model_id"
 
-# Retry constants for transient Windows file-lock errors (WinError 32).
+# Retry constants for transient Windows file-lock errors (WinError 32) and
+# rapid non-zero exit codes (batch wrapper fails because copilot.ps1 is locked).
 _RETRY_MAX_ATTEMPTS = 5  # retries (6 total tries)
 _RETRY_INITIAL_DELAY_S = 0.5  # first backoff delay in seconds
 _RETRY_BACKOFF_FACTOR = 2.0  # doubling
 _RETRY_MAX_DELAY_S = 4.0  # cap per delay in seconds
+_RAPID_FAILURE_THRESHOLD_S = 5.0  # exit within this = transient failure
+
+# Cleanup retry constants for transient Windows delete/write locks.
+_CLEANUP_RETRYABLE_WINERRORS = {5, 32, 110}
+_CLEANUP_MAX_RETRIES = 3
+_CLEANUP_INITIAL_DELAY_S = 0.1
+_CLEANUP_BACKOFF_FACTOR = 2.0
+_CLEANUP_MAX_DELAY_S = 0.8
 
 
 def _read_model_from_state(state_file_path: Path) -> str | None:
@@ -200,14 +209,35 @@ def _is_retryable_win_error(exc: OSError) -> bool:
     return getattr(exc, "winerror", None) == 32
 
 
+def _is_retryable_cleanup_win_error(exc: OSError) -> bool:
+    """Return ``True`` for transient Windows cleanup lock errors.
+
+    Covers common transient lock/access-denied cleanup failures:
+    - 5   (``ERROR_ACCESS_DENIED``)
+    - 32  (``ERROR_SHARING_VIOLATION``)
+    - 110 (``ERROR_OPEN_FAILED``)
+    """
+    return getattr(exc, "winerror", None) in _CLEANUP_RETRYABLE_WINERRORS
+
+
 def _run_copilot_with_retry(
     copilot_args: list[str],
     cwd: str,
 ) -> subprocess.CompletedProcess:
     """Run the Copilot CLI with retry logic for transient Windows file locks.
 
-    Wraps ``subprocess.run`` with exponential backoff retries specifically for
-    ``OSError`` with ``winerror == 32`` (Windows ``ERROR_SHARING_VIOLATION``).
+    Wraps ``subprocess.run`` with exponential backoff retries for two failure
+    modes:
+
+    1. ``OSError`` with ``winerror == 32`` (Windows ``ERROR_SHARING_VIOLATION``)
+       raised directly by ``subprocess.run`` when the binary itself is locked.
+    2. Rapid non-zero exit codes from Windows batch wrappers (process exits within
+       ``_RAPID_FAILURE_THRESHOLD_S`` seconds).  This handles the case where
+       a ``.bat`` wrapper starts successfully but the underlying script
+       (``copilot.ps1``) is locked by another process (e.g., the VS Code
+       Copilot Chat extension during activation).  The batch exits non-zero
+       almost immediately, which is distinguishable from a legitimate session
+       failure (which would take several seconds at minimum).
 
     Non-retryable errors (``FileNotFoundError``, other ``OSError`` variants)
     are re-raised immediately without retry.
@@ -217,7 +247,9 @@ def _run_copilot_with_retry(
         cwd: Working directory for the subprocess.
 
     Returns:
-        The ``CompletedProcess`` on success.
+        The ``CompletedProcess`` result from the final attempt. This may have
+        a non-zero ``returncode`` when retries are exhausted for rapid
+        non-zero exits from Windows batch wrappers.
 
     Raises:
         FileNotFoundError: If the binary or cwd is missing (not retried).
@@ -232,7 +264,36 @@ def _run_copilot_with_retry(
 
     for attempt in range(1, total_tries + 1):
         try:
-            return subprocess.run(copilot_args, cwd=cwd)  # noqa: S603
+            t0 = time.monotonic()
+            result = subprocess.run(copilot_args, cwd=cwd)  # noqa: S603
+            elapsed = time.monotonic() - t0
+
+            command_name = copilot_args[0].lower() if copilot_args else ""
+            is_batch_wrapper = command_name.endswith((".bat", ".cmd"))
+            # A rapid non-zero exit is only treated as transient for Windows
+            # batch wrappers, where .bat -> .ps1 handoff can fail while
+            # copilot.ps1 is temporarily locked by VS Code's extension.
+            if result.returncode != 0 and elapsed < _RAPID_FAILURE_THRESHOLD_S and is_batch_wrapper:
+                if attempt == total_tries:
+                    print(
+                        f"agdt-copilot-auto-start: error: retry budget exhausted "
+                        f"after {total_tries} attempts (rapid exit code "
+                        f"{result.returncode} in {elapsed:.1f}s)",
+                        file=sys.stderr,
+                    )
+                    return result
+                print(
+                    f"agdt-copilot-auto-start: warning: copilot exited rapidly "
+                    f"(code={result.returncode}, {elapsed:.1f}s < {_RAPID_FAILURE_THRESHOLD_S}s, "
+                    f"attempt {attempt}/{total_tries}), "
+                    f"retrying in {delay:.1f}s (likely transient batch-wrapper file lock)",
+                    file=sys.stderr,
+                )
+                time.sleep(delay)
+                delay = min(delay * _RETRY_BACKOFF_FACTOR, _RETRY_MAX_DELAY_S)
+                continue
+
+            return result
         except FileNotFoundError:
             raise
         except OSError as exc:
@@ -272,8 +333,9 @@ def _cleanup_auto_start_task(
     Delegates to :func:`~agentic_devtools.cli.vscode_tasks.remove_auto_start_task`.
 
     Errors are caught so that cleanup failure never changes the caller's exit
-    code.  Transient Windows file-lock errors (``winerror == 32``) emit a
-    warning to stderr; all other errors are silently ignored.
+    code. Transient Windows cleanup lock errors (``winerror`` in ``[5, 32, 110]``)
+    are retried up to 3 times with exponential backoff; all failures are
+    otherwise silently ignored.
 
     Args:
         worktree_path: Absolute path to the worktree directory.
@@ -288,25 +350,41 @@ def _cleanup_auto_start_task(
     """
     vscode_dir = os.path.join(worktree_path, ".vscode")
     tasks_path = os.path.join(vscode_dir, "tasks.json")
-    try:
-        remove_auto_start_task(
-            tasks_path,
-            vscode_dir,
-            task_label,
-            delete_if_empty=created_new,
-        )
-    except OSError as exc:
-        if _is_retryable_win_error(exc):
+    if _CLEANUP_MAX_RETRIES < 0:
+        return
+    attempts = _CLEANUP_MAX_RETRIES + 1
+    delay = _CLEANUP_INITIAL_DELAY_S
+    attempt = 1
+    while attempt <= attempts:  # pragma: no branch
+        try:
+            remove_auto_start_task(
+                tasks_path,
+                vscode_dir,
+                task_label,
+                delete_if_empty=created_new,
+            )
+            return
+        except OSError as exc:
+            if not _is_retryable_cleanup_win_error(exc) or attempt == attempts:
+                # Best-effort cleanup: any failure must not affect caller exit code.
+                return
             print(
                 f"agdt-copilot-auto-start: warning: cleanup encountered transient "
-                f"file lock (winerror=32), skipping: {exc}",
+                f"file lock (attempt {attempt}/{attempts}, "
+                f"winerror={getattr(exc, 'winerror', '?')}), "
+                f"retrying in {delay:.1f}s: {exc}",
                 file=sys.stderr,
             )
-        # Best-effort cleanup: any failure must not affect the caller's exit code.
-    except Exception:
-        # Best-effort cleanup: any failure must be silently ignored so it cannot
-        # affect the caller's exit code.
-        pass
+            try:
+                time.sleep(delay)
+            except KeyboardInterrupt:
+                return
+            delay = min(delay * _CLEANUP_BACKOFF_FACTOR, _CLEANUP_MAX_DELAY_S)
+            attempt += 1
+        except Exception:
+            # Best-effort cleanup: any failure must be silently ignored so it cannot
+            # affect the caller's exit code.
+            return
 
 
 def copilot_auto_start_cmd(argv: list[str] | None = None) -> None:

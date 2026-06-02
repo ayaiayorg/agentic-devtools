@@ -1367,6 +1367,62 @@ class TestCleanupAutoStartTask:
             # Must not raise despite remove_auto_start_task raising
             _cleanup_auto_start_task(str(tmp_path), "agdt-copilot-auto-start", created_new=False)
 
+    def test_silently_ignores_non_retryable_oserror(self, tmp_path, capsys):
+        """Non-retryable OSError from remove_auto_start_task is silently ignored."""
+        non_retryable = OSError("permission denied")
+        # No winerror attribute set → _is_retryable_win_error returns False
+        with patch(_REMOVE, side_effect=non_retryable):
+            _cleanup_auto_start_task(str(tmp_path), "agdt-copilot-auto-start", created_new=False)
+
+        # No warning emitted (only winerror=32 gets a warning)
+        captured = capsys.readouterr()
+        assert "transient file lock" not in captured.err
+
+    def test_retries_cleanup_for_retryable_winerrors(self, tmp_path):
+        """Retryable cleanup winerrors are retried up to success."""
+        with patch(
+            _REMOVE,
+            side_effect=[_make_win_error(5), _make_win_error(110), _make_win_error(32), None],
+        ) as mock_remove:
+            with patch("agentic_devtools.cli.copilot.auto_start.time.sleep") as mock_sleep:
+                _cleanup_auto_start_task(str(tmp_path), "agdt-copilot-auto-start", created_new=False)
+
+        assert mock_remove.call_count == 4
+        assert mock_sleep.call_count == 3
+
+    def test_cleanup_sleep_keyboard_interrupt_is_ignored(self, tmp_path):
+        """KeyboardInterrupt during cleanup retry backoff is ignored."""
+        with patch(_REMOVE, side_effect=[_make_win_error(32)]) as mock_remove:
+            with patch("agentic_devtools.cli.copilot.auto_start.time.sleep", side_effect=KeyboardInterrupt):
+                _cleanup_auto_start_task(str(tmp_path), "agdt-copilot-auto-start", created_new=False)
+
+        assert mock_remove.call_count == 1
+
+    def test_cleanup_noop_when_retry_budget_negative(self, tmp_path):
+        """Negative retry budget results in no cleanup attempts."""
+        with patch("agentic_devtools.cli.copilot.auto_start._CLEANUP_MAX_RETRIES", -1):
+            with patch(_REMOVE) as mock_remove:
+                _cleanup_auto_start_task(str(tmp_path), "agdt-copilot-auto-start", created_new=False)
+
+        mock_remove.assert_not_called()
+
+    def test_cleanup_single_attempt_when_retry_budget_zero(self, tmp_path):
+        """Zero retry budget still performs one cleanup attempt."""
+        with patch("agentic_devtools.cli.copilot.auto_start._CLEANUP_MAX_RETRIES", 0):
+            with patch(_REMOVE) as mock_remove:
+                _cleanup_auto_start_task(str(tmp_path), "agdt-copilot-auto-start", created_new=False)
+
+        mock_remove.assert_called_once()
+
+    def test_stops_after_cleanup_retry_budget_exhausted(self, tmp_path):
+        """Cleanup stops after configured retry budget for retryable winerrors."""
+        with patch(_REMOVE, side_effect=[_make_win_error(5)] * 4) as mock_remove:
+            with patch("agentic_devtools.cli.copilot.auto_start.time.sleep") as mock_sleep:
+                _cleanup_auto_start_task(str(tmp_path), "agdt-copilot-auto-start", created_new=False)
+
+        assert mock_remove.call_count == 4
+        assert mock_sleep.call_count == 3
+
 
 class TestAutoStartModelFallback:
     """Tests for model resolution in copilot_auto_start_cmd."""
@@ -1566,8 +1622,13 @@ _MARKER_CLEANUP = "agentic_devtools.cli.workflows.worktree_setup._cleanup_pendin
 
 def _make_win_error_32() -> OSError:
     """Create a fresh OSError simulating WinError 32."""
+    return _make_win_error(32)
+
+
+def _make_win_error(winerror: int) -> OSError:
+    """Create a fresh OSError with a specific Windows winerror code."""
     exc = OSError("file in use")
-    exc.winerror = 32  # type: ignore[attr-defined]
+    exc.winerror = winerror  # type: ignore[attr-defined]
     return exc
 
 

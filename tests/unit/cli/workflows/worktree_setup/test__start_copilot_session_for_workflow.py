@@ -1022,16 +1022,16 @@ class TestStartCopilotSessionForWorkflow:
     # autostart_injected=True: skip background fallback
     # ------------------------------------------------------------------
 
-    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._spawn_delayed_autostart_verification")
     @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
     def test_autostart_injected_skips_background_fallback(
         self,
         mock_wait,
-        mock_copilot,
+        mock_spawn_verify,
         tmp_path,
         monkeypatch,
     ):
-        """When autostart_injected=True and no TTY, return True immediately without background session."""
+        """When autostart_injected=True and no TTY, return True immediately and delegate to verification thread."""
         _setup_prompt_file(tmp_path)
         mock_wait.return_value = True
         _patch_no_tty(monkeypatch)
@@ -1045,8 +1045,8 @@ class TestStartCopilotSessionForWorkflow:
         )
 
         assert result is True
-        # No background Copilot session started — VS Code handles it
-        mock_copilot.assert_not_called()
+        # Delayed verification thread was spawned (not a direct copilot session)
+        mock_spawn_verify.assert_called_once()
         # Prompt file wait should still be called (early return is after prompt check)
         # but the key assertion is no background session was spawned
 
@@ -1085,3 +1085,42 @@ class TestStartCopilotSessionForWorkflow:
         # TTY attached means the user is in an interactive terminal — proceed normally
         assert result is True
         mock_copilot.assert_called_once()
+
+    # ------------------------------------------------------------------
+    # Non-interactive session opens log in VS Code
+    # ------------------------------------------------------------------
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup._open_log_in_vscode")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._in_test_environment", return_value=False)
+    @patch("agentic_devtools.cli.copilot.session.start_copilot_session")
+    @patch("agentic_devtools.cli.workflows.worktree_setup.is_vscode_available")
+    @patch("agentic_devtools.cli.workflows.worktree_setup._wait_for_prompt_file")
+    def test_opens_log_in_vscode_for_non_interactive_session(
+        self,
+        mock_wait,
+        mock_vscode,
+        mock_copilot,
+        mock_test_env,
+        mock_open_log,
+        tmp_path,
+        monkeypatch,
+    ):
+        """Verify _open_log_in_vscode is called for non-interactive sessions with a log file."""
+        _setup_prompt_file(tmp_path)
+        mock_wait.return_value = True
+        mock_vscode.return_value = True
+        _patch_no_tty(monkeypatch)
+
+        session_result = MagicMock()
+        session_result.log_file = "/tmp/copilot.log"
+        mock_copilot.return_value = session_result
+
+        with patch("agentic_devtools.state.get_state_dir", return_value=tmp_path):
+            _start_copilot_session_for_workflow(
+                worktree_path=str(tmp_path),
+                prompt_file_relative_path=_CUSTOM_PROMPT_RELATIVE,
+                start_prompt=_CUSTOM_START_PROMPT,
+                workflow_name=_CUSTOM_WORKFLOW_NAME,
+            )
+
+        mock_open_log.assert_called_once_with("/tmp/copilot.log", str(tmp_path))

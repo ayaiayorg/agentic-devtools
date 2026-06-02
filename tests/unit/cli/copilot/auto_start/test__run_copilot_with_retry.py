@@ -201,3 +201,98 @@ class TestRunCopilotWithRetryLogging:
         assert "attempt 1/6" in captured.err
         assert "0.5s" in captured.err
         assert "winerror=32" in captured.err
+
+
+_MONOTONIC = "agentic_devtools.cli.copilot.auto_start.time.monotonic"
+
+
+class TestRunCopilotWithRetryRapidFailure:
+    """Tests for rapid non-zero exit code retry (transient file lock via .bat wrapper)."""
+
+    def test_rapid_nonzero_retries_then_succeeds(self, capsys):
+        """Rapid non-zero exit (<5s) is retried; eventual success is returned."""
+        fail_result = MagicMock(spec=subprocess.CompletedProcess, returncode=1)
+        ok_result = MagicMock(spec=subprocess.CompletedProcess, returncode=0)
+        # Simulate: first call exits instantly (elapsed=0), second call succeeds after 10s
+        monotonic_values = iter([0.0, 0.1, 10.0, 20.0])
+        with (
+            patch(_SUBPROC, side_effect=[fail_result, ok_result]) as mock_run,
+            patch(_SLEEP) as mock_sleep,
+            patch(_MONOTONIC, side_effect=lambda: next(monotonic_values)),
+        ):
+            result = _run_copilot_with_retry(["copilot.bat", "-i"], "/some/path")
+
+        assert result.returncode == 0
+        assert mock_run.call_count == 2
+        mock_sleep.assert_called_once_with(0.5)
+        captured = capsys.readouterr()
+        assert "copilot exited rapidly" in captured.err
+        assert "likely transient batch-wrapper file lock" in captured.err
+
+    def test_rapid_nonzero_exhausts_retries(self, capsys):
+        """Rapid non-zero exit exhausts retry budget and returns last result."""
+        fail_result = MagicMock(spec=subprocess.CompletedProcess, returncode=1)
+        # All 6 attempts exit rapidly
+        monotonic_values = [float(i * 0.01) for i in range(20)]
+        with (
+            patch(_SUBPROC, return_value=fail_result) as mock_run,
+            patch(_SLEEP),
+            patch(_MONOTONIC, side_effect=monotonic_values),
+        ):
+            result = _run_copilot_with_retry(["copilot.bat", "-i"], "/some/path")
+
+        assert result.returncode == 1
+        assert mock_run.call_count == 6
+        captured = capsys.readouterr()
+        assert "retry budget exhausted" in captured.err
+
+    def test_slow_nonzero_not_retried(self):
+        """Non-zero exit after >5s is NOT retried (legitimate failure)."""
+        fail_result = MagicMock(spec=subprocess.CompletedProcess, returncode=1)
+        # Simulate: elapsed = 10s (above threshold)
+        monotonic_values = iter([0.0, 10.0])
+        with (
+            patch(_SUBPROC, return_value=fail_result) as mock_run,
+            patch(_SLEEP) as mock_sleep,
+            patch(_MONOTONIC, side_effect=lambda: next(monotonic_values)),
+        ):
+            result = _run_copilot_with_retry(["copilot", "-i"], "/some/path")
+
+        assert result.returncode == 1
+        mock_run.assert_called_once()
+        mock_sleep.assert_not_called()
+
+    def test_rapid_nonzero_backoff_delays(self):
+        """Rapid failures use exponential backoff with capped delays."""
+        fail_result = MagicMock(spec=subprocess.CompletedProcess, returncode=1)
+        ok_result = MagicMock(spec=subprocess.CompletedProcess, returncode=0)
+        # 4 rapid failures then success
+        side_effects = [fail_result] * 4 + [ok_result]
+        # Each call returns instantly (elapsed ~0)
+        monotonic_values = [float(i * 0.01) for i in range(20)]
+        with (
+            patch(_SUBPROC, side_effect=side_effects) as mock_run,
+            patch(_SLEEP) as mock_sleep,
+            patch(_MONOTONIC, side_effect=monotonic_values),
+        ):
+            result = _run_copilot_with_retry(["copilot.bat", "-i"], "/some/path")
+
+        assert result.returncode == 0
+        assert mock_run.call_count == 5
+        delays = [call.args[0] for call in mock_sleep.call_args_list]
+        assert delays == [0.5, 1.0, 2.0, 4.0]
+
+    def test_rapid_nonzero_non_wrapper_not_retried(self):
+        """Rapid non-zero exit from non-wrapper command is not retried."""
+        fail_result = MagicMock(spec=subprocess.CompletedProcess, returncode=2)
+        monotonic_values = iter([0.0, 0.1])
+        with (
+            patch(_SUBPROC, return_value=fail_result) as mock_run,
+            patch(_SLEEP) as mock_sleep,
+            patch(_MONOTONIC, side_effect=lambda: next(monotonic_values)),
+        ):
+            result = _run_copilot_with_retry(["copilot", "-i"], "/some/path")
+
+        assert result.returncode == 2
+        mock_run.assert_called_once()
+        mock_sleep.assert_not_called()

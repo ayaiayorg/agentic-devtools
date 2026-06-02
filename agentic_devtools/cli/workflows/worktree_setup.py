@@ -14,6 +14,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -2347,18 +2348,26 @@ def _start_copilot_session_for_workflow(
     # where stdin/stdout are redirected to DEVNULL/log files).
     has_tty = getattr(sys.stdin, "isatty", lambda: False)() and getattr(sys.stdout, "isatty", lambda: False)()
 
-    # --- Auto-start injection confirmed: skip background fallback ------------
+    # --- Auto-start injection confirmed: delayed verification fallback ------
     # When the caller confirms the auto-start task was successfully injected
-    # into tasks.json, trust that VS Code will execute it (possibly after a
-    # trust/permission dialog).  Do NOT start a duplicate background session.
-    # The previous 15-second timeout was insufficient for scenarios where
-    # VS Code shows a workspace trust or task permission dialog before
-    # executing the runOn:folderOpen task.
+    # into tasks.json, we trust that VS Code *will probably* execute it.
+    # However, the task can still fail (e.g., copilot binary locked, permission
+    # dialog dismissed, VS Code crash).  Instead of blindly returning True,
+    # we spawn a non-daemon thread that waits for the run ID to appear in state
+    # (proving the task ran).  If it doesn't appear within the grace period,
+    # the thread starts a non-interactive background session as a safety net.
     if autostart_injected and not has_tty:
         print(
             "\n--- VS Code auto-start task was successfully injected. "
-            "Trusting VS Code to handle the Copilot session "
-            "(no background fallback will be started). ---"
+            f"A delayed verification (up to {_AUTOSTART_VERIFICATION_DELAY_S:.0f}s) "
+            "will confirm it ran and may keep this task running; if not, a "
+            "background fallback session will be started automatically. ---"
+        )
+        _spawn_delayed_autostart_verification(
+            worktree_path=worktree_path,
+            start_prompt=start_prompt,
+            workflow_name=workflow_name,
+            model=model,
         )
         return True
 
@@ -2475,12 +2484,24 @@ def _start_copilot_session_for_workflow(
 
         state_dir = get_state_dir()
         os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = str(state_dir)
-        start_copilot_session(
+        session_result = start_copilot_session(
             prompt=start_prompt,
             working_directory=worktree_path,
             interactive=effective_interactive,
             model=model,
         )
+        # Open the log file in VS Code for non-interactive sessions so the
+        # user can watch Copilot output in real time.  Skip in CI (no VS Code
+        # or no TTY on the *original* caller — here we check is_vscode_available
+        # which is False in headless CI).
+        if (
+            not effective_interactive
+            and session_result is not None
+            and session_result.log_file
+            and is_vscode_available()
+            and not _in_test_environment()
+        ):
+            _open_log_in_vscode(session_result.log_file, worktree_path)
         return True
 
 
@@ -2758,6 +2779,128 @@ def _start_copilot_session_for_update_jira_issue(
 _PENDING_AUTO_START_FILENAME = "pending-auto-start.json"
 _FOCUS_SETTLE_SECONDS: float = 2.0
 
+# Grace period (seconds) for the delayed auto-start verification.
+# VS Code may show a workspace trust or task permission dialog before
+# executing runOn:folderOpen, so the window must be generous.
+_AUTOSTART_VERIFICATION_DELAY_S: float = 45.0
+_AUTOSTART_VERIFICATION_POLL_S: float = 3.0
+
+
+def _spawn_delayed_autostart_verification(
+    worktree_path: str,
+    start_prompt: str,
+    workflow_name: str,
+    model: str | None = None,
+) -> None:
+    """Spawn a non-daemon thread that verifies the VS Code auto-start task ran.
+
+    After a grace period, the thread checks whether the auto-start task
+    wrote its run ID into ``copilot.auto_start_triggered_runs``.  If not,
+    it starts a non-interactive background Copilot session as a fallback
+    and opens the log file in VS Code (when available).
+
+    The thread is non-daemon so it keeps the parent process alive until
+    verification completes (at most ``_AUTOSTART_VERIFICATION_DELAY_S``
+    seconds).  If a fallback session is started, the session's non-daemon
+    tee-thread keeps the process alive for the duration of the Copilot
+    subprocess.
+
+    **Safety guard**: This function is a no-op inside test environments
+    (``PYTEST_CURRENT_TEST`` set) to prevent threads from outliving test
+    cases and accidentally spawning real Copilot sessions.
+    """
+    if _in_test_environment():
+        return
+
+    state_file_path, state_run_id = _resolve_state_context_in_worktree(worktree_path, include_run_id=True)
+
+    def _verify_and_fallback() -> None:
+        import time
+
+        from agentic_devtools.cli.copilot.auto_start import _is_run_triggered
+
+        # Prefer the run_id from state when available; fall back to the pending marker written during injection.
+        current_run_id = state_run_id.strip()
+        if not current_run_id:
+            marker_path = os.path.join(worktree_path, ".vscode", _PENDING_AUTO_START_FILENAME)
+            try:
+                if os.path.isfile(marker_path):
+                    with open(marker_path, encoding="utf-8") as fh:
+                        marker = json.load(fh)
+                    if isinstance(marker, dict):
+                        run_id_value = marker.get("run_id")
+                        if isinstance(run_id_value, str):
+                            current_run_id = run_id_value.strip()
+            except (OSError, json.JSONDecodeError, ValueError):
+                current_run_id = ""
+
+        if state_file_path is None or not current_run_id:
+            # Cannot verify — fall through to start fallback immediately
+            print(
+                "\n--- Delayed verification: no state file or run ID available. "
+                "Starting background fallback Copilot session. ---",
+                file=sys.stderr,
+            )
+        else:
+            # Poll for the run ID until the grace period expires.
+            elapsed = 0.0
+            while elapsed < _AUTOSTART_VERIFICATION_DELAY_S:
+                if _is_run_triggered(state_file_path, current_run_id):
+                    # Auto-start task confirmed running — no fallback needed.
+                    return
+                time.sleep(_AUTOSTART_VERIFICATION_POLL_S)
+                elapsed += _AUTOSTART_VERIFICATION_POLL_S
+
+            print(
+                f"\n--- Delayed verification: VS Code auto-start task did NOT run "
+                f"within {_AUTOSTART_VERIFICATION_DELAY_S:.0f}s. "
+                f"Starting background fallback Copilot session for {workflow_name}. ---",
+                file=sys.stderr,
+            )
+
+        # Start the fallback non-interactive session.
+        try:
+            from ..copilot.session import start_copilot_session
+
+            # Pin state writes to the target worktree state dir when available.
+            target_state_dir = os.path.dirname(state_file_path) if state_file_path else None
+            previous_state_dir = os.environ.get("AGENTIC_DEVTOOLS_STATE_DIR")
+            if target_state_dir:
+                os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = target_state_dir
+            try:
+                session_result = start_copilot_session(
+                    prompt=start_prompt,
+                    working_directory=worktree_path,
+                    interactive=False,
+                    model=model,
+                )
+            finally:
+                if target_state_dir:
+                    if previous_state_dir is None:
+                        os.environ.pop("AGENTIC_DEVTOOLS_STATE_DIR", None)
+                    else:
+                        os.environ["AGENTIC_DEVTOOLS_STATE_DIR"] = previous_state_dir
+            # Open log in VS Code so the user can monitor.
+            if (
+                session_result is not None
+                and session_result.log_file
+                and is_vscode_available()
+                and not _in_test_environment()
+            ):
+                _open_log_in_vscode(session_result.log_file, worktree_path)
+        except Exception as exc:
+            print(
+                f"Warning: delayed fallback Copilot session failed: {exc}",
+                file=sys.stderr,
+            )
+
+    thread = threading.Thread(
+        target=_verify_and_fallback,
+        name="autostart-verification",
+        daemon=False,
+    )
+    thread.start()
+
 
 def _write_pending_auto_start_marker(
     worktree_path: str,
@@ -2845,6 +2988,49 @@ def _focus_vscode_window(worktree_path: str) -> bool:
         return False
 
     return True
+
+
+def _open_log_in_vscode(log_file_path: str, worktree_path: str) -> None:
+    """Open the Copilot session log file in VS Code for live monitoring.
+
+    Uses ``code <log_file_path>`` to request opening the file in VS Code.
+    The CLI decides which window receives the file (often the most recently
+    active window). Best-effort: errors are printed to stderr but never raised.
+
+    Args:
+        log_file_path: Absolute path to the ``.log`` file.
+        worktree_path: The worktree root (used for context in messages).
+    """
+    try:
+        log_file_path = os.path.abspath(log_file_path)
+        use_shell = platform.system() == "Windows"
+        if use_shell and any(ch in log_file_path for ch in "&|<>^%"):
+            print(
+                "Warning: refusing to open log file in VS Code on Windows because "
+                f"path contains cmd.exe metacharacters: {log_file_path!r}",
+                file=sys.stderr,
+            )
+            return
+        proc = subprocess.run(
+            ["code", log_file_path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            shell=use_shell,
+        )
+        if proc.returncode == 0:
+            print(f"--- Opened Copilot session log in VS Code: {log_file_path} (worktree: {worktree_path}) ---")
+        else:
+            print(
+                f"Warning: 'code' exited with {proc.returncode} when opening log file "
+                f"{log_file_path!r} (worktree: {worktree_path}).",
+                file=sys.stderr,
+            )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        print(
+            f"Warning: could not open log file in VS Code: {exc} (worktree: {worktree_path}, file: {log_file_path!r})",
+            file=sys.stderr,
+        )
 
 
 def _try_terminal_send_fallback(worktree_path: str, expected_run_id: str | None = None) -> bool:
