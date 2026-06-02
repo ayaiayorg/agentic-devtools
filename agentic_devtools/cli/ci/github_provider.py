@@ -1080,6 +1080,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 end_line=c.get("line"),
                 line=c.get("line"),
                 position=c.get("position"),
+                diff_hunk=c.get("diff_hunk", ""),
                 commit_id=c.get("commit_id") or "",
                 original_commit_id=c.get("original_commit_id") or "",
             )

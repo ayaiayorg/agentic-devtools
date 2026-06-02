@@ -991,42 +991,42 @@ class TestFinalizePostRepair:
         ]
 
         provider = GitHubActionsProvider(repo="owner/repo")
-        provider.list_review_thread_states = MagicMock(return_value={})
-        provider.finalize_post_repair(
-            pr_number=42,
-            base_branch="main",
-            head_branch="feature/test",
-            head_sha="new_sha_456",
-            review_id=7,
-        )
-        provider.finalize_post_repair(
-            pr_number=42,
-            base_branch="main",
-            head_branch="feature/test",
-            head_sha="new_sha_456",
-            review_id=7,
-        )
-        provider.finalize_post_repair(
-            pr_number=42,
-            base_branch="main",
-            head_branch="feature/test",
-            head_sha="new_sha_456",
-            review_id=7,
-        )
-        provider.finalize_post_repair(
-            pr_number=42,
-            base_branch="main",
-            head_branch="feature/test",
-            head_sha="new_sha_456",
-            review_id=7,
-        )
-        provider.finalize_post_repair(
-            pr_number=42,
-            base_branch="main",
-            head_branch="feature/test",
-            head_sha="new_sha_456",
-            review_id=7,
-        )
+        with patch.object(provider, "list_review_thread_states", return_value={}):
+            provider.finalize_post_repair(
+                pr_number=42,
+                base_branch="main",
+                head_branch="feature/test",
+                head_sha="new_sha_456",
+                review_id=7,
+            )
+            provider.finalize_post_repair(
+                pr_number=42,
+                base_branch="main",
+                head_branch="feature/test",
+                head_sha="new_sha_456",
+                review_id=7,
+            )
+            provider.finalize_post_repair(
+                pr_number=42,
+                base_branch="main",
+                head_branch="feature/test",
+                head_sha="new_sha_456",
+                review_id=7,
+            )
+            provider.finalize_post_repair(
+                pr_number=42,
+                base_branch="main",
+                head_branch="feature/test",
+                head_sha="new_sha_456",
+                review_id=7,
+            )
+            provider.finalize_post_repair(
+                pr_number=42,
+                base_branch="main",
+                head_branch="feature/test",
+                head_sha="new_sha_456",
+                review_id=7,
+            )
 
         first_call_kwargs = mock_verify_batch.call_args_list[0].kwargs
         second_call_kwargs = mock_verify_batch.call_args_list[1].kwargs
