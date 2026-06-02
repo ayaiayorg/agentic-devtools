@@ -1456,6 +1456,27 @@ def _remove_stale_auto_start_task(
     remove_auto_start_task(tasks_path, vscode_dir, task_label, delete_if_empty=delete_if_empty)
 
 
+def _cleanup_stale_auto_start_task_for_worktree(worktree_path: str) -> None:
+    """Remove any stale auto-start task from a worktree's ``.vscode/tasks.json``.
+
+    Best-effort helper that derives the paths from *worktree_path* and
+    delegates to :func:`_remove_stale_auto_start_task`.  Called before
+    starting a new Copilot session to prevent a leftover ``runOn: folderOpen``
+    task from a previous workflow from spawning a duplicate session when
+    VS Code reloads.
+
+    All errors are silently caught so this never prevents the caller from
+    proceeding.
+    """
+    try:
+        vscode_dir = os.path.join(worktree_path, ".vscode")
+        tasks_path = os.path.join(vscode_dir, "tasks.json")
+        if os.path.isfile(tasks_path):
+            _remove_stale_auto_start_task(tasks_path, vscode_dir, _AUTO_START_TASK_LABEL)
+    except Exception:
+        pass
+
+
 class WorktreeStateContext:
     """Context manager for cross-worktree state resolution.
 
@@ -2468,6 +2489,12 @@ def _start_copilot_session_for_workflow(
         )
 
     effective_interactive = interactive and is_vscode_available() and has_tty
+
+    # Remove any stale auto-start task from tasks.json BEFORE starting a new
+    # session. A leftover runOn:folderOpen task from a previous workflow
+    # invocation can fire when VS Code reloads, causing a duplicate Copilot
+    # session alongside the one we are about to start. See #1742.
+    _cleanup_stale_auto_start_task_for_worktree(worktree_path)
 
     print(
         f"\n--- Starting gh copilot session for {workflow_name} "

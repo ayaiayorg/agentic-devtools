@@ -394,6 +394,17 @@ Examples:
     clear_state_for_workflow_initiation(preserve_run_id=bool(skip_copilot_session))
     set_value("copilot.model_id", model)
 
+    # Remove any stale VS Code auto-start task from a previous workflow to
+    # prevent a duplicate Copilot session from firing on folderOpen/reload.
+    # This is belt-and-suspenders alongside the cleanup in
+    # _start_copilot_session_for_workflow — the earlier we remove the stale
+    # task, the smaller the window for a race where VS Code reloads and fires
+    # the old task before we start the new session.
+    repo_root_early = get_git_repo_root() or os.getcwd()
+    from .worktree_setup import _cleanup_stale_auto_start_task_for_worktree
+
+    _cleanup_stale_auto_start_task_for_worktree(repo_root_early)
+
     # Set provided values in state using the NORMALIZED identifiers.  When both issue_key
     # and pull_request_id are provided, write jira.issue_key FIRST so that the engine-side
     # priority guard in set_value() (which checks the loaded state dict) sees the issue key
