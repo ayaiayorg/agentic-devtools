@@ -1458,9 +1458,14 @@ class GitHubActionsProvider(CIPlatformProvider):
         try:
             from copilot import CopilotClient, SubprocessConfig
             from copilot.session import PermissionHandler
-        except Exception as exc:  # pragma: no cover - optional dependency/runtime
-            logger.warning("Copilot SDK unavailable for squash commit message generation: %s", exc)
-            return None
+        except ImportError:
+            try:
+                from copilot import CopilotClient
+                from copilot.config import SubprocessConfig
+                from copilot.session import PermissionHandler
+            except Exception as exc:  # pragma: no cover - optional dependency/runtime
+                logger.warning("Copilot SDK unavailable for squash commit message generation: %s", exc)
+                return None
 
         model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
         unique_subjects = [subject.strip() for subject in commit_subjects if subject.strip()]
@@ -1566,9 +1571,14 @@ class GitHubActionsProvider(CIPlatformProvider):
         try:
             from copilot import CopilotClient, SubprocessConfig
             from copilot.session import PermissionHandler
-        except Exception as exc:  # pragma: no cover - optional dependency/runtime
-            logger.warning("Copilot SDK unavailable for conflict resolution: %s", exc)
-            return None
+        except ImportError:
+            try:
+                from copilot import CopilotClient
+                from copilot.config import SubprocessConfig
+                from copilot.session import PermissionHandler
+            except Exception as exc:  # pragma: no cover - optional dependency/runtime
+                logger.warning("Copilot SDK unavailable for conflict resolution: %s", exc)
+                return None
 
         model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
         prompt = (
@@ -2496,9 +2506,14 @@ class GitHubActionsProvider(CIPlatformProvider):
         try:
             from copilot import CopilotClient, SubprocessConfig
             from copilot.session import PermissionHandler
-        except Exception as exc:
-            logger.warning("Copilot SDK unavailable for comment verification: %s", exc)
-            return {comment.id: VerificationVerdict.COMMENT_UNRESOLVE for comment, _diff_context in normalized_comments}
+        except ImportError:
+            try:
+                from copilot import CopilotClient
+                from copilot.config import SubprocessConfig
+                from copilot.session import PermissionHandler
+            except Exception as exc:
+                logger.warning("Copilot SDK unavailable for comment verification: %s", exc)
+                return {comment.id: VerificationVerdict.COMMENT_UNRESOLVE for comment, _diff_context in normalized_comments}
 
         model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
 
@@ -2613,8 +2628,13 @@ class GitHubActionsProvider(CIPlatformProvider):
         try:
             from copilot import CopilotClient, SubprocessConfig
             from copilot.session import PermissionHandler
-        except Exception as exc:
-            raise RuntimeError(f"Copilot SDK unavailable: {exc}") from exc
+        except ImportError:
+            try:
+                from copilot import CopilotClient
+                from copilot.config import SubprocessConfig
+                from copilot.session import PermissionHandler
+            except Exception as exc:
+                raise RuntimeError(f"Copilot SDK unavailable: {exc}") from exc
 
         selected_model = model or os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
 
