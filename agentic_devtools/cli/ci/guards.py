@@ -125,6 +125,32 @@ def check_docker_files(files: list[str]) -> bool:
     return False
 
 
+def is_duplicate_trigger(
+    provider: CIPlatformProvider,
+    pr_number: int,
+    review_id: int,
+) -> bool:
+    """Check if a trigger comment already exists for a given Copilot review ID.
+
+    Searches PR comments for the ``<!-- copilot-trigger:REVIEW_ID -->`` marker.
+    This provides best-effort review-cycle-level deduplication by skipping when
+    a prior trigger marker is already present for the same Copilot review.
+
+    Args:
+        provider: CI platform provider for API calls.
+        pr_number: Pull request number.
+        review_id: Copilot review ID to check for.
+
+    Returns:
+        True if a trigger comment for this review_id already exists, False otherwise.
+    """
+    if review_id <= 0:
+        return False
+    marker = f"<!-- copilot-trigger:{review_id} -->"
+    existing = provider.find_comment(pr_number, marker)
+    return existing is not None
+
+
 def check_deduplication(
     provider: CIPlatformProvider,
     pr_number: int,

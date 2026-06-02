@@ -246,6 +246,38 @@ class TestRunAIPRLoop:
         provider.dispatch_repair.assert_not_called()
         provider.find_comment.assert_not_called()
 
+    def test_ci_completion_failed_checks_with_effective_copilot_review_on_head_dispatches_repair(self) -> None:
+        """Pending reviewer gate should not wait when an effective Copilot review exists on HEAD."""
+        provider = _make_provider(
+            pr_meta=PRMetadata(
+                number=42,
+                title="feat: test",
+                head_branch="feature/test",
+                head_sha="abc123",
+                base_branch="main",
+                head_repo_full_name="owner/repo",
+                base_repo_full_name="owner/repo",
+                requested_reviewers=[COPILOT_REVIEWER_LOGIN],
+            ),
+            check_runs=[CheckRunStatus(id=2, name="Workflow Tests", status="completed", conclusion="failure")],
+            reviews=[
+                ReviewInfo(
+                    id=13,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="APPROVED",
+                    body="looks good",
+                    commit_sha="abc123",
+                )
+            ],
+        )
+        provider.dispatch_repair.return_value = 201
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+
+        result = run_ai_pr_loop(provider, payload)
+
+        assert result == EXIT_REPAIR_DISPATCHED
+        provider.dispatch_repair.assert_called_once()
+
     def test_ci_completion_failed_checks_and_non_actionable_copilot_dispatches_ci_repair(self) -> None:
         """CI-completion dispatches CI-only repair when Copilot already reviewed non-actionably."""
         provider = _make_provider(
@@ -298,6 +330,44 @@ class TestRunAIPRLoop:
         assert result == EXIT_MERGE_BLOCKED
         provider.approve_pr.assert_called_once()
         provider.merge_pr.assert_not_called()
+
+    def test_actionable_check_names_parameter_is_honored(self) -> None:
+        """Providing actionable_check_names bypasses default initialization path."""
+        provider = _make_provider()
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
+
+        result = run_ai_pr_loop(provider, payload, actionable_check_names=frozenset({"Run Targeted Checks"}))
+
+        assert result == EXIT_SUCCESS
+        provider.merge_pr.assert_called_once()
+
+    def test_latest_review_per_user_ignores_older_out_of_order_review(self) -> None:
+        """Older review encountered after newer one must not overwrite latest_by_user."""
+        provider = _make_provider(
+            reviews=[
+                ReviewInfo(
+                    id=5,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="APPROVED",
+                    body="latest",
+                    commit_sha="abc123",
+                ),
+                ReviewInfo(
+                    id=4,
+                    user="copilot-pull-request-reviewer[bot]",
+                    state="CHANGES_REQUESTED",
+                    body="older",
+                    commit_sha="abc123",
+                ),
+            ]
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
+
+        result = run_ai_pr_loop(provider, payload)
+
+        assert result == EXIT_SUCCESS
+        provider.dispatch_repair.assert_not_called()
+        provider.merge_pr.assert_called_once()
 
     def test_deduplication_limit_blocks(self) -> None:
         """When dedup limit is exceeded, guard blocks."""
@@ -1682,6 +1752,27 @@ class TestRunAIPRLoopDecisionSummary:
         assert "Workflow Tests" in summary["repair"]["failed_checks"]
         assert summary["repair_cycle"]["count"] == 1
 
+    def test_ci_completion_guard_blocked_emits_blocked_summary(self) -> None:
+        provider = _make_provider(
+            check_runs=[
+                CheckRunStatus(id=1, name="Run Targeted Checks", status="completed", conclusion="success"),
+                CheckRunStatus(id=2, name="Workflow Tests", status="completed", conclusion="failure"),
+            ],
+            reviews=[],
+        )
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="completed")
+
+        def _guard_blocked(**kwargs: object) -> int:
+            cast(list[str], kwargs["failure_reason_out"]).append("duplicate_repair_comment")
+            return EXIT_GUARD_BLOCKED
+
+        with patch("agentic_devtools.cli.ci.orchestrator._dispatch_repair", side_effect=_guard_blocked):
+            summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "blocked"
+        assert summary["reason"] == "duplicate_repair_comment"
+        assert summary["exit_code"] == EXIT_GUARD_BLOCKED
+
     def test_repair_dispatched_summary_survives_cycle_increment_failure(self) -> None:
         """Repair dispatch still succeeds when cycle tracking update fails."""
         provider = _make_provider(
@@ -1703,6 +1794,24 @@ class TestRunAIPRLoopDecisionSummary:
         assert summary["decision"] == "repair_dispatched"
         assert summary["exit_code"] == EXIT_REPAIR_DISPATCHED
         assert "repair_cycle" not in summary
+
+    def test_review_trigger_guard_blocked_emits_blocked_summary(self) -> None:
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=7, user=COPILOT_REVIEWER_LOGIN, state="CHANGES_REQUESTED", body="fix")]
+        )
+        provider.list_review_comments.return_value = ["fix this"]
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
+
+        def _guard_blocked(**kwargs: object) -> int:
+            cast(list[str], kwargs["failure_reason_out"]).append("duplicate_review_trigger")
+            return EXIT_GUARD_BLOCKED
+
+        with patch("agentic_devtools.cli.ci.orchestrator._dispatch_repair", side_effect=_guard_blocked):
+            summary = _capture_summary(provider, payload)
+
+        assert summary["decision"] == "blocked"
+        assert summary["reason"] == "duplicate_review_trigger"
+        assert summary["exit_code"] == EXIT_GUARD_BLOCKED
 
     def test_post_repair_soft_finalized_emits_summary(self) -> None:
         provider = _make_provider(

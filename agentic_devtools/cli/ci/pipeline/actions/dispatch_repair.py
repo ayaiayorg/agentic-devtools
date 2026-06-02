@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import logging
 
-from agentic_devtools.cli.ci.guards import check_cycle_limit, check_deduplication
+from agentic_devtools.cli.ci.guards import (
+    check_cycle_limit,
+    check_deduplication,
+    is_duplicate_trigger,
+)
 from agentic_devtools.cli.ci.pipeline.models import ActionDecision, ActionResult
 from agentic_devtools.cli.ci.pipeline.snapshot import DerivedState, PRStateSnapshot
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
@@ -88,6 +92,29 @@ class DispatchRepairAction:
         derived: DerivedState,
     ) -> ActionResult:
         """Dispatch repair by posting @copilot comment."""
+        # Check review-ID level deduplication first (FR-012).
+        # Only applies when the review is actionable; _is_copilot_review_actionable()
+        # already guarantees copilot_review_id > 0 when True, but the explicit check
+        # keeps the intent clear for readers.
+        if _is_copilot_review_actionable(snapshot) and snapshot.copilot_review_id > 0:
+            try:
+                if is_duplicate_trigger(provider, snapshot.pr_number, snapshot.copilot_review_id):
+                    logger.info(
+                        "PR #%d: Trigger comment already exists for review_id=%d — skipping",
+                        snapshot.pr_number,
+                        snapshot.copilot_review_id,
+                    )
+                    derived.set("repair_dispatched", True)
+                    return ActionResult(
+                        name=self.name,
+                        decision=ActionDecision.EXECUTE,
+                        details=f"Repair already dispatched for review_id={snapshot.copilot_review_id}",
+                    )
+            except Exception as exc:
+                logger.warning("PR #%d: Review-ID dedup check failed: %s", snapshot.pr_number, exc)
+                # Fail-open: proceed with dispatch on transient API failures; the
+                # review-ID dedup guard is best-effort and should not block repair.
+
         # Check deduplication limits
         try:
             dedup_skip, dedup_count = check_deduplication(provider, snapshot.pr_number, snapshot.head_sha)

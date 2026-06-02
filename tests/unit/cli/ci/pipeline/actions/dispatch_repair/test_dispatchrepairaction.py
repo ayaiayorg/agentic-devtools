@@ -299,6 +299,10 @@ class TestDispatchRepairAction:
 
         with (
             patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.is_duplicate_trigger",
+                return_value=False,
+            ),
+            patch(
                 "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
                 return_value=(False, 0),
             ),
@@ -330,6 +334,10 @@ class TestDispatchRepairAction:
         provider.dispatch_repair.return_value = 88
 
         with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.is_duplicate_trigger",
+                return_value=False,
+            ),
             patch(
                 "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
                 return_value=(False, 0),
@@ -388,6 +396,10 @@ class TestDispatchRepairAction:
 
         with (
             patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.is_duplicate_trigger",
+                return_value=False,
+            ),
+            patch(
                 "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
                 return_value=(False, 0),
             ),
@@ -401,3 +413,63 @@ class TestDispatchRepairAction:
 
         assert result.decision == ActionDecision.EXECUTE
         assert provider.dispatch_repair.call_args.kwargs["repair_type"] == "both"
+
+    def test_execute_when_duplicate_trigger_exists_for_review_id(self) -> None:
+        """FR-012: Duplicate trigger for same review_id is treated as already dispatched."""
+        snapshot = PRStateSnapshot(
+            pr_number=42,
+            ci_status="passing",
+            head_sha="abc123",
+            review_state="CHANGES_REQUESTED",
+            copilot_review_id=4401589029,
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.is_duplicate_trigger",
+            return_value=True,
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+        assert "review_id=4401589029" in result.details
+        assert getattr(derived, "repair_dispatched", False) is True
+        provider.dispatch_repair.assert_not_called()
+
+    def test_execute_when_review_id_dedup_check_raises_fail_open(self) -> None:
+        """Review-ID dedup check failure proceeds fail-open (dispatches anyway)."""
+        snapshot = PRStateSnapshot(
+            pr_number=42,
+            ci_status="passing",
+            head_sha="abc123",
+            review_state="CHANGES_REQUESTED",
+            copilot_review_id=100,
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.list_review_comments.return_value = []
+        provider.dispatch_repair.return_value = 200
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.is_duplicate_trigger",
+                side_effect=RuntimeError("API error"),
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+                return_value=(False, 0),
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_cycle_limit",
+                return_value=(False, 1),
+            ),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+        provider.dispatch_repair.assert_called_once()
