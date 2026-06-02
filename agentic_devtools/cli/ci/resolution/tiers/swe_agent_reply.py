@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 
 from agentic_devtools.cli.ci.models import COPILOT_COMMENT_LOGINS
+from agentic_devtools.cli.ci.resolution.models import ResolutionVerdict, TierResult
 from agentic_devtools.cli.ci.resolution.protocols import ResolutionContext, ReviewThread
 
 logger = logging.getLogger(__name__)
@@ -40,7 +41,11 @@ class SweAgentReplyTier:
         Checks Scenario A first (direct thread reply), then Scenario B
         (session started after review + agent commented on PR).
         """
+        # Scenario A: direct thread reply by SWE agent.
+        if thread.comments:
+            author = thread.comments[-1].author_login
             if author in COPILOT_COMMENT_LOGINS:
+                logger.debug(
                     "Thread %s: SWE agent (%r) replied directly — resolving (Scenario A)",
                     thread.thread_id,
                     author,

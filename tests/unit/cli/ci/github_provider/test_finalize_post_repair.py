@@ -800,6 +800,135 @@ class TestFinalizePostRepair:
 
         assert result == {901: VerificationVerdict.COMMENT_RESOLVE}
 
+    def test_verify_comments_via_tiered_engine_uses_latest_thread_comment_author_for_swe_reply(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+        comment = ReviewCommentInfo(
+            id=1901,
+            path="src/example.py",
+            body="Initial unresolved feedback",
+            html_url="https://github.com/owner/repo/pull/1#discussion_r1901",
+        )
+
+        result = provider._verify_comments_via_tiered_engine(
+            [(comment, "diff --git a/src/example.py b/src/example.py\n+fix")],
+            head_sha="abc123",
+            latest_thread_comment_body_by_id={1901: "Applied fix"},
+            latest_thread_comment_author_login_by_id={1901: "copilot[bot]"},
+        )
+
+        assert result == {1901: VerificationVerdict.COMMENT_RESOLVE}
+
+    @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_fetch_latest_thread_comment_author_login_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_fetch_latest_thread_comment_body_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_fetch_outdated_by_comment_id")
+    @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
+    @patch("agentic_devtools.cli.ci.github_provider._unresolve_review_threads")
+    @patch("agentic_devtools.cli.ci.github_provider._resolve_review_threads")
+    @patch.object(GitHubActionsProvider, "_reply_to_review_comment")
+    @patch.object(GitHubActionsProvider, "_list_abandoned_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "_list_addressed_reply_parent_comment_ids")
+    @patch.object(GitHubActionsProvider, "list_issue_comments")
+    @patch.object(GitHubActionsProvider, "list_pr_issue_events")
+    @patch.object(GitHubActionsProvider, "list_review_comments")
+    @patch.object(GitHubActionsProvider, "_build_verification_context_diff")
+    @patch.object(GitHubActionsProvider, "list_reviews")
+    def test_finalize_computes_swe_flags_for_submitted_and_missing_review_timestamp(
+        self,
+        mock_list_reviews,
+        mock_build_diff,
+        mock_list_comments,
+        mock_list_issue_events,
+        mock_list_issue_comments,
+        mock_addressed_parent_ids,
+        mock_abandoned,
+        mock_reply,
+        mock_resolve_threads,
+        mock_unresolve_threads,
+        mock_verify_batch,
+        mock_fetch_outdated,
+        mock_fetch_latest_body,
+        mock_fetch_latest_author_login,
+        mock_unresolve_parent_ids,
+    ) -> None:
+        mock_fetch_outdated.return_value = {}
+        mock_fetch_latest_body.return_value = {}
+        mock_fetch_latest_author_login.return_value = {}
+        mock_build_diff.return_value = "diff content"
+        mock_list_comments.return_value = [
+            ReviewCommentInfo(id=101, path="foo.py", body="fix this", html_url="http://url1"),
+        ]
+        mock_list_issue_events.side_effect = [
+            [MagicMock(event="copilot_work_started", created_at="2026-01-02T00:00:00Z")],
+            [MagicMock(event="copilot_work_started", created_at="2026-01-02T00:00:00Z")],
+            [],
+        ]
+        mock_list_issue_comments.return_value = [MagicMock(author="copilot[bot]")]
+        mock_addressed_parent_ids.return_value = set()
+        mock_abandoned.return_value = set()
+        mock_unresolve_parent_ids.return_value = set()
+        mock_verify_batch.side_effect = [
+            {101: VerificationVerdict.COMMENT_UNRESOLVE},
+            {101: VerificationVerdict.COMMENT_UNRESOLVE},
+            {101: VerificationVerdict.COMMENT_UNRESOLVE},
+        ]
+        mock_resolve_threads.return_value = {"threadsResolved": 0, "details": []}
+        mock_unresolve_threads.return_value = {"threadsUnresolved": 0, "details": []}
+        mock_list_reviews.side_effect = [
+            [
+                ReviewInfo(
+                    id=7,
+                    user="Copilot",
+                    state="CHANGES_REQUESTED",
+                    commit_sha="old_sha_123",
+                    submitted_at="2026-01-01T00:00:00Z",
+                )
+            ],
+            [ReviewInfo(id=7, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old_sha_123", submitted_at="")],
+            [
+                ReviewInfo(
+                    id=7,
+                    user="Copilot",
+                    state="CHANGES_REQUESTED",
+                    commit_sha="old_sha_123",
+                    submitted_at="",
+                )
+            ],
+        ]
+
+        provider = GitHubActionsProvider(repo="owner/repo")
+        provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha_456",
+            review_id=7,
+        )
+        provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha_456",
+            review_id=7,
+        )
+        provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha_456",
+            review_id=7,
+        )
+
+        first_call_kwargs = mock_verify_batch.call_args_list[0].kwargs
+        second_call_kwargs = mock_verify_batch.call_args_list[1].kwargs
+        third_call_kwargs = mock_verify_batch.call_args_list[2].kwargs
+        assert first_call_kwargs["swe_session_started_after_review"] is True
+        assert first_call_kwargs["swe_agent_commented_on_pr"] is True
+        assert second_call_kwargs["swe_session_started_after_review"] is False
+        assert second_call_kwargs["swe_agent_commented_on_pr"] is True
+        assert third_call_kwargs["swe_session_started_after_review"] is False
+        assert third_call_kwargs["swe_agent_commented_on_pr"] is True
+
     def test_verify_comments_via_tiered_engine_uses_structured_sdk_tier(self) -> None:
         provider = GitHubActionsProvider(repo="owner/repo")
         comment = ReviewCommentInfo(
@@ -2947,7 +3076,7 @@ class TestFinalizePostRepairAlreadyResolvedFilter:
         ]
         # Comment 101 is already resolved, comment 202 is not
         mock_thread_states.return_value = {
-            101: (True, True),   # is_resolved=True
+            101: (True, True),  # is_resolved=True
             202: (False, False),  # is_resolved=False
         }
         mock_addressed_parent_ids.return_value = set()

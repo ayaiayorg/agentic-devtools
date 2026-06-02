@@ -18,10 +18,10 @@ from typing import Any, cast
 
 from agentic_devtools.cli.ci.exceptions import MalformedEventError
 from agentic_devtools.cli.ci.models import (
-    CheckRunStatus,
-    CommentResolution,
     COPILOT_COMMENT_LOGINS,
     COPILOT_SESSION_EVENT_STARTED,
+    CheckRunStatus,
+    CommentResolution,
     EventPayload,
     FinalizationResult,
     IssueCommentInfo,
@@ -563,7 +563,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 current repository context from ``gh``.
         """
         self._repo = repo
-        self._thread_signals_cache: dict[int, dict[int, tuple[bool | None, str]]] = {}
+        self._thread_signals_cache: dict[int, dict[int, tuple[bool | None, str, str | None]]] = {}
 
     def _repo_api(self, path: str) -> str:
         """Build a repository-scoped API path."""
@@ -841,7 +841,7 @@ class GitHubActionsProvider(CIPlatformProvider):
         return status_map
 
     @retry_with_backoff()
-    def _fetch_thread_signals_by_comment_id(self, pr_number: int) -> dict[int, tuple[bool | None, str]]:
+    def _fetch_thread_signals_by_comment_id(self, pr_number: int) -> dict[int, tuple[bool | None, str, str | None]]:
         """Return thread-level signals keyed by review comment databaseId.
 
         Maps each review comment ID to:
@@ -854,7 +854,7 @@ class GitHubActionsProvider(CIPlatformProvider):
 
         owner, repo_name = self._resolve_repo().split("/", maxsplit=1)
         cursor: str | None = None
-        result: dict[int, tuple[bool | None, str]] = {}
+        result: dict[int, tuple[bool | None, str, str | None]] = {}
 
         while True:
             variables: dict[str, Any] = {
@@ -875,12 +875,14 @@ class GitHubActionsProvider(CIPlatformProvider):
                 is_outdated: bool | None = thread.get("isOutdated")
                 comment_nodes = thread.get("comments", {}).get("nodes", [])
                 latest_comment_body = ""
+                latest_comment_author_login: str | None = None
                 if comment_nodes:
                     latest_comment_body = str(comment_nodes[-1].get("body") or "")
+                    latest_comment_author_login = ((comment_nodes[-1].get("author") or {}).get("login")) or None
                 for node in comment_nodes:
                     comment_id = node.get("databaseId")
                     if isinstance(comment_id, int):
-                        result[comment_id] = (is_outdated, latest_comment_body)
+                        result[comment_id] = (is_outdated, latest_comment_body, latest_comment_author_login)
 
             page_info = thread_data.get("pageInfo", {})
             if page_info.get("hasNextPage") is True and page_info.get("endCursor"):
@@ -895,13 +897,26 @@ class GitHubActionsProvider(CIPlatformProvider):
     def _fetch_outdated_by_comment_id(self, pr_number: int) -> dict[int, bool | None]:
         """Return isOutdated status per comment databaseId via GraphQL thread query."""
         signals = self._fetch_thread_signals_by_comment_id(pr_number)
-        return {comment_id: is_outdated for comment_id, (is_outdated, _latest_body) in signals.items()}
+        return {
+            comment_id: is_outdated for comment_id, (is_outdated, _latest_body, _latest_author_login) in signals.items()
+        }
 
     @retry_with_backoff()
     def _fetch_latest_thread_comment_body_by_comment_id(self, pr_number: int) -> dict[int, str]:
         """Return the latest thread comment body per review comment databaseId."""
         signals = self._fetch_thread_signals_by_comment_id(pr_number)
-        return {comment_id: latest_body for comment_id, (_is_outdated, latest_body) in signals.items()}
+        return {
+            comment_id: latest_body for comment_id, (_is_outdated, latest_body, _latest_author_login) in signals.items()
+        }
+
+    @retry_with_backoff()
+    def _fetch_latest_thread_comment_author_login_by_comment_id(self, pr_number: int) -> dict[int, str | None]:
+        """Return the latest thread comment author login per review comment databaseId."""
+        signals = self._fetch_thread_signals_by_comment_id(pr_number)
+        return {
+            comment_id: latest_author_login
+            for comment_id, (_is_outdated, _latest_body, latest_author_login) in signals.items()
+        }
 
     @retry_with_backoff()
     def approve_pr(self, pr_number: int, head_sha: str, body: str) -> bool:
@@ -1960,6 +1975,17 @@ class GitHubActionsProvider(CIPlatformProvider):
                     exc,
                 )
                 latest_thread_comment_body_by_id = {}
+            try:
+                latest_thread_comment_author_login_by_id = self._fetch_latest_thread_comment_author_login_by_comment_id(
+                    pr_number
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to fetch latest thread comment author login for PR #%d: %s",
+                    pr_number,
+                    exc,
+                )
+                latest_thread_comment_author_login_by_id = {}
             # Compute SWE agent context flags for the SWE agent reply tier (Bug 3).
             # swe_session_started_after_review: a copilot_work_started event exists
             # with created_at timestamp strictly after the review's submission time.
@@ -1969,17 +1995,14 @@ class GitHubActionsProvider(CIPlatformProvider):
             swe_agent_commented_on_pr = False
             try:
                 issue_events = self.list_pr_issue_events(pr_number)
-                swe_agent_commented_on_pr = any(
-                    c.author in COPILOT_COMMENT_LOGINS for c in issue_comments
-                )
+                issue_comments = self.list_issue_comments(pr_number)
+                swe_agent_commented_on_pr = any(c.author in COPILOT_COMMENT_LOGINS for c in issue_comments)
                 started_events = [e for e in issue_events if e.event == COPILOT_SESSION_EVENT_STARTED]
                 if started_events and review.submitted_at:
                     # Compare the review submission timestamp against each started
                     # event's created_at. If any session started after the review
                     # was submitted, it was dispatched to address this review.
-                    swe_session_started_after_review = any(
-                        e.created_at > review.submitted_at for e in started_events
-                    )
+                    swe_session_started_after_review = any(e.created_at > review.submitted_at for e in started_events)
                 elif started_events and not review.submitted_at:
                     # No review timestamp available — cannot reliably correlate.
                     # Keep the flag False (fail closed) and rely on other tiers/signals.
@@ -1995,6 +2018,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 head_sha=head_sha,
                 is_outdated_by_id=is_outdated_by_id,
                 latest_thread_comment_body_by_id=latest_thread_comment_body_by_id,
+                latest_thread_comment_author_login_by_id=latest_thread_comment_author_login_by_id,
                 tier_results_out=tier_results_by_comment_id,
                 swe_session_started_after_review=swe_session_started_after_review,
                 swe_agent_commented_on_pr=swe_agent_commented_on_pr,
@@ -2299,6 +2323,7 @@ class GitHubActionsProvider(CIPlatformProvider):
         head_sha: str,
         is_outdated_by_id: dict[int, bool | None] | None = None,
         latest_thread_comment_body_by_id: dict[int, str] | None = None,
+        latest_thread_comment_author_login_by_id: dict[int, str | None] | None = None,
         tier_results_out: dict[int, TierResult] | None = None,
         swe_session_started_after_review: bool = False,
         swe_agent_commented_on_pr: bool = False,
@@ -2341,6 +2366,11 @@ class GitHubActionsProvider(CIPlatformProvider):
                 if latest_thread_comment_body_by_id is not None
                 else None
             )
+            latest_thread_comment_author_login = (
+                latest_thread_comment_author_login_by_id.get(comment.id)
+                if latest_thread_comment_author_login_by_id is not None
+                else None
+            )
             thread_comments = [
                 GitHubThreadComment(
                     body=comment.body,
@@ -2354,7 +2384,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                     GitHubThreadComment(
                         body=latest_thread_comment_body,
                         created_at="",
-                        author_login=None,
+                        author_login=latest_thread_comment_author_login,
                         database_id=None,
                     )
                 )

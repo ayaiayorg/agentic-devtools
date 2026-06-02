@@ -7,9 +7,7 @@ commit_id to HEAD after a squash/force-push.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from agentic_devtools.cli.ci.github_provider import GitHubActionsProvider
 from agentic_devtools.cli.ci.models import ReviewCommentInfo, VerificationVerdict
@@ -35,9 +33,7 @@ class TestVerifyCommentsFr003Guard:
     """Tests that the FR-003 guard uses original_commit_id to avoid false positives."""
 
     @patch("agentic_devtools.cli.ci.github_provider.TieredResolutionEngine")
-    def test_fr003_fires_when_original_commit_id_equals_head(
-        self, mock_engine_cls
-    ) -> None:
+    def test_fr003_fires_when_original_commit_id_equals_head(self, mock_engine_cls) -> None:
         """Comment with original_commit_id == head_sha triggers FR-003 UNRESOLVE."""
         head_sha = "5008f6e"
         comment = _make_comment(commit_id=head_sha, original_commit_id=head_sha)
@@ -53,9 +49,7 @@ class TestVerifyCommentsFr003Guard:
         mock_engine_cls.return_value.evaluate_thread.assert_not_called()
 
     @patch("agentic_devtools.cli.ci.github_provider.TieredResolutionEngine")
-    def test_fr003_does_not_fire_when_original_differs_from_head(
-        self, mock_engine_cls
-    ) -> None:
+    def test_fr003_does_not_fire_when_original_differs_from_head(self, mock_engine_cls) -> None:
         """Comment with original_commit_id != head_sha does NOT trigger FR-003.
 
         This is the squash/force-push scenario: GitHub remaps commit_id to HEAD
@@ -84,9 +78,7 @@ class TestVerifyCommentsFr003Guard:
         mock_engine.evaluate_thread.assert_called_once()
 
     @patch("agentic_devtools.cli.ci.github_provider.TieredResolutionEngine")
-    def test_fr003_falls_back_to_commit_id_when_original_is_empty(
-        self, mock_engine_cls
-    ) -> None:
+    def test_fr003_falls_back_to_commit_id_when_original_is_empty(self, mock_engine_cls) -> None:
         """When original_commit_id is empty, falls back to commit_id for FR-003 guard."""
         head_sha = "abc123"
         # No original_commit_id; commit_id matches HEAD
@@ -102,9 +94,7 @@ class TestVerifyCommentsFr003Guard:
         mock_engine_cls.return_value.evaluate_thread.assert_not_called()
 
     @patch("agentic_devtools.cli.ci.github_provider.TieredResolutionEngine")
-    def test_fr003_does_not_fire_when_both_ids_empty(
-        self, mock_engine_cls
-    ) -> None:
+    def test_fr003_does_not_fire_when_both_ids_empty(self, mock_engine_cls) -> None:
         """When both commit_id and original_commit_id are empty, FR-003 does not fire."""
         head_sha = "abc123"
         comment = _make_comment(commit_id="", original_commit_id="")
@@ -117,7 +107,7 @@ class TestVerifyCommentsFr003Guard:
         )
         provider = GitHubActionsProvider(repo="owner/repo")
 
-        result = provider._verify_comments_via_tiered_engine(
+        provider._verify_comments_via_tiered_engine(
             [(comment, "diff context")],
             head_sha=head_sha,
         )
@@ -126,9 +116,7 @@ class TestVerifyCommentsFr003Guard:
         mock_engine.evaluate_thread.assert_called_once()
 
     @patch("agentic_devtools.cli.ci.github_provider.TieredResolutionEngine")
-    def test_fr003_fallback_commit_id_differs_from_head(
-        self, mock_engine_cls
-    ) -> None:
+    def test_fr003_fallback_commit_id_differs_from_head(self, mock_engine_cls) -> None:
         """When original_commit_id is empty and commit_id != head_sha, engine is invoked."""
         head_sha = "new_head"
         comment = _make_comment(commit_id="old_sha", original_commit_id="")
