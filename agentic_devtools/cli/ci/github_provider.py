@@ -563,7 +563,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 current repository context from ``gh``.
         """
         self._repo = repo
-        self._thread_signals_cache: dict[int, dict[int, tuple[bool | None, str, str | None]]] = {}
+        self._thread_signals_cache: dict[int, dict[int, tuple[bool, bool, bool | None, str, str | None]]] = {}
 
     def _repo_api(self, path: str) -> str:
         """Build a repository-scoped API path."""
@@ -804,9 +804,38 @@ class GitHubActionsProvider(CIPlatformProvider):
     @retry_with_backoff()
     def list_review_thread_states(self, pr_number: int) -> dict[int, tuple[bool, bool]]:
         """Return review comment -> (is_resolved, has_reply) mapping via GraphQL threads."""
+        signals = self._fetch_thread_signals_by_comment_id(pr_number)
+        return {
+            comment_id: (is_resolved, has_reply)
+            for comment_id, (
+                is_resolved,
+                has_reply,
+                _is_outdated,
+                _latest_body,
+                _latest_author_login,
+            ) in signals.items()
+        }
+
+    @retry_with_backoff()
+    def _fetch_thread_signals_by_comment_id(
+        self, pr_number: int
+    ) -> dict[int, tuple[bool, bool, bool | None, str, str | None]]:
+        """Return thread-level signals keyed by review comment databaseId.
+
+        Maps each review comment ID to:
+        - thread isResolved status
+        - whether thread has replies
+        - thread isOutdated status
+        - latest thread comment body (used by automation-marker tier)
+        - latest thread comment author login (used by SWE-agent-reply tier)
+        """
+        cached = self._thread_signals_cache.get(pr_number)
+        if cached is not None:
+            return cached
+
         owner, repo_name = self._resolve_repo().split("/", maxsplit=1)
         cursor: str | None = None
-        status_map: dict[int, tuple[bool, bool]] = {}
+        result: dict[int, tuple[bool, bool, bool | None, str, str | None]] = {}
 
         while True:
             variables: dict[str, Any] = {
@@ -825,56 +854,9 @@ class GitHubActionsProvider(CIPlatformProvider):
             thread_data = data["data"]["repository"]["pullRequest"]["reviewThreads"]
             for thread in thread_data.get("nodes", []):
                 is_resolved = bool(thread.get("isResolved", False))
-                comment_nodes = thread.get("comments", {}).get("nodes", [])
-                has_reply = len(comment_nodes) > 1
-                for node in comment_nodes:
-                    comment_id = node.get("databaseId")
-                    if isinstance(comment_id, int):
-                        status_map[comment_id] = (is_resolved, has_reply)
-
-            page_info = thread_data.get("pageInfo", {})
-            if page_info.get("hasNextPage") is True and page_info.get("endCursor"):
-                cursor = page_info["endCursor"]
-            else:
-                break
-
-        return status_map
-
-    @retry_with_backoff()
-    def _fetch_thread_signals_by_comment_id(self, pr_number: int) -> dict[int, tuple[bool | None, str, str | None]]:
-        """Return thread-level signals keyed by review comment databaseId.
-
-        Maps each review comment ID to:
-        - thread isOutdated status
-        - latest thread comment body (used by automation-marker tier)
-        - latest thread comment author login (used by SWE-agent-reply tier)
-        """
-        cached = self._thread_signals_cache.get(pr_number)
-        if cached is not None:
-            return cached
-
-        owner, repo_name = self._resolve_repo().split("/", maxsplit=1)
-        cursor: str | None = None
-        result: dict[int, tuple[bool | None, str, str | None]] = {}
-
-        while True:
-            variables: dict[str, Any] = {
-                "owner": owner,
-                "repoName": repo_name,
-                "prNumber": pr_number,
-            }
-            if cursor is not None:
-                variables["threadsCursor"] = cursor
-            response = _gh_api(
-                "graphql",
-                method="POST",
-                body={"query": _REVIEW_THREADS_QUERY, "variables": variables},
-            )
-            data = json.loads(response)
-            thread_data = data["data"]["repository"]["pullRequest"]["reviewThreads"]
-            for thread in thread_data.get("nodes", []):
                 is_outdated: bool | None = thread.get("isOutdated")
                 comment_nodes = thread.get("comments", {}).get("nodes", [])
+                has_reply = len(comment_nodes) > 1
                 latest_comment_body = ""
                 latest_comment_author_login: str | None = None
                 if comment_nodes:
@@ -883,7 +865,13 @@ class GitHubActionsProvider(CIPlatformProvider):
                 for node in comment_nodes:
                     comment_id = node.get("databaseId")
                     if isinstance(comment_id, int):
-                        result[comment_id] = (is_outdated, latest_comment_body, latest_comment_author_login)
+                        result[comment_id] = (
+                            is_resolved,
+                            has_reply,
+                            is_outdated,
+                            latest_comment_body,
+                            latest_comment_author_login,
+                        )
 
             page_info = thread_data.get("pageInfo", {})
             if page_info.get("hasNextPage") is True and page_info.get("endCursor"):
@@ -899,7 +887,14 @@ class GitHubActionsProvider(CIPlatformProvider):
         """Return isOutdated status per comment databaseId via GraphQL thread query."""
         signals = self._fetch_thread_signals_by_comment_id(pr_number)
         return {
-            comment_id: is_outdated for comment_id, (is_outdated, _latest_body, _latest_author_login) in signals.items()
+            comment_id: is_outdated
+            for comment_id, (
+                _is_resolved,
+                _has_reply,
+                is_outdated,
+                _latest_body,
+                _latest_author_login,
+            ) in signals.items()
         }
 
     @retry_with_backoff()
@@ -907,7 +902,14 @@ class GitHubActionsProvider(CIPlatformProvider):
         """Return the latest thread comment body per review comment databaseId."""
         signals = self._fetch_thread_signals_by_comment_id(pr_number)
         return {
-            comment_id: latest_body for comment_id, (_is_outdated, latest_body, _latest_author_login) in signals.items()
+            comment_id: latest_body
+            for comment_id, (
+                _is_resolved,
+                _has_reply,
+                _is_outdated,
+                latest_body,
+                _latest_author_login,
+            ) in signals.items()
         }
 
     @retry_with_backoff()
@@ -916,7 +918,13 @@ class GitHubActionsProvider(CIPlatformProvider):
         signals = self._fetch_thread_signals_by_comment_id(pr_number)
         return {
             comment_id: latest_author_login
-            for comment_id, (_is_outdated, _latest_body, latest_author_login) in signals.items()
+            for comment_id, (
+                _is_resolved,
+                _has_reply,
+                _is_outdated,
+                _latest_body,
+                latest_author_login,
+            ) in signals.items()
         }
 
     @retry_with_backoff()
@@ -1075,6 +1083,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 position=c.get("position"),
                 commit_id=c.get("commit_id") or "",
                 original_commit_id=c.get("original_commit_id") or "",
+            )
             for c in comments
         ]
 
@@ -1332,8 +1341,11 @@ class GitHubActionsProvider(CIPlatformProvider):
                 start_line=c.get("start_line") if c.get("start_line") is not None else c.get("line"),
                 end_line=c.get("line"),
                 line=c.get("line"),
+                position=c.get("position"),
+                diff_hunk=c.get("diff_hunk", ""),
                 commit_id=c.get("commit_id") or "",
                 original_commit_id=c.get("original_commit_id") or "",
+            )
         except Exception as exc:
             logger.warning(
                 "Failed to fetch review comment %d for PR #%d: %s",
