@@ -863,17 +863,20 @@ class TestFinalizePostRepair:
             [MagicMock(event="copilot_work_started", created_at="2026-01-02T00:00:00Z")],
             [],
             [MagicMock(event="copilot_work_started", created_at="2026-01-02T00:00:00Z")],
+            [MagicMock(event="copilot_work_started", created_at="2026-01-02T00:00:00Z")],
         ]
         mock_list_issue_comments.side_effect = [
             [MagicMock(author="copilot[bot]", created_at="2026-01-02T00:00:01Z")],
             [MagicMock(author="copilot[bot]")],
             [MagicMock(author="copilot[bot]")],
             [MagicMock(author="copilot[bot]")],
+            [MagicMock(author="copilot[bot]", created_at="2026-01-02T00:00:01Z")],
         ]
         mock_addressed_parent_ids.return_value = set()
         mock_abandoned.return_value = set()
         mock_unresolve_parent_ids.return_value = set()
         mock_verify_batch.side_effect = [
+            {101: VerificationVerdict.COMMENT_UNRESOLVE},
             {101: VerificationVerdict.COMMENT_UNRESOLVE},
             {101: VerificationVerdict.COMMENT_UNRESOLVE},
             {101: VerificationVerdict.COMMENT_UNRESOLVE},
@@ -910,9 +913,25 @@ class TestFinalizePostRepair:
                     submitted_at="2026-01-01T00:00:00Z",
                 )
             ],
+            [
+                ReviewInfo(
+                    id=7,
+                    user="Copilot",
+                    state="CHANGES_REQUESTED",
+                    commit_sha="old_sha_123",
+                    submitted_at="not-a-timestamp",
+                )
+            ],
         ]
 
         provider = GitHubActionsProvider(repo="owner/repo")
+        provider.finalize_post_repair(
+            pr_number=42,
+            base_branch="main",
+            head_branch="feature/test",
+            head_sha="new_sha_456",
+            review_id=7,
+        )
         provider.finalize_post_repair(
             pr_number=42,
             base_branch="main",
@@ -946,6 +965,7 @@ class TestFinalizePostRepair:
         second_call_kwargs = mock_verify_batch.call_args_list[1].kwargs
         third_call_kwargs = mock_verify_batch.call_args_list[2].kwargs
         fourth_call_kwargs = mock_verify_batch.call_args_list[3].kwargs
+        fifth_call_kwargs = mock_verify_batch.call_args_list[4].kwargs
         assert first_call_kwargs["swe_session_started_after_review"] is True
         assert first_call_kwargs["swe_agent_commented_on_pr"] is True
         assert second_call_kwargs["swe_session_started_after_review"] is False
@@ -954,6 +974,8 @@ class TestFinalizePostRepair:
         assert third_call_kwargs["swe_agent_commented_on_pr"] is True
         assert fourth_call_kwargs["swe_session_started_after_review"] is True
         assert fourth_call_kwargs["swe_agent_commented_on_pr"] is False
+        assert fifth_call_kwargs["swe_session_started_after_review"] is False
+        assert fifth_call_kwargs["swe_agent_commented_on_pr"] is True
 
     def test_verify_comments_via_tiered_engine_uses_structured_sdk_tier(self) -> None:
         provider = GitHubActionsProvider(repo="owner/repo")
