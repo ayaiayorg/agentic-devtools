@@ -554,3 +554,71 @@ class TestMainFunction:
         assert result == 1
         assert "Copilot SDK call failed" in stderr_buf.getvalue()
         assert "some unrelated type error" in stderr_buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# Module-level: import-failure path
+# ---------------------------------------------------------------------------
+
+
+class TestImportFailurePath:
+    """Test the module-level try/except ImportError block when the Copilot SDK is unavailable."""
+
+    def test_import_failure_exits_with_status_1_and_prints_diagnostics(self):
+        """Script exits 1 and emits SDK-not-found diagnostics when the copilot import fails."""
+        import io
+
+        fake_sdk_result = MagicMock()
+        fake_sdk_result.stdout = "Name: github-copilot-sdk\nVersion: 1.2.3"
+        fake_sdk_result.stderr = ""
+
+        fake_wrong_result = MagicMock()
+        fake_wrong_result.stdout = ""
+        fake_wrong_result.stderr = ""
+
+        stderr_buf = io.StringIO()
+
+        # Setting sys.modules["copilot"] = None causes Python to raise ImportError
+        # on any "from copilot import ..." statement, triggering the except block.
+        with (
+            patch.dict(sys.modules, {"copilot": None, "copilot.session": None}),
+            patch("subprocess.run", side_effect=[fake_sdk_result, fake_wrong_result]),
+            patch("sys.stderr", stderr_buf),
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                module, spec = _load_module()
+                spec.loader.exec_module(module)
+
+        assert exc_info.value.code == 1
+        stderr_output = stderr_buf.getvalue()
+        assert "Copilot SDK import failed" in stderr_output
+        assert "pip show github-copilot-sdk" in stderr_output
+        assert "Ensure 'github-copilot-sdk' is installed" in stderr_output
+
+    def test_import_failure_warns_about_conflicting_copilot_package(self):
+        """Script warns about a conflicting 'copilot' package when one is detected on pip show."""
+        import io
+
+        fake_sdk_result = MagicMock()
+        fake_sdk_result.stdout = ""
+        fake_sdk_result.stderr = "WARNING: Package(s) not found: github-copilot-sdk"
+
+        fake_wrong_result = MagicMock()
+        fake_wrong_result.stdout = "Name: copilot\nVersion: 0.1.0"
+        fake_wrong_result.stderr = ""
+
+        stderr_buf = io.StringIO()
+
+        with (
+            patch.dict(sys.modules, {"copilot": None, "copilot.session": None}),
+            patch("subprocess.run", side_effect=[fake_sdk_result, fake_wrong_result]),
+            patch("sys.stderr", stderr_buf),
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                module, spec = _load_module()
+                spec.loader.exec_module(module)
+
+        assert exc_info.value.code == 1
+        stderr_output = stderr_buf.getvalue()
+        assert "Copilot SDK import failed" in stderr_output
+        assert "Conflicting 'copilot' package detected" in stderr_output
