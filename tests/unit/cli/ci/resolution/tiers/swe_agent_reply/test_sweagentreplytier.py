@@ -102,7 +102,7 @@ def test_scenario_a_returns_none_when_no_comments() -> None:
 
 
 def test_scenario_a_returns_none_when_author_login_is_none() -> None:
-    """author_login=None is not in COPILOT_LOGINS → Scenario A does not fire."""
+    """author_login=None is not in COPILOT_COMMENT_LOGINS → Scenario A does not fire."""
     tier = SweAgentReplyTier()
     thread = _MockThread(comments=[_MockComment(body="Fixed", author_login=None)])
     result = tier.evaluate(thread, _MockContext())

@@ -1996,10 +1996,12 @@ class GitHubActionsProvider(CIPlatformProvider):
             try:
                 from datetime import datetime, timezone
 
-                def _parse_ts(value: str) -> datetime | None:
+                def _parse_ts(value: str | None) -> datetime | None:
+                    if not isinstance(value, str) or not value:
+                        return None
                     try:
                         dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-                    except (ValueError, AttributeError):
+                    except (ValueError, TypeError, AttributeError):
                         return None
                     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
