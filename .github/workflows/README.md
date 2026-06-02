@@ -113,30 +113,27 @@ Reviews with this marker from trusted users (`acmarsnik`) are recognized by
 
 ### speckit-issue-trigger.yml
 
-**SpecKit Issue to Specification Automation (Phase 1 — Specify)**
+**SpecKit Issue Trigger — Thin Dispatcher (Phase 1)**
 
 - Runs on:
   - Issues labeled event (when `speckit` or configured label is added)
   - Manual workflow dispatch
-- Purpose: Generates the initial feature specification (`spec.md`) from a GitHub issue — Phase 1 of the SpecKit per-phase pipeline
-- Outputs: Creates Phase 1 branch (`speckit/<issue>/phase-1-specify`), spec file, and pull request labeled `speckit:phase-1`
-- Scripts: Uses helper scripts in `.github/scripts/speckit-trigger/`
-- **Sequence Diagram**: See
-  [Workflow Sequence Diagram](../../specs/002-github-action-speckit-trigger/workflow-sequence-diagram.md)
-  for the original workflow design
-  (note: the diagram predates the per-phase PR progression and may not reflect the current split pipeline)
+- Purpose: Dispatches Phase 1 (Specify) to the unified `speckit-phase-progression.yml` workflow via `workflow_dispatch` with `phase=1`
+- Does NOT perform generation, commit, or PR creation directly — delegates all logic to the progression workflow
+- Retains per-issue concurrency group, processing label management, and failure handling
 
 ### speckit-phase-progression.yml
 
-**SpecKit Phase Progression (Phases 2–5)**
+**SpecKit Phase Progression (Phases 1–5)**
 
 - Runs on:
   - Pull request closed (merged) events with `speckit:phase-N` labels
   - Manual `workflow_dispatch` with inputs:
     - `issue_number` (required): The GitHub issue number to progress
-    - `phase` (required): The phase to generate (2–5)
-- Purpose: Automatically progresses the SpecKit pipeline when a phase PR is merged.
-  Generates the next phase's artifacts and creates a new PR.
+    - `phase` (required): The phase to generate (1–5)
+- Purpose: Unified workflow that handles all SpecKit pipeline phases.
+  Generates phase artifacts and creates PRs using human-identity tokens
+  (`SPECKIT_PR_TOKEN` or `COPILOT_GITHUB_TOKEN`).
   The `workflow_dispatch` trigger allows operators to recover or retry phases
   when the merge trigger fails or a PR is missing the `speckit:phase-N` label.
 - Phase flow: specify → clarify → plan → tasks → analyze

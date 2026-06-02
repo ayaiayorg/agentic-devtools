@@ -1,8 +1,8 @@
 {
   "legacy": {
-    "exit_code": 0
+    "exit_code": 1
   },
   "python": {
-    "exit_code": 0
+    "exit_code": 1
   }
 }
