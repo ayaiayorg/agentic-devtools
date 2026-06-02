@@ -483,7 +483,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "github-copilot-sdk>=0.1.0"
           python -m pip install --force-reinstall --no-deps "github-copilot-sdk>=0.1.0"
-          python -c "from copilot import CopilotClient, SubprocessConfig; print('✓ Copilot SDK imports OK')"
+          python -c "from copilot import CopilotClient, SubprocessConfig; from copilot.session import PermissionHandler; print('✓ Copilot SDK imports OK')"
           python -m pip install . --no-deps
 
       - name: Generate Phase Artifacts
