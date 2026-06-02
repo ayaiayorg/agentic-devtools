@@ -20,7 +20,7 @@ from agentic_devtools.cli.ci.exceptions import MalformedEventError
 from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     CommentResolution,
-    COPILOT_LOGINS,
+    COPILOT_COMMENT_LOGINS,
     COPILOT_SESSION_EVENT_STARTED,
     EventPayload,
     FinalizationResult,
@@ -1969,9 +1969,8 @@ class GitHubActionsProvider(CIPlatformProvider):
             swe_agent_commented_on_pr = False
             try:
                 issue_events = self.list_pr_issue_events(pr_number)
-                issue_comments = self.list_issue_comments(pr_number)
                 swe_agent_commented_on_pr = any(
-                    c.author in COPILOT_LOGINS for c in issue_comments
+                    c.author in COPILOT_COMMENT_LOGINS for c in issue_comments
                 )
                 started_events = [e for e in issue_events if e.event == COPILOT_SESSION_EVENT_STARTED]
                 if started_events and review.submitted_at:
@@ -1982,9 +1981,9 @@ class GitHubActionsProvider(CIPlatformProvider):
                         e.created_at > review.submitted_at for e in started_events
                     )
                 elif started_events and not review.submitted_at:
-                    # No review timestamp available — fall back to any session started
-                    # event as a conservative signal (review was necessarily before HEAD).
-                    swe_session_started_after_review = True
+                    # No review timestamp available — cannot reliably correlate.
+                    # Keep the flag False (fail closed) and rely on other tiers/signals.
+                    swe_session_started_after_review = False
             except Exception as exc:
                 logger.warning(
                     "Failed to compute SWE agent context flags for PR #%d: %s",

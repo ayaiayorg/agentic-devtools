@@ -2,10 +2,9 @@
 
 from dataclasses import dataclass, field
 
-from agentic_devtools.cli.ci.models import COPILOT_LOGINS
+from agentic_devtools.cli.ci.models import COPILOT_COMMENT_LOGINS
 from agentic_devtools.cli.ci.resolution.models import ResolutionVerdict
 from agentic_devtools.cli.ci.resolution.tiers.swe_agent_reply import SweAgentReplyTier
-
 
 @dataclass(frozen=True)
 class _MockComment:
@@ -72,10 +71,9 @@ def test_scenario_a_resolves_when_only_comment_is_copilot() -> None:
 
 
 def test_scenario_a_resolves_for_all_copilot_logins() -> None:
-    """All logins in COPILOT_LOGINS trigger Scenario A resolution."""
+    """All logins in COPILOT_COMMENT_LOGINS trigger Scenario A resolution."""
     tier = SweAgentReplyTier()
-    for login in COPILOT_LOGINS:
-        thread = _MockThread(
+    for login in COPILOT_COMMENT_LOGINS:
             comments=[_MockComment(body="Fixed", author_login=login)]
         )
         result = tier.evaluate(thread, _MockContext())
