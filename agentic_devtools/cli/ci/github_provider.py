@@ -2037,6 +2037,9 @@ class GitHubActionsProvider(CIPlatformProvider):
                 comments_for_sdk,
                 head_sha=head_sha,
                 is_outdated_by_id=is_outdated_by_id,
+                has_reply_by_id={
+                    comment_id: has_reply for comment_id, (_is_resolved, has_reply) in thread_states.items()
+                },
                 latest_thread_comment_body_by_id=latest_thread_comment_body_by_id,
                 latest_thread_comment_author_login_by_id=latest_thread_comment_author_login_by_id,
                 tier_results_out=tier_results_by_comment_id,
@@ -2342,6 +2345,7 @@ class GitHubActionsProvider(CIPlatformProvider):
         *,
         head_sha: str,
         is_outdated_by_id: dict[int, bool | None] | None = None,
+        has_reply_by_id: dict[int, bool] | None = None,
         latest_thread_comment_body_by_id: dict[int, str] | None = None,
         latest_thread_comment_author_login_by_id: dict[int, str | None] | None = None,
         tier_results_out: dict[int, TierResult] | None = None,
@@ -2391,6 +2395,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 if latest_thread_comment_author_login_by_id is not None
                 else None
             )
+            has_reply = has_reply_by_id.get(comment.id, True) if has_reply_by_id is not None else True
             thread_comments = [
                 GitHubThreadComment(
                     body=comment.body,
@@ -2399,7 +2404,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                     database_id=comment.id,
                 )
             ]
-            if latest_thread_comment_body:
+            if latest_thread_comment_body and has_reply:
                 thread_comments.append(
                     GitHubThreadComment(
                         body=latest_thread_comment_body,

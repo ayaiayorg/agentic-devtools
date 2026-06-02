@@ -818,6 +818,38 @@ class TestFinalizePostRepair:
 
         assert result == {1901: VerificationVerdict.COMMENT_RESOLVE}
 
+    def test_verify_comments_via_tiered_engine_skips_synthetic_latest_when_thread_has_no_reply(self) -> None:
+        provider = GitHubActionsProvider(repo="owner/repo")
+        comment = ReviewCommentInfo(
+            id=2001,
+            path="src/example.py",
+            body="Initial unresolved feedback",
+            html_url="https://github.com/owner/repo/pull/1#discussion_r2001",
+        )
+
+        with (
+            patch.object(
+                provider,
+                "_run_prompt_via_sdk",
+                return_value="VERDICT: UNRESOLVE\nEXPLANATION: Not addressed yet.",
+            ) as mock_sdk,
+            patch.object(
+                provider,
+                "_run_prompt_via_sdk_fallback",
+                return_value="VERDICT: UNRESOLVE\nEXPLANATION: Not addressed yet.",
+            ),
+        ):
+            result = provider._verify_comments_via_tiered_engine(
+                [(comment, "diff --git a/src/example.py b/src/example.py\n+fix")],
+                head_sha="abc123",
+                has_reply_by_id={2001: False},
+                latest_thread_comment_body_by_id={2001: "Initial unresolved feedback"},
+                latest_thread_comment_author_login_by_id={2001: "copilot-pull-request-reviewer[bot]"},
+            )
+
+        assert result == {2001: VerificationVerdict.COMMENT_UNRESOLVE}
+        mock_sdk.assert_called_once()
+
     @patch.object(GitHubActionsProvider, "_list_unresolve_reply_parent_comment_ids")
     @patch.object(GitHubActionsProvider, "_fetch_latest_thread_comment_author_login_by_comment_id")
     @patch.object(GitHubActionsProvider, "_fetch_latest_thread_comment_body_by_comment_id")
