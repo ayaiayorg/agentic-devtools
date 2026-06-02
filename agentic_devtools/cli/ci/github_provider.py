@@ -1994,19 +1994,36 @@ class GitHubActionsProvider(CIPlatformProvider):
             swe_session_started_after_review = False
             swe_agent_commented_on_pr = False
             try:
+                from datetime import datetime, timezone
+
+                def _parse_ts(value: str) -> datetime | None:
+                    try:
+                        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                    except (ValueError, AttributeError):
+                        return None
+                    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
                 issue_events = self.list_pr_issue_events(pr_number)
                 issue_comments = self.list_issue_comments(pr_number)
-                swe_agent_commented_on_pr = any(c.author in COPILOT_COMMENT_LOGINS for c in issue_comments)
                 started_events = [e for e in issue_events if e.event == COPILOT_SESSION_EVENT_STARTED]
-                if started_events and review.submitted_at:
-                    # Compare the review submission timestamp against each started
-                    # event's created_at. If any session started after the review
-                    # was submitted, it was dispatched to address this review.
-                    swe_session_started_after_review = any(e.created_at > review.submitted_at for e in started_events)
-                elif started_events and not review.submitted_at:
+
+                review_submitted_at = _parse_ts(review.submitted_at) if review.submitted_at else None
+                if review_submitted_at is not None:
+                    swe_session_started_after_review = any(
+                        (event_ts := _parse_ts(e.created_at)) is not None and event_ts > review_submitted_at
+                        for e in started_events
+                    )
+                    swe_agent_commented_on_pr = any(
+                        c.author in COPILOT_COMMENT_LOGINS
+                        and (comment_ts := _parse_ts(c.created_at)) is not None
+                        and comment_ts > review_submitted_at
+                        for c in issue_comments
+                    )
+                else:
                     # No review timestamp available — cannot reliably correlate.
-                    # Keep the flag False (fail closed) and rely on other tiers/signals.
+                    # Keep session flag False (fail closed) and retain the broad comment signal for logging/debug.
                     swe_session_started_after_review = False
+                    swe_agent_commented_on_pr = any(c.author in COPILOT_COMMENT_LOGINS for c in issue_comments)
             except Exception as exc:
                 logger.warning(
                     "Failed to compute SWE agent context flags for PR #%d: %s",
