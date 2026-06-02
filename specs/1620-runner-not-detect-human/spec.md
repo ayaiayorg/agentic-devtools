@@ -16,7 +16,8 @@
 - Q: When `invoke()` returns `None` or an unexpected type (per the edge case), what specific exit code should the runner use? → A: The runner should exit with code 1 (generic error), consistent with
   the existing `sys.exit(1)` pattern used for other failure conditions in the runner (e.g., workflow execution failures).
 - Q: Should the state inspection logic be extracted into a separate helper function (e.g., `_is_workflow_paused(result)`) for testability, or should it be inline in the existing flow? → A: Extract
-  into a small helper function `_is_workflow_paused(result: dict) -> bool` that returns `True` when `result.get("status") != "completed"`. This improves testability and keeps the net new line count
+  into a small helper function `_is_workflow_paused(result: dict) -> bool` that returns `True` when `result.get("status") != "completed"` and raises `TypeError` for `None`/non-dict inputs. This
+  improves testability and keeps the net new line count
   within SC-005's 5-line budget for the runner itself while the helper lives alongside `_print_pause_message`.
 - Q: For the resume path, the current code in `runner.py` line 90 uses `compiled.invoke(Command(resume=resume_value), config=config)` — should the state inspection apply to the result of this call
   identically (same helper, same logic) as the fresh path? → A: Yes, both paths must call the same `_is_workflow_paused` helper on the returned `result` dictionary. The spec (FR-004) mandates
@@ -55,6 +56,8 @@ message for true terminal states only.
 An AI agent or developer starts a fresh work-on-jira-issue workflow using the LangGraph engine with a persistent checkpointer. The workflow progresses through initiate, setup, and planning nodes, then
 reaches `planning_gate_node` which calls `interrupt()` to wait for human approval. The user expects to see a clear pause message with resume instructions, not a misleading completion message.
 
+**Associated FRs**: FR-001, FR-002, FR-006, FR-007, FR-008
+
 **Why this priority**: This is the primary failure mode described in the issue. Every user who runs the workflow with a checkpointer encounters this bug on their first run. Without fixing this, the
 entire human-in-the-loop UX is broken — users cannot understand what the system is waiting for.
 
@@ -87,6 +90,8 @@ should apply the same post-`invoke()` state inspection to the resume path, so th
 the resumed invocation returns a non-terminal state (`status != "completed"`), it
 prints the pause message instead of the misleading "Workflow completed" message.
 
+**Associated FRs**: FR-004, FR-006
+
 **Why this priority**: The resume path (`compiled.invoke(Command(resume=...))`)
 currently shares the same completion reporting code as the fresh-run path, so it can
 misreport pauses in the same way (including for any future human-in-the-loop gates
@@ -113,6 +118,8 @@ interrupt after resume) and verifying the pause message appears.
 A user has resumed through all gate nodes and the workflow runs all the way through commit, pull request, and completion nodes. The workflow reaches the terminal `completion_node` and the status is
 set to `"completed"`. The user expects to see the legitimate "Workflow completed" message confirming their work is done.
 
+**Associated FRs**: FR-002, FR-003
+
 **Why this priority**: Without this story, a naive fix might suppress the completion message entirely. This story ensures that the completion message still appears for genuinely finished workflows,
 maintaining the UX contract for the happy path.
 
@@ -132,6 +139,8 @@ maintaining the UX contract for the happy path.
 
 A developer working on the orchestration module needs confidence that future changes to the runner or graph structure do not reintroduce the misleading completion message. Automated regression tests
 must cover both the fresh-run and resume-run paths for pause detection, as well as the true-completion path.
+
+**Associated FRs**: FR-001, FR-005
 
 **Why this priority**: Tests prevent regression and document the intended behavior. They are essential for long-term maintainability but do not directly fix the user-facing bug — they protect the fix
 once it is in place.
@@ -203,7 +212,7 @@ purpose.
 
 - **FR-007**: The runner MUST exit with code 0 when a pause is detected (not an error condition), matching the existing behavior when `GraphInterrupt` is caught.
 
-- **FR-008**: The state inspection logic MUST be encapsulated in a helper function `_is_workflow_paused(result: dict | None) -> bool` that returns `True` when `result` is a dict and
+- **FR-008**: The state inspection logic MUST be encapsulated in a helper function `_is_workflow_paused(result: dict) -> bool` that returns `True` when `result` is a dict and
   `result.get("status") != "completed"`, and raises/handles the `None`/unexpected-type case as an error.
 
 ### Non-Functional Requirements
