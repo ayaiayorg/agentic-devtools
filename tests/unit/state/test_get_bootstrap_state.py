@@ -70,6 +70,20 @@ class TestGetBootstrapState:
 
         assert result == {"identity": "ama"}
 
+    def test_ignores_non_string_legacy_identity(self, tmp_path):
+        """Non-string identity is ignored while valid worktree_key is preserved."""
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir()
+        (agdt_dir / "runtime-bootstrap.json").write_text(
+            json.dumps({"worktree_key": "WK-1", "identity": 123}),
+            encoding="utf-8",
+        )
+
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            result = state.get_bootstrap_state()
+
+        assert result == {"worktree_key": "WK-1"}
+
     def test_only_whitelisted_keys_returned(self, tmp_path):
         """Only 'identity' and 'worktree_key' keys are returned, even if file has more."""
         agdt_dir = tmp_path / ".agdt"
@@ -108,6 +122,19 @@ class TestGetBootstrapState:
 
         assert result == {"worktree_key": "PROJECT-1"}
         assert "identity" not in result
+
+    def test_uses_legacy_identity_when_worktree_key_is_blank(self, tmp_path):
+        """Blank worktree_key does not block legacy identity fallback from bootstrap."""
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir()
+        bootstrap_data = {"identity": "legacy-user", "worktree_key": "   "}
+        (agdt_dir / "runtime-bootstrap.json").write_text(json.dumps(bootstrap_data), encoding="utf-8")
+
+        with patch.object(state, "_get_git_repo_root", return_value=tmp_path):
+            result = state.get_bootstrap_state()
+
+        assert result == {"identity": "legacy-user"}
+        assert "worktree_key" not in result
 
     def test_returns_empty_dict_when_bootstrap_is_array(self, tmp_path):
         """Returns {} when bootstrap file contains a JSON array instead of object."""
