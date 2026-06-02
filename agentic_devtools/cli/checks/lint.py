@@ -71,7 +71,7 @@ def mypy_check_files(files: list[str], *, cwd: str | None = None) -> tuple[bool,
     if not files:
         return True, ""
     result = subprocess.run(
-        ["mypy", "--ignore-missing-imports"] + files,
+        ["mypy", "--ignore-missing-imports", "--follow-imports=silent"] + files,
         cwd=cwd,
         capture_output=True,
         text=True,
