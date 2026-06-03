@@ -82,7 +82,7 @@ stall the queue.
 
 **Loop lifecycle**:
 
-```
+```text
 pr-activity-dispatch (cold-start on PR events)
   → agent-session-monitor (selects oldest eligible PR)
     → ai-pr-loop (processes the PR: fix / review / merge)
