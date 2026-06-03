@@ -50,13 +50,14 @@
   future Copilot SDK-based generation standardization should occur behind the `CommitMessageGenerator` interface and is
   explicitly out of scope for this phase.
 
-- Q: FR-006 states that `RequestReviewAction` MUST be suppressed if `SquashAction` executed and set
-  `invalidates_snapshot=True`. How does `RequestReviewAction` observe that `SquashAction` executed in the same pipeline
-  run? The current action pipeline evaluates actions sequentially but each action only sees `DerivedState` — there's no
-  mechanism to inspect prior `ActionResult.invalidates_snapshot`. → A: The pipeline runner should set a `DerivedState`
-  flag (e.g., `derived.set("snapshot_invalidated", True)`) when any action returns `invalidates_snapshot=True`.
-  `RequestReviewAction.evaluate()` then checks `derived.snapshot_invalidated` and skips if true. This follows the same
-  pattern used for `copilot_review_pending` where actions communicate state to downstream actions via `DerivedState`.
+- Q: FR-006 describes how `RequestReviewAction` behaves when `SquashAction` sets `invalidates_snapshot=True`. How does
+  `RequestReviewAction` re-evaluate on the refreshed snapshot within the same pipeline run? The current action pipeline
+  evaluates actions sequentially — there is no built-in mechanism for re-running actions after a snapshot refresh.
+  → A: The pipeline runner refreshes the PR state snapshot when any action returns `invalidates_snapshot=True`, then
+  re-runs all actions that declare `runs_after_invalidation=True`. `RequestReviewAction` opts into this by declaring
+  `runs_after_invalidation=True`, so it re-evaluates on the refreshed snapshot and requests review on the new squashed
+  HEAD. This replaces the earlier suppression model where `RequestReviewAction` was skipped via a
+  `snapshot_invalidated` DerivedState flag.
 
 ## Problem Statement
 
@@ -235,12 +236,14 @@ As a repository maintainer, I want the merge action to use squash merge strategy
 - **FR-005**: The `SquashAction` MUST NOT use `copilot_review_pending` as a blocking precondition. It MUST only defer when `snapshot.active_session` is true (active coding/repair session). The
   existing `no_pending_review` precondition check must be removed from `SquashAction.evaluate()`.
 
-- **FR-006**: When the pipeline action sequence includes both `SquashAction` and `RequestReviewAction`, the `RequestReviewAction` MUST be suppressed (skip) if any prior action set
-  `invalidates_snapshot=True`. Implementation: the pipeline runner sets `derived.set("snapshot_invalidated", True)` when any action returns `ActionResult.invalidates_snapshot == True`, and
-  `RequestReviewAction.evaluate()` checks this flag.
+- **FR-006**: When `SquashAction` returns `invalidates_snapshot=True`, the pipeline runner MUST refresh the PR state
+  snapshot and re-run all actions that declare `runs_after_invalidation=True`. `RequestReviewAction` MUST declare
+  `runs_after_invalidation=True` so it re-evaluates on the refreshed snapshot after squash completes, requesting
+  review on the new squashed HEAD rather than being suppressed.
 
-- **FR-007**: `RequestReviewAction` MUST fire as a fallback if `SquashAction` was skipped (e.g., only 1 commit)
-  or failed without invalidating the snapshot (i.e., `derived.snapshot_invalidated` is `False`).
+- **FR-007**: `RequestReviewAction` MUST also evaluate in its normal sequential position if `SquashAction` was skipped
+  (e.g., only 1 commit) or did not set `invalidates_snapshot=True`, ensuring review is requested even when no snapshot
+  refresh occurs.
 
 - **FR-008**: `MergeAction.execute()` MUST select merge strategy based on commit count: use `"squash"` when `snapshot.commit_count > 1`, use `"rebase"` when
   `snapshot.commit_count == 1`. When `commit_count` is unavailable (e.g., provider does not support it or returns `None`), the system MUST fall back to `"rebase"` to preserve existing behavior.
@@ -251,7 +254,7 @@ As a repository maintainer, I want the merge action to use squash merge strategy
 
 - **FR-010**: The decision summary JSON MUST include a `"reason"` field when a review request is
   suppressed (e.g., `"reason": "repair_active"`, `"reason": "repair_dispatched"`, `"reason": "repair_dispatched_prior_run"`,
-  `"reason": "unresolved_comments"`, or `"reason": "snapshot_invalidated"`), aligning with the existing `summary["reason"]`
+  or `"reason": "unresolved_comments"`), aligning with the existing `summary["reason"]`
   convention used throughout the orchestrator.
 
 ### Non-Functional Requirements
@@ -278,8 +281,8 @@ As a repository maintainer, I want the merge action to use squash merge strategy
   - `repair_dispatched` (bool) — initialized to `False` at run start, then set to `True` by `DispatchRepairAction`
     upon successful execution to communicate repair status to downstream actions like `RequestReviewAction`.
   - `snapshot_invalidated` (bool) — initialized to `False` at run start, then set to `True` by the pipeline
-    runner when any action returns `ActionResult.invalidates_snapshot == True`, consumed by
-    `RequestReviewAction` to implement FR-006.
+    runner when any action returns `ActionResult.invalidates_snapshot == True`. Used by the pipeline runner to
+    trigger a snapshot refresh and re-run of actions with `runs_after_invalidation=True` (FR-006).
 - **ActionResult**: Already supports `invalidates_snapshot` which is used by the squash-first logic (FR-006).
 - **CommitMessageGenerator** (protocol): New interface for commit message generation, with a single `DeterministicCommitMessageGenerator` implementation initially. Stubbed for future Copilot SDK
   integration.
