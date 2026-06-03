@@ -186,6 +186,7 @@ agdt-ai-pr-loop = "agentic_devtools.cli.ci.commands:ai_pr_loop_command"
 agdt-speckit-trigger = "agentic_devtools.cli.ci.commands:speckit_trigger_command"
 agdt-segments-status = "agentic_devtools.cli.runner:run_as_script"
 agdt-segments-clean = "agentic_devtools.cli.runner:run_as_script"
+agdt-toggle-pr-label = "agentic_devtools.cli.runner:run_as_script"
 agdt-mcp-server = "agentic_devtools.mcp.server:main"
 
 [tool.hatch.version]

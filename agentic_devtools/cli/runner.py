@@ -431,6 +431,11 @@ COMMAND_MAP = {
         "agentic_devtools.cli.segments.commands",
         "segments_clean_command",
     ),
+    # PR label toggle (synchronous, long-running)
+    "agdt-toggle-pr-label": (
+        "agentic_devtools.cli.pr_label_toggle.command",
+        "toggle_pr_label_command",
+    ),
     # NOTE: agdt-mcp-server is intentionally NOT in COMMAND_MAP.
     # It is wired directly to agentic_devtools.mcp.server:main in
     # pyproject.toml because the MCP stdio transport requires direct
