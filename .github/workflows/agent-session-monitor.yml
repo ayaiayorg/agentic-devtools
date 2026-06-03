@@ -1,6 +1,11 @@
 # PR Scheduler — Oldest-Eligible PR Dispatch
 #
-# Runs every 5 minutes and selects exactly one PR to process:
+# Triggered by workflow_dispatch only (no cron).  The continuous loop is
+# driven by ai-pr-loop-redispatch.yml, which dispatches this workflow after
+# each ai-pr-loop run.  pr-activity-dispatch cold-starts the loop whenever
+# a PR is opened or updated.
+#
+# Selects exactly one PR to process:
 #   1. Lists open PRs ordered by creation date ascending (oldest first).
 #   2. Skips PRs with the `ai-pr-loop-ignore` exclusion label.
 #   3. Skips fork PRs.
@@ -9,7 +14,7 @@
 #   6. Exits cleanly if no eligible PR exists.
 #
 # Design:
-#   - At most ONE PR is dispatched per 5-minute cycle.
+#   - At most ONE PR is dispatched per invocation.
 #   - The same oldest actionable PR is revisited each cycle until it is
 #     merged, closed, or becomes human-blocked.
 #   - Human-blocked = all required checks pass AND has approval AND lacks
@@ -17,13 +22,12 @@
 #
 # Related:
 #   - ai-pr-loop.yml — execution workflow (scheduler-driven only)
-#   - Issue #1727: Refactor ai-pr-loop to scheduler-only oldest-eligible-PR processing
+#   - ai-pr-loop-redispatch.yml — continuous loop driver (replaces cron)
+#   - pr-activity-dispatch.yml — cold-start trigger on PR events
 
 name: Agent Session Monitor
 
 on:
-  schedule:
-    - cron: '*/5 * * * *'
   workflow_dispatch: {}
 
 permissions:

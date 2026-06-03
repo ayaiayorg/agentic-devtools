@@ -15,7 +15,7 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
-  actions: read
+  actions: write
   checks: read
 env:
   AGDT_USE_PYTHON_ORCHESTRATOR: "1"
@@ -71,3 +71,11 @@ jobs:
           AGDT_PR_APPROVER_PAT: ${{ secrets.AGDT_PR_APPROVER_PAT }}
           AGDT_ALLOW_PRIVILEGED_PATHS: "1"
         run: agdt-ai-pr-loop
+      - name: Dispatch AI PR Loop Redispatch
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
+        run: |
+          gh workflow run ai-pr-loop-redispatch.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "${{ github.event.repository.default_branch }}"
