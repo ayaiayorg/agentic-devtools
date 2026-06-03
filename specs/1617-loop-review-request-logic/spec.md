@@ -50,13 +50,14 @@
   future Copilot SDK-based generation standardization should occur behind the `CommitMessageGenerator` interface and is
   explicitly out of scope for this phase.
 
-- Q: FR-006 states that `RequestReviewAction` MUST be suppressed if `SquashAction` executed and set
-  `invalidates_snapshot=True`. How does `RequestReviewAction` observe that `SquashAction` executed in the same pipeline
-  run? The current action pipeline evaluates actions sequentially but each action only sees `DerivedState` — there's no
-  mechanism to inspect prior `ActionResult.invalidates_snapshot`. → A: The pipeline runner should set a `DerivedState`
-  flag (e.g., `derived.set("snapshot_invalidated", True)`) when any action returns `invalidates_snapshot=True`.
-  `RequestReviewAction.evaluate()` then checks `derived.snapshot_invalidated` and skips if true. This follows the same
-  pattern used for `copilot_review_pending` where actions communicate state to downstream actions via `DerivedState`.
+- Q: FR-006 describes how `RequestReviewAction` behaves when `SquashAction` sets `invalidates_snapshot=True`. How does
+  `RequestReviewAction` re-evaluate on the refreshed snapshot within the same pipeline run? The current action pipeline
+  evaluates actions sequentially — there is no built-in mechanism for re-running actions after a snapshot refresh.
+  → A: The pipeline runner refreshes the PR state snapshot when any action returns `invalidates_snapshot=True`, then
+  re-runs all actions that declare `runs_after_invalidation=True`. `RequestReviewAction` opts into this by declaring
+  `runs_after_invalidation=True`, so it re-evaluates on the refreshed snapshot and requests review on the new squashed
+  HEAD. This replaces the earlier suppression model where `RequestReviewAction` was skipped via a
+  `snapshot_invalidated` DerivedState flag.
 
 ## Problem Statement
 
@@ -67,8 +68,8 @@ The ai-pr-loop orchestrator has logic errors in its review request and merge pat
 
 2. **Review requests fire when unresolved comments exist** — If prior review comments remain unresolved/actionable, requesting a fresh review is premature and can defeat approval safety gates.
 
-3. **Squash is not used as the primary review trigger for multi-commit PRs** — For PRs with >1 commit, the force-push from a squash naturally triggers a new Copilot review via GitHub's `push` event.
-   The current code requests review directly via the API without first attempting the squash path, leading to reviews against non-squashed history.
+3. **Squash was coupled to review triggering** — For PRs with >1 commit, the squash step previously relied on force-push to implicitly trigger a Copilot review via GitHub's `push` event.
+   Reviews are now always requested explicitly via `RequestReviewAction` after squash completes — the squash step is responsible strictly for commit hygiene.
 
 4. **Squash is blocked by pending reviews** — The current `SquashAction` defers when `copilot_review_pending` is true, but per the issue, squash should only be blocked by an active coding/repair
    session, not by a pending review.
@@ -130,24 +131,23 @@ reviews.
 
 ### User Story 3 - Squash-First Review Trigger for Multi-Commit PRs (Priority: P2)
 
-As a repository maintainer, I want the ai-pr-loop to squash multi-commit PRs before requesting a Copilot review, so that the force-push from squash naturally triggers a review on clean single-commit
-history, and a direct API review request is only used as a fallback.
+As a repository maintainer, I want the ai-pr-loop to squash multi-commit PRs before requesting a Copilot review, so that the review is always requested explicitly on clean single-commit
+history via `RequestReviewAction` after squash completes.
 
 **Why this priority**: This aligns with the repository's 1-commit-per-PR policy and ensures Copilot reviews single, cohesive commits rather than fragmented multi-commit history. It is P2 because it is
 an optimization of an existing functional path rather than a correctness fix.
 
 **Independent Test**: Can be tested by setting up a multi-commit PR snapshot where CI passes and no session is active, verifying that squash executes before request_review, and that request_review
-only fires as a fallback if squash did not invalidate the snapshot.
+runs explicitly on the refreshed snapshot after squash invalidates it.
 
 **Mapped FRs**: FR-006, FR-007.
 
 **Acceptance Scenarios**:
 
-1. **Given** a PR with 3 commits above merge-base and CI passing, **When** the pipeline action sequence runs, **Then** `SquashAction` executes first and `RequestReviewAction` is skipped because the
-   squash force-push will trigger a Copilot review automatically (detected via `derived.snapshot_invalidated == True`).
+1. **Given** a PR with 3 commits above merge-base and CI passing, **When** the pipeline action sequence runs, **Then** `SquashAction` executes first (invalidating the snapshot) and
+   `RequestReviewAction` runs on the refreshed snapshot to explicitly request review on the new squashed HEAD.
 
-2. **Given** a PR with 3 commits where squash fails (e.g., rebase conflict), **When** the pipeline action sequence continues, **Then** `RequestReviewAction` fires as a fallback and requests review on
-   the current HEAD.
+2. **Given** a PR with 3 commits where squash fails (e.g., rebase conflict), **When** the pipeline action sequence continues, **Then** subsequent actions are halted due to the failure.
 
 3. **Given** a PR with exactly 1 commit, **When** the pipeline evaluates, **Then** `SquashAction` is skipped (nothing to squash) and `RequestReviewAction` proceeds normally.
 
@@ -158,8 +158,7 @@ only fires as a fallback if squash did not invalidate the snapshot.
 As a repository maintainer, I want the squash operation to proceed even when a Copilot review is pending (requested but not yet submitted), so that squash is only deferred by active coding/repair
 sessions where force-pushing would disrupt an in-progress agent.
 
-**Why this priority**: The current behavior incorrectly defers squash whenever a review is pending, but a pending review is not impacted by a force-push (GitHub will re-trigger the review on the new
-HEAD). Only active coding sessions are disrupted by squash.
+**Why this priority**: The current behavior incorrectly defers squash whenever a review is pending, but a pending review is not impacted by a force-push. Only active coding sessions are disrupted by squash.
 
 **Independent Test**: Can be tested by configuring a snapshot with `copilot_review_pending=True` and `active_session=False` and verifying `SquashAction.evaluate()` returns EXECUTE.
 
@@ -207,11 +206,11 @@ As a repository maintainer, I want the merge action to use squash merge strategy
 - What happens when a repair is dispatched but the repair agent never pushes code (stale repair)? The system should rely on the existing squash-wait timeout mechanism to eventually proceed. The
   repair-dispatch marker SHA comparison ensures that once a new HEAD is pushed (by any means), review requests are unblocked.
 - How does the system handle a race condition where repair finishes and a review is requested simultaneously? The SHA-based deduplication ensures only one review per HEAD is active.
-- What happens when squash invalidates the snapshot but CI hasn't run on the new HEAD yet? The `invalidates_snapshot=True` flag causes the pipeline to exit early; the next workflow trigger (on the
-  force-push event) re-evaluates from scratch.
+- What happens when squash invalidates the snapshot but CI hasn't run on the new HEAD yet? The `invalidates_snapshot=True` flag causes the pipeline runner to refresh the snapshot; `RequestReviewAction`
+  (which opts into `runs_after_invalidation`) re-evaluates on the refreshed snapshot and will skip if CI is not yet passing.
 - What happens when `commit_count` is unavailable (provider doesn't support it)? The merge should fall back to rebase, maintaining current behavior.
-- What happens when `snapshot_invalidated` is set by an action other than `SquashAction` (e.g., a future action that force-pushes)? `RequestReviewAction` should still skip — the guard is generic and
-  applies to any snapshot invalidation, not just squash.
+- What happens when `snapshot_invalidated` is set by an action other than `SquashAction` (e.g., a future action that force-pushes)? `RequestReviewAction` still runs after invalidation — it re-evaluates
+  all preconditions on the refreshed snapshot regardless of which action caused the invalidation.
 
 ## Requirements
 
@@ -237,12 +236,14 @@ As a repository maintainer, I want the merge action to use squash merge strategy
 - **FR-005**: The `SquashAction` MUST NOT use `copilot_review_pending` as a blocking precondition. It MUST only defer when `snapshot.active_session` is true (active coding/repair session). The
   existing `no_pending_review` precondition check must be removed from `SquashAction.evaluate()`.
 
-- **FR-006**: When the pipeline action sequence includes both `SquashAction` and `RequestReviewAction`, the `RequestReviewAction` MUST be suppressed (skip) if any prior action set
-  `invalidates_snapshot=True`. Implementation: the pipeline runner sets `derived.set("snapshot_invalidated", True)` when any action returns `ActionResult.invalidates_snapshot == True`, and
-  `RequestReviewAction.evaluate()` checks this flag.
+- **FR-006**: When `SquashAction` returns `invalidates_snapshot=True`, the pipeline runner MUST refresh the PR state
+  snapshot and re-run all actions that declare `runs_after_invalidation=True`. `RequestReviewAction` MUST declare
+  `runs_after_invalidation=True` so it re-evaluates on the refreshed snapshot after squash completes, requesting
+  review on the new squashed HEAD rather than being suppressed.
 
-- **FR-007**: `RequestReviewAction` MUST fire as a fallback if `SquashAction` was skipped (e.g., only 1 commit)
-  or failed without invalidating the snapshot (i.e., `derived.snapshot_invalidated` is `False`).
+- **FR-007**: `RequestReviewAction` MUST also evaluate in its normal sequential position if `SquashAction` was skipped
+  (e.g., only 1 commit) or did not set `invalidates_snapshot=True`, ensuring review is requested even when no snapshot
+  refresh occurs.
 
 - **FR-008**: `MergeAction.execute()` MUST select merge strategy based on commit count: use `"squash"` when `snapshot.commit_count > 1`, use `"rebase"` when
   `snapshot.commit_count == 1`. When `commit_count` is unavailable (e.g., provider does not support it or returns `None`), the system MUST fall back to `"rebase"` to preserve existing behavior.
@@ -253,7 +254,7 @@ As a repository maintainer, I want the merge action to use squash merge strategy
 
 - **FR-010**: The decision summary JSON MUST include a `"reason"` field when a review request is
   suppressed (e.g., `"reason": "repair_active"`, `"reason": "repair_dispatched"`, `"reason": "repair_dispatched_prior_run"`,
-  `"reason": "unresolved_comments"`, or `"reason": "snapshot_invalidated"`), aligning with the existing `summary["reason"]`
+  or `"reason": "unresolved_comments"`), aligning with the existing `summary["reason"]`
   convention used throughout the orchestrator.
 
 ### Non-Functional Requirements
@@ -280,8 +281,8 @@ As a repository maintainer, I want the merge action to use squash merge strategy
   - `repair_dispatched` (bool) — initialized to `False` at run start, then set to `True` by `DispatchRepairAction`
     upon successful execution to communicate repair status to downstream actions like `RequestReviewAction`.
   - `snapshot_invalidated` (bool) — initialized to `False` at run start, then set to `True` by the pipeline
-    runner when any action returns `ActionResult.invalidates_snapshot == True`, consumed by
-    `RequestReviewAction` to implement FR-006.
+    runner when any action returns `ActionResult.invalidates_snapshot == True`. Used by the pipeline runner to
+    trigger a snapshot refresh and re-run of actions with `runs_after_invalidation=True` (FR-006).
 - **ActionResult**: Already supports `invalidates_snapshot` which is used by the squash-first logic (FR-006).
 - **CommitMessageGenerator** (protocol): New interface for commit message generation, with a single `DeterministicCommitMessageGenerator` implementation initially. Stubbed for future Copilot SDK
   integration.

@@ -1475,16 +1475,13 @@ class TestFinalizePostRepair:
     @patch.object(GitHubActionsProvider, "_squash_and_force_push")
     @patch.object(GitHubActionsProvider, "publish_pr")
     @patch.object(GitHubActionsProvider, "get_pr_metadata")
-    @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
     def test_squash_post_repair_squashes_twice_to_handle_race_condition(
         self,
-        mock_request_copilot,
         mock_get_meta,
         mock_publish,
         mock_squash,
     ) -> None:
         """Comment-triggered squash runs twice to catch agent commits pushed during finalization."""
-        mock_request_copilot.return_value = {"requested": True, "verified": True}
         mock_get_meta.return_value = PRMetadata(
             number=42,
             title="feat: test",
@@ -1512,20 +1509,16 @@ class TestFinalizePostRepair:
             ]
         )
         mock_publish.assert_not_called()
-        mock_request_copilot.assert_called_once_with(42, "owner/repo")
 
-    @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
-    @patch.object(GitHubActionsProvider, "publish_pr")
-    @patch.object(GitHubActionsProvider, "get_pr_metadata")
     @patch.object(GitHubActionsProvider, "_squash_and_force_push")
+    @patch.object(GitHubActionsProvider, "get_pr_metadata")
+    @patch.object(GitHubActionsProvider, "publish_pr")
     def test_squash_post_repair_publishes_when_still_draft(
         self,
-        mock_squash,
-        mock_get_meta,
         mock_publish,
-        mock_request_copilot,
+        mock_get_meta,
+        mock_squash,
     ) -> None:
-        mock_request_copilot.return_value = {"requested": True, "verified": True}
         mock_get_meta.return_value = PRMetadata(
             number=42,
             title="feat: test",
@@ -1545,7 +1538,6 @@ class TestFinalizePostRepair:
 
         assert mock_squash.call_count == 2
         mock_publish.assert_called_once_with(42)
-        mock_request_copilot.assert_called_once_with(42, "owner/repo")
 
     @patch.object(GitHubActionsProvider, "_run_git")
     def test_squash_and_force_push_resets_to_remote_when_requested(self, mock_run_git) -> None:
@@ -1604,71 +1596,6 @@ class TestFinalizePostRepair:
         mock_resolve_conflicts.assert_called_once_with(base_branch="main", head_branch="feature/test")
         mock_run_git.assert_any_call(["rebase", "--abort"])
         mock_run_git.assert_any_call(["push", "--force-with-lease", "origin", "HEAD:feature/test"])
-
-    @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
-    @patch.object(GitHubActionsProvider, "get_pr_metadata")
-    @patch.object(GitHubActionsProvider, "_squash_and_force_push")
-    def test_squash_post_repair_does_not_rerequest_when_review_verified(
-        self,
-        mock_squash,
-        mock_get_meta,
-        mock_request_copilot,
-    ) -> None:
-        """When _request_copilot_review returns verified=True, no second request is made."""
-        mock_get_meta.return_value = PRMetadata(
-            number=42,
-            title="feat: test",
-            head_branch="feature/test",
-            head_sha="abc123def456",
-            base_branch="main",
-            is_draft=False,
-        )
-        mock_request_copilot.return_value = {"requested": True, "verified": True}
-        provider = GitHubActionsProvider(repo="owner/repo")
-
-        provider.squash_post_repair(
-            pr_number=42,
-            base_branch="main",
-            head_branch="feature/test",
-            head_sha="abc123def456",
-        )
-
-        assert mock_request_copilot.call_count == 1
-        assert mock_squash.call_count == 2
-
-    @patch("agentic_devtools.cli.ci.github_provider._request_copilot_review")
-    @patch.object(GitHubActionsProvider, "get_pr_metadata")
-    @patch.object(GitHubActionsProvider, "_squash_and_force_push")
-    def test_squash_post_repair_rerequests_when_review_not_verified(
-        self,
-        mock_squash,
-        mock_get_meta,
-        mock_request_copilot,
-    ) -> None:
-        """When _request_copilot_review returns verified=False, a second request is made."""
-        mock_get_meta.return_value = PRMetadata(
-            number=42,
-            title="feat: test",
-            head_branch="feature/test",
-            head_sha="abc123def456",
-            base_branch="main",
-            is_draft=False,
-        )
-        mock_request_copilot.side_effect = [
-            {"requested": True, "verified": False},
-            {"requested": True, "verified": True},
-        ]
-        provider = GitHubActionsProvider(repo="owner/repo")
-
-        provider.squash_post_repair(
-            pr_number=42,
-            base_branch="main",
-            head_branch="feature/test",
-            head_sha="abc123def456",
-        )
-
-        assert mock_request_copilot.call_count == 2
-        assert mock_squash.call_count == 2
 
     @patch.object(GitHubActionsProvider, "_resolve_rebase_conflicts_via_sdk")
     @patch.object(GitHubActionsProvider, "_run_git")

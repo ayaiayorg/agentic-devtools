@@ -18,6 +18,15 @@ _EFFECTIVE_REVIEW_STATES = {"APPROVED", "COMMENTED", "CHANGES_REQUESTED"}
 class RequestReviewAction:
     """Request Copilot review when no effective review exists on HEAD.
 
+    This action is the pipeline's explicit mechanism for requesting Copilot reviews.
+    The pipeline does not rely on push events to trigger reviews — it requests them
+    explicitly through this action.
+
+    After a squash (which invalidates the snapshot), this action runs on the
+    refreshed snapshot to request review on the new squashed HEAD. The
+    ``runs_after_invalidation = True`` property enables this, and the pipeline
+    runner refreshes the snapshot before re-evaluating.
+
     Preconditions:
     - PR is not draft (uses DerivedState)
     - Repair was not dispatched in this pipeline run
