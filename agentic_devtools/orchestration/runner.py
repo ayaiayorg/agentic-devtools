@@ -5,6 +5,7 @@ work-on-jira-issue workflow when ``--engine langchain`` is selected.
 """
 
 import sys
+from typing import Any
 
 
 def run_langchain_workflow(
@@ -61,14 +62,14 @@ def run_langchain_workflow(
     try:
         compiled = build_work_on_issue_graph(checkpointer=checkpointer)
 
-        config = {"configurable": {"thread_id": thread_id}}
+        config: dict[str, Any] = {"configurable": {"thread_id": thread_id}}
 
         if resume:
             # Resume from existing checkpoint.
             from langgraph.types import Command
 
             # Check if there is an existing checkpoint to resume from.
-            checkpoint = checkpointer.get(config)
+            checkpoint = checkpointer.get(config)  # type: ignore[arg-type]
             if checkpoint is None:
                 print(
                     f"ERROR: No existing checkpoint found for issue {issue_key}.\n"
@@ -80,6 +81,7 @@ def run_langchain_workflow(
                 sys.exit(1)
 
             # Determine resume payload based on gate type.
+            resume_value: Any
             if resume_data is not None:
                 resume_value = resume_data
             else:
@@ -87,7 +89,7 @@ def run_langchain_workflow(
 
             print(f"[langchain] Resuming workflow for {issue_key}...")
             try:
-                result = compiled.invoke(Command(resume=resume_value), config=config)
+                result = compiled.invoke(Command(resume=resume_value), config=config)  # type: ignore[call-overload]
             except Exception as e:
                 if type(e).__name__ == "GraphInterrupt":
                     _print_pause_message(issue_key)
@@ -96,7 +98,7 @@ def run_langchain_workflow(
                 sys.exit(1)
         else:
             # Fresh invocation.
-            initial_state = {
+            initial_state: dict[str, Any] = {
                 "issue_key": issue_key,
                 "step": "",
                 "status": "",
@@ -114,7 +116,7 @@ def run_langchain_workflow(
 
             print(f"[langchain] Starting workflow for {issue_key}...")
             try:
-                result = compiled.invoke(initial_state, config=config)
+                result = compiled.invoke(initial_state, config=config)  # type: ignore[call-overload]
             except Exception as e:
                 if type(e).__name__ == "GraphInterrupt":
                     _print_pause_message(issue_key)
@@ -122,7 +124,12 @@ def run_langchain_workflow(
                 print(f"ERROR: Workflow execution failed: {e}", file=sys.stderr)
                 sys.exit(1)
 
-        # Report completion.
+        # Determine outcome: pause or completion.
+        if _is_workflow_paused(result):
+            _print_pause_message(issue_key)
+            return
+
+        # True completion.
         final_step = result.get("step", "unknown")
         final_status = result.get("status", "unknown")
         print(f"[langchain] Workflow completed: step={final_step}, status={final_status}")
@@ -131,6 +138,19 @@ def run_langchain_workflow(
         # leaking file descriptors / holding the DB file locked.
         if hasattr(checkpointer, "conn"):
             checkpointer.conn.close()
+
+
+def _is_workflow_paused(result: object) -> bool:
+    """Return True if the workflow is paused (not completed).
+
+    When a LangGraph workflow with a checkpointer pauses at a human-in-the-loop
+    gate node, ``invoke()`` returns the current state dict instead of raising
+    ``GraphInterrupt``.  This helper detects that situation by checking whether
+    the returned status is anything other than ``"completed"``.
+    """
+    if not isinstance(result, dict):
+        return True
+    return result.get("status") != "completed"
 
 
 def _print_pause_message(issue_key: str) -> None:
