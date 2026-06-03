@@ -46,8 +46,9 @@ jobs:
           OPEN_COUNT=$(gh pr list \
             --repo "$GITHUB_REPOSITORY" \
             --state open \
-            --json labels,number \
-            | jq '[.[] | select(.labels | map(.name) | index("ai-pr-loop-ignore") | not)] | length')
+            --limit 500 \
+            --json labels,number,isCrossRepository \
+            | jq '[.[] | select((.isCrossRepository | not) and (.labels | map(.name) | index("ai-pr-loop-ignore") | not))] | length')
 
           if [ "$OPEN_COUNT" -eq 0 ]; then
             echo "No eligible open PRs — stopping loop."
