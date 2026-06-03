@@ -63,7 +63,7 @@ Plan and task phases align 1:1 — no mapping table required.
   `tests/unit/orchestration/runner/test_run_langchain_workflow.py` [FR-005]
 - [ ] T017 [P] [US4] Add regression test asserting `_is_workflow_paused` is invoked and that a non-completed
   state prints the pause message while suppressing completion output [FR-001]
-- [ ] T018 [US4] Run full test suite with `agdt-test` and verify all 2000+ tests pass [FR-005]
+- [ ] T018 [US4] Run interim full-suite check with `agdt-test` after all US4 regression tests are written — verify all 2000+ tests pass before proceeding to Phase 7 [FR-005]
 - [ ] T019 [US4] Run `bash scripts/targeted-checks.sh` and verify 100% branch coverage on `runner.py` [FR-005]
 
 ## Phase 7: User Story 5 — CLI Help Documents Pause/Resume Behavior
