@@ -60,9 +60,13 @@ jobs:
 
           # --- Stop condition 2: no merges to main in 24+ hours ---
           DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
-          LAST_MERGE=$(gh api "/repos/$GITHUB_REPOSITORY/commits?sha=${DEFAULT_BRANCH}&per_page=1" \
-            --jq '.[0].commit.committer.date // empty')
-
+          LAST_MERGE=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state merged \
+            --base "$DEFAULT_BRANCH" \
+            --limit 1 \
+            --json mergedAt \
+            --jq '.[0].mergedAt // empty')
           if [ -z "$LAST_MERGE" ]; then
             echo "Could not determine last merge date — stopping loop (fail-safe)."
             echo "should_dispatch=false" >> "$GITHUB_OUTPUT"
@@ -95,12 +99,32 @@ jobs:
           COOLDOWN=65
           DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
 
-          LAST_END=$(gh api \
+          LAST_RUN_JSON=$(gh api \
             "/repos/$GITHUB_REPOSITORY/actions/workflows/agent-session-monitor.yml/runs?per_page=1&branch=${DEFAULT_BRANCH}" \
-            --jq '.workflow_runs[0].updated_at // empty')
+            --jq '.workflow_runs[0] // {}')
+
+          LAST_RUN_STATUS=$(echo "$LAST_RUN_JSON" | jq -r '.status // empty')
+          LAST_RUN_CONCLUSION=$(echo "$LAST_RUN_JSON" | jq -r '.conclusion // empty')
+          LAST_END=$(echo "$LAST_RUN_JSON" | jq -r '.updated_at // empty')
+
+          if [ -n "$LAST_RUN_STATUS" ] && [ "$LAST_RUN_STATUS" != "completed" ]; then
+            echo "agent-session-monitor is currently ${LAST_RUN_STATUS} — skipping dispatch to avoid queueing."
+            echo "should_dispatch=false" >> "$GITHUB_OUTPUT"
+            echo "sleep_seconds=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # If the last run completed but did not succeed, allow immediate retry (no cooldown).
+          if [ -n "$LAST_RUN_CONCLUSION" ] && [ "$LAST_RUN_CONCLUSION" != "success" ]; then
+            echo "Last agent-session-monitor concluded as '${LAST_RUN_CONCLUSION}' — dispatching immediately (no cooldown)."
+            echo "should_dispatch=true" >> "$GITHUB_OUTPUT"
+            echo "sleep_seconds=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           if [ -z "$LAST_END" ]; then
             echo "No prior agent-session-monitor runs found — dispatching immediately."
+            echo "should_dispatch=true" >> "$GITHUB_OUTPUT"
             echo "sleep_seconds=0" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -111,14 +135,15 @@ jobs:
           [ "$WAIT" -lt 0 ] && WAIT=0
 
           echo "Last agent-session-monitor run ended at ${LAST_END}; sleeping ${WAIT}s before next dispatch."
+          echo "should_dispatch=true" >> "$GITHUB_OUTPUT"
           echo "sleep_seconds=$WAIT" >> "$GITHUB_OUTPUT"
 
       - name: Sleep until safe to dispatch
-        if: steps.check.outputs.should_dispatch == 'true'
+        if: steps.check.outputs.should_dispatch == 'true' && steps.timing.outputs.should_dispatch == 'true'
         run: sleep "${{ steps.timing.outputs.sleep_seconds }}"
 
       - name: Dispatch agent-session-monitor
-        if: steps.check.outputs.should_dispatch == 'true'
+        if: steps.check.outputs.should_dispatch == 'true' && steps.timing.outputs.should_dispatch == 'true'
         env:
           GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
         run: |
