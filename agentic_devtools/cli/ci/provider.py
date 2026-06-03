@@ -244,8 +244,8 @@ class CIPlatformProvider(ABC):
         """Finalize a Copilot-repaired PR cycle after a synchronize commit.
 
         Performs provider-specific post-repair actions such as replying to
-        review comments and resolving review threads. Squash + re-request
-        are handled separately via ``squash_post_repair()``.
+        review comments and resolving review threads. Squash is handled
+        separately via ``squash_post_repair()``.
 
         Returns:
             FinalizationResult with details about what was resolved/skipped.
@@ -260,11 +260,10 @@ class CIPlatformProvider(ABC):
         head_branch: str,
         head_sha: str,
     ) -> None:
-        """Squash post-repair commits and re-request review.
+        """Squash post-repair commits into a single clean commit.
 
-        Called from the workflow_run/workflow_dispatch squash-wait flow
-        after a terminal Copilot session event has been observed to avoid
-        race conditions with the agent's force-push.
+        Responsible strictly for commit hygiene. Review requests are handled
+        explicitly by RequestReviewAction in the pipeline after squash completes.
         """
 
     @abstractmethod

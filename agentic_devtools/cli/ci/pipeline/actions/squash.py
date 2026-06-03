@@ -1,4 +1,8 @@
-"""Squash action — squashes commits when multiple exist."""
+"""Squash action — squashes commits when multiple exist.
+
+Responsible strictly for commit hygiene. Review requests are handled
+explicitly by RequestReviewAction after squash completes.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +18,15 @@ logger = logging.getLogger(__name__)
 
 class SquashAction:
     """Squash commits when more than one exists above merge-base.
+
+    Responsible strictly for commit hygiene — converting multiple commits into
+    a single well-formed commit. Does NOT trigger or rely on triggering Copilot
+    review as a side effect of force-push.
+
+    After successful squash, sets ``invalidates_snapshot=True`` because the HEAD
+    SHA has changed. ``RequestReviewAction`` (which opts into
+    ``runs_after_invalidation``) will then explicitly request review on the new
+    squashed HEAD.
 
     Preconditions:
     - Commits above merge-base > 1

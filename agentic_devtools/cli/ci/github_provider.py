@@ -53,7 +53,6 @@ from agentic_devtools.cli.ci.resolution.tiers.automation_markers import Automati
 from agentic_devtools.cli.ci.resolution.tiers.outdated import OutdatedTier
 from agentic_devtools.cli.ci.resolution.tiers.sdk_evaluation import SdkEvaluationTier
 from agentic_devtools.cli.ci.retry import RetryableError, retry_with_backoff
-from agentic_devtools.cli.github.request_copilot_review import request_copilot_review as _request_copilot_review
 from agentic_devtools.cli.subprocess_utils import run_safe
 from agentic_devtools.state import get_state_dir
 
@@ -2755,10 +2754,16 @@ class GitHubActionsProvider(CIPlatformProvider):
         head_branch: str,
         head_sha: str,
     ) -> None:
-        """Squash post-repair commits and re-request Copilot review.
+        """Squash post-repair commits into a single clean commit.
 
-        Called from the comment-triggered post-repair phase after the
-        Copilot coding agent session has completed.
+        Responsible strictly for commit hygiene — converting multiple commits
+        into a single well-formed commit via interactive rebase and force-push.
+
+        Review requests are handled explicitly by ``RequestReviewAction`` in the
+        pipeline after squash completes; this method does NOT trigger or request
+        reviews.
+
+        Called from the pipeline squash action after verifying preconditions.
         """
         # 1. Squash and force-push
         self._squash_and_force_push(base_branch=base_branch, head_branch=head_branch, head_sha=head_sha)
@@ -2777,23 +2782,3 @@ class GitHubActionsProvider(CIPlatformProvider):
         pr_meta = self.get_pr_metadata(pr_number)
         if pr_meta.is_draft:
             self.publish_pr(pr_number)
-
-        # 3. Re-request Copilot review with built-in verification.
-        #    Force-push is the primary auto-trigger mechanism; this explicit request
-        #    serves as a fallback safety net.  _request_copilot_review already verifies
-        #    via both requested-reviewers polling and the reviews fallback (covering the
-        #    case where Copilot started reviewing before our verification poll runs).
-        repo = self._resolve_repo()
-        result = _request_copilot_review(pr_number, repo)
-
-        # 3b. Re-request once if the initial request was not verified.
-        #     Unlike a manual requested_reviewers check, this reuses the richer
-        #     verification logic in _request_copilot_review itself.
-        if not result.get("verified"):
-            logger.warning(
-                "Copilot review request not verified for PR #%d after force-push "
-                "(requested=%s). Re-requesting explicitly.",
-                pr_number,
-                result.get("requested"),
-            )
-            _request_copilot_review(pr_number, repo)
