@@ -23,12 +23,13 @@ import sys
 try:
     from copilot import CopilotClient, SubprocessConfig
     from copilot.session import PermissionHandler
-except ImportError:
+except Exception as first_exc:
     try:
         from copilot import CopilotClient
         from copilot.config import SubprocessConfig
         from copilot.session import PermissionHandler
-    except ImportError as e:
+    except Exception as fallback_exc:
+        error = first_exc if not isinstance(first_exc, ImportError) else fallback_exc
         pip_show = subprocess.run(
             [sys.executable, "-m", "pip", "show", "github-copilot-sdk"],
             capture_output=True,
@@ -41,7 +42,7 @@ except ImportError:
             text=True,
             check=False,
         )
-        print(f"Error: Copilot SDK import failed: {e}", file=sys.stderr)
+        print(f"Error: Copilot SDK import failed: {error}", file=sys.stderr)
         sdk_info = (pip_show.stdout or pip_show.stderr or "").strip() or "(not installed)"
         wrong_info = (pip_show_wrong.stdout or pip_show_wrong.stderr or "").strip() or "(not installed)"
         print(f"pip show github-copilot-sdk:\n{sdk_info}", file=sys.stderr)
