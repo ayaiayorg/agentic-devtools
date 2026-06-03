@@ -55,6 +55,49 @@ def _build_sdk_mocks(
     return mock_copilot, mock_session_module, mock_session
 
 
+def _build_sdk_mocks_no_subprocess_config() -> tuple[MagicMock, MagicMock, MagicMock, MagicMock]:
+    """Return (mock_copilot, mock_copilot_config, mock_session_module, mock_session).
+
+    ``mock_copilot`` has spec=['CopilotClient'] so that accessing SubprocessConfig raises
+    AttributeError, which Python converts to ImportError during ``from copilot import SubprocessConfig``.
+    SubprocessConfig is available on mock_copilot_config instead.
+    """
+    mock_session = MagicMock()
+    mock_session.disconnect = AsyncMock()
+
+    captured_callback: list = []
+
+    def capture_on(cb: object) -> None:
+        captured_callback.append(cb)
+
+    mock_session.on = MagicMock(side_effect=capture_on)
+
+    async def fire_events(prompt: str) -> None:  # noqa: ARG001
+        cb = captured_callback[0]
+        cb(_make_event("assistant.message", "resolved via fallback\n"))
+        cb(_make_event("session.idle"))
+
+    mock_session.send = fire_events
+
+    mock_client = MagicMock()
+    mock_client.start = AsyncMock()
+    mock_client.stop = AsyncMock()
+    mock_client.create_session = AsyncMock(return_value=mock_session)
+
+    # copilot module WITHOUT SubprocessConfig
+    mock_copilot = MagicMock(spec=["CopilotClient"])
+    mock_copilot.CopilotClient.return_value = mock_client
+
+    # copilot.config module WITH SubprocessConfig
+    mock_copilot_config = MagicMock()
+    mock_copilot_config.SubprocessConfig = MagicMock()
+
+    mock_session_module = MagicMock()
+    mock_session_module.PermissionHandler = MagicMock()
+
+    return mock_copilot, mock_copilot_config, mock_session_module, mock_session
+
+
 class TestResolveConflictedFileContentViaSdk:
     """Tests for SDK-driven single-file conflict resolution."""
 
@@ -303,3 +346,28 @@ class TestResolveConflictedFileContentViaSdk:
 
         assert result == "resolved content\n"
         assert mock_copilot.CopilotClient.return_value.create_session.call_count == 2
+
+    # ── Fallback import (copilot.config.SubprocessConfig) ────────────────────
+
+    def test_sdk_fallback_import_path_succeeds(self, monkeypatch: object) -> None:
+        """When SubprocessConfig is absent from copilot, falls back to copilot.config."""
+        monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
+        mock_copilot, mock_copilot_config, mock_session_module, _ = _build_sdk_mocks_no_subprocess_config()
+
+        with patch.dict(
+            sys.modules,
+            {
+                "copilot": mock_copilot,
+                "copilot.config": mock_copilot_config,
+                "copilot.session": mock_session_module,
+            },
+        ):
+            provider = GitHubActionsProvider(repo="owner/repo")
+            result = provider._resolve_conflicted_file_content_via_sdk(
+                file_path="src/main.py",
+                conflict_content="<<<<<<< HEAD\nmine\n=======\ntheirs\n>>>>>>> branch\n",
+                base_branch="main",
+                head_branch="feature/test",
+            )
+
+        assert result == "resolved via fallback\n"

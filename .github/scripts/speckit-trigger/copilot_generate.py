@@ -23,31 +23,37 @@ import sys
 try:
     from copilot import CopilotClient, SubprocessConfig
     from copilot.session import PermissionHandler
-except ImportError as e:
-    pip_show = subprocess.run(
-        [sys.executable, "-m", "pip", "show", "github-copilot-sdk"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    pip_show_wrong = subprocess.run(
-        [sys.executable, "-m", "pip", "show", "copilot"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    print(f"Error: Copilot SDK import failed: {e}", file=sys.stderr)
-    sdk_info = (pip_show.stdout or pip_show.stderr or "").strip() or "(not installed)"
-    wrong_info = (pip_show_wrong.stdout or pip_show_wrong.stderr or "").strip() or "(not installed)"
-    print(f"pip show github-copilot-sdk:\n{sdk_info}", file=sys.stderr)
-    print(f"pip show copilot:\n{wrong_info}", file=sys.stderr)
-    if wrong_info != "(not installed)" and "Package(s) not found" not in wrong_info:
-        print("⚠ Conflicting 'copilot' package detected (it may shadow github-copilot-sdk).", file=sys.stderr)
-    print(
-        "Ensure 'github-copilot-sdk' is installed and no conflicting 'copilot' package is present.",
-        file=sys.stderr,
-    )
-    sys.exit(1)
+except Exception as first_exc:
+    try:
+        from copilot import CopilotClient
+        from copilot.config import SubprocessConfig
+        from copilot.session import PermissionHandler
+    except Exception as fallback_exc:
+        error = first_exc if not isinstance(first_exc, ImportError) else fallback_exc
+        pip_show = subprocess.run(
+            [sys.executable, "-m", "pip", "show", "github-copilot-sdk"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        pip_show_wrong = subprocess.run(
+            [sys.executable, "-m", "pip", "show", "copilot"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        print(f"Error: Copilot SDK import failed: {error}", file=sys.stderr)
+        sdk_info = (pip_show.stdout or pip_show.stderr or "").strip() or "(not installed)"
+        wrong_info = (pip_show_wrong.stdout or pip_show_wrong.stderr or "").strip() or "(not installed)"
+        print(f"pip show github-copilot-sdk:\n{sdk_info}", file=sys.stderr)
+        print(f"pip show copilot:\n{wrong_info}", file=sys.stderr)
+        if wrong_info != "(not installed)" and "Package(s) not found" not in wrong_info:
+            print("⚠ Conflicting 'copilot' package detected (it may shadow github-copilot-sdk).", file=sys.stderr)
+        print(
+            "Ensure 'github-copilot-sdk' is installed and no conflicting 'copilot' package is present.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 async def main() -> int:
