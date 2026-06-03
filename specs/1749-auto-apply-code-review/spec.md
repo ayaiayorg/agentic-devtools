@@ -1,11 +1,39 @@
 # Feature Specification: Auto-apply Code Review Suggestions via GraphQL in AI PR Loop
 
-**Feature Branch**: `speckit/1749/phase-1-specify`  
+**Feature Branch**: `speckit/1749/phase-2-clarify`  
 **Created**: 2026-06-03  
 **Status**: Draft  
 **Input**: User description: "Implement an automated step in the ai-pr-loop workflow to programmatically apply all available autofixable GitHub PR review suggestions using the GraphQL
 `applySuggestedChanges` mutation before dispatching an AI repair job."  
 **Source Issue**: #1749 (<https://github.com/ayaiayorg/agentic-devtools/issues/1749>)
+
+---
+
+## Clarifications
+
+### Session 2026-06-03
+
+- Q: Should the maximum suggestion batch size threshold (FR-011) be configurable per-repository via `.github/agdt-config.json`, or is a hardcoded default of 50 sufficient for the initial
+  implementation? → A: A hardcoded threshold of 50 is sufficient for the initial implementation. Per-repository configuration via `.github/agdt-config.json` should be deferred to a follow-up iteration
+  once production usage patterns are observed.
+
+- Q: In the partial-apply + repair-dispatched path, should `SquashAction` squash the autofix commit together with the repair agent's commit in the same loop run, or should it defer until a subsequent
+  run? → A: `SquashAction` should defer squash when `repair_dispatched` is True (it already does via its `no_repair_dispatched` precondition). In the "all suggestions auto-applied, no repair" path,
+  `SquashAction` will squash normally since `repair_dispatched` is False. In the partial-apply + repair path, `SquashAction` defers in the current run and squashes all commits (autofix + repair) on
+  the next run after the repair agent completes. No behavioral change to `SquashAction` is required.
+
+- Q: Should `ApplySuggestionsAction` set `invalidates_snapshot = True` on its `ActionResult` when it successfully commits, causing the pipeline runner to refresh the snapshot before evaluating
+  `DispatchRepairAction`? → A: Yes. When `ApplySuggestionsAction` successfully applies suggestions and produces a commit, it MUST set `invalidates_snapshot = True` on its `ActionResult`. This ensures
+  `DispatchRepairAction` evaluates against the refreshed post-commit state (new HEAD SHA, updated CI status, updated review thread resolution). `DispatchRepairAction` must have
+  `runs_after_invalidation = True` to opt into the refreshed snapshot path.
+
+- Q: How does the system identify which review comment IDs to pass to repair dispatch for exclusion — by the suggestion's GraphQL node ID, or by the parent review comment's database ID (`databaseId`)?
+  → A: The exclusion context uses the parent review comment's REST API numeric ID (`databaseId` from GraphQL), since `provider.list_review_comments()` in the repair dispatch already works with REST
+  API comment IDs. The `ExclusionContext.resolved_comment_ids` field stores these numeric IDs.
+
+- Q: When bisection fallback produces multiple mutation calls, should each successful call produce its own commit, or should the action attempt to consolidate into a single commit? → A: Each
+  successful `applySuggestedChanges` mutation call produces its own commit (this is GitHub API behavior — each mutation creates one commit). The `ApplySuggestionsResult.commit_shas` list captures all
+  commits produced. `SquashAction` will consolidate them on a subsequent run. The action should NOT attempt manual squashing; it relies on the existing pipeline squash mechanism.
 
 ---
 
@@ -150,20 +178,22 @@ during automated processing, especially when reviewing the PR timeline after the
 ### Edge Cases
 
 The system must handle the following boundary conditions:
-What happens when a suggestion references a file that was deleted in a subsequent
-commit pushed between review and loop execution? The action should detect this via
-the `outdated` field or mutation error and exclude the suggestion gracefully.
-How does the system behave when the PR has exactly one suggestion and it conflicts?
-The bisection fallback should degrade gracefully to a no-op since there is nothing
-left to split, and the single suggestion passes through to repair dispatch.
-What happens if the `applySuggestedChanges` mutation succeeds but the resulting
-commit triggers a branch protection rule violation (e.g., required status checks)?
-The pipeline should treat this as any other post-commit state and re-evaluate CI
-status in the next loop iteration.
-How does the system handle concurrent loop executions where two instances attempt to
-apply the same suggestions? The deduplication guard (existing `check_deduplication`
-mechanism) should prevent double-application, and the GraphQL mutation itself is
-idempotent for already-resolved suggestions.
+
+- **Deleted file reference**: When a suggestion references a file that was deleted in a subsequent commit pushed between review and loop execution, the action should detect this via the `outdated`
+  field or mutation error and exclude the suggestion gracefully, logging it as skipped with reason "file deleted / outdated".
+
+- **Single conflicting suggestion**: When the PR has exactly one suggestion and it conflicts, the bisection fallback should degrade gracefully to a no-op since there is nothing left to split, and the
+  single suggestion passes through to repair dispatch.
+
+- **Branch protection violation**: When the `applySuggestedChanges` mutation succeeds but the resulting commit triggers a branch protection rule violation (e.g., required status checks), the pipeline
+  should treat this as any other post-commit state and re-evaluate CI status in the next loop iteration. The `invalidates_snapshot = True` flag refreshes pipeline state; only actions that opt in via
+  `runs_after_invalidation=True` continue in the same run.
+
+- **Concurrent loop executions**: When two instances attempt to apply the same suggestions, the deduplication guard (existing `check_deduplication` mechanism) should prevent double-application, and
+  the GraphQL mutation itself is idempotent for already-resolved suggestions (returning a no-op or error that the action handles gracefully).
+
+- **Bisection producing multiple commits**: When bisection fallback applies suggestions in multiple mutation calls, each call produces one commit (GitHub API behavior). The `commit_shas` list in
+  `ApplySuggestionsResult` records all produced commits. `SquashAction` consolidates them on a subsequent pipeline run. The action does NOT attempt manual squashing.
 
 ---
 
@@ -182,11 +212,12 @@ idempotent for already-resolved suggestions.
 - **FR-004**: The system MUST exclude suggestions with `outdated: true` from any application attempt and log them as skipped for auto-apply; this exclusion MUST NOT, by itself, remove their parent
   review comments from repair dispatch context.
 
-- **FR-005**: The system MUST record the set of successfully applied review comment IDs (the root comment ID for each suggestion thread) and pass them to the repair dispatch action so that
-  `provider.list_review_comments()` can exclude those comments from the repair context.
+- **FR-005**: The system MUST record the `databaseId` of each `PullRequestReviewComment` node that contains an applied suggestion (i.e., the `reviewComment.databaseId` REST API numeric ID) and pass
+  those IDs to the repair dispatch action via `ExclusionContext` so that `provider.list_review_comments()` can exclude those comments from the repair context.
 
 - **FR-006**: The system MUST re-evaluate whether repair dispatch is necessary after suggestions are applied — if no unresolved actionable comments remain AND CI is not failing, the repair dispatch
-  action MUST return SKIP.
+  action MUST return SKIP. This re-evaluation is facilitated by `invalidates_snapshot = True` on the apply-suggestions `ActionResult`, which triggers a snapshot refresh before `DispatchRepairAction`
+  evaluates.
 
 - **FR-007**: The apply-suggestions action MUST be positioned after `GuardsAction` in the pipeline sequence so that the pipeline runner's existing guard-blocking mechanism applies. When any guard
   fires (`GuardsAction` returns `ActionDecision.BLOCKED`), the pipeline runner marks the apply-suggestions action as `ActionDecision.BLOCKED_BY_GUARD` and never evaluates or executes it, ensuring
@@ -198,11 +229,17 @@ idempotent for already-resolved suggestions.
 - **FR-009**: The system MUST be positioned in the pipeline action sequence after `GuardsAction` evaluation and before `DispatchRepairAction`, ensuring guards are checked first and repair dispatch
   receives the updated post-autofix state.
 
-- **FR-010**: The system MUST handle GitHub API rate limits and transient errors (5xx responses) with retry logic (up to 2 retries with exponential backoff) before reporting failure.
+- **FR-010**: The system MUST handle GitHub API rate limits and transient errors (5xx responses) with retry logic (up to 2 retries with exponential backoff, starting at 1 second) before reporting
+  failure. On exhausted retries, the action returns `ActionDecision.SKIP` (not `FAILED`) to avoid halting the pipeline.
 
-- **FR-011**: The system MUST NOT apply suggestions when the total number of applicable suggestions exceeds a configurable safety threshold (default: 50), logging a warning and deferring to repair
-  dispatch instead. This prevents runaway batch commits on PRs with an unusually high suggestion count that may indicate a systemic review pattern requiring human judgment. [NEEDS CLARIFICATION:
-  Should the threshold be configurable per-repository or is a global default sufficient for the initial implementation?]
+- **FR-011**: The system MUST NOT apply suggestions when the total number of applicable suggestions exceeds a hardcoded safety threshold of 50, logging a warning and deferring to repair dispatch
+  instead. This prevents runaway batch commits on PRs with an unusually high suggestion count that may indicate a systemic review pattern requiring human judgment. Per-repository configurability via
+  `.github/agdt-config.json` is deferred to a follow-up iteration.
+
+- **FR-012**: When the apply-suggestions action successfully produces one or more commits, it MUST set `invalidates_snapshot = True` on its `ActionResult`, causing the pipeline runner to refresh the
+  `PRStateSnapshot` before evaluating subsequent actions (specifically `DispatchRepairAction`).
+
+- **FR-013**: `DispatchRepairAction` MUST have `runs_after_invalidation = True` to opt into the refreshed snapshot path when `ApplySuggestionsAction` invalidates the snapshot.
 
 ### Non-Functional Requirements
 
@@ -222,18 +259,19 @@ idempotent for already-resolved suggestions.
 ### Key Entities
 
 - **SuggestedChange**: Represents a single autofixable code change proposed in a review comment. Key attributes: `id` (GraphQL node ID), `outdated` (boolean indicating staleness), parent
-  `reviewThread` (for thread resolution tracking).
+  `reviewComment.databaseId` (REST API numeric ID from the parent `PullRequestReviewComment`, used for exclusions), parent `reviewThread` (for thread resolution tracking).
 
 - **ApplySuggestionsResult**: The output of the apply-suggestions action,
   containing: `applied_ids` (list of successfully applied suggestion IDs),
   `skipped_ids` (list of suggestions excluded due to outdated status or
   conflicts), `commit_shas` (ordered list of autofix commit SHAs produced by
-  batch and/or fallback application, empty when nothing was applied), `error`
+  batch and/or fallback application — each `applySuggestedChanges` mutation call produces exactly one commit, so multiple entries indicate bisection fallback was used; empty when nothing was applied),
+  `error`
   (optional error detail for partial failures).
 
 - **ExclusionContext**: Data structure passed from the apply-suggestions action
-  to the repair dispatch action, containing the set of resolved review comment
-  IDs (root thread comments) that should be excluded from repair comment
+  to the repair dispatch action via `DerivedState`, containing the set of resolved review comment
+  IDs (parent review comment REST API numeric IDs / `databaseId`) that should be excluded from repair comment
   fetching.
 
 ---
@@ -248,12 +286,13 @@ idempotent for already-resolved suggestions.
   2-week production observation period.
 
 - **SC-002**: The batch application of suggestions produces exactly 1 commit per successful action execution in at least 90% of cases (the remaining 10% accounts for bisection fallback scenarios
-  requiring multiple mutations but still targeting a single squashed commit).
+  requiring multiple mutations, each producing one commit; `SquashAction` consolidates them on a subsequent run).
 
 - **SC-003**: The apply-suggestions action adds no more than 10 seconds of wall-clock time to the AI PR Loop execution for PRs with 10 or fewer suggestions, as measured by action-level timing
   instrumentation.
 
-- **SC-004**: The repair dispatch action's `review_comments` list correctly excludes 100% of review comment IDs (root thread comments) that were auto-applied, verified by unit tests covering the
+- **SC-004**: The repair dispatch action's `review_comments` list correctly excludes 100% of review comment IDs (parent review comment REST API numeric IDs) that were auto-applied, verified by unit
+  tests covering the
   exclusion logic with at least 95% branch coverage on the new action module.
 
 - **SC-005**: Zero false positives on guard enforcement — the action MUST never produce a commit on a fork PR or a PR touching privileged paths, validated by integration tests that assert SKIP on
@@ -268,11 +307,12 @@ idempotent for already-resolved suggestions.
 
 ## Open Questions
 
-- [NEEDS CLARIFICATION]: `SquashAction` already squashes when `commit_count > 1`, no repair was dispatched, and no Copilot session is active; in the "all suggestions auto-applied, no repair"
-  path this should already produce a single commit in the same loop run. Clarify the decision point for partial-apply + repair-dispatched paths where `SquashAction` intentionally defers.
+- **Resolved** (see Clarifications): `SquashAction` already squashes when `commit_count > 1`, no repair was dispatched, and no Copilot session is active; in the "all suggestions auto-applied, no
+  repair" path this already produces a single commit in the same loop run. In the partial-apply + repair-dispatched path, `SquashAction` defers (via its `no_repair_dispatched` precondition) and
+  squashes all commits on the next run after repair completes.
 
-- [NEEDS CLARIFICATION]: Should the maximum suggestion batch size threshold (FR-011) be configurable per-repository via `.github/agdt-config.json`, or is a hardcoded default of 50 sufficient for the
-  initial implementation?
+- **Resolved** (see Clarifications): The maximum suggestion batch size threshold (FR-011) uses a hardcoded default of 50 for the initial implementation. Per-repository configurability is deferred to a
+  follow-up iteration.
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
