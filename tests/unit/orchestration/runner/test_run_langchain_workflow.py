@@ -77,6 +77,49 @@ class TestRunLangchainWorkflowFreshInvocation:
                 captured = capsys.readouterr()
                 assert "Workflow execution failed" in captured.err
 
+    def test_fresh_invocation_pauses_when_status_not_completed(self, capsys):
+        """Fresh invocation prints pause message when invoke returns non-completed status."""
+        mock_compiled = MagicMock()
+        mock_compiled.invoke.return_value = {
+            "step": "planning",
+            "status": "active",
+            "events": [],
+        }
+
+        with patch("agentic_devtools.orchestration.checkpointing.get_checkpointer") as mock_checkpointer:
+            mock_checkpointer.return_value = MagicMock()
+            with patch("agentic_devtools.orchestration.graph_builder.build_work_on_issue_graph") as mock_build:
+                mock_build.return_value = mock_compiled
+                from agentic_devtools.orchestration.runner import run_langchain_workflow
+
+                run_langchain_workflow("TEST-456")
+
+        captured = capsys.readouterr()
+        assert "paused" in captured.err
+        assert "--resume" in captured.err
+        assert "Workflow completed" not in captured.out
+
+    def test_fresh_invocation_pauses_when_status_empty(self, capsys):
+        """Fresh invocation prints pause message when invoke returns empty status."""
+        mock_compiled = MagicMock()
+        mock_compiled.invoke.return_value = {
+            "step": "initialization",
+            "status": "",
+            "events": [],
+        }
+
+        with patch("agentic_devtools.orchestration.checkpointing.get_checkpointer") as mock_checkpointer:
+            mock_checkpointer.return_value = MagicMock()
+            with patch("agentic_devtools.orchestration.graph_builder.build_work_on_issue_graph") as mock_build:
+                mock_build.return_value = mock_compiled
+                from agentic_devtools.orchestration.runner import run_langchain_workflow
+
+                run_langchain_workflow("TEST-456")
+
+        captured = capsys.readouterr()
+        assert "paused" in captured.err
+        assert "Workflow completed" not in captured.out
+
 
 class TestRunLangchainWorkflowResume:
     """Tests for resume path in LangGraph workflow."""
@@ -198,6 +241,31 @@ class TestRunLangchainWorkflowResume:
         captured = capsys.readouterr()
         assert "paused" in captured.err
         assert "--resume" in captured.err
+
+    def test_resume_pauses_when_status_not_completed(self, capsys):
+        """Resume prints pause message when invoke returns non-completed status."""
+        mock_checkpointer = MagicMock()
+        mock_checkpointer.get.return_value = {"some": "checkpoint"}
+
+        mock_compiled = MagicMock()
+        mock_compiled.invoke.return_value = {
+            "step": "commit",
+            "status": "active",
+            "events": [],
+        }
+
+        with patch("agentic_devtools.orchestration.checkpointing.get_checkpointer") as mock_get_cp:
+            mock_get_cp.return_value = mock_checkpointer
+            with patch("agentic_devtools.orchestration.graph_builder.build_work_on_issue_graph") as mock_build:
+                mock_build.return_value = mock_compiled
+                from agentic_devtools.orchestration.runner import run_langchain_workflow
+
+                run_langchain_workflow("TEST-789", resume=True)
+
+        captured = capsys.readouterr()
+        assert "paused" in captured.err
+        assert "--resume" in captured.err
+        assert "Workflow completed" not in captured.out
 
 
 class TestRunLangchainWorkflowCheckpointerCleanup:
