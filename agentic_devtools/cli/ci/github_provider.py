@@ -2763,8 +2763,7 @@ class GitHubActionsProvider(CIPlatformProvider):
         pipeline after squash completes; this method does NOT trigger or request
         reviews.
 
-        Called from the pipeline squash action after verifying preconditions.
-        """
+        Called by squash workflows (pipeline SquashAction and squash-wait finalization) after verifying preconditions.
         # 1. Squash and force-push
         self._squash_and_force_push(base_branch=base_branch, head_branch=head_branch, head_sha=head_sha)
 
