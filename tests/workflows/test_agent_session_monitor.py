@@ -14,14 +14,14 @@ class TestAgentSessionMonitor:
     def test_workflow_file_exists(self) -> None:
         assert AGENT_SESSION_MONITOR.exists()
 
-    def test_has_schedule_trigger_every_5_minutes(self) -> None:
-        content = AGENT_SESSION_MONITOR.read_text(encoding="utf-8")
-        assert "schedule:" in content
-        assert "*/5 * * * *" in content
-
     def test_has_workflow_dispatch_trigger(self) -> None:
         content = AGENT_SESSION_MONITOR.read_text(encoding="utf-8")
         assert "workflow_dispatch:" in content
+
+    def test_has_no_schedule_trigger(self) -> None:
+        content = AGENT_SESSION_MONITOR.read_text(encoding="utf-8")
+        assert "schedule:" not in content
+        assert "*/5 * * * *" not in content
 
     def test_has_required_permissions(self) -> None:
         content = AGENT_SESSION_MONITOR.read_text(encoding="utf-8")
@@ -59,12 +59,12 @@ class TestAgentSessionMonitor:
         assert "ai-pr-loop-ignore" in content
         assert "reason=ai_pr_loop_ignore_label" in content
 
-    def test_only_has_schedule_and_dispatch_triggers(self) -> None:
+    def test_only_has_workflow_dispatch_trigger(self) -> None:
         content = AGENT_SESSION_MONITOR.read_text(encoding="utf-8")
         parsed = yaml.safe_load(content)
         # YAML parses 'on' as True, so use True as key
         triggers = set(parsed[True].keys()) if isinstance(parsed[True], dict) else set()
-        assert triggers == {"schedule", "workflow_dispatch"}
+        assert triggers == {"workflow_dispatch"}
 
     def test_valid_yaml(self) -> None:
         content = AGENT_SESSION_MONITOR.read_text(encoding="utf-8")

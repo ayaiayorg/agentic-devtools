@@ -14,7 +14,7 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 **How it works**:
 
 1. **Scheduler-only trigger**: The workflow is invoked exclusively via `workflow_dispatch` by the
-   agent-session-monitor scheduler, which selects exactly one PR per 5-minute cycle
+   agent-session-monitor scheduler, which selects exactly one PR per invocation
 2. **Exclusion Labels**: `ai-pr-loop-ignore` skips entirely; missing `ai-auto-merge-allowed` prevents merge but allows fixes/approval
 3. **Repair dispatch**: Uses failed PR checks and Copilot review state to decide when to request fixes
 4. **Amend & Push**: Amends fixes into the last commit with `--force-with-lease`
@@ -22,19 +22,20 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 6. **Approve & Merge**: When all checks pass, Copilot review is clean, and no outstanding comments, approves and squash-merges
 7. **Stale Review Re-request**: Re-requests Copilot review if >30 minutes stale
 8. **Cycle Tracking**: Maximum 50 outer cycles before posting exhaustion notice
+9. **Continuous loop**: After finishing (even on failure), dispatches `ai-pr-loop-redispatch.yml`
+   to keep the loop going without waiting for a scheduler
 
 **Post-repair squash flow** (handled by Pipeline v2):
 
 After Copilot pushes a repair commit and CI passes, the squash is handled inline by the Pipeline v2
 `SquashAction` which evaluates conditions each time `ai-pr-loop` runs — no external scheduler needed.
-The scheduler dispatches `ai-pr-loop` via `workflow_dispatch` every 5 minutes for the oldest eligible PR.
 
 **Required Permissions**:
 
 - `contents: write`
 - `pull-requests: write`
 - `issues: write`
-- `actions: read`
+- `actions: write`
 - `checks: read`
 
 **Concurrency**: Single instance per PR (`ai-pr-loop-{pr_number}`), non-cancelling
@@ -43,9 +44,10 @@ The scheduler dispatches `ai-pr-loop` via `workflow_dispatch` every 5 minutes fo
 
 **PR Scheduler — Oldest-Eligible PR Dispatch**
 
-- Runs on: `schedule` (every 5 minutes, `*/5 * * * *`) and `workflow_dispatch` (manual)
+- Runs on: `workflow_dispatch` only (no cron; driven continuously by `ai-pr-loop-redispatch.yml`,
+  and cold-started by `pr-activity-dispatch.yml` on PR events)
 - Purpose: Selects the oldest eligible open PR and dispatches `ai-pr-loop.yml` for it.
-  At most one PR is processed per 5-minute cycle.
+  At most one PR is processed per invocation.
 
 **Selection logic**:
 
@@ -68,6 +70,48 @@ stall the queue.
 - `issues: write`
 
 **Required Secrets**: `AGDT_PR_APPROVER_PAT`
+
+### ai-pr-loop-redispatch.yml
+
+**AI PR Loop Redispatch — Smart Continuous Scheduling**
+
+- Runs on: `workflow_dispatch` only (dispatched by `ai-pr-loop.yml` after each run)
+- Purpose: Keeps the AI PR processing loop running continuously without a cron scheduler.
+  Calculates the safe time to dispatch `agent-session-monitor.yml` (respecting the 60 s cooldown
+  enforced by `pr-activity-dispatch.yml`) and sleeps until then.
+
+**Loop lifecycle**:
+
+```
+pr-activity-dispatch (cold-start on PR events)
+  → agent-session-monitor (selects oldest eligible PR)
+    → ai-pr-loop (processes the PR: fix / review / merge)
+      → ai-pr-loop-redispatch (checks stop conditions → sleeps → dispatches)
+        → agent-session-monitor → ...
+```
+
+**Stop conditions** (loop breaks if either is true):
+
+1. **No eligible open PRs** — no open PRs outside the `ai-pr-loop-ignore` label exist. The loop
+   breaks cleanly; `pr-activity-dispatch` will restart it when a new PR is opened or updated.
+2. **No merges to main in 24+ hours** — likely stuck PRs needing human intervention.
+
+**Loop restart**: `pr-activity-dispatch` fires on `opened`, `synchronize`, `reopened`, `labeled`,
+`unlabeled`, `ready_for_review`, `review_requested`, and `closed` PR events.
+
+**Sleep calculation**: Queries the last `agent-session-monitor` run's `updated_at` timestamp
+and sleeps until `last_completed + 65s` (5 s margin over `pr-activity-dispatch`'s 60 s cooldown).
+
+**Required Permissions**:
+
+- `actions: write`
+- `pull-requests: read`
+- `contents: read`
+
+**Required Secrets**: `AGDT_PR_APPROVER_PAT`
+
+**Concurrency**: `ai-pr-loop-redispatch` group with `cancel-in-progress: true`
+(only the latest redispatch matters)
 
 ### synthetic-copilot-review.yml
 

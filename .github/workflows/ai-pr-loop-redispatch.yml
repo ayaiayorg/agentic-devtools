@@ -1,0 +1,126 @@
+# AI PR Loop Redispatch — Smart Continuous Scheduling
+#
+# Dispatched by ai-pr-loop.yml at the end of each run to keep the processing
+# loop going without a cron scheduler.  Before sleeping and re-dispatching
+# agent-session-monitor it applies two stop conditions:
+#
+#   1. No eligible open PRs — exits cleanly (loop breaks; pr-activity-dispatch
+#      will restart it when a new PR is opened or updated).
+#   2. No merges to main in 24+ hours — exits cleanly (likely stuck PRs that
+#      need human intervention).
+#
+# When both guards pass it calculates how long to sleep so the next dispatch
+# of agent-session-monitor lands at least ~65 seconds after the last run
+# completed (respecting pr-activity-dispatch's 60 s cooldown) and then
+# dispatches agent-session-monitor.yml.
+#
+# Concurrency: only the latest redispatch matters; older ones are cancelled.
+
+name: AI PR Loop Redispatch
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  actions: write
+  pull-requests: read
+  contents: read
+
+concurrency:
+  group: ai-pr-loop-redispatch
+  cancel-in-progress: true
+
+jobs:
+  smart-redispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check stop conditions
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
+        run: |
+          set -euo pipefail
+
+          # --- Stop condition 1: no eligible open PRs ---
+          OPEN_COUNT=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --json labels,number \
+            | jq '[.[] | select(.labels | map(.name) | index("ai-pr-loop-ignore") | not)] | length')
+
+          if [ "$OPEN_COUNT" -eq 0 ]; then
+            echo "No eligible open PRs — stopping loop."
+            echo "should_dispatch=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Eligible open PRs: $OPEN_COUNT"
+
+          # --- Stop condition 2: no merges to main in 24+ hours ---
+          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+          LAST_MERGE=$(gh api "/repos/$GITHUB_REPOSITORY/commits?sha=${DEFAULT_BRANCH}&per_page=1" \
+            --jq '.[0].commit.committer.date // empty')
+
+          if [ -z "$LAST_MERGE" ]; then
+            echo "Could not determine last merge date — stopping loop (fail-safe)."
+            echo "should_dispatch=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          LAST_MERGE_EPOCH=$(date -d "$LAST_MERGE" +%s)
+          NOW_EPOCH=$(date +%s)
+          SECONDS_SINCE_MERGE=$(( NOW_EPOCH - LAST_MERGE_EPOCH ))
+          HOURS_SINCE_MERGE=$(( SECONDS_SINCE_MERGE / 3600 ))
+
+          if [ "$HOURS_SINCE_MERGE" -ge 24 ]; then
+            echo "No merges to main in ${HOURS_SINCE_MERGE}h — stopping loop (likely stuck PRs needing human intervention)."
+            echo "should_dispatch=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Last merge to main was ${HOURS_SINCE_MERGE}h ago — continuing loop."
+          echo "should_dispatch=true" >> "$GITHUB_OUTPUT"
+
+      - name: Calculate sleep duration
+        if: steps.check.outputs.should_dispatch == 'true'
+        id: timing
+        env:
+          GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
+        run: |
+          set -euo pipefail
+
+          # Respect pr-activity-dispatch's 60 s cooldown; use 65 s to be safe.
+          COOLDOWN=65
+          DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
+
+          LAST_END=$(gh api \
+            "/repos/$GITHUB_REPOSITORY/actions/workflows/agent-session-monitor.yml/runs?per_page=1&branch=${DEFAULT_BRANCH}" \
+            --jq '.workflow_runs[0].updated_at // empty')
+
+          if [ -z "$LAST_END" ]; then
+            echo "No prior agent-session-monitor runs found — dispatching immediately."
+            echo "sleep_seconds=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          LAST_EPOCH=$(date -d "$LAST_END" +%s)
+          NOW_EPOCH=$(date +%s)
+          WAIT=$(( (LAST_EPOCH + COOLDOWN) - NOW_EPOCH ))
+          [ "$WAIT" -lt 0 ] && WAIT=0
+
+          echo "Last agent-session-monitor run ended at ${LAST_END}; sleeping ${WAIT}s before next dispatch."
+          echo "sleep_seconds=$WAIT" >> "$GITHUB_OUTPUT"
+
+      - name: Sleep until safe to dispatch
+        if: steps.check.outputs.should_dispatch == 'true'
+        run: sleep "${{ steps.timing.outputs.sleep_seconds }}"
+
+      - name: Dispatch agent-session-monitor
+        if: steps.check.outputs.should_dispatch == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
+        run: |
+          gh workflow run agent-session-monitor.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "${{ github.event.repository.default_branch }}"
