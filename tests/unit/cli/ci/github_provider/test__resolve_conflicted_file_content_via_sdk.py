@@ -371,4 +371,3 @@ class TestResolveConflictedFileContentViaSdk:
             )
 
         assert result == "resolved via fallback\n"
-

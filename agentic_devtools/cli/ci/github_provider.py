@@ -2513,7 +2513,9 @@ class GitHubActionsProvider(CIPlatformProvider):
                 from copilot.session import PermissionHandler
             except Exception as exc:
                 logger.warning("Copilot SDK unavailable for comment verification: %s", exc)
-                return {comment.id: VerificationVerdict.COMMENT_UNRESOLVE for comment, _diff_context in normalized_comments}
+                return {
+                    comment.id: VerificationVerdict.COMMENT_UNRESOLVE for comment, _diff_context in normalized_comments
+                }
 
         model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
 
