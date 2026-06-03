@@ -49,6 +49,46 @@ def _build_sdk_modules() -> tuple[MagicMock, MagicMock, MagicMock]:
     return mock_copilot, mock_session_module, mock_session
 
 
+def _build_sdk_modules_no_subprocess_config(response: str) -> tuple[MagicMock, MagicMock, MagicMock]:
+    """Return (mock_copilot, mock_copilot_config, mock_session_module) where SubprocessConfig
+    is absent from copilot but present in copilot.config, to exercise the fallback import path."""
+    mock_session = MagicMock()
+    mock_session.disconnect = AsyncMock()
+
+    callbacks: list = []
+
+    def capture_on(cb: object) -> None:
+        callbacks.append(cb)
+
+    mock_session.on = MagicMock(side_effect=capture_on)
+
+    async def send_and_emit(_: str) -> None:
+        callback = callbacks[0]
+        callback(_make_sdk_event("assistant.message", response))
+        callback(_make_sdk_event("session.idle"))
+
+    mock_session.send = send_and_emit
+
+    mock_client = MagicMock()
+    mock_client.start = AsyncMock()
+    mock_client.stop = AsyncMock()
+    mock_client.create_session = AsyncMock(return_value=mock_session)
+
+    # copilot module WITHOUT SubprocessConfig (spec limits attribute access)
+    mock_copilot = MagicMock(spec=["CopilotClient"])
+    mock_copilot.CopilotClient.return_value = mock_client
+
+    # copilot.config WITH SubprocessConfig
+    mock_copilot_config = MagicMock()
+    mock_copilot_config.SubprocessConfig = MagicMock()
+
+    mock_session_module = MagicMock()
+    mock_session_module.PermissionHandler = MagicMock()
+    mock_session_module.PermissionHandler.approve_all = object()
+
+    return mock_copilot, mock_copilot_config, mock_session_module
+
+
 def _build_sdk_client_for_response(response: str) -> tuple[MagicMock, MagicMock]:
     mock_session = MagicMock()
     mock_session.disconnect = AsyncMock()
@@ -1200,6 +1240,26 @@ class TestFinalizePostRepair:
                 provider = GitHubActionsProvider(repo="owner/repo")
                 with pytest.raises(RuntimeError, match="boom"):
                     provider._run_prompt_via_sdk("prompt")
+
+    def test_run_prompt_via_sdk_fallback_import_path_succeeds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """When SubprocessConfig is absent from copilot, falls back to copilot.config."""
+        monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
+        mock_copilot, mock_copilot_config, mock_session_module = _build_sdk_modules_no_subprocess_config(
+            "COMMENT_RESOLVE"
+        )
+
+        with patch.dict(
+            sys.modules,
+            {
+                "copilot": mock_copilot,
+                "copilot.config": mock_copilot_config,
+                "copilot.session": mock_session_module,
+            },
+        ):
+            provider = GitHubActionsProvider(repo="owner/repo")
+            result = provider._run_prompt_via_sdk("prompt")
+
+        assert result == "COMMENT_RESOLVE"
 
     def test_run_prompt_via_sdk_fallback_uses_default_fallback_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("COPILOT_FALLBACK_MODEL", raising=False)
