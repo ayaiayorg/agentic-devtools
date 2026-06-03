@@ -602,12 +602,37 @@ Examples:
     else:
         # Normal interactive path: spawn setup in background and start
         # a Copilot session that waits for the prompt file.
+
+        # Delete any stale prompt file from a previous review so that
+        # _wait_for_prompt_file() doesn't return immediately before the
+        # new background setup has completed.  See #1746.
+        from .worktree_setup import _WORKFLOW_PROMPT_FILENAMES
+
+        _stale_prompt = resolved_state_dir / _WORKFLOW_PROMPT_FILENAMES["pull-request-review"]
+        _stale_prompt_cleared = True
+        if _stale_prompt.is_file():
+            try:
+                _stale_prompt.unlink(missing_ok=True)
+            except OSError as exc:
+                print(f"WARNING: Failed to delete stale prompt file {_stale_prompt}: {exc}")
+                _stale_prompt_cleared = False
+        elif _stale_prompt.exists():
+            print(f"WARNING: Stale prompt path exists but is not a regular file: {_stale_prompt}")
+            _stale_prompt_cleared = False
+
         from ..azure_devops.async_commands import setup_pull_request_review_async
 
         setup_pull_request_review_async(
             pull_request_id=int(resolved_pr_id),
             jira_issue_key=resolved_issue_key,
         )
+
+        if not _stale_prompt_cleared:
+            print(
+                "WARNING: Skipping Copilot session start — stale prompt file could not be "
+                "removed. Re-run once the path is writable."
+            )
+            return
 
         from .worktree_setup import _start_copilot_session_for_pr_review
 

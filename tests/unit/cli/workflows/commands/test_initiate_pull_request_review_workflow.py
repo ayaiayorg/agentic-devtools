@@ -1105,3 +1105,185 @@ class TestSkipCopilotSession:
         mocks["async_setup"].assert_called_once()
         mocks["sync_setup"].assert_not_called()
         mocks["session"].assert_called_once()
+
+    def test_stale_prompt_file_deleted_before_async_setup(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, monkeypatch
+    ):
+        """A leftover prompt file from a previous review is deleted before spawning async setup."""
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", str(temp_state_dir))
+        state.set_value("pull_request_id", "999")
+
+        # Create a stale prompt file simulating a previous review run
+        stale_prompt = temp_state_dir / "temp-pull-request-review-initiate-prompt.md"
+        stale_prompt.write_text("stale content from previous review", encoding="utf-8")
+        assert stale_prompt.exists()
+
+        def _assert_stale_removed_before_async_setup(*_args, **_kwargs):
+            assert not stale_prompt.exists()
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch",
+            return_value="feature/some-branch",
+        ):
+            with patch(
+                "agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr",
+                return_value=None,
+            ):
+                with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+                    mock_preflight.return_value = PreflightResult(
+                        folder_valid=True,
+                        branch_valid=True,
+                        folder_name="PR999",
+                        branch_name="feature/some-branch",
+                        issue_key=None,
+                    )
+                    with patch(
+                        "agentic_devtools.cli.workflows.commands.get_git_repo_root",
+                        return_value="/fake/repo-root",
+                    ):
+                        with patch(
+                            "agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async",
+                            side_effect=_assert_stale_removed_before_async_setup,
+                        ) as mock_async_setup:
+                            with patch(
+                                "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review",
+                                return_value=True,
+                            ):
+                                with patch(
+                                    "agentic_devtools.cli.workflows.commands.get_default_copilot_model",
+                                    return_value="gpt-4o",
+                                ):
+                                    commands.initiate_pull_request_review_workflow(
+                                        skip_copilot_session=False,
+                                        _argv=[],
+                                    )
+
+        mock_async_setup.assert_called_once()
+
+    def test_directory_at_stale_prompt_path_prints_warning(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, monkeypatch, capsys
+    ):
+        """A directory at the stale prompt path logs a warning without crashing."""
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", str(temp_state_dir))
+        state.set_value("pull_request_id", "999")
+
+        # Place a directory where the prompt file would normally be
+        stale_dir = temp_state_dir / "temp-pull-request-review-initiate-prompt.md"
+        stale_dir.mkdir()
+        assert stale_dir.is_dir()
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch",
+            return_value="feature/some-branch",
+        ):
+            with patch(
+                "agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr",
+                return_value=None,
+            ):
+                with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+                    mock_preflight.return_value = PreflightResult(
+                        folder_valid=True,
+                        branch_valid=True,
+                        folder_name="PR999",
+                        branch_name="feature/some-branch",
+                        issue_key=None,
+                    )
+                    with patch(
+                        "agentic_devtools.cli.workflows.commands.get_git_repo_root",
+                        return_value="/fake/repo-root",
+                    ):
+                        with patch(
+                            "agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async"
+                        ) as mock_async_setup:
+                            with patch(
+                                "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review",
+                                return_value=True,
+                            ) as mock_session:
+                                with patch(
+                                    "agentic_devtools.cli.workflows.commands.get_default_copilot_model",
+                                    return_value="gpt-4o",
+                                ):
+                                    commands.initiate_pull_request_review_workflow(
+                                        skip_copilot_session=False,
+                                        _argv=[],
+                                    )
+
+        mock_async_setup.assert_called_once()
+        mock_session.assert_not_called()
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.out
+        assert "temp-pull-request-review-initiate-prompt.md" in captured.out
+        # The directory must not be removed
+        assert stale_dir.is_dir()
+
+    def test_stale_prompt_unlink_error_skips_copilot_session(
+        self, temp_state_dir, clear_state_before, mock_workflow_state_clearing, monkeypatch, capsys
+    ):
+        """A stale prompt unlink error warns, still runs async setup, but skips the Copilot session."""
+        import pathlib
+
+        from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+        monkeypatch.setenv("AGENTIC_DEVTOOLS_STATE_DIR", str(temp_state_dir))
+        state.set_value("pull_request_id", "999")
+        stale_prompt = temp_state_dir / "temp-pull-request-review-initiate-prompt.md"
+        stale_prompt.write_text("stale content from previous review", encoding="utf-8")
+        assert stale_prompt.is_file()
+        original_unlink = pathlib.Path.unlink
+
+        def _unlink(path_obj, *args, **kwargs):
+            if path_obj == stale_prompt:
+                raise PermissionError("permission denied")
+            return original_unlink(path_obj, *args, **kwargs)
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.helpers.get_pull_request_source_branch",
+            return_value="feature/some-branch",
+        ):
+            with patch(
+                "agentic_devtools.cli.azure_devops.helpers.find_jira_issue_from_pr",
+                return_value=None,
+            ):
+                with patch("agentic_devtools.cli.workflows.commands.check_worktree_and_branch") as mock_preflight:
+                    mock_preflight.return_value = PreflightResult(
+                        folder_valid=True,
+                        branch_valid=True,
+                        folder_name="PR999",
+                        branch_name="feature/some-branch",
+                        issue_key=None,
+                    )
+                    with patch(
+                        "agentic_devtools.cli.workflows.commands.get_git_repo_root",
+                        return_value="/fake/repo-root",
+                    ):
+                        with patch(
+                            "pathlib.Path.unlink",
+                            autospec=True,
+                            side_effect=_unlink,
+                        ):
+                            with patch(
+                                "agentic_devtools.cli.azure_devops.async_commands.setup_pull_request_review_async"
+                            ) as mock_async_setup:
+                                with patch(
+                                    "agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_pr_review",
+                                    return_value=True,
+                                ) as mock_session:
+                                    with patch(
+                                        "agentic_devtools.cli.workflows.commands.get_default_copilot_model",
+                                        return_value="gpt-4o",
+                                    ):
+                                        commands.initiate_pull_request_review_workflow(
+                                            skip_copilot_session=False,
+                                            _argv=[],
+                                        )
+
+        mock_async_setup.assert_called_once()
+        mock_session.assert_not_called()
+        captured = capsys.readouterr()
+        assert "WARNING: Failed to delete stale prompt file" in captured.out
+        assert "temp-pull-request-review-initiate-prompt.md" in captured.out
+        assert "Skipping Copilot session start" in captured.out
