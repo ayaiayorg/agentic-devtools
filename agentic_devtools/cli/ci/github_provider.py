@@ -2757,7 +2757,7 @@ class GitHubActionsProvider(CIPlatformProvider):
         """Squash post-repair commits into a single clean commit.
 
         Responsible strictly for commit hygiene — converting multiple commits
-        into a single well-formed commit via interactive rebase and force-push.
+        into a single well-formed commit via soft reset + commit, rebase, and force-push.
 
         Review requests are handled explicitly by ``RequestReviewAction`` in the
         pipeline after squash completes; this method does NOT trigger or request

@@ -18,9 +18,9 @@ _EFFECTIVE_REVIEW_STATES = {"APPROVED", "COMMENTED", "CHANGES_REQUESTED"}
 class RequestReviewAction:
     """Request Copilot review when no effective review exists on HEAD.
 
-    This action is the single, explicit mechanism for requesting Copilot reviews.
-    Reviews are never triggered implicitly via push events — they are always
-    requested explicitly through this action.
+    This action is the pipeline's explicit mechanism for requesting Copilot reviews.
+    The pipeline does not rely on push events to trigger reviews — it requests them
+    explicitly through this action.
 
     After a squash (which invalidates the snapshot), this action runs on the
     refreshed snapshot to request review on the new squashed HEAD. The
