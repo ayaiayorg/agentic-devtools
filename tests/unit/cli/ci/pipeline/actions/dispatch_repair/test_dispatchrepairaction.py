@@ -496,9 +496,9 @@ class TestDispatchRepairAction:
             action = DispatchRepairAction()
             result = action.execute(provider, snapshot, derived)
 
-        assert result.decision == ActionDecision.EXECUTE
+        assert result.decision == ActionDecision.SKIP
         assert "review_id=4401589029" in result.details
-        assert getattr(derived, "repair_dispatched", False) is True
+        assert getattr(derived, "repair_dispatched", False) is False
         provider.dispatch_repair.assert_not_called()
 
     def test_execute_when_review_id_dedup_check_raises_fail_open(self) -> None:

@@ -775,6 +775,75 @@ class TestRunPipeline:
             provider.publish_pr.assert_not_called()
             provider.dispatch_repair.assert_not_called()
 
+    def test_review_request_can_run_after_dispatch_repair_review_dedup_skip(self) -> None:
+        """Review request can still run when dispatch repair dedup path skips."""
+        provider = MagicMock()
+        initial_snapshot = PRStateSnapshot(
+            pr_number=1,
+            head_sha="oldsha",
+            base_branch="main",
+            head_branch="feature",
+            commit_count=2,
+            ci_status="passing",
+            review_state="COMMENTED",
+            copilot_review_id=4401589029,
+            copilot_review_inline_count=2,
+            unresolved_threads=0,
+            is_draft=False,
+            copilot_review_pending=False,
+            base_repo_full_name="org/repo",
+        )
+        refreshed_snapshot = PRStateSnapshot(
+            pr_number=1,
+            head_sha="newsha",
+            base_branch="main",
+            head_branch="feature",
+            commit_count=1,
+            ci_status="passing",
+            review_state="",
+            copilot_review_id=0,
+            copilot_review_inline_count=0,
+            unresolved_threads=0,
+            is_draft=False,
+            copilot_review_pending=False,
+            base_repo_full_name="org/repo",
+        )
+        actions: list[Action] = [
+            DispatchRepairAction(),
+            SquashAction(),
+            RequestReviewAction(),
+        ]
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.is_duplicate_trigger",
+                return_value=True,
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.squash.is_copilot_session_active_via_agent_task",
+                return_value=False,
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.request_review.is_copilot_session_active_via_agent_task",
+                return_value=False,
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.runner.build_pr_state_snapshot",
+                return_value=refreshed_snapshot,
+            ),
+        ):
+            summary = run_pipeline(provider, initial_snapshot, actions)
+
+        assert [r.decision for r in summary.results] == [
+            ActionDecision.SKIP,
+            ActionDecision.EXECUTE,
+            ActionDecision.EXECUTE,
+        ]
+        assert summary.results[2].preconditions.get("no_repair_dispatched") is True
+        provider.dispatch_repair.assert_not_called()
+        provider.squash_post_repair.assert_called_once()
+        provider.request_reviewer.assert_called_once()
+
     def _make_pipeline_snapshot(self) -> PRStateSnapshot:
         return PRStateSnapshot(
             pr_number=1,

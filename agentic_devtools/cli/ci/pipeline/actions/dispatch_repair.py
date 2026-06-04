@@ -104,10 +104,9 @@ class DispatchRepairAction:
                         snapshot.pr_number,
                         snapshot.copilot_review_id,
                     )
-                    derived.set("repair_dispatched", True)
                     return ActionResult(
                         name=self.name,
-                        decision=ActionDecision.EXECUTE,
+                        decision=ActionDecision.SKIP,
                         details=f"Repair already dispatched for review_id={snapshot.copilot_review_id}",
                     )
             except Exception as exc:
