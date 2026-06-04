@@ -26,6 +26,7 @@ on:
 # would otherwise overlap (each has a different PR number).
 concurrency:
   group: speckit-progression
+  queue: max
   cancel-in-progress: false
 
 env:
