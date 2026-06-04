@@ -54,3 +54,9 @@ class TestDerivedState:
         snapshot = PRStateSnapshot(pr_number=7)
         derived = DerivedState(snapshot)
         assert derived.get("not_present", 123) == 123
+
+    def test_get_private_attribute_lookup_raises_attribute_error(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=7)
+        derived = DerivedState(snapshot)
+        with pytest.raises(AttributeError):
+            derived.get("_private_attr")
