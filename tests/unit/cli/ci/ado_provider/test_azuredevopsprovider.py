@@ -84,6 +84,8 @@ class TestAzureDevOpsProvider:
         with pytest.raises(NotImplementedError):
             provider.request_reviewer(1, "user")
         with pytest.raises(NotImplementedError):
+            provider.count_unresolved_review_threads(1)
+        with pytest.raises(NotImplementedError):
             provider.publish_pr(1)
         with pytest.raises(NotImplementedError):
             provider.squash_before_publish(

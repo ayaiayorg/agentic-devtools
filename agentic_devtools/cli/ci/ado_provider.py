@@ -162,6 +162,10 @@ class AzureDevOpsProvider(CIPlatformProvider):
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.request_reviewer() not yet implemented")
 
+    def count_unresolved_review_threads(self, pr_number: int) -> int:
+        """Not implemented for ADO stub."""
+        raise NotImplementedError("AzureDevOpsProvider.count_unresolved_review_threads() not yet implemented")
+
     def list_pr_files(self, pr_number: int) -> list[str]:
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.list_pr_files() not yet implemented")

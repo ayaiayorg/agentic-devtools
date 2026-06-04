@@ -67,6 +67,7 @@ def _make_provider(
     provider.update_comment.return_value = None
     provider.merge_pr.return_value = None
     provider.count_commits_above_merge_base.return_value = 1
+    provider.count_unresolved_review_threads.return_value = 0
     provider.get_pr_diff.return_value = ""
     provider.get_commit_range_diff.return_value = ""
     provider.finalize_post_repair.return_value = FinalizationResult()
@@ -148,6 +149,7 @@ class TestRunAIPRLoop:
         payload = EventPayload(pr_number=42, head_sha="s")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_GUARD_BLOCKED
+        provider.count_unresolved_review_threads.assert_not_called()
 
     def test_missing_auto_merge_allowed_label_prevents_merge(self) -> None:
         provider = _make_provider(
@@ -173,6 +175,7 @@ class TestRunAIPRLoop:
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_SUCCESS
         provider.merge_pr.assert_not_called()
+        provider.count_unresolved_review_threads.assert_not_called()
 
     def test_ci_completion_with_failed_checks_and_actionable_review_dispatches_both_repair(self) -> None:
         """CI-completion dispatches combined repair when CI fails and Copilot is actionable."""
@@ -380,6 +383,7 @@ class TestRunAIPRLoop:
         payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_GUARD_BLOCKED
+        provider.count_unresolved_review_threads.assert_not_called()
 
     def test_ci_completion_dedup_race_recheck_blocks_duplicate_dispatch(self) -> None:
         """A dedup marker increase before dispatch blocks duplicate repair comments."""
@@ -409,6 +413,7 @@ class TestRunAIPRLoop:
         payload = EventPayload(pr_number=42, head_sha="abc123", action="synchronize")
         result = run_ai_pr_loop(provider, payload)
         assert result == EXIT_GUARD_BLOCKED
+        provider.count_unresolved_review_threads.assert_not_called()
 
     def test_copilot_changes_requested_dispatches_repair(self) -> None:
         """Copilot CHANGES_REQUESTED triggers repair dispatch."""
@@ -1688,6 +1693,18 @@ class TestRunAIPRLoop:
         provider.request_reviewer.assert_called_once_with(42, COPILOT_REVIEWER_LOGIN)
         provider.approve_pr.assert_not_called()
         provider.merge_pr.assert_not_called()
+
+    def test_count_unresolved_review_threads_exception_fails_closed(self) -> None:
+        """When count_unresolved_review_threads raises, sentinel -1 blocks review requests."""
+        provider = _make_provider(
+            reviews=[ReviewInfo(id=1, user="copilot-pull-request-reviewer[bot]", state="PENDING", body="")]
+        )
+        provider.count_unresolved_review_threads.side_effect = RuntimeError("API timeout")
+        payload = EventPayload(pr_number=42, head_sha="abc123", action="submitted")
+        result = run_ai_pr_loop(provider, payload)
+        assert result == EXIT_SUCCESS
+        # Review should NOT be requested because the sentinel blocks it
+        provider.request_reviewer.assert_not_called()
 
 
 class TestRunAIPRLoopDecisionSummary:

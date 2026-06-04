@@ -5,6 +5,7 @@ import pytest
 from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
+    FinalizationResult,
     IssueEvent,
     PRMetadata,
     ReviewCommentInfo,
@@ -46,6 +47,9 @@ class _ConcreteProvider(CIPlatformProvider):
     def request_reviewer(self, pr_number: int, reviewer: str) -> None:
         pass
 
+    def count_unresolved_review_threads(self, pr_number: int) -> int:
+        return 0
+
     def list_pr_files(self, pr_number: int) -> list[str]:
         return ["file.py"]
 
@@ -74,8 +78,8 @@ class _ConcreteProvider(CIPlatformProvider):
         head_branch: str,
         head_sha: str,
         review_id: int,
-    ) -> None:
-        pass
+    ) -> FinalizationResult:
+        return FinalizationResult()
 
     def squash_post_repair(
         self,
@@ -146,8 +150,7 @@ class TestCIPlatformProvider:
 
     def test_update_comment_returns_none(self) -> None:
         provider = _ConcreteProvider()
-        result = provider.update_comment(1, "updated")
-        assert result is None
+        assert provider.update_comment(1, "updated") is None  # type: ignore[func-returns-value]
 
     def test_find_comment_returns_none_or_tuple(self) -> None:
         provider = _ConcreteProvider()
@@ -161,13 +164,11 @@ class TestCIPlatformProvider:
 
     def test_merge_pr_returns_none(self) -> None:
         provider = _ConcreteProvider()
-        result = provider.merge_pr(1, "sha", "squash")
-        assert result is None
+        assert provider.merge_pr(1, "sha", "squash") is None  # type: ignore[func-returns-value]
 
     def test_request_reviewer_returns_none(self) -> None:
         provider = _ConcreteProvider()
-        result = provider.request_reviewer(1, "user")
-        assert result is None
+        assert provider.request_reviewer(1, "user") is None  # type: ignore[func-returns-value]
 
     def test_list_pr_files_returns_list(self) -> None:
         provider = _ConcreteProvider()
@@ -183,8 +184,7 @@ class TestCIPlatformProvider:
 
     def test_publish_pr_returns_none(self) -> None:
         provider = _ConcreteProvider()
-        result = provider.publish_pr(1)
-        assert result is None
+        assert provider.publish_pr(1) is None  # type: ignore[func-returns-value]
 
     def test_get_pr_diff_default_raises_not_implemented(self) -> None:
         provider = _ConcreteProvider()
@@ -211,6 +211,7 @@ class TestCIPlatformProvider:
             "publish_pr",
             "squash_before_publish",
             "request_reviewer",
+            "count_unresolved_review_threads",
             "list_pr_files",
             "get_check_annotations",
             "dispatch_repair",

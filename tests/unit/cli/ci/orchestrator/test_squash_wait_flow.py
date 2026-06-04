@@ -84,6 +84,7 @@ def _make_provider(
     provider.post_comment.return_value = 100
     provider.update_comment.return_value = None
     provider.count_commits_above_merge_base.return_value = commit_count
+    provider.count_unresolved_review_threads.return_value = 0
     provider.squash_post_repair.return_value = None
     provider.list_pr_issue_events.return_value = issue_events if issue_events is not None else []
     return provider
