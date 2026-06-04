@@ -146,6 +146,68 @@ class TestDispatchRepairAction:
             assert result.decision == ActionDecision.EXECUTE
             provider.dispatch_repair.assert_called_once()
 
+    def test_execute_uses_ci_only_dedup_limit_of_one(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=42,
+            ci_status="failing",
+            head_sha="abc123",
+            copilot_review_id=0,
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.dispatch_repair.return_value = 999
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+                return_value=(False, 0),
+            ) as mock_check_deduplication,
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_cycle_limit",
+                return_value=(False, 1),
+            ),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+        mock_check_deduplication.assert_called_once_with(provider, 42, "abc123", max_dispatches=1)
+
+    def test_execute_uses_default_dedup_limit_when_review_actionable(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=42,
+            ci_status="passing",
+            head_sha="abc123",
+            review_state="CHANGES_REQUESTED",
+            copilot_review_id=12,
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.list_review_comments.return_value = [MagicMock(id=1)]
+        provider.dispatch_repair.return_value = 77
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.is_duplicate_trigger",
+                return_value=False,
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+                return_value=(False, 0),
+            ) as mock_check_deduplication,
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_cycle_limit",
+                return_value=(False, 1),
+            ),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+        mock_check_deduplication.assert_called_once_with(provider, 42, "abc123")
+
     def test_skip_when_dedup_limit_reached(self) -> None:
         snapshot = PRStateSnapshot(pr_number=1, ci_status="failing", head_sha="abc123")
         derived = DerivedState(snapshot)

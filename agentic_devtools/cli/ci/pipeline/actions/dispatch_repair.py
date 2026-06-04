@@ -115,9 +115,18 @@ class DispatchRepairAction:
                 # Fail-open: proceed with dispatch on transient API failures; the
                 # review-ID dedup guard is best-effort and should not block repair.
 
+        ci_failing = snapshot.ci_status == "failing"
+        review_actionable = _is_copilot_review_actionable(snapshot)
+        dedup_kwargs = {"max_dispatches": 1} if ci_failing and not review_actionable else {}
+
         # Check deduplication limits
         try:
-            dedup_skip, dedup_count = check_deduplication(provider, snapshot.pr_number, snapshot.head_sha)
+            dedup_skip, dedup_count = check_deduplication(
+                provider,
+                snapshot.pr_number,
+                snapshot.head_sha,
+                **dedup_kwargs,
+            )
         except Exception as exc:
             logger.warning("PR #%d: Dedup check failed: %s", snapshot.pr_number, exc)
             return ActionResult(
@@ -163,9 +172,6 @@ class DispatchRepairAction:
             )
 
         # Determine repair type
-        ci_failing = snapshot.ci_status == "failing"
-        review_actionable = _is_copilot_review_actionable(snapshot)
-
         if ci_failing and review_actionable:
             repair_type = "both"
         elif review_actionable:
