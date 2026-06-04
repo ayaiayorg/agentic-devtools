@@ -43,3 +43,20 @@ class TestDerivedState:
         derived = DerivedState(snapshot)
         with pytest.raises(AttributeError):
             _ = derived._private_attr  # type: ignore[attr-defined]
+
+    def test_get_returns_override_value_when_set(self) -> None:
+        snapshot = PRStateSnapshot(unresolved_threads=3)
+        derived = DerivedState(snapshot)
+        derived.set("unresolved_threads", 0)
+        assert derived.get("unresolved_threads", 99) == 0
+
+    def test_get_returns_default_for_missing_attribute(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=7)
+        derived = DerivedState(snapshot)
+        assert derived.get("not_present", 123) == 123
+
+    def test_get_private_attribute_lookup_raises_attribute_error(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=7)
+        derived = DerivedState(snapshot)
+        with pytest.raises(AttributeError):
+            derived.get("_private_attr")

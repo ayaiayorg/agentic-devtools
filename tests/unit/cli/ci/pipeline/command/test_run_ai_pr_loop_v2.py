@@ -113,8 +113,8 @@ class TestRunAiPrLoopV2:
             result = run_ai_pr_loop_v2(provider, event)
             assert result == EXIT_GUARD_BLOCKED
 
-    def test_pipeline_runs_resolve_threads_before_request_review(self) -> None:
-        """Thread resolution must run before review requests in the same pipeline pass."""
+    def test_pipeline_runs_resolve_threads_before_squash_and_review_request(self) -> None:
+        """Thread resolution must run before squash and review request in the same pass."""
         provider = MagicMock()
         event = EventPayload(pr_number=1)
 
@@ -145,6 +145,7 @@ class TestRunAiPrLoopV2:
 
         actions = mock_run_pipeline.call_args.args[2]
         action_names = [action.name for action in actions]
+        assert action_names.index("resolve_threads") < action_names.index("squash")
         assert action_names.index("resolve_threads") < action_names.index("request_review")
 
     def test_returns_metadata_failed_when_lock_acquisition_raises(self) -> None:

@@ -96,6 +96,14 @@ class DerivedState:
         """Set a derived state override."""
         self._overrides[name] = value
 
+    def get(self, name: str, default: Any = None) -> Any:
+        """Get a derived state value with default fallback."""
+        if name.startswith("_"):
+            raise AttributeError(name)
+        if name in self._overrides:
+            return self._overrides[name]
+        return getattr(self._snapshot, name, default)
+
     @property
     def snapshot(self) -> PRStateSnapshot:
         """Access the underlying immutable snapshot."""
