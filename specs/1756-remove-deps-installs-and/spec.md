@@ -19,10 +19,31 @@ failure. When a dependency is declared as optional but actually required, pip's 
 import the missing or incompatible module at runtime. This defeats one of the core purposes of a dependency management system: catching conflicts early and deterministically. Developers and CI runners
 waste time debugging import errors that should never occur if the dependency graph is honest.
 
-Additionally, the `copilot_generate.py` script contains 20+ lines of defensive diagnostic code that runs `pip show github-copilot-sdk` as a subprocess to detect whether the SDK was installed
-correctly. This runtime detection logic adds complexity, increases script execution time, and produces diagnostic messages that must be maintained in test assertions. By making the SDK a direct
-dependency, standard Python import error reporting becomes sufficient — if the SDK is missing, the package itself wasn't installed correctly, and the standard `ModuleNotFoundError` traceback
-communicates this clearly without custom diagnostic machinery.
+Additionally, the `copilot_generate.py` script (located at `.github/scripts/speckit-trigger/copilot_generate.py`) contains 20+ lines of defensive diagnostic code that runs `pip show github-copilot-sdk`
+as a subprocess to investigate import failures. This runtime detection logic adds complexity, increases script execution time, and produces diagnostic messages that must be maintained in test assertions.
+By making the SDK a direct dependency, standard Python import error reporting becomes sufficient here without custom diagnostic machinery.
+
+## Clarifications
+
+### Session 2026-06-03
+
+- Q: Should the `copilot_generate.py` diagnostic removal also remove the check for a conflicting `copilot` package (lines 39–51 that detect a shadowing `copilot` package), or only the
+  `pip show github-copilot-sdk` diagnostic? → A: Remove the entire defensive diagnostic block (lines 30–56 of the try/except handler), including the
+  conflicting-package check. Once the SDK is a direct dependency, separate `pip show` diagnostics are no longer required here; the except block should re-raise the ImportError (or allow it to
+  propagate naturally) rather than performing subprocess diagnostics.
+- Q: The spec references `pip install agentic-devtools` for the `ai-pr-loop.yml` workflow — should this remain as a PyPI install from the published package, or should it use `pip install .` (source
+  install) like `speckit-phase-progression.yml`? → A: Retain the existing install mechanism for each workflow: `ai-pr-loop.yml` uses `pip install agentic-devtools` (from PyPI) and
+  `speckit-phase-progression.yml` uses `pip install .` (from source). The spec already correctly distinguishes these in FR-003 and FR-004.
+- Q: After removing the `copilot-sdk` optional-dependencies group, should any deprecation notice or migration guidance be added to CHANGELOG.md or a migration document? → A: Yes, add a CHANGELOG.md
+  entry under the next release noting the removal of the `copilot-sdk` optional extra and that `github-copilot-sdk` is now installed automatically as a direct dependency. No separate migration
+  document is needed since the change is backward-compatible for users who were already installing the extra.
+- Q: The `speckit-phase-progression.yml` workflow (line 487) also uses `pip install . --no-deps` for `agentic-devtools` itself — should this `--no-deps` on the package install also be removed? → A:
+  Yes, absolutely. The `--no-deps` flag on `pip install .` defeats the entire purpose of declaring direct dependencies. It must be replaced with a plain `pip install .` so that pip resolves all
+  declared dependencies (including the newly-direct `github-copilot-sdk`).
+- Q: Should the `copilot-setup-steps.yml` workflow (used for Copilot cloud agent setup) also be checked and updated if it contains similar SDK install workarounds? → A: Yes, all workflow files under
+  `.github/workflows/` that contain separate `github-copilot-sdk` install steps or `--no-deps`/`--force-reinstall` workarounds must be updated. The scope includes `ai-pr-loop.yml`,
+  `speckit-phase-progression.yml`, and any other workflow exhibiting the same pattern. The spec's FR-003 and FR-004 explicitly name the two known workflows; any additional workflows discovered during
+  implementation should be fixed under the same principle.
 
 ## User Scenarios & Testing
 
@@ -78,9 +99,12 @@ than silently succeeding.
 As a maintainer of `copilot_generate.py`, I want the script's import error handling to rely on standard Python mechanisms rather than custom `pip show` subprocess diagnostics, reducing code complexity
 and test maintenance burden.
 
-The current `copilot_generate.py` contains approximately 20 lines of defensive code that shells out to `pip show github-copilot-sdk` and `pip show copilot` to diagnose installation problems. This code
-exists solely because the SDK might not be installed despite `agentic-devtools` being present. Once the SDK is a direct dependency, these diagnostics become redundant — a missing SDK means
-`agentic-devtools` itself wasn't installed, and standard `ModuleNotFoundError` tracebacks are clear enough.
+The current `copilot_generate.py` (at `.github/scripts/speckit-trigger/copilot_generate.py`) contains approximately 20 lines of defensive code that shells out to `pip show github-copilot-sdk` and
+`pip show copilot` to diagnose installation problems. This code exists solely because the SDK might not be installed despite `agentic-devtools` being present. Once the SDK is a direct dependency,
+these diagnostics become redundant because installation and import failures should be surfaced through standard pip/Python error reporting.
+
+The entire defensive diagnostic block (including the conflicting-package shadow detection for the `copilot` package name) must be removed. The except block should allow the `ImportError` to propagate
+naturally with standard Python traceback output.
 
 **Why this priority**: This is a clean-up task that reduces maintenance burden but doesn't change user-facing behavior. The diagnostic removal makes the codebase simpler and eliminates test assertions
 that track internal implementation details rather than observable behavior.
@@ -123,8 +147,11 @@ steps.
   installation.
 - What happens if `github-copilot-sdk` is temporarily unavailable on PyPI? The `agentic-devtools` installation will fail entirely, which is the correct behavior — it's better to fail clearly at
   install time than to succeed installation and fail at runtime.
-- What happens to environments that previously installed `agentic-devtools` with the `[copilot-sdk]` extra? The extra group is removed, so `pip install agentic-devtools[copilot-sdk]` will fail due
-  to an unknown/invalid extra. Migration guidance is to run `pip install agentic-devtools` (without extras), since the SDK is now installed unconditionally.
+- What happens to environments that previously installed `agentic-devtools` with the `[copilot-sdk]` extra? The extra group is removed, so `pip install agentic-devtools[copilot-sdk]` will emit a
+  warning about an unknown extra (pip does not hard-fail on unknown extras but prints a warning). Migration guidance is to run `pip install agentic-devtools` (without extras), since the SDK is now
+  installed unconditionally. A CHANGELOG.md entry will document this change.
+- What happens to `pip install . --no-deps` in `speckit-phase-progression.yml`? This flag is removed because it prevented pip from resolving any dependencies including the newly-direct SDK. It is
+  replaced with a plain `pip install .`.
 
 ## Requirements
 
@@ -140,16 +167,22 @@ steps.
   installation, `--force-reinstall`, or `--no-deps` flags present. An optional SDK import smoke check command MAY be retained.
 
 - **FR-004**: The `.github/workflows/speckit-phase-progression.yml` install step MUST use `pip install --upgrade pip` and `pip install .` as the installation commands, with no separate SDK
-  installation, `--force-reinstall`, or `--no-deps` flags present. An optional SDK import smoke check command MAY be retained.
+  installation, `--force-reinstall`, or `--no-deps` flags present (including the `--no-deps` flag on the `pip install .` command itself, which must also be removed). An optional SDK import smoke check
+  command MAY be retained.
 
-- **FR-005**: The `copilot_generate.py` script MUST NOT invoke `pip show github-copilot-sdk` or `pip show copilot` as subprocess commands for diagnostic purposes. Import failure handling should rely
-  on standard Python exception propagation.
+- **FR-005**: The `copilot_generate.py` script (at `.github/scripts/speckit-trigger/copilot_generate.py`) MUST NOT invoke `pip show github-copilot-sdk` or `pip show copilot` as subprocess commands for
+  diagnostic purposes. The entire defensive diagnostic block — including the conflicting-package shadow detection — must be removed. Import failure handling should rely
+  on standard Python exception propagation (allowing `ImportError`/`ModuleNotFoundError` to propagate naturally).
 
-- **FR-006**: All existing tests in the repository MUST continue to pass after the changes. Tests that assert on SDK diagnostic messages (such as strings containing `"pip show github-copilot-sdk"`)
+- **FR-006**: All existing tests in the repository MUST continue to pass after the changes. Tests that assert on SDK diagnostic messages (such as strings containing `"pip show github-copilot-sdk"` or
+  `"Ensure 'github-copilot-sdk' is installed"`)
   MUST be updated or removed to reflect the simplified error handling.
 
 - **FR-007**: The upper bound version constraint (`<1.0.0`) MUST be maintained on the SDK dependency to protect against breaking changes from a future v1 release, consistent with the project's stated
   intent to address the v1 upgrade in a separate issue.
+
+- **FR-008**: A CHANGELOG.md entry MUST be added under the next release section documenting: (a) the removal of the `copilot-sdk` optional extra, (b) that `github-copilot-sdk` is now a direct
+  dependency installed automatically, and (c) that users previously using `pip install agentic-devtools[copilot-sdk]` should switch to `pip install agentic-devtools`.
 
 ### Non-Functional Requirements
 
@@ -165,8 +198,10 @@ steps.
 ### Key Entities
 
 - **`pyproject.toml` dependency declaration**: The single source of truth for the SDK version constraint, consumed by pip during installation of `agentic-devtools`.
-- **CI workflow install steps**: The YAML configurations in `.github/workflows/` that install the package in CI runners. These must be simplified to a single pip install command.
-- **SDK diagnostic block in `copilot_generate.py`**: The defensive import error handling code that performs subprocess calls to diagnose SDK installation issues.
+- **CI workflow install steps**: The YAML configurations in `.github/workflows/` that install the package in CI runners. These must be simplified to a single pip install command (specifically
+  `ai-pr-loop.yml` and `speckit-phase-progression.yml`, plus any other workflows found to have the same pattern).
+- **SDK diagnostic block in `copilot_generate.py`**: The defensive import error handling code (approximately lines 30–56 in `.github/scripts/speckit-trigger/copilot_generate.py`) that performs
+  subprocess calls to diagnose SDK installation issues, including the conflicting-package shadow detection.
 
 ## Success Criteria
 
