@@ -48,6 +48,44 @@ class TestSquashAction:
         assert result.decision == ActionDecision.SKIP
         assert "repair dispatched" in result.details.lower()
 
+    def test_skip_when_unresolved_threads_remain(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=1, commit_count=3, ci_status="passing", unresolved_threads=2)
+        derived = DerivedState(snapshot)
+        action = SquashAction()
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.actions.squash.is_copilot_session_active_via_agent_task",
+            return_value=False,
+        ):
+            result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.SKIP
+        assert result.preconditions["all_threads_resolved"] is False
+        assert "unresolved_threads" in result.details
+
+    def test_execute_when_unresolved_threads_zero(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=1, commit_count=3, ci_status="passing", unresolved_threads=0)
+        derived = DerivedState(snapshot)
+        action = SquashAction()
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.actions.squash.is_copilot_session_active_via_agent_task",
+            return_value=False,
+        ):
+            result = action.evaluate(snapshot, derived)
+        assert result.preconditions["all_threads_resolved"] is True
+        assert result.decision == ActionDecision.EXECUTE
+
+    def test_execute_when_derived_unresolved_threads_override_is_zero(self) -> None:
+        snapshot = PRStateSnapshot(pr_number=1, commit_count=3, ci_status="passing", unresolved_threads=3)
+        derived = DerivedState(snapshot)
+        derived.set("unresolved_threads", 0)
+        action = SquashAction()
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.actions.squash.is_copilot_session_active_via_agent_task",
+            return_value=False,
+        ):
+            result = action.evaluate(snapshot, derived)
+        assert result.preconditions["all_threads_resolved"] is True
+        assert result.decision == ActionDecision.EXECUTE
+
     def test_execute_when_multiple_commits(self) -> None:
         snapshot = PRStateSnapshot(
             pr_number=1,

@@ -30,6 +30,7 @@ class SquashAction:
 
     Preconditions:
     - Commits above merge-base > 1
+    - All review threads resolved
     - No repair dispatched in this run (keeps HEAD stable for the repair cycle)
     - No active Copilot coding session (pending review does NOT block squash)
 
@@ -52,6 +53,19 @@ class SquashAction:
                 decision=ActionDecision.SKIP,
                 preconditions=preconditions,
                 details=f"Only {snapshot.commit_count} commit(s) — nothing to squash",
+            )
+
+        unresolved_threads = derived.get("unresolved_threads", snapshot.unresolved_threads)
+        preconditions["all_threads_resolved"] = unresolved_threads == 0
+        if unresolved_threads > 0:
+            return ActionResult(
+                name=self.name,
+                decision=ActionDecision.SKIP,
+                preconditions=preconditions,
+                details=(
+                    f"unresolved_threads: {unresolved_threads} thread(s) still open — "
+                    "squash blocked until all review threads are resolved"
+                ),
             )
 
         # Repair dispatch in this run should keep HEAD stable for the repair cycle.

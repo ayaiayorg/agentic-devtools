@@ -46,7 +46,7 @@ def run_ai_pr_loop_v2(
     trigger type.
 
     Pipeline ordering:
-        Guards → Publish → DispatchRepair → Squash → ResolveThreads → RequestReview → Approve → Merge
+        Guards → Publish → DispatchRepair → ResolveThreads → Squash → RequestReview → Approve → Merge
 
     ResolveThreads runs before RequestReview so that resolved threads are reflected in
     derived state before the review-request guard evaluates unresolved_threads.
@@ -94,8 +94,8 @@ def run_ai_pr_loop_v2(
             GuardsAction(),
             PublishAction(),
             DispatchRepairAction(),
-            SquashAction(),
             ResolveThreadsAction(),
+            SquashAction(),
             RequestReviewAction(),
             ApproveAction(),
             MergeAction(),
