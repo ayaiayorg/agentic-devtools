@@ -98,6 +98,8 @@ class DerivedState:
 
     def get(self, name: str, default: Any = None) -> Any:
         """Get a derived state value with default fallback."""
+        if name.startswith("_"):
+            raise AttributeError(name)
         if name in self._overrides:
             return self._overrides[name]
         return getattr(self._snapshot, name, default)
