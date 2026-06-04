@@ -19,8 +19,10 @@ failure. When a dependency is declared as optional but actually required, pip's 
 import the missing or incompatible module at runtime. This defeats one of the core purposes of a dependency management system: catching conflicts early and deterministically. Developers and CI runners
 waste time debugging import errors that should never occur if the dependency graph is honest.
 
-Additionally, the `copilot_generate.py` script (located at `.github/scripts/speckit-trigger/copilot_generate.py`) contains 20+ lines of defensive diagnostic code that runs `pip show github-copilot-sdk`
-as a subprocess to investigate import failures. This runtime detection logic adds complexity, increases script execution time, and produces diagnostic messages that must be maintained in test assertions.
+Additionally, the `copilot_generate.py` script (located at `.github/scripts/speckit-trigger/copilot_generate.py`) contains 20+ lines of defensive diagnostic code that runs `pip show
+github-copilot-sdk`
+as a subprocess to investigate import failures. This runtime detection logic adds complexity, increases script execution time, and produces diagnostic messages that must be maintained in test
+assertions.
 By making the SDK a direct dependency, standard Python import error reporting becomes sufficient here without custom diagnostic machinery.
 
 ## Clarifications
