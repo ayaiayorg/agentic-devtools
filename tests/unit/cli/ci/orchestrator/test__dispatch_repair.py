@@ -237,6 +237,55 @@ class TestDispatchRepair:
         assert result == EXIT_REPAIR_DISPATCHED
         provider.dispatch_repair.assert_called_once()
 
+    def test_ci_only_dedup_limit_blocks_when_count_already_above_one(self) -> None:
+        """CI-only repairs are blocked when pre-dispatch dedup count exceeds 1."""
+        provider = MagicMock()
+        provider.dispatch_repair.return_value = 999
+        decision = RepairDecision(
+            repair_needed=True,
+            repair_type="ci",
+            review_id=0,
+            failed_checks=(),
+        )
+        failure_reason_out: list[str] = []
+
+        result = _dispatch_repair(
+            provider=provider,
+            pr_number=42,
+            head_sha="abc123",
+            decision=decision,
+            dedup_count_before_dispatch=2,
+            failure_reason_out=failure_reason_out,
+        )
+
+        assert result == EXIT_GUARD_BLOCKED
+        assert "dedup_limit_ci_only" in failure_reason_out
+        provider.dispatch_repair.assert_not_called()
+        provider.find_comment.assert_not_called()
+
+    def test_ci_only_dedup_limit_blocks_without_failure_reason_out(self) -> None:
+        """CI-only dedup guard blocks even when no failure-reason collector is provided."""
+        provider = MagicMock()
+        provider.dispatch_repair.return_value = 999
+        decision = RepairDecision(
+            repair_needed=True,
+            repair_type="ci",
+            review_id=0,
+            failed_checks=(),
+        )
+
+        result = _dispatch_repair(
+            provider=provider,
+            pr_number=42,
+            head_sha="abc123",
+            decision=decision,
+            dedup_count_before_dispatch=2,
+        )
+
+        assert result == EXIT_GUARD_BLOCKED
+        provider.dispatch_repair.assert_not_called()
+        provider.find_comment.assert_not_called()
+
     def test_dedup_recheck_allows_dispatch_when_marker_unchanged(self) -> None:
         """Unchanged marker should not be treated as a dedup race."""
         provider = MagicMock()

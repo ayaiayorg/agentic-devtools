@@ -1805,6 +1805,16 @@ def _dispatch_repair(
                 logger.warning("Failed to fetch review comments for PR #%d: %s", pr_number, exc)
 
     if dedup_count_before_dispatch is not None:
+        if decision.repair_type == "ci" and dedup_count_before_dispatch > 1:
+            logger.info(
+                "PR #%d ci-only dedup limit reached before dispatch (count=%d) — skipping duplicate",
+                pr_number,
+                dedup_count_before_dispatch,
+            )
+            if failure_reason_out is not None:
+                failure_reason_out.append("dedup_limit_ci_only")
+            return EXIT_GUARD_BLOCKED
+
         try:
             refreshed_marker = provider.find_comment(pr_number, DEDUP_MARKER_PREFIX)
             if refreshed_marker is not None:
