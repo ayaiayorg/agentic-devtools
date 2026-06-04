@@ -44,8 +44,11 @@ class TestGenerateReviewPromptsEdgeCases:
         # New prompt file should exist
         assert len(list(tmp_path.glob("file-*.md"))) == 1
 
-    def test_verbose_mode_prints_skip_message(self, tmp_path, capsys):
-        """Test that verbose mode prints skip message for reviewed files."""
+    def test_verbose_mode_prints_generated_message(self, tmp_path, capsys):
+        """Test that verbose mode prints generated message for all files.
+
+        Previously-reviewed files are no longer skipped; all files get prompts.
+        """
         from agentic_devtools.cli.azure_devops.review_prompts import (
             generate_review_prompts,
         )
@@ -66,5 +69,5 @@ class TestGenerateReviewPromptsEdgeCases:
         generate_review_prompts(pr_details, tmp_path, verbose=True)
 
         captured = capsys.readouterr()
-        assert "Skipping" in captured.out
-        assert "already reviewed" in captured.out
+        assert "Generated" in captured.out
+        assert "Skipping" not in captured.out

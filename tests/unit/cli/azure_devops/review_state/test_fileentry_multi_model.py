@@ -1,14 +1,16 @@
 """Tests for FileEntry multi-model verdict methods."""
 
+from typing import Any
+
 from agentic_devtools.cli.azure_devops.review_state import (
     FileEntry,
     ModelVerdict,
 )
 
 
-def _make_file_entry(**kwargs) -> FileEntry:
+def _make_file_entry(**kwargs: Any) -> FileEntry:
     """Create a FileEntry with test defaults."""
-    defaults = {
+    defaults: dict[str, Any] = {
         "threadId": 100,
         "commentId": 200,
         "folder": "src",
@@ -29,7 +31,8 @@ class TestFileEntryMultiModel:
 
     def test_get_model_verdict_not_found(self):
         """Returns None when no matching modelId exists."""
-        fe = _make_file_entry(modelVerdicts=[])
+        mv = ModelVerdict(modelId="Other Model", status="approved", verdictType="agree")
+        fe = _make_file_entry(modelVerdicts=[mv])
         assert fe.get_model_verdict("Missing Model") is None
 
     def test_all_reviewers_complete_true(self):

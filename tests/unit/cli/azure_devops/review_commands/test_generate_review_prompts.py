@@ -37,8 +37,7 @@ class TestGenerateReviewPrompts:
                     generate_review_prompts(
                         pull_request_id=123,
                         pr_details=pr_details,
-                        include_reviewed=True,  # Don't skip any
-                        files_on_branch=None,  # Don't filter by branch files
+                        files_on_branch=None,
                     )
                 )
 
@@ -47,8 +46,11 @@ class TestGenerateReviewPrompts:
         assert skipped_not_on_branch == 0
         assert skipped_files == []
 
-    def test_skips_reviewed_files(self, tmp_path):
-        """Test skips files already marked as reviewed."""
+    def test_no_longer_skips_reviewed_files(self, tmp_path):
+        """Test that previously-reviewed files are no longer skipped.
+
+        All in-scope files are now reviewed every run regardless of prior review status.
+        """
         from unittest.mock import patch
 
         from agentic_devtools.cli.azure_devops.review_commands import generate_review_prompts
@@ -58,7 +60,6 @@ class TestGenerateReviewPrompts:
                 {"path": "/src/file1.ts", "changeType": "edit"},
             ],
             "threads": [],
-            # Note: The function looks for "reviewer" (singular) not "reviewers"
             "reviewer": {
                 "reviewedFiles": ["/src/file1.ts"],
             },
@@ -72,15 +73,13 @@ class TestGenerateReviewPrompts:
             prompts_count, skipped_reviewed, skipped_not_on_branch, _, skipped_files = generate_review_prompts(
                 pull_request_id=123,
                 pr_details=pr_details,
-                include_reviewed=False,  # Skip reviewed files
                 files_on_branch=None,
             )
 
-        assert prompts_count == 0
-        assert skipped_reviewed == 1
-        assert len(skipped_files) == 1
-        assert skipped_files[0].path == "/src/file1.ts"
-        assert skipped_files[0].reason == "already_reviewed"
+        # File is NOT skipped — all files are reviewed every run
+        assert prompts_count == 1
+        assert skipped_reviewed == 0
+        assert skipped_files == []
 
     def test_skips_files_not_on_branch(self, tmp_path):
         """Test skips files not in the branch changes."""
@@ -107,7 +106,6 @@ class TestGenerateReviewPrompts:
             prompts_count, skipped_reviewed, skipped_not_on_branch, _, skipped_files = generate_review_prompts(
                 pull_request_id=123,
                 pr_details=pr_details,
-                include_reviewed=True,
                 files_on_branch=files_on_branch,
             )
 
@@ -147,7 +145,6 @@ class TestGenerateReviewPrompts:
             prompts_count, _, _, _, _ = generate_review_prompts(
                 pull_request_id=123,
                 pr_details=None,  # Force loading from file
-                include_reviewed=True,
                 files_on_branch=None,
             )
 
@@ -191,7 +188,6 @@ class TestGenerateReviewPrompts:
                 prompts_count, _, skipped_not_on_branch, _, _ = generate_review_prompts(
                     pull_request_id=123,
                     pr_details=pr_details,
-                    include_reviewed=True,
                     files_on_branch=None,  # Force loading from file
                 )
 
@@ -218,6 +214,63 @@ class TestGenerateReviewPrompts:
                 generate_review_prompts(
                     pull_request_id=999,
                     pr_details=None,
-                    include_reviewed=True,
                     files_on_branch=None,
                 )
+
+    def test_inherited_path_uses_unchanged_file_prompt(self, tmp_path):
+        """Test that files with PROCESSING_PATH_INHERITED use the simplified prompt.
+
+        Covers line 506 — the _write_unchanged_file_prompt branch.
+        """
+        from unittest.mock import MagicMock, patch
+
+        from agentic_devtools.cli.azure_devops.review_commands import generate_review_prompts
+        from agentic_devtools.cli.azure_devops.review_state import (
+            FileEntry,
+            ReviewStatus,
+        )
+
+        pr_details = {
+            "files": [
+                {"path": "/src/app.ts", "changeType": "edit"},
+            ],
+            "threads": [],
+        }
+
+        # Create a mock prior review state with a completed entry for the file
+        prior_entry = FileEntry(
+            threadId=100,
+            commentId=200,
+            folder="src",
+            fileName="app.ts",
+            status=ReviewStatus.APPROVED.value,
+            summary="Looks good.",
+        )
+        prior_state = MagicMock()
+        prior_state.commitHash = "abc1234def5678"
+        prior_state.files = {"/src/app.ts": prior_entry}
+
+        with (
+            patch.object(
+                __import__("agentic_devtools.cli.azure_devops.review_commands", fromlist=["get_state_dir"]),
+                "get_state_dir",
+                return_value=tmp_path,
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+                return_value=prior_state,
+            ),
+        ):
+            prompts_count, _, _, prompts_dir, _ = generate_review_prompts(
+                pull_request_id=123,
+                pr_details=pr_details,
+                files_on_branch=None,
+                unchanged_files={"/src/app.ts"},
+            )
+
+        assert prompts_count == 1
+        # Verify the prompt uses the simplified unchanged content
+        prompt_files = list(prompts_dir.glob("*.md"))
+        assert len(prompt_files) == 1
+        content = prompt_files[0].read_text()
+        assert "no changes since last review" in content

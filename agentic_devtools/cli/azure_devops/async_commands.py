@@ -1466,46 +1466,19 @@ def checkout_and_sync_branch_async() -> None:  # pragma: no cover
         agdt-set pull_request_id 12345
         # Then called internally by workflow
     """
-    from pathlib import Path
-
     # Get PR ID from state
     pr_id = get_value("pull_request_id")
     if not pr_id:
         print("Error: pull_request_id is required in state", file=sys.stderr)
         sys.exit(1)
 
-    # Load PR details to get source branch
-    scripts_dir = Path(__file__).parent.parent.parent.parent.parent
-    temp_dir = scripts_dir / "temp"
-    details_path = temp_dir / "temp-get-pull-request-details-response.json"
-
-    if not details_path.exists():
-        print(f"Error: PR details file not found: {details_path}", file=sys.stderr)
-        print("Run get_pull_request_details first.", file=sys.stderr)
-        sys.exit(1)
-
-    import json
-
-    with open(details_path, encoding="utf-8") as f:
-        pr_details = json.load(f)
-
-    pr_info = pr_details.get("pullRequest", pr_details)
-    source_branch = pr_info.get("sourceRefName", "").replace("refs/heads/", "")
-
-    if not source_branch:
-        print("Error: Could not determine source branch from PR details", file=sys.stderr)
-        sys.exit(1)
-
     # Run checkout and sync in background
     task = run_function_in_background(
         _REVIEW_MODULE,
-        "checkout_and_sync_branch",
-        source_branch,
-        int(pr_id),
-        True,  # save_files_on_branch=True
+        "checkout_and_sync_branch_from_state",
         command_display_name="checkout-and-sync-branch",
     )
-    print_task_tracking_info(task, f"Checking out branch '{source_branch}' and syncing with main")
+    print_task_tracking_info(task, f"Checking out source branch and syncing PR {pr_id} with main")
 
 
 def generate_review_prompts_async() -> None:  # pragma: no cover
@@ -1534,11 +1507,7 @@ def generate_review_prompts_async() -> None:  # pragma: no cover
     # Run generate prompts in background
     task = run_function_in_background(
         _REVIEW_MODULE,
-        "generate_review_prompts",
-        int(pr_id),
-        None,  # pr_details - will be loaded from file
-        False,  # include_reviewed
-        None,  # files_on_branch - will be loaded from file
+        "generate_review_prompts_from_state",
         command_display_name="generate-review-prompts",
     )
     print_task_tracking_info(task, "Generating review prompts and queue")

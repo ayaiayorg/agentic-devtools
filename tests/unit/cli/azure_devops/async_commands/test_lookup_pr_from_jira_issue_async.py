@@ -44,3 +44,18 @@ class TestLookupPrFromJiraIssueAsync:
 
         captured = capsys.readouterr()
         assert "Could not" in captured.out or "⚠️" in captured.out
+
+    def test_does_not_overwrite_existing_pull_request_id(self, capsys):
+        """Should not overwrite pull_request_id if already set in state."""
+        with patch(
+            "agentic_devtools.cli.azure_devops.helpers.find_pr_from_jira_issue",
+            return_value=99999,
+        ):
+            with patch(
+                "agentic_devtools.cli.azure_devops.async_commands.get_value",
+                return_value="54321",
+            ):
+                with patch("agentic_devtools.cli.azure_devops.async_commands.set_value") as mock_set:
+                    lookup_pr_from_jira_issue_async(issue_key="PROJECT-1234")
+
+        mock_set.assert_not_called()

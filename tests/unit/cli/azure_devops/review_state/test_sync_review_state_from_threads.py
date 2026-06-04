@@ -1,5 +1,7 @@
 """Tests for sync_review_state_from_threads function."""
 
+from typing import Any
+
 from agentic_devtools.cli.azure_devops.review_state import (
     FileEntry,
     OverallSummary,
@@ -14,9 +16,9 @@ def _make_thread(thread_id: int, comment_id: int, content: str) -> dict:
     return {"id": thread_id, "comments": [{"id": comment_id, "content": content}]}
 
 
-def _make_review_state(**kwargs) -> ReviewState:
+def _make_review_state(**kwargs: Any) -> ReviewState:
     """Build a minimal ReviewState for testing."""
-    defaults = {
+    defaults: dict[str, Any] = {
         "prId": 100,
         "repoId": "repo-id",
         "repoName": "test-repo",
@@ -270,3 +272,18 @@ class TestSyncReviewStateFromThreads:
         state = _make_review_state()
         result = sync_review_state_from_threads(100, threads, state)
         assert result.files == {}
+
+    def test_ignores_recognised_non_handled_marker_type(self):
+        """Ignores threads with a valid marker type that has no handler (e.g., activity-log)."""
+        threads = [
+            _make_thread(
+                10,
+                20,
+                "<!-- agdt-review:v1 type:activity-log file:/src/app.ts pr:100 -->",
+            ),
+        ]
+        state = _make_review_state()
+        result = sync_review_state_from_threads(100, threads, state)
+        # activity-log is in MARKER_TYPES but has no handler in sync_review_state_from_threads
+        assert result.files == {}
+        assert result.overallSummary.threadId == 0

@@ -106,6 +106,31 @@ class TestBuildFilePromptContent:
         assert "Reviewer" in result
         assert "Please fix this." in result
 
+    def test_thread_with_empty_comments_is_skipped(self):
+        """Test that a thread with an empty comments list is skipped."""
+        from agentic_devtools.cli.azure_devops.review_prompts import (
+            build_file_prompt_content,
+        )
+
+        threads = [
+            {
+                "status": "active",
+                "comments": [],
+            }
+        ]
+
+        result = build_file_prompt_content(
+            file_path="/src/app.ts",
+            change_type="edit",
+            pr_id=123,
+            file_content="code",
+            threads=threads,
+            timestamp="2025-01-01T00:00:00Z",
+        )
+
+        assert "## Existing Review Comments" in result
+        assert "Thread (active)" not in result
+
     def test_handles_empty_file_content(self):
         """Test that empty file content is handled."""
         from agentic_devtools.cli.azure_devops.review_prompts import (

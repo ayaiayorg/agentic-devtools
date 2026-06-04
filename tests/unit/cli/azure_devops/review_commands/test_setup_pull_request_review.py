@@ -828,7 +828,7 @@ class TestSetupPullRequestReviewPersistence:
         assert len(jira_calls) == 0
 
     def test_resets_include_reviewed_when_true(self):
-        """Regression: include_reviewed must be re-set after bootstrap when originally true."""
+        """include_reviewed state key is no longer used; test that it's not set."""
         from agentic_devtools.cli.azure_devops.review_commands import (
             setup_pull_request_review,
         )
@@ -837,7 +837,6 @@ class TestSetupPullRequestReviewPersistence:
             mapping = {
                 "pull_request_id": "456",
                 "jira.issue_key": None,
-                "include_reviewed": "true",
             }
             return mapping.get(key, default)
 
@@ -901,9 +900,9 @@ class TestSetupPullRequestReviewPersistence:
                                                                 with patch("agentic_devtools.state.delete_value"):
                                                                     setup_pull_request_review()
 
+        # include_reviewed is no longer set after bootstrap
         include_calls = [c for c in mock_set_value.call_args_list if c[0][0] == "include_reviewed"]
-        assert len(include_calls) == 1
-        assert include_calls[0][0][1] == "true"
+        assert len(include_calls) == 0
 
     def test_resets_copilot_model_id_when_present(self):
         """Regression: copilot.model_id must be re-set after bootstrap when originally present."""
