@@ -179,12 +179,19 @@ def build_reviewed_paths_set(pr_details: dict) -> set:
     """
     Build a set of already-reviewed file paths from PR details.
 
+    .. deprecated::
+        This function is no longer called by the review workflow.
+        The review-all-files approach now reviews every file each run and uses
+        ``determine_processing_path()`` for inheritance decisions instead.
+        Retained for backward compatibility.
+
     Args:
         pr_details: Full PR details payload
 
     Returns:
         Set of lowercase normalized paths that have been reviewed
     """
+    # DEPRECATED — retained for backward compatibility
     reviewed_paths = set()
     reviewer_data = pr_details.get("reviewer", {}) or {}
     reviewed_files = reviewer_data.get("reviewedFiles", []) or []

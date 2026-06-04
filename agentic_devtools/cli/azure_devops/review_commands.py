@@ -17,7 +17,7 @@ from .config import AzureDevOpsConfig
 from .helpers import require_requests, resolve_review_artifact_dir_name, verify_az_cli
 
 if TYPE_CHECKING:
-    from .review_state import SkippedFile
+    from .review_state import FileEntry, SkippedFile
 
 # Import helper modules
 
@@ -274,6 +274,105 @@ def checkout_and_sync_branch(
     return True, None, files_set, had_rebase_conflicts, push_succeeded
 
 
+def checkout_and_sync_branch_from_state() -> None:
+    """Background-task entry point that checks out/syncs the PR source branch."""
+    pr_id_raw = get_value("pull_request_id")
+    if not pr_id_raw:
+        print("Error: pull_request_id is required in state", file=sys.stderr)
+        sys.exit(1)
+
+    pull_request_id = int(pr_id_raw)
+    details_path = get_state_dir() / "temp-get-pull-request-details-response.json"
+    if not details_path.exists():
+        print(f"Error: PR details file not found: {details_path}", file=sys.stderr)
+        print("Run get_pull_request_details first.", file=sys.stderr)
+        sys.exit(1)
+
+    with open(details_path, encoding="utf-8") as f:
+        pr_details = json.load(f)
+
+    pr_info = pr_details.get("pullRequest", pr_details)
+    source_branch = pr_info.get("sourceRefName", "").replace("refs/heads/", "")
+    if not source_branch:
+        print("Error: Could not determine source branch from PR details", file=sys.stderr)
+        sys.exit(1)
+
+    success, error, _files, _had_conflicts, _push = checkout_and_sync_branch(
+        source_branch,
+        pull_request_id,
+        save_files_on_branch=True,
+        dry_run=is_dry_run(),
+    )
+    if not success:
+        print(f"Error: {error}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _detect_unchanged_files(
+    pull_request_id: int,
+    pr_details: dict[str, Any],
+) -> set[str]:
+    """Return files unchanged since the prior review commit."""
+    from .review_helpers import normalize_repo_path
+    from .review_state import load_review_state
+
+    current_files: set[str] = set()
+    for file_detail in pr_details.get("files", []):
+        raw_path = file_detail.get("path", "")
+        if not raw_path:
+            continue
+        normalized = normalize_repo_path(raw_path)
+        if normalized:
+            current_files.add(normalized)
+    if not current_files:
+        return set()
+
+    try:
+        prior_state = load_review_state(pull_request_id)
+    except FileNotFoundError:
+        return set()
+
+    prior_commit_hash = prior_state.commitHash
+    if not prior_commit_hash:
+        return set()
+
+    pr_info = pr_details.get("pullRequest", pr_details)
+    last_merge = pr_info.get("lastMergeSourceCommit")
+    if not isinstance(last_merge, dict):
+        return set()
+    current_commit_hash = last_merge.get("commitId")
+    if not isinstance(current_commit_hash, str) or not current_commit_hash.strip():
+        return set()
+    current_commit_hash = current_commit_hash.strip()
+
+    if prior_commit_hash == current_commit_hash:
+        return current_files
+
+    diff_proc = run_safe(
+        ["git", "diff", "--name-only", f"{prior_commit_hash}..{current_commit_hash}"],
+        capture_output=True,
+        text=True,
+        shell=False,
+    )
+    if diff_proc.returncode != 0:
+        print(
+            "Warning: Could not diff prior vs current commit for unchanged-file detection; "
+            "treating all files as changed.",
+            file=sys.stderr,
+        )
+        return set()
+
+    changed_files: set[str] = set()
+    for path in diff_proc.stdout.splitlines():
+        if not path.strip():
+            continue
+        normalized = normalize_repo_path(path.strip())
+        if normalized:
+            changed_files.add(normalized)
+
+    return {path for path in current_files if path not in changed_files}
+
+
 def _normalize_path_for_comparison(path: str) -> str:
     """
     Normalize a file path for comparison.
@@ -376,23 +475,25 @@ def _fetch_and_display_jira_issue(issue_key: str) -> bool:
 def generate_review_prompts(
     pull_request_id: int,
     pr_details: dict | None = None,
-    include_reviewed: bool = False,
     files_on_branch: set[str] | None = None,
+    unchanged_files: set[str] | None = None,
 ) -> tuple[int, int, int, Path, list["SkippedFile"]]:
     """
     Generate file review prompts from PR details.
 
     This function creates the queue.json manifest and individual file prompts
-    for the PR review workflow.
+    for the PR review workflow. All in-scope files are reviewed every run;
+    unchanged files receive a simplified prompt when valid prior state exists.
 
     Args:
         pull_request_id: PR ID
         pr_details: Full PR details payload. If None, loads from temp file.
-        include_reviewed: Whether to include already-reviewed files
         files_on_branch: Set of file paths that are actually changed on the branch.
             If None and files-on-branch.json exists, loads from that file.
             If provided, files not in this set will be filtered out (they likely
             came from recently merged PRs).
+        unchanged_files: Set of file paths that have no changes since the last
+            review. If None, treated as empty set (all files considered changed).
 
     Returns:
         Tuple of (prompts_generated, skipped_reviewed_count, skipped_not_on_branch_count,
@@ -401,12 +502,19 @@ def generate_review_prompts(
     from datetime import datetime, timezone
 
     from .review_helpers import (
-        build_reviewed_paths_set,
         filter_threads,
         get_threads_for_file,
         normalize_repo_path,
     )
-    from .review_state import SkippedFile
+    from .review_state import (
+        PROCESSING_PATH_INHERITED,
+        SkippedFile,
+        determine_processing_path,
+        load_review_state,
+    )
+
+    if unchanged_files is None:
+        unchanged_files = set()
 
     temp_dir = get_state_dir()
     commit_hash_short = get_value("review.commit_hash_short")
@@ -434,15 +542,20 @@ def generate_review_prompts(
     files_payload = pr_details.get("files", [])
     threads_payload = filter_threads(pr_details.get("threads", []))
 
-    # Build set of reviewed files
-    reviewed_paths = set()
-    if not include_reviewed:
-        reviewed_paths = build_reviewed_paths_set(pr_details)
-
     # Normalize files_on_branch for comparison
     normalized_branch_files: set[str] | None = None
     if files_on_branch is not None:
         normalized_branch_files = {_normalize_path_for_comparison(f) for f in files_on_branch}
+
+    # Load prior review state for inheritance checks
+    try:
+        prior_state = load_review_state(pull_request_id)
+    except FileNotFoundError:
+        prior_state = None
+    prior_commit_hash = prior_state.commitHash if prior_state else None
+
+    # Normalize unchanged_files for comparison
+    normalized_unchanged: set[str] = {f.lower() for f in unchanged_files}
 
     # Save snapshots
     files_snapshot_path = prompts_dir / "pull-request-files.json"
@@ -464,7 +577,6 @@ def generate_review_prompts(
 
     # Generate prompts for each file
     prompts_generated = 0
-    skipped_reviewed_count = 0
     skipped_not_on_branch_count = 0
     queue_entries = []
     skipped_files: list[SkippedFile] = []
@@ -472,13 +584,6 @@ def generate_review_prompts(
     for file_detail in files_payload:
         file_path = file_detail.get("path", "")
         normalized_path = normalize_repo_path(file_path)
-
-        # Skip files already reviewed
-        if not include_reviewed and normalized_path and normalized_path.lower() in reviewed_paths:
-            print(f"Skipping already reviewed file: {file_path}")
-            skipped_reviewed_count += 1
-            skipped_files.append(SkippedFile(path=file_path, reason="already_reviewed"))
-            continue
 
         # Skip files not actually on the branch (from recently merged PRs)
         if normalized_branch_files is not None:
@@ -489,8 +594,19 @@ def generate_review_prompts(
                 skipped_files.append(SkippedFile(path=file_path, reason="not_on_branch"))
                 continue
 
-        threads_for_file = get_threads_for_file(threads_payload, file_path)
-        prompt_path = _write_file_prompt(prompts_dir, file_detail, threads_for_file)
+        # Determine processing path for the file
+        is_unchanged = bool(normalized_path and normalized_path.lower() in normalized_unchanged)
+        prior_entry = prior_state.files.get(normalized_path) if prior_state and normalized_path else None
+        has_model_verdicts = bool(prior_entry and prior_entry.modelVerdicts)
+        processing_path = determine_processing_path(prior_entry, is_unchanged, prior_commit_hash, has_model_verdicts)
+
+        # Route to appropriate prompt writer
+        if processing_path == PROCESSING_PATH_INHERITED:
+            prompt_path = _write_unchanged_file_prompt(prompts_dir, file_detail, prior_entry)
+        else:
+            threads_for_file = get_threads_for_file(threads_payload, file_path)
+            prompt_path = _write_file_prompt(prompts_dir, file_detail, threads_for_file)
+
         prompts_generated += 1
 
         queue_entries.append(
@@ -500,6 +616,7 @@ def generate_review_prompts(
                 "promptFile": prompt_path.name,
                 "promptPath": str(prompt_path),
                 "status": "pending",
+                "processingPath": processing_path,
             }
         )
 
@@ -516,7 +633,35 @@ def generate_review_prompts(
     with open(queue_path, "w", encoding="utf-8") as f:
         json.dump(queue_payload, f, indent=2)
 
-    return prompts_generated, skipped_reviewed_count, skipped_not_on_branch_count, prompts_dir, skipped_files
+    return prompts_generated, 0, skipped_not_on_branch_count, prompts_dir, skipped_files
+
+
+def generate_review_prompts_from_state() -> None:
+    """Background-task entry point that generates prompts for current PR state."""
+    pr_id_raw = get_value("pull_request_id")
+    if not pr_id_raw:
+        print("Error: pull_request_id is required in state", file=sys.stderr)
+        sys.exit(1)
+
+    pull_request_id = int(pr_id_raw)
+    details_path = get_state_dir() / "temp-get-pull-request-details-response.json"
+    if not details_path.exists():
+        print(f"Error: PR details file not found: {details_path}", file=sys.stderr)
+        print("Run get_pull_request_details first.", file=sys.stderr)
+        sys.exit(1)
+
+    with open(details_path, encoding="utf-8") as f:
+        pr_details = json.load(f)
+
+    unchanged_files = _detect_unchanged_files(pull_request_id, pr_details)
+    _prompts_generated, _skipped_reviewed, _skipped_not_on_branch, prompts_dir, _skipped_files = (
+        generate_review_prompts(
+            pull_request_id,
+            pr_details,
+            unchanged_files=unchanged_files,
+        )
+    )
+    _persist_processing_paths_to_review_state(pull_request_id, prompts_dir)
 
 
 def _write_file_prompt(directory: Path, file_detail: dict, threads_for_file: list) -> Path:
@@ -561,11 +706,63 @@ def _write_file_prompt(directory: Path, file_detail: dict, threads_for_file: lis
     return prompt_path
 
 
+def _write_unchanged_file_prompt(directory: Path, file_detail: dict, prior_entry: "FileEntry | None") -> Path:
+    """Write a simplified file review prompt for an unchanged file.
+
+    For files with no changes since the last review and a valid prior state,
+    this produces a minimal prompt instructing the AI agent to only submit
+    a review if their assessment differs from the prior review.
+
+    Args:
+        directory: Directory to write the prompt file.
+        file_detail: File detail dictionary from the PR payload.
+        prior_entry: The prior FileEntry with review state, or None.
+
+    Returns:
+        Path to the written prompt file.
+    """
+    from .review_helpers import convert_to_prompt_filename
+
+    filename = convert_to_prompt_filename(file_detail.get("path", ""))
+    prompt_path = directory / filename
+
+    file_path = file_detail.get("path", "unknown")
+    prior_status = prior_entry.status if prior_entry else "unknown"
+    prior_summary = prior_entry.summary if prior_entry else None
+
+    lines = [
+        f"# File Review: {file_path}",
+        "",
+        "## Status",
+        "",
+        "no changes since last review",
+        "",
+        f"**Prior review status:** {prior_status}",
+    ]
+
+    if prior_summary:
+        lines.extend(["", f"**Prior review summary:** {prior_summary}"])
+
+    lines.extend(
+        [
+            "",
+            "## Instructions",
+            "",
+            "This file has not changed since the last review. The prior review outcome is shown above.",
+            "Still perform an independent review of this file, but **only submit** a review",
+            "(`agdt-approve-file` or `agdt-request-changes`) if your assessment **differs** from the prior review.",
+            "If your assessment matches the prior review, skip submission — the file is already correctly reviewed.",
+        ]
+    )
+
+    prompt_path.write_text("\n".join(lines), encoding="utf-8")
+    return prompt_path
+
+
 def print_review_instructions(
     pull_request_id: int,
     prompts_dir: Path,
     prompts_generated: int,
-    skipped_reviewed_count: int,
     skipped_not_on_branch_count: int = 0,
 ) -> None:
     """Print instructions for the AI agent to follow."""
@@ -576,7 +773,6 @@ def print_review_instructions(
     print("")
     print(f"PR ID: {pull_request_id}")
     print(f"Prompts generated: {prompts_generated}")
-    print(f"Skipped (already reviewed): {skipped_reviewed_count}")
     if skipped_not_on_branch_count > 0:
         print(f"Skipped (not on branch, from merged PRs): {skipped_not_on_branch_count}")
     print(f"Prompts directory: {prompts_dir}")
@@ -645,10 +841,59 @@ def print_review_instructions(
     print("")
 
     if prompts_generated == 0:
-        print("WARNING: No prompts were generated. All files may already be reviewed.")
-        print("Use include_reviewed=True to re-review files if needed.")
+        print("WARNING: No prompts were generated. All files may have been skipped (not on branch).")
     else:
         print("Ready to begin review. Process the queue starting with the first pending file.")
+
+
+def _persist_processing_paths_to_review_state(pull_request_id: int, prompts_dir: Path) -> None:
+    """Best-effort persistence of queue processingPath metadata into review-state.json."""
+    queue_path = prompts_dir / "queue.json"
+    if not queue_path.exists():
+        return
+
+    try:
+        with open(queue_path, encoding="utf-8") as f:
+            queue_payload = json.load(f)
+    except (OSError, ValueError):
+        return
+
+    pending_entries = queue_payload.get("pending")
+    if not isinstance(pending_entries, list) or not pending_entries:
+        return
+
+    from .review_helpers import normalize_repo_path
+
+    processing_by_path: dict[str, str] = {}
+    for entry in pending_entries:
+        if not isinstance(entry, dict):
+            continue
+        processing_path = entry.get("processingPath")
+        if not isinstance(processing_path, str) or not processing_path:
+            continue
+        normalized_path = entry.get("normalizedPath")
+        if not isinstance(normalized_path, str) or not normalized_path:
+            raw_path = entry.get("path")
+            normalized_path = normalize_repo_path(raw_path) if isinstance(raw_path, str) else None
+        if not normalized_path:
+            continue
+        processing_by_path[normalized_path] = processing_path
+
+    if not processing_by_path:
+        return
+
+    try:
+        from .review_state import FileLockError, read_modify_write_review_state
+
+        with read_modify_write_review_state(pull_request_id) as state:
+            for path, file_entry in state.files.items():
+                file_entry.processingPath = processing_by_path.get(path)
+    except (FileNotFoundError, FileLockError, OSError, ValueError) as exc:
+        print(
+            "Warning: Could not persist processing path metadata to review-state.json; "
+            f"continuing without processing-path audit trail: {exc}",
+            file=sys.stderr,
+        )
 
 
 def _scaffold_threads_for_review(
@@ -754,7 +999,6 @@ def setup_pull_request_review() -> None:
     State keys:
         pull_request_id (required): PR ID
         jira.issue_key (optional): Jira issue key
-        include_reviewed (optional): Whether to include already-reviewed files
         copilot.model_id (optional): AI model identifier for the reviewer
 
     This function is designed to be called in a background task from the
@@ -771,7 +1015,6 @@ def setup_pull_request_review() -> None:
     pull_request_id = int(pr_id_str)
 
     jira_issue_key = get_value("jira.issue_key")
-    include_reviewed = str(get_value("include_reviewed") or "").lower() in ("true", "1", "yes")
     copilot_model_id = get_value("copilot.model_id")
     dry_run_val = get_value("dry_run")
 
@@ -815,8 +1058,6 @@ def setup_pull_request_review() -> None:
         set_value("pull_request_id", str(pull_request_id))
         if jira_issue_key_norm:
             set_value("jira.issue_key", jira_issue_key_norm)
-        if include_reviewed:
-            set_value("include_reviewed", "true")
         if copilot_model_id:
             set_value("copilot.model_id", copilot_model_id)
         if dry_run_val is not None:
@@ -957,13 +1198,12 @@ def setup_pull_request_review() -> None:
 
     # Step 4: Generate review prompts
     print("\nGenerating file review prompts...")
-    prompts_generated, skipped_reviewed_count, skipped_not_on_branch_count, prompts_dir, skipped_files = (
-        generate_review_prompts(
-            pull_request_id,
-            pr_details,
-            include_reviewed,
-            files_on_branch,
-        )
+    unchanged_files = _detect_unchanged_files(pull_request_id, pr_details)
+    prompts_generated, _, skipped_not_on_branch_count, prompts_dir, skipped_files = generate_review_prompts(
+        pull_request_id,
+        pr_details,
+        files_on_branch,
+        unchanged_files,
     )
 
     # Step 5: Scaffold review threads (all file/folder/overall summary threads upfront)
@@ -971,7 +1211,10 @@ def setup_pull_request_review() -> None:
         pull_request_id, pr_details, pr_info, files_on_branch, rebase_conflicts=had_rebase_conflicts
     )
 
-    # Step 5b: Persist skipped files into review state (informational — never abort setup)
+    # Step 5b: Persist queue processing metadata into review state (informational — never abort setup)
+    _persist_processing_paths_to_review_state(pull_request_id, prompts_dir)
+
+    # Step 5c: Persist skipped files into review state (informational — never abort setup)
     if skipped_files:
         try:
             from .review_state import FileLockError, read_modify_write_review_state
@@ -990,9 +1233,7 @@ def setup_pull_request_review() -> None:
             )
 
     # Step 6: Print instructions
-    print_review_instructions(
-        pull_request_id, prompts_dir, prompts_generated, skipped_reviewed_count, skipped_not_on_branch_count
-    )
+    print_review_instructions(pull_request_id, prompts_dir, prompts_generated, skipped_not_on_branch_count)
 
     # Step 7: Initialize workflow with PR context
     try:

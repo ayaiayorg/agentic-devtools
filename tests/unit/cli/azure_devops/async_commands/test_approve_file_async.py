@@ -73,3 +73,15 @@ class TestApproveFileAsync:
         from agentic_devtools.state import get_value
 
         assert get_value("file_review.summary") == "Legacy LGTM"
+
+    def test_exits_when_no_summary_and_no_content(self, mock_background_and_state, capsys):
+        """When neither file_review.summary nor content exists in state, should exit."""
+        import pytest
+
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", 12345)
+        set_value("file_review.file_path", "src/app/component.ts")
+        # No file_review.summary and no content set
+        with pytest.raises(SystemExit):
+            approve_file_async()

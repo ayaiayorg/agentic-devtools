@@ -36,13 +36,16 @@ class TestGenerateReviewPrompts:
         prompt_files = list(tmp_path.glob("file-*.md"))
         assert len(prompt_files) == 2
 
-    def test_skips_already_reviewed_files(self, tmp_path):
-        """Test that already reviewed files are skipped."""
+    def test_no_longer_skips_already_reviewed_files(self, tmp_path):
+        """Test that already reviewed files are no longer skipped.
+
+        All in-scope files are now reviewed every run regardless of prior review status.
+        """
         from agentic_devtools.cli.azure_devops.review_prompts import (
             generate_review_prompts,
         )
 
-        # The function uses reviewer.reviewedFiles to determine what's already reviewed
+        # The function previously used reviewer.reviewedFiles to skip files
         pr_details = {
             "pullRequest": {"pullRequestId": 123},
             "changes": [
@@ -59,7 +62,8 @@ class TestGenerateReviewPrompts:
         results = generate_review_prompts(pr_details, tmp_path)
 
         assert len(results) == 1
-        assert results[0]["skipped"] is True
+        # File is NOT skipped — all files are reviewed every run
+        assert results[0]["skipped"] is False
 
     def test_skips_files_without_path(self, tmp_path):
         """Test that files without path are skipped."""

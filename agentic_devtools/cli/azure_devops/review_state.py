@@ -35,6 +35,11 @@ class ReviewStatus(str, Enum):
 # Statuses that indicate a file/folder review is complete
 COMPLETE_STATUSES = frozenset({ReviewStatus.APPROVED.value, ReviewStatus.NEEDS_WORK.value})
 
+# Processing path labels for the review-all-files workflow
+PROCESSING_PATH_REVIEWED = "reviewed"
+PROCESSING_PATH_INHERITED = "inherited"
+PROCESSING_PATH_REVIEWED_NO_PRIOR = "reviewed-no-prior"
+
 
 def compute_aggregate_status(statuses: list[str]) -> str:
     """Compute an aggregate status from a list of child statuses.
@@ -110,10 +115,15 @@ class SuggestionEntry:
 
 @dataclass
 class SkippedFile:
-    """A file that was skipped during prompt generation."""
+    """A file that was skipped during prompt generation.
+
+    Note: The ``already_reviewed`` reason is deprecated and no longer produced
+    by the review workflow. Only ``not_on_branch`` is actively used.
+    The class is retained for backward-compatible deserialization.
+    """
 
     path: str
-    reason: str  # "not_on_branch" or "already_reviewed"
+    reason: str  # "not_on_branch" (active) or "already_reviewed" (deprecated)
 
     def to_dict(self) -> dict:
         """Serialize to JSON-compatible dictionary."""
@@ -256,6 +266,7 @@ class FileEntry:
     suggestionVerificationStatus: str | None = None
     modelVerdicts: list[ModelVerdict] = field(default_factory=list)
     consolidationStatus: str | None = None
+    processingPath: str | None = None
 
     def to_dict(self) -> dict:
         """Serialize to JSON-compatible dictionary."""
@@ -277,6 +288,8 @@ class FileEntry:
             result["modelVerdicts"] = [mv.to_dict() for mv in self.modelVerdicts]
         if self.consolidationStatus is not None:
             result["consolidationStatus"] = self.consolidationStatus
+        if self.processingPath is not None:
+            result["processingPath"] = self.processingPath
         return result
 
     @classmethod
@@ -299,6 +312,7 @@ class FileEntry:
             suggestionVerificationStatus=data.get("suggestionVerificationStatus"),
             modelVerdicts=model_verdicts,
             consolidationStatus=data.get("consolidationStatus"),
+            processingPath=data.get("processingPath"),
         )
 
     def get_model_verdict(self, model_id: str) -> ModelVerdict | None:
@@ -321,6 +335,92 @@ class FileEntry:
     def needs_consolidation(self) -> bool:
         """Return True if consolidation is needed (all reviewers done + disagreements exist)."""
         return self.all_reviewers_complete() and self.has_disagreements()
+
+
+def is_valid_prior_state(file_entry: FileEntry, prior_commit_hash: str | None) -> bool:
+    """Check if a file entry represents a valid completed prior review.
+
+    Args:
+        file_entry: The file entry to validate.
+        prior_commit_hash: The commit hash from the prior review session.
+
+    Returns:
+        True only when status is terminal, threadId and commentId are truthy,
+        folder is non-empty, and prior_commit_hash is truthy.
+    """
+    if not prior_commit_hash:
+        return False
+    if file_entry.status not in COMPLETE_STATUSES:
+        return False
+    if not file_entry.threadId:
+        return False
+    if not file_entry.commentId:
+        return False
+    if not file_entry.folder:
+        return False
+    return True
+
+
+def can_inherit_file(file_entry: FileEntry, is_unchanged: bool, prior_commit_hash: str | None) -> bool:
+    """Check if a file can inherit its prior review state.
+
+    Args:
+        file_entry: The file entry from the prior state.
+        is_unchanged: Whether the file has no changes since the last review.
+        prior_commit_hash: The commit hash from the prior review session.
+
+    Returns:
+        True when both is_unchanged and is_valid_prior_state() are True.
+    """
+    return is_unchanged and is_valid_prior_state(file_entry, prior_commit_hash)
+
+
+def can_inherit_multi_model(file_entry: FileEntry, is_unchanged: bool, prior_commit_hash: str | None) -> bool:
+    """Check if a multi-model file can inherit its prior review state.
+
+    Args:
+        file_entry: The file entry from the prior state.
+        is_unchanged: Whether the file has no changes since the last review.
+        prior_commit_hash: The commit hash from the prior review session.
+
+    Returns:
+        True when can_inherit_file() is True AND all modelVerdicts have
+        terminal status (vacuously true if no model verdicts).
+    """
+    if not can_inherit_file(file_entry, is_unchanged, prior_commit_hash):
+        return False
+    return all(mv.status in COMPLETE_STATUSES for mv in file_entry.modelVerdicts)
+
+
+def determine_processing_path(
+    file_entry: FileEntry | None, is_unchanged: bool, prior_commit_hash: str | None, has_model_verdicts: bool
+) -> str:
+    """Determine the processing path label for a file.
+
+    Args:
+        file_entry: The file entry from the prior state, or None if no prior exists.
+        is_unchanged: Whether the file has no changes since the last review.
+        prior_commit_hash: The commit hash from the prior review session.
+        has_model_verdicts: Whether the file has model verdicts configured.
+
+    Returns:
+        One of PROCESSING_PATH_REVIEWED, PROCESSING_PATH_INHERITED,
+        or PROCESSING_PATH_REVIEWED_NO_PRIOR.
+    """
+    if not is_unchanged:
+        return PROCESSING_PATH_REVIEWED
+
+    if file_entry is None:
+        return PROCESSING_PATH_REVIEWED_NO_PRIOR
+
+    if has_model_verdicts:
+        if can_inherit_multi_model(file_entry, is_unchanged, prior_commit_hash):
+            return PROCESSING_PATH_INHERITED
+    else:
+        if can_inherit_file(file_entry, is_unchanged, prior_commit_hash):
+            return PROCESSING_PATH_INHERITED
+
+    return PROCESSING_PATH_REVIEWED_NO_PRIOR
 
 
 @dataclass

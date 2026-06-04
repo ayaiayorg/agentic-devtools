@@ -303,3 +303,27 @@ class TestFileEntry:
         )
         restored = FileEntry.from_dict(original.to_dict())
         assert restored.suggestionVerificationStatus == "pending_verification"
+
+    def test_to_dict_includes_processing_path_when_set(self):
+        """Test that to_dict serialises processingPath when not None."""
+        f = FileEntry(
+            threadId=1,
+            commentId=2,
+            folder="src",
+            fileName="app.py",
+        )
+        f.processingPath = "inherited"
+        d = f.to_dict()
+        assert d["processingPath"] == "inherited"
+
+    def test_to_dict_excludes_processing_path_when_none(self):
+        """Test that to_dict omits processingPath when None."""
+        f = FileEntry(
+            threadId=1,
+            commentId=2,
+            folder="src",
+            fileName="app.py",
+        )
+        assert f.processingPath is None
+        d = f.to_dict()
+        assert "processingPath" not in d

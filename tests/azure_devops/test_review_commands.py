@@ -782,13 +782,12 @@ class TestPrintReviewInstructions:
             pull_request_id=123,
             prompts_dir=tmp_path,
             prompts_generated=5,
-            skipped_reviewed_count=2,
         )
 
         captured = capsys.readouterr()
         assert "PR ID: 123" in captured.out
         assert "Prompts generated: 5" in captured.out
-        assert "Skipped (already reviewed): 2" in captured.out
+        assert "Skipped (already reviewed)" not in captured.out
         assert "agdt-set pull_request_id" not in captured.out
         assert "--file-path" in captured.out
 
@@ -800,7 +799,6 @@ class TestPrintReviewInstructions:
             pull_request_id=123,
             prompts_dir=tmp_path,
             prompts_generated=3,
-            skipped_reviewed_count=1,
             skipped_not_on_branch_count=2,
         )
 
@@ -844,7 +842,6 @@ class TestGenerateReviewPrompts:
                 prompts_count, skipped_reviewed, skipped_not_on_branch, prompts_dir, _ = generate_review_prompts(
                     pull_request_id=123,
                     pr_details=pr_details,
-                    include_reviewed=True,  # Don't skip any
                     files_on_branch=None,  # Don't filter by branch files
                 )
 
@@ -853,7 +850,10 @@ class TestGenerateReviewPrompts:
         assert skipped_not_on_branch == 0
 
     def test_skips_reviewed_files(self, tmp_path):
-        """Test skips files already marked as reviewed."""
+        """Test previously-reviewed files are no longer skipped.
+
+        All in-scope files are now reviewed every run.
+        """
         from unittest.mock import patch
 
         from agentic_devtools.cli.azure_devops.review_commands import generate_review_prompts
@@ -863,7 +863,6 @@ class TestGenerateReviewPrompts:
                 {"path": "/src/file1.ts", "changeType": "edit"},
             ],
             "threads": [],
-            # Note: The function looks for "reviewer" (singular) not "reviewers"
             "reviewer": {
                 "reviewedFiles": ["/src/file1.ts"],
             },
@@ -877,12 +876,12 @@ class TestGenerateReviewPrompts:
             prompts_count, skipped_reviewed, skipped_not_on_branch, _, _ = generate_review_prompts(
                 pull_request_id=123,
                 pr_details=pr_details,
-                include_reviewed=False,  # Skip reviewed files
                 files_on_branch=None,
             )
 
-        assert prompts_count == 0
-        assert skipped_reviewed == 1
+        # File is NOT skipped — all files reviewed every run
+        assert prompts_count == 1
+        assert skipped_reviewed == 0
 
     def test_skips_files_not_on_branch(self, tmp_path):
         """Test skips files not in the branch changes."""
@@ -909,7 +908,6 @@ class TestGenerateReviewPrompts:
             prompts_count, skipped_reviewed, skipped_not_on_branch, _, _ = generate_review_prompts(
                 pull_request_id=123,
                 pr_details=pr_details,
-                include_reviewed=True,
                 files_on_branch=files_on_branch,
             )
 
@@ -941,7 +939,6 @@ class TestGenerateReviewPrompts:
             _, _, _, prompts_dir, _ = generate_review_prompts(
                 pull_request_id=42,
                 pr_details=pr_details,
-                include_reviewed=True,
                 files_on_branch=None,
             )
 
@@ -1762,12 +1759,11 @@ class TestPrintReviewInstructionsZeroPrompts:
             pull_request_id=123,
             prompts_dir=tmp_path,
             prompts_generated=0,
-            skipped_reviewed_count=5,
         )
 
         captured = capsys.readouterr()
         assert "WARNING: No prompts were generated" in captured.out
-        assert "include_reviewed=True" in captured.out
+        assert "include_reviewed" not in captured.out
 
 
 class TestGenerateReviewPromptsEdgeCases:

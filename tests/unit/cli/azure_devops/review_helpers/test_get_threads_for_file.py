@@ -78,6 +78,17 @@ class TestGetThreadsForFile:
         assert len(result) == 1
         assert result[0]["id"] == 1
 
+    def test_context_without_any_file_path(self):
+        """Test thread with context that has no recognizable file path is skipped."""
+        threads = [
+            {
+                "id": 1,
+                "threadContext": {"someOtherKey": "value"},
+            }
+        ]
+        result = get_threads_for_file(threads, "/src/file.ts")
+        assert len(result) == 0
+
     def test_filePath_takes_precedence(self):
         """Test filePath is checked before left/rightFileStart."""
         threads = [

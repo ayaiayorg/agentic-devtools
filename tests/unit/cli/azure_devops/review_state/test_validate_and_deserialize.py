@@ -125,3 +125,22 @@ class TestValidateAndDeserialize:
 
         with pytest.raises(FileNotFoundError, match="25365"):
             _validate_and_deserialize(data, 25365, file_path, delete_on_migration=False)
+
+    def test_pr_id_mismatch_delete_when_file_missing(self, tmp_path):
+        """Raises FileNotFoundError even when file doesn't exist on disk (PR mismatch)."""
+        data = _valid_data(pr_id=999)
+        file_path = tmp_path / "review-state.json"
+        # File does not exist on disk
+
+        with pytest.raises(FileNotFoundError):
+            _validate_and_deserialize(data, 25365, file_path, delete_on_migration=True)
+
+    def test_migration_delete_when_file_missing(self, tmp_path):
+        """Raises FileNotFoundError even when file doesn't exist on disk (migration)."""
+        data = _valid_data()
+        del data["commitHash"]
+        file_path = tmp_path / "review-state.json"
+        # File does not exist on disk
+
+        with pytest.raises(FileNotFoundError):
+            _validate_and_deserialize(data, 25365, file_path, delete_on_migration=True)

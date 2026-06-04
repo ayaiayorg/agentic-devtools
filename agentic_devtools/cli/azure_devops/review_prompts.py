@@ -9,7 +9,6 @@ from pathlib import Path
 
 from .review_helpers import (
     build_full_file_content_section,
-    build_reviewed_paths_set,
     convert_to_prompt_filename,
     get_root_folder,
     get_threads_for_file,
@@ -199,7 +198,6 @@ def generate_review_prompts(
     pr_id = pr_details.get("pullRequest", {}).get("pullRequestId", 0)
     changes = pr_details.get("changes", []) or []
     threads = pr_details.get("threads", []) or []
-    reviewed_paths = build_reviewed_paths_set(pr_details)
 
     results = []
     repo_root = resolve_repository_root()
@@ -210,20 +208,6 @@ def generate_review_prompts(
         normalized = normalize_repo_path(file_path)
 
         if not normalized:
-            continue
-
-        # Check if already reviewed
-        if normalized.lower() in reviewed_paths:
-            if verbose:
-                print(f"  ⏭️ Skipping (already reviewed): {file_path}")
-            results.append(
-                {
-                    "file_path": file_path,
-                    "prompt_path": None,
-                    "skipped": True,
-                    "reason": "already_reviewed",
-                }
-            )
             continue
 
         change_type = change.get("changeType", "edit")
@@ -272,19 +256,14 @@ def print_review_instructions(
     pr_title = pr_details.get("pullRequest", {}).get("title", "Unknown")
 
     generated = [r for r in results if not r.get("skipped")]
-    skipped = [r for r in results if r.get("skipped")]
 
     print(f"\n{'=' * 60}")
     print(f"PR Review Ready: #{pr_id}")
     print(f"Title: {pr_title}")
     print(f"{'=' * 60}")
     print(f"\n📁 Prompts generated: {len(generated)}")
-    print(f"⏭️ Files skipped (already reviewed): {len(skipped)}")
     print(f"\n📂 Output directory: {output_dir}")
 
     if generated:
         print("\n🔍 To review, open each .md file in the output directory.")
         print("   Each file contains the diff, metadata, and existing comments.")
-
-    if not generated and skipped:
-        print("\n✨ All files have already been reviewed!")

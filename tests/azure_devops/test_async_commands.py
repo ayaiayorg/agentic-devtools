@@ -13,7 +13,9 @@ from agentic_devtools.cli.azure_devops.async_commands import (
     add_pull_request_comment_async,
     approve_file_async,
     approve_pull_request_async,
+    checkout_and_sync_branch_async,
     create_pull_request_async,
+    generate_review_prompts_async,
     get_pull_request_details_async,
     get_pull_request_threads_async,
     get_run_details_async,
@@ -279,6 +281,44 @@ class TestGetPullRequestDetailsAsync:
         script = _get_script_from_call(mock_background_and_state["mock_popen"])
         _assert_function_in_script(
             script, "agentic_devtools.cli.azure_devops.pull_request_details_commands", "get_pull_request_details"
+        )
+
+
+class TestReviewWorkflowAsync:
+    """Tests for review workflow async wrappers."""
+
+    def test_checkout_and_sync_branch_async_uses_state_wrapper(self, mock_background_and_state, capsys):
+        """Should spawn review_commands.checkout_and_sync_branch_from_state."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "12345")
+
+        checkout_and_sync_branch_async()
+        captured = capsys.readouterr()
+        assert "Background task started" in captured.out
+
+        script = _get_script_from_call(mock_background_and_state["mock_popen"])
+        _assert_function_in_script(
+            script,
+            "agentic_devtools.cli.azure_devops.review_commands",
+            "checkout_and_sync_branch_from_state",
+        )
+
+    def test_generate_review_prompts_async_uses_state_wrapper(self, mock_background_and_state, capsys):
+        """Should spawn review_commands.generate_review_prompts_from_state."""
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "12345")
+
+        generate_review_prompts_async()
+        captured = capsys.readouterr()
+        assert "Background task started" in captured.out
+
+        script = _get_script_from_call(mock_background_and_state["mock_popen"])
+        _assert_function_in_script(
+            script,
+            "agentic_devtools.cli.azure_devops.review_commands",
+            "generate_review_prompts_from_state",
         )
 
 

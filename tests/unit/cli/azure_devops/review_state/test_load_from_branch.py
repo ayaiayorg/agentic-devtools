@@ -149,3 +149,14 @@ class TestLoadFromBranch:
                 with patch(f"{_AGDT_MOD}.load_workflow_artifacts", return_value=artifacts):
                     result = _load_from_branch("main", "KEY")
         assert result is None
+
+    def test_skips_non_dict_non_str_content(self):
+        """Returns None when review-state.json content is neither dict nor str."""
+        artifacts = {
+            ".agdt/workflows/default/KEY/reviews/review-state.json": 12345,
+        }
+        with patch(f"{_STATE_MOD}.get_value", return_value="main"):
+            with patch(f"{_AGDT_MOD}.resolve_worktree_key", return_value="KEY"):
+                with patch(f"{_AGDT_MOD}.load_workflow_artifacts", return_value=artifacts):
+                    result = _load_from_branch("main", "KEY")
+        assert result is None
