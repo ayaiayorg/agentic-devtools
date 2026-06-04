@@ -6,6 +6,34 @@
 **Input**: User description: "Handle proper rebasing in ai-pr-loop when multiple PRs are processed"  
 **Source Issue**: #1768 (<https://github.com/ayaiayorg/agentic-devtools/issues/1768>)
 
+## Clarifications
+
+### Session 2026-06-04
+
+- Q: How should the RebaseAction determine the "commits behind" count — via the existing `CIPlatformProvider` interface (API-based) or via local git operations (requiring a local clone)? → A: The
+  `evaluate()` method should use the `CIPlatformProvider` to query the behind-count via the GitHub API (compare endpoint), consistent with how `_count_commits` works for the commit count. The
+  `execute()` method performs the actual git operations (fetch, rebase, push) via the provider's existing git execution interface used by `squash_post_repair`. This keeps evaluate() fast (API call
+  only) and execute() as the only method performing local git work.
+
+- Q: Should the PRStateSnapshot be extended with a `commits_behind` field populated during snapshot construction, or should RebaseAction query this on demand in `evaluate()`? → A: Extend
+  PRStateSnapshot with a `commits_behind: int = 0` field, populated during `build_pr_state_snapshot()` alongside `commit_count`. This keeps `evaluate()` a pure data-driven decision (no I/O),
+  consistent with how other actions use snapshot fields, and satisfies the NFR-001 5-second evaluation requirement without needing a network call in evaluate().
+
+- Q: Should the RebaseAction set `runs_after_invalidation = True` (like RequestReviewAction) so it can run after Squash invalidates the snapshot, or should it only run on its own clean snapshot? → A:
+  No, RebaseAction should NOT set `runs_after_invalidation = True`. When Squash invalidates the snapshot, Squash already performs its own internal rebase as part of `squash_post_repair()`. The runner
+  refreshes the snapshot for `runs_after_invalidation` actions, but RebaseAction positioned after Squash in the sequence will be skipped (pipeline halted by snapshot invalidation) and will evaluate
+  freshly on the next pipeline iteration with a correct `commits_behind` value. This avoids double-rebasing.
+
+- Q: What `CIPlatformProvider` method should `execute()` call for the rebase operation — should a new dedicated method (e.g., `rebase_onto_base`) be added, or should it reuse/extend
+  `squash_post_repair`? → A: Add a new dedicated provider method `rebase_onto_base(pr_number: int, base_branch: str, head_branch: str, head_sha: str) -> None` to the CIPlatformProvider protocol. This
+  method encapsulates fetch, rebase, and force-push-with-lease. It is semantically distinct from squash (no commit collapsing), so a separate method maintains clarity and single-responsibility. The
+  implementation shares git primitives (fetch, force-push) with squash but differs in the core operation.
+
+- Q: For FR-004, should the deferred decision when a repair or active session is detected return `ActionDecision.SKIP` or `ActionDecision.BLOCKED`? The spec says "SKIP or BLOCKED" — which is it? → A:
+  Return `ActionDecision.SKIP` (not BLOCKED), consistent with how SquashAction handles the same precondition failures. SKIP means "nothing to do this iteration, try again next time" and does NOT halt
+  downstream actions. BLOCKED would prevent the rest of the pipeline from running, which is undesirable when the reason is simply "defer to next iteration." BLOCKED should only be used when the rebase
+  itself encounters an unresolvable conflict (FR-006).
+
 ## Problem Statement
 
 The ai-pr-loop pipeline processes multiple pull requests concurrently, dispatching separate workflow runs for each PR under management. When multiple PRs target the same base branch, the merge of one
@@ -115,65 +143,78 @@ force-pushes or aborts cleanly and reports the conflict.
 
 ### Edge Cases
 
-- What happens when the PR's base branch is not `main` but another feature branch? The rebase action must respect the PR's configured base branch, not assume `main`.
+- What happens when the PR's base branch is not `main` but another feature branch? The rebase action must respect the PR's configured base branch (available as `snapshot.base_branch`), not assume
+  `main`.
 - How does the system handle a race condition where `main` advances again during the rebase operation? The force-push with `--force-with-lease` ensures the push fails if the remote branch was updated
   concurrently; the pipeline should retry on the next iteration.
 - What happens if the rebase action runs but the force-push fails due to network errors? The action should return FAILED, halting downstream actions, and the branch should remain in its pre-rebase
   state (no partial state pushed).
-- What happens when a DispatchRepair was already triggered in this pipeline run? The rebase action should defer (skip) to avoid moving HEAD while a repair session is active, consistent with how the
+- What happens when a DispatchRepair was already triggered in this pipeline run? The rebase action should defer (return SKIP) to avoid moving HEAD while a repair session is active, consistent with how
+  the
   Squash action handles this case.
 
 ## Requirements
 
 ### Functional Requirements
 
-- **FR-001**: The pipeline MUST include a dedicated rebase evaluation step that runs independently of the Squash action. This step must assess whether the PR's branch is behind its base branch and, if
-  so, perform a rebase and force-push. The evaluation must occur regardless of the PR's commit count, ensuring single-commit PRs receive the same freshness guarantee as multi-commit PRs that pass
-  through the squash flow.
+- **FR-001**: The pipeline MUST include a dedicated rebase evaluation step (implemented as `RebaseAction` conforming to the `Action` protocol) that runs independently of the Squash action. This step
+  must assess whether the PR's branch is behind its base branch (using the `commits_behind` field on `PRStateSnapshot`) and, if so, perform a rebase and force-push. The evaluation must occur
+  regardless of the PR's commit count, ensuring single-commit PRs receive the same freshness guarantee as multi-commit PRs that pass through the squash flow.
 
-- **FR-002**: The rebase step MUST set `invalidates_snapshot=True` when it performs a force-push, causing the pipeline runner to refresh the PR snapshot and halt downstream actions for the current
-  iteration. This ensures subsequent actions (RequestReview, Approve, Merge) operate on the correct HEAD SHA and fresh CI status.
+- **FR-002**: The rebase step MUST set `invalidates_snapshot=True` when it performs a force-push, causing the pipeline runner to refresh the PR snapshot and halt downstream actions (those without
+  `runs_after_invalidation = True`) for the current iteration. This ensures subsequent actions (RequestReview, Approve, Merge) operate on the correct HEAD SHA and fresh CI status on the next pipeline
+  iteration.
 
-- **FR-003**: The rebase step MUST skip execution (return SKIP) when the branch is already up-to-date with the base branch (zero commits behind). This avoids unnecessary force-pushes and CI re-runs
-  when the PR is already current.
+- **FR-003**: The rebase step MUST skip execution (return `ActionDecision.SKIP`) when the branch is already up-to-date with the base branch (`snapshot.commits_behind == 0`). This avoids unnecessary
+  force-pushes and CI re-runs when the PR is already current.
 
-- **FR-004**: The rebase step MUST defer execution (return SKIP or BLOCKED) when a repair session is active (`no_active_session` is false) or when a DispatchRepair was triggered in the current
-  pipeline run (`no_repair_dispatched` is false). This prevents HEAD from moving while other operations depend on a stable commit reference.
+- **FR-004**: The rebase step MUST defer execution (return `ActionDecision.SKIP`) when a repair session is active (`is_copilot_session_active_via_agent_task()` returns True) or when a DispatchRepair
+  was triggered in the current pipeline run (`derived.repair_dispatched` is True). This prevents HEAD from moving while other operations depend on a stable commit reference. The preconditions dict
+  must include `no_repair_dispatched` and `no_active_session` keys, consistent with SquashAction's pattern.
 
 - **FR-005**: The rebase step MUST use `--force-with-lease` for the push operation to prevent overwriting concurrent changes to the remote branch. If the lease check fails, the action MUST return
-  FAILED without retrying within the same pipeline iteration.
+  `ActionDecision.FAILED` without retrying within the same pipeline iteration.
 
 - **FR-006**: The rebase step MUST attempt SDK-powered conflict resolution when a rebase encounters merge conflicts, consistent with the existing behavior in `_squash_and_force_push()`. If automated
-  resolution fails, the rebase MUST be aborted (`git rebase --abort`) and the action MUST return BLOCKED.
+  resolution fails, the rebase MUST be aborted (`git rebase --abort`) and the action MUST return `ActionDecision.BLOCKED`.
 
-- **FR-007**: The pipeline action ordering MUST place the rebase step after Squash and before RequestReview. The resulting order is: Guards → Publish → DispatchRepair → Squash → **Rebase** →
+- **FR-007**: The pipeline action ordering MUST place the rebase step after Squash and before ResolveThreads. The resulting order is: Guards → Publish → DispatchRepair → Squash → **Rebase** →
   ResolveThreads → RequestReview → Approve → Merge. This ensures that if Squash runs (multi-commit PRs), its own internal rebase is performed first, and the standalone Rebase action can then verify
-  the branch is current. For single-commit PRs where Squash skips, the Rebase action serves as the sole freshness check.
+  the branch is current. For single-commit PRs where Squash skips, the Rebase action serves as the sole freshness check. RebaseAction does NOT set `runs_after_invalidation = True` — when Squash
+  invalidates the snapshot, Rebase is skipped for this iteration and re-evaluated with a fresh snapshot on the next run.
 
 - **FR-008**: The pipeline MUST detect when a previously-approved review has been dismissed due to the rebase force-push and ensure the RequestReview action re-requests Copilot review on the
-  subsequent pipeline iteration. The existing RequestReview action's `evaluate()` logic must account for the review state being stale relative to the current HEAD SHA.
+  subsequent pipeline iteration. The existing RequestReview action's `evaluate()` logic already accounts for review state being stale relative to the current HEAD SHA (via `review_state` and
+  `has_approval_on_head` snapshot fields); no changes to RequestReview are expected — the snapshot refresh after rebase naturally provides updated review state.
 
-- **FR-009**: The rebase step MUST respect the PR's configured base branch (not hard-code `main`). The base branch reference must be derived from the PR snapshot's target branch field.
+- **FR-009**: The rebase step MUST respect the PR's configured base branch (derived from `snapshot.base_branch`), not hard-code `main`. The base branch reference is passed to the provider's
+  `rebase_onto_base()` method.
 
 ### Non-Functional Requirements
 
-- **NFR-001**: The rebase action MUST complete its evaluation (the `evaluate()` method) within 5 seconds, including the behind-count check. Expensive git operations (fetch, rebase, push) occur only in
-  `execute()`.
+- **NFR-001**: The rebase action's `evaluate()` method MUST complete within 5 seconds. Since `commits_behind` is pre-computed in the snapshot (no I/O in evaluate), this is satisfied by pure in-memory
+  field access and precondition checks.
 
-- **NFR-002**: The rebase action MUST produce structured log output consistent with other pipeline actions, including the number of commits behind, whether rebase was attempted, and the outcome
-  (success, skipped, conflict, error). This enables debugging of multi-PR orchestration issues.
+- **NFR-002**: The rebase action MUST produce structured log output consistent with other pipeline actions (using Python `logging` at INFO level), including the number of commits behind, whether
+  rebase was attempted, and the outcome (success, skipped, conflict, error). Log messages must include the PR number prefix (e.g., `PR #%d: ...`). This enables debugging of multi-PR orchestration
+  issues.
 
 - **NFR-003**: The rebase action MUST NOT leave the local repository in a dirty or mid-rebase state. On any failure path, the working tree must be restored to a clean state (via `git rebase --abort`
-  or equivalent).
+  or equivalent). The provider's `rebase_onto_base()` method is responsible for this guarantee.
 
 - **NFR-004**: The rebase action MUST achieve 100% branch coverage in its unit tests, consistent with the project's testing policy. Tests must cover: skip (already up-to-date), successful rebase,
-  conflict with successful resolution, conflict with failed resolution, deferred due to active session, and force-push-with-lease failure.
+  conflict with successful resolution, conflict with failed resolution, deferred due to active session, deferred due to repair dispatched, and force-push-with-lease failure. Minimum 15 test cases
+  following the 1:1:1 test structure at `tests/unit/cli/ci/pipeline/actions/rebase/`.
 
 ### Key Entities
 
-- **RebaseAction**: A pipeline action implementing the action protocol (`evaluate` + `execute`). Responsible for detecting branch staleness and performing rebase-onto-base-branch with force-push.
-- **PipelineSnapshot**: The existing immutable snapshot of PR state (commit count, HEAD SHA, CI status, review status, base branch) consumed by all actions. After rebase, a new snapshot is required.
-- **ActionResult**: The existing result type returned by actions, with fields for status (EXECUTE/SKIP/BLOCKED/FAILED), `invalidates_snapshot`, and diagnostic messages.
+- **RebaseAction**: A pipeline action class implementing the `Action` protocol (`evaluate` + `execute` methods, `name` property). Located at `agentic_devtools/cli/ci/pipeline/actions/rebase.py`.
+  Responsible for detecting branch staleness via `snapshot.commits_behind` and performing rebase-onto-base-branch with force-push via `provider.rebase_onto_base()`.
+- **PRStateSnapshot**: The existing frozen dataclass (`agentic_devtools/cli/ci/pipeline/snapshot.py`) extended with a new `commits_behind: int = 0` field populated during `build_pr_state_snapshot()`.
+- **ActionResult**: The existing result dataclass (`agentic_devtools/cli/ci/pipeline/models.py`) returned by actions, with fields for `decision` (ActionDecision enum: EXECUTE/SKIP/BLOCKED/FAILED),
+  `invalidates_snapshot`, `preconditions`, and diagnostic `details`/`error` messages.
+- **CIPlatformProvider**: The existing provider protocol extended with a new `rebase_onto_base(pr_number: int, base_branch: str, head_branch: str, head_sha: str) -> None` method that encapsulates
+  fetch, rebase, conflict resolution attempt, and force-push-with-lease. Raises on conflict or push failure.
 
 ## Success Criteria
 
@@ -183,15 +224,17 @@ force-pushes or aborts cleanly and reports the conflict.
   conflicts exist. This can be verified by an integration test that merges PR A and asserts PR B completes its pipeline cycle (rebase → CI → merge) autonomously.
 
 - **SC-002**: After a rebase force-push, the pipeline must NOT attempt to approve or merge until fresh CI checks report a terminal status (success or failure). Zero instances of approve/merge on a
-  stale SHA are acceptable. This is verified by asserting that the Approve action's `evaluate()` returns BLOCKED when CI is pending.
+  stale SHA are acceptable. This is verified by asserting that the Approve action's `evaluate()` returns SKIP (due to snapshot invalidation) in the same pipeline run where rebase executed.
 
-- **SC-003**: The rebase action must add no more than 10 seconds of wall-clock time to a pipeline iteration when the branch is already up-to-date (the skip path). This ensures the new action does not
-  degrade performance for PRs that don't need rebasing.
+- **SC-003**: The rebase action must add no more than 10 seconds of wall-clock time to a pipeline iteration when the branch is already up-to-date (the skip path). Since evaluate() performs only
+  in-memory field access when `commits_behind == 0`, the overhead is sub-millisecond. The 10-second budget accounts for any future provider overhead. This ensures the new action does not degrade
+  performance for PRs that don't need rebasing.
 
 - **SC-004**: The rebase action must handle conflict scenarios without leaving orphaned git state (mid-rebase markers, detached HEAD) in 100% of tested conflict cases. Verified by asserting clean `git
   status` output after every abort path in unit tests.
 
-- **SC-005**: Unit test coverage for the new rebase action module must be 100% branch coverage, with a minimum of 15 test cases covering the evaluation and execution paths enumerated in NFR-004.
+- **SC-005**: Unit test coverage for the new rebase action module must be 100% branch coverage, with a minimum of 15 test cases covering the evaluation and execution paths enumerated in NFR-004. Tests
+  located at `tests/unit/cli/ci/pipeline/actions/rebase/test_rebaseaction.py`.
 
 - **SC-006**: In a simulated environment with 3 concurrent PRs merging sequentially, the total time from first merge to last merge must not exceed 3× the single-PR cycle time (accounting for CI wait),
   demonstrating that the rebase mechanism does not introduce quadratic delays through unnecessary re-reviews or repeated failures.
