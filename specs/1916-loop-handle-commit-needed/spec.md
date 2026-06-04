@@ -5,6 +5,29 @@
 **Status**: Draft  
 **Source Issue**: #1916 (<https://github.com/ayaiayorg/agentic-devtools/issues/1916>)
 
+## Clarifications
+
+### Session 2026-06-04
+
+- Q: What constitutes an "authorized identity" for marker detection — is it only `copilot[bot]` or does it include all identities in the existing `COPILOT_COMMENT_LOGINS` frozenset? → A: The
+  authorized identity set is the existing `COPILOT_COMMENT_LOGINS` frozenset (`{"copilot[bot]", "Copilot", "copilot-pull-request-reviewer[bot]"}`), which already centralizes all recognized Copilot
+  agent identities in the codebase. No new configuration mechanism is needed.
+
+- Q: How does the orchestrator detect the `repair-satisfied` marker — via polling PR comments or event-driven webhook? → A: The orchestrator uses its existing polling mechanism (the `run_ai_pr_loop`
+  cycle). After dispatching a repair and waiting for the agent session to complete, it checks for new commits OR the `repair-satisfied` marker in comments posted since the dispatch timestamp. No new
+  webhook infrastructure is required.
+
+- Q: In the mixed scenario (some threads need code changes, some don't), does the agent post `repair-satisfied` or not? → A: The agent does NOT post `repair-satisfied` in mixed scenarios. It only
+  posts the marker when ALL evaluated threads require no code changes. In mixed cases, the agent makes code changes and pushes a commit (normal flow); the `thread-evaluated` markers on no-change
+  threads are picked up during the standard `finalize_post_repair()` invocation that follows the commit.
+
+- Q: What is the `review-id` format in the `<!-- review-id:{id} -->` marker — the GitHub numeric review ID (integer) or GraphQL node ID? → A: It is the GitHub numeric review ID (integer), consistent
+  with the existing `review_id: int` parameter used throughout `finalize_post_repair()`, `list_review_comments()`, and the orchestrator's dispatch tracking.
+
+- Q: Does the `finalize_post_repair()` commit guard (which skips if no new commit since review) need to be bypassed for the no-change-needed path, or is thread resolution invoked through a separate
+  code path? → A: Thread resolution for the no-change-needed path is invoked through a SEPARATE code path that does NOT go through `finalize_post_repair()`. The orchestrator directly invokes thread
+  resolution (via `ResolveThreadsAction` or equivalent) targeting only threads with `thread-evaluated` markers, bypassing the commit guard entirely.
+
 ## Problem Statement
 
 The ai-pr-loop orchestrator dispatches repair actions to the Copilot cloud agent when a Copilot code review identifies issues. In certain situations, the agent evaluates the review feedback and
@@ -40,14 +63,16 @@ ai-pr-loop:repair-satisfied -->` comment, then verifying the orchestrator detect
 
 1. **Given** the ai-pr-loop has dispatched a repair for a Copilot review containing 3 comment threads, **When** the agent replies to each thread with a `<!-- ai-pr-loop:thread-evaluated -->` marker
    and explanation, and posts a summary comment with `<!-- ai-pr-loop:repair-satisfied -->` and `<!-- review-id:{id} -->`, **Then** the orchestrator detects the `repair-satisfied` marker as a valid
-   completion event, invokes thread resolution for all threads bearing the `thread-evaluated` reply, logs the outcome with reason `"agent_no_changes_needed"`, and does not schedule any retry.
+   completion event, invokes thread resolution (via a direct resolution path, NOT through `finalize_post_repair()`) for all threads bearing the `thread-evaluated` reply, logs the outcome with reason
+   `"agent_no_changes_needed"`, and does not schedule any retry.
 
 2. **Given** a PR has 5 review comment threads and the agent determines 3 need no changes and 2 require code modifications, **When** the agent replies to the 3 no-change threads with the
-   `thread-evaluated` marker and makes code changes for the other 2, **Then** the orchestrator processes the code changes normally (commit-based completion) and also resolves the 3 threads that
-   received `thread-evaluated` replies during the post-repair finalization phase.
+   `thread-evaluated` marker and makes code changes for the other 2 (without posting `repair-satisfied`), **Then** the orchestrator processes the code changes normally (commit-based completion) and
+   also resolves the 3 threads that
+   received `thread-evaluated` replies during the standard `finalize_post_repair()` invocation that follows the commit.
 
 3. **Given** the agent posts a `repair-satisfied` marker but one thread is missing a `thread-evaluated` reply, **When** the orchestrator processes thread resolution, **Then** only threads with the
-   `thread-evaluated` reply from `copilot[bot]` are resolved, and the missing thread remains unresolved with a warning logged.
+   `thread-evaluated` reply from an identity in `COPILOT_COMMENT_LOGINS` are resolved, and the missing thread remains unresolved with a warning logged.
 
 ---
 
@@ -102,25 +127,27 @@ checks do not include comments about linting, formatting, or CI failures.
 
 ### User Story 4 - Thread Resolution Engine Recognizes Agent Evaluation Markers (Priority: P1)
 
-The `finalize_post_repair()` thread resolution engine in the GitHub provider recognizes `<!-- ai-pr-loop:thread-evaluated -->` replies from `copilot[bot]` as a HIGH confidence resolution signal,
-enabling threads to be resolved without requiring SDK-based diff verification. This extends the existing tiered verification model with a new signal type.
+The thread resolution logic recognizes `<!-- ai-pr-loop:thread-evaluated -->` replies from identities in `COPILOT_COMMENT_LOGINS` as a HIGH confidence resolution signal,
+enabling threads to be resolved without requiring SDK-based diff verification. This extends the existing tiered verification model with a new signal type within the `AutomationMarkerTier` (or as a new
+peer tier).
 
 **Why this priority**: Thread resolution is the mechanism that actually cleans up the PR after a "no changes needed" determination. Without this, even if the orchestrator detects the
 `repair-satisfied` marker, the threads would remain unresolved and the PR would stay in an ambiguous state.
 
-**Independent Test**: Can be tested by mocking a PR thread that contains a reply with the `<!-- ai-pr-loop:thread-evaluated -->` marker from the `copilot[bot]` user, invoking `finalize_post_repair()`,
+**Independent Test**: Can be tested by mocking a PR thread that contains a reply with the `<!-- ai-pr-loop:thread-evaluated -->` marker from a `copilot[bot]` user, invoking thread resolution,
 and verifying the thread is resolved with HIGH confidence without requiring any diff-based verification.
 
 **Acceptance Scenarios**:
 
-1. **Given** a PR thread has a reply from `copilot[bot]` containing `<!-- ai-pr-loop:thread-evaluated -->`, **When** `finalize_post_repair()` processes this thread, **Then** it classifies the thread
+1. **Given** a PR thread has a reply from `copilot[bot]` containing `<!-- ai-pr-loop:thread-evaluated -->`, **When** thread resolution processes this thread, **Then** it classifies the thread
    as HIGH confidence resolution and resolves it immediately without SDK verification.
 
-2. **Given** a PR thread has a reply from a non-bot user containing the `<!-- ai-pr-loop:thread-evaluated -->` marker, **When** `finalize_post_repair()` processes this thread, **Then** it does NOT
-   treat it as a high-confidence signal (author must be `copilot[bot]` or the dispatched agent identity).
+2. **Given** a PR thread has a reply from a non-bot user (not in `COPILOT_COMMENT_LOGINS`) containing the `<!-- ai-pr-loop:thread-evaluated -->` marker, **When** thread resolution processes this
+   thread, **Then** it does NOT
+   treat it as a high-confidence signal (author must be in the `COPILOT_COMMENT_LOGINS` set).
 
 3. **Given** multiple threads exist where some have the `thread-evaluated` marker and others do not, **When** thread resolution runs, **Then** only the marked threads receive high-confidence immediate
-   resolution; unmarked threads fall through to the existing tiered verification logic.
+   resolution; unmarked threads fall through to the existing tiered verification logic (OutdatedTier, SdkEvaluationTier).
 
 ---
 
@@ -141,24 +168,29 @@ and verifying the thread is resolved with HIGH confidence without requiring any 
 - What if the Copilot reviewer still comments about CI issues despite custom instructions? The `repair-satisfied` path provides graceful handling — the agent evaluates and confirms no changes needed,
   threads are resolved, and no compute is wasted on actual code changes.
 
+- What if the agent posts the `repair-satisfied` marker but the orchestrator's polling interval means it doesn't check for several seconds? The NFR-001 5-second detection target assumes the
+  orchestrator polls after the agent session completes (session completion is the trigger, not continuous polling during agent execution). The marker is detected on the first poll after session end.
+
 ## Requirements
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST detect `<!-- ai-pr-loop:repair-satisfied -->` HTML comment markers in PR comments from the dispatched agent (identified by `copilot[bot]` username or configured agent
-  identity) as a valid repair completion signal, equivalent in authority to a new commit being pushed. When this marker is detected, the orchestrator MUST treat the repair as complete, invoke thread
-  resolution, and terminate without retry.
+- **FR-001**: The system MUST detect `<!-- ai-pr-loop:repair-satisfied -->` HTML comment markers in PR comments from the dispatched agent (identified by membership in the `COPILOT_COMMENT_LOGINS`
+  frozenset: `copilot[bot]`, `Copilot`, `copilot-pull-request-reviewer[bot]`) as a valid repair completion signal, equivalent in authority to a new commit being pushed. When this marker is detected,
+  the orchestrator MUST treat the repair as complete, invoke thread resolution via a direct resolution path (not through `finalize_post_repair()`), and terminate without retry.
 
 - **FR-002**: The system MUST recognize `<!-- ai-pr-loop:thread-evaluated -->` HTML comment markers in individual thread replies from the dispatched agent as a HIGH confidence thread resolution signal
-  within the `finalize_post_repair()` tiered verification engine. Threads bearing this marker from an authorized agent identity MUST be resolved immediately without requiring diff-based SDK
+  within the tiered resolution engine. Threads bearing this marker from an identity in `COPILOT_COMMENT_LOGINS` MUST be resolved immediately without requiring diff-based SDK
   verification.
 
 - **FR-003**: The agent prompt (`.github/prompts/agdt.address-copilot-review.evaluate-and-respond.prompt.md`) MUST instruct the agent to reply to EVERY individual review comment thread with a `<!-- 
   ai-pr-loop:thread-evaluated -->` marker and a human-readable explanation when no code changes are needed for that specific comment. This ensures both machine parseability and human reviewer
   confidence.
 
-- **FR-004**: The agent prompt MUST instruct the agent to post a summary comment containing `<!-- ai-pr-loop:repair-satisfied -->` and `<!-- review-id:{review_id} -->` markers when it determines that
-  NO code changes are required for any of the review comments. This summary comment serves as the global signal that the repair dispatch is complete without a commit.
+- **FR-004**: The agent prompt MUST instruct the agent to post a summary comment containing `<!-- ai-pr-loop:repair-satisfied -->` and `<!-- review-id:{review_id} -->` markers (where `review_id` is
+  the numeric GitHub review ID integer) when it determines that
+  NO code changes are required for any of the review comments. This summary comment serves as the global signal that the repair dispatch is complete without a commit. The agent MUST NOT post this
+  marker in mixed scenarios where some threads require code changes.
 
 - **FR-005**: The orchestrator MUST log the repair completion outcome with reason `"agent_no_changes_needed"` when the `repair-satisfied` marker is detected, distinguishing this path from commit-based
   completion in telemetry and audit logs.
@@ -175,19 +207,22 @@ and verifying the thread is resolved with HIGH confidence without requiring any 
 - **FR-009**: A `.github/copilot-review-instructions.md` file MUST be created containing instructions that prohibit the Copilot code reviewer from commenting about CI check failures, linting issues,
   formatting issues, test failures, type errors, and markdown lint violations when those checks are enforced by automated CI.
 
-- **FR-010**: The thread resolution engine MUST validate that the `<!-- ai-pr-loop:thread-evaluated -->` marker originates from an authorized identity (specifically `copilot[bot]` or the configured
-  agent username) before treating it as a high-confidence signal. Markers from arbitrary users MUST NOT trigger automatic thread resolution.
+- **FR-010**: The thread resolution engine MUST validate that the `<!-- ai-pr-loop:thread-evaluated -->` marker originates from an authorized identity (specifically any login in the
+  `COPILOT_COMMENT_LOGINS` frozenset) before treating it as a high-confidence signal. Markers from arbitrary users MUST NOT trigger automatic thread resolution.
 
-- **FR-011**: The orchestrator MUST validate that the `<!-- review-id:{id} -->` in the `repair-satisfied` marker matches the review ID that triggered the current repair dispatch. Markers with
+- **FR-011**: The orchestrator MUST validate that the `<!-- review-id:{id} -->` in the `repair-satisfied` marker matches the numeric review ID (integer) that triggered the current repair dispatch.
+  Markers with
   mismatched review IDs MUST be ignored to prevent cross-review interference.
 
-- **FR-012**: When the `repair-satisfied` marker is detected, the system MUST invoke the `ResolveThreadsAction` (or equivalent `finalize_post_repair()` call) specifically targeting threads that
-  contain `<!-- ai-pr-loop:thread-evaluated -->` replies, rather than attempting to resolve all threads indiscriminately.
+- **FR-012**: When the `repair-satisfied` marker is detected, the system MUST invoke thread resolution specifically targeting threads that
+  contain `<!-- ai-pr-loop:thread-evaluated -->` replies from authorized identities, rather than attempting to resolve all threads indiscriminately. This resolution is invoked through a direct code
+  path that bypasses the `finalize_post_repair()` commit guard.
 
 ### Non-Functional Requirements
 
-- **NFR-001**: The marker detection logic MUST execute within 5 seconds of the agent comment being posted (assuming GitHub API response times under 2 seconds), to avoid perception of the loop being
-  stuck between the agent posting and the orchestrator advancing.
+- **NFR-001**: The marker detection logic MUST execute within 5 seconds of the orchestrator's first poll after the agent session completes (assuming GitHub API response times under 2 seconds), to
+  avoid perception of the loop being
+  stuck between the agent posting and the orchestrator advancing. The detection occurs on the orchestrator's post-session polling cycle, not via continuous polling during agent execution.
 
 - **NFR-002**: The thread resolution for `thread-evaluated` marked threads MUST be idempotent — resolving an already-resolved thread MUST NOT produce errors, throw exceptions, or alter the resolution
   state. This ensures safe handling of duplicate dispatches or retries.
@@ -201,13 +236,16 @@ and verifying the thread is resolved with HIGH confidence without requiring any 
 ### Key Entities
 
 - **Repair Satisfaction Marker**: An HTML comment (`<!-- ai-pr-loop:repair-satisfied -->`) posted as a PR comment by the agent to signal that no code changes are needed. Always accompanied by a `<!-- 
-  review-id:{id} -->` marker for correlation.
+  review-id:{id} -->` marker (where `{id}` is the numeric GitHub review ID integer) for correlation.
 
 - **Thread Evaluation Marker**: An HTML comment (`<!-- ai-pr-loop:thread-evaluated -->`) posted as a reply within an individual review thread by the agent, indicating that the specific comment has
   been evaluated and no code change is warranted for it.
 
 - **Repair Outcome Reason**: A string enum value (`"agent_no_changes_needed"`) recorded in the orchestrator's completion log to distinguish no-change-needed completions from commit-based completions
   and failure states.
+
+- **Authorized Agent Identities**: The `COPILOT_COMMENT_LOGINS` frozenset defined in `agentic_devtools/cli/ci/models.py`, currently containing `{"copilot[bot]", "Copilot",
+  "copilot-pull-request-reviewer[bot]"}`. This is the single source of truth for validating marker authorship.
 
 ## Success Criteria
 
@@ -216,8 +254,8 @@ and verifying the thread is resolved with HIGH confidence without requiring any 
 - **SC-001**: 100% of repair dispatches where the agent determines no changes are needed MUST result in a clean loop exit within 60 seconds of the `repair-satisfied` marker being posted, with zero
   retries attempted. This is verified by examining orchestrator logs for the `"agent_no_changes_needed"` reason code and confirming no subsequent dispatch events for the same review ID.
 
-- **SC-002**: At least 95% of threads that receive a `<!-- ai-pr-loop:thread-evaluated -->` reply from an authorized agent MUST be successfully resolved within a single `finalize_post_repair()`
-  invocation. The remaining 5% allowance accounts for transient GitHub API failures that trigger retry logic.
+- **SC-002**: At least 95% of threads that receive a `<!-- ai-pr-loop:thread-evaluated -->` reply from an authorized agent MUST be successfully resolved within a single thread resolution invocation.
+  The remaining 5% allowance accounts for transient GitHub API failures that trigger retry logic.
 
 - **SC-003**: The Copilot code reviewer MUST produce zero comments about CI check failures (linting, formatting, markdownlint, test failures, type errors) on PRs where all checks are confirmed passing
   at review request time. This is measured over a rolling 30-day window after deployment, targeting 0 false-positive CI comments across all reviewed PRs.
