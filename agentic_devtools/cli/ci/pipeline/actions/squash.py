@@ -31,6 +31,7 @@ class SquashAction:
     Preconditions:
     - Commits above merge-base > 1
     - All review threads resolved
+    - CI passing (actionable checks green — same gate as RequestReviewAction)
     - No repair dispatched in this run (keeps HEAD stable for the repair cycle)
     - No active Copilot coding session (pending review does NOT block squash)
 
@@ -66,6 +67,18 @@ class SquashAction:
                     f"unresolved_threads: {unresolved_threads} thread(s) still open — "
                     "squash blocked until all review threads are resolved"
                 ),
+            )
+
+        # CI must be passing before squashing — prevents duplicate repair dispatches
+        # for new SHAs created by premature squash (same gate as RequestReviewAction).
+        ci_passing = snapshot.ci_status == "passing"
+        preconditions["ci_passing"] = ci_passing
+        if not ci_passing:
+            return ActionResult(
+                name=self.name,
+                decision=ActionDecision.SKIP,
+                preconditions=preconditions,
+                details=f"CI is {snapshot.ci_status} — deferring squash",
             )
 
         # Repair dispatch in this run should keep HEAD stable for the repair cycle.

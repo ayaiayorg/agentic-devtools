@@ -90,7 +90,7 @@ class TestSquashAction:
         snapshot = PRStateSnapshot(
             pr_number=1,
             commit_count=3,
-            ci_status="pending",
+            ci_status="passing",
             copilot_review_pending=False,
         )
         derived = DerivedState(snapshot)
@@ -102,7 +102,7 @@ class TestSquashAction:
             result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.EXECUTE
 
-    def test_execute_when_ci_pending(self) -> None:
+    def test_skip_when_ci_pending(self) -> None:
         snapshot = PRStateSnapshot(pr_number=1, commit_count=3, ci_status="pending")
         derived = DerivedState(snapshot)
         action = SquashAction()
@@ -111,9 +111,10 @@ class TestSquashAction:
             return_value=False,
         ):
             result = action.evaluate(snapshot, derived)
-        assert result.decision == ActionDecision.EXECUTE
+        assert result.decision == ActionDecision.SKIP
+        assert "ci is pending" in result.details.lower()
 
-    def test_execute_when_ci_failing(self) -> None:
+    def test_skip_when_ci_failing(self) -> None:
         snapshot = PRStateSnapshot(pr_number=1, commit_count=3, ci_status="failing")
         derived = DerivedState(snapshot)
         action = SquashAction()
@@ -122,7 +123,8 @@ class TestSquashAction:
             return_value=False,
         ):
             result = action.evaluate(snapshot, derived)
-        assert result.decision == ActionDecision.EXECUTE
+        assert result.decision == ActionDecision.SKIP
+        assert "ci is failing" in result.details.lower()
 
     def test_execute_when_derived_pending_review_is_true(self) -> None:
         """Pending review does NOT block squash — only active session does."""
