@@ -35,6 +35,7 @@ def _make_provider(
     ]
     provider.find_comment.return_value = None
     provider.post_comment.return_value = 100
+    provider.count_unresolved_review_threads.return_value = 0
     provider.merge_pr.return_value = None
     return provider
 

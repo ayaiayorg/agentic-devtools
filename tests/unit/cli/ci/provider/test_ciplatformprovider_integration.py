@@ -7,6 +7,7 @@ contract without changes to orchestration code (acceptance scenario 2).
 from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
+    FinalizationResult,
     IssueEvent,
     PRMetadata,
     ReviewCommentInfo,
@@ -58,6 +59,9 @@ class _StubAdoProvider(CIPlatformProvider):
     def request_reviewer(self, pr_number: int, reviewer: str) -> None:
         raise NotImplementedError("ADO provider stub")
 
+    def count_unresolved_review_threads(self, pr_number: int) -> int:
+        raise NotImplementedError("ADO provider stub")
+
     def list_pr_files(self, pr_number: int) -> list[str]:
         raise NotImplementedError("ADO provider stub")
 
@@ -86,7 +90,7 @@ class _StubAdoProvider(CIPlatformProvider):
         head_branch: str,
         head_sha: str,
         review_id: int,
-    ) -> None:
+    ) -> FinalizationResult:
         raise NotImplementedError("ADO provider stub")
 
     def squash_post_repair(

@@ -532,8 +532,24 @@ def _request_copilot_review_if_needed(
     failure_context: str,
     repair_dispatched: bool = False,
     copilot_review_comment_count: int = 0,
+    unresolved_threads: int = 0,
 ) -> str | None:
     """Request Copilot review unless it is already pending or already exhausted."""
+
+    # Gate: block review request when unresolved review threads exist
+    if unresolved_threads == -1:
+        logger.info(
+            "PR #%d skipping Copilot review request: unresolved thread count unavailable — awaiting resolution",
+            pr_number,
+        )
+        return "awaiting_thread_resolution"
+    if unresolved_threads != 0:
+        logger.info(
+            "PR #%d skipping Copilot review request: %d unresolved thread(s) — awaiting resolution",
+            pr_number,
+            unresolved_threads,
+        )
+        return "awaiting_thread_resolution"
 
     skip_reason = _get_copilot_review_request_skip_reason(
         pr_meta,
@@ -1078,6 +1094,17 @@ def run_ai_pr_loop(
         logger.info("PR #%d passed dedup (count=%d) and cycle (count=%d) guards", pr_number, dedup_count, cycle_count)
     _log_endgroup()
 
+    # Fetch unresolved review thread count once, after all early-exit guards.
+    try:
+        unresolved_thread_count = provider.count_unresolved_review_threads(pr_number)
+    except Exception as exc:
+        logger.warning(
+            "PR #%d failed to count unresolved review threads: %s — failing closed",
+            pr_number,
+            exc,
+        )
+        unresolved_thread_count = -1
+
     # Step 5: Evaluate reviews
     # Collapse to effective latest state per reviewer (highest review.id wins).
     # All COPILOT_LOGINS aliases are normalized to a single canonical key so
@@ -1421,6 +1448,7 @@ def run_ai_pr_loop(
             failure_context="PR",
             repair_dispatched=False,
             copilot_review_comment_count=len(copilot_review_comments),
+            unresolved_threads=unresolved_thread_count,
         )
         summary["decision"] = "awaiting_copilot_review_after_ci"
         if request_skip_reason is not None:
@@ -1568,6 +1596,7 @@ def run_ai_pr_loop(
             failure_context="draft",
             repair_dispatched=False,
             copilot_review_comment_count=len(copilot_review_comments),
+            unresolved_threads=unresolved_thread_count,
         )
         summary["decision"] = "published_awaiting_review"
         if request_skip_reason is not None:
@@ -1595,6 +1624,7 @@ def run_ai_pr_loop(
             failure_context="PR",
             repair_dispatched=False,
             copilot_review_comment_count=len(copilot_review_comments),
+            unresolved_threads=unresolved_thread_count,
         )
         summary["decision"] = "awaiting_copilot_review"
         if request_skip_reason is not None:

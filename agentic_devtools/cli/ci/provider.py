@@ -166,6 +166,17 @@ class CIPlatformProvider(ABC):
         """
 
     @abstractmethod
+    def count_unresolved_review_threads(self, pr_number: int) -> int:
+        """Count unresolved review comment threads on a pull request.
+
+        Args:
+            pr_number: Pull request number.
+
+        Returns:
+            Number of unresolved review threads.
+        """
+
+    @abstractmethod
     def list_pr_files(self, pr_number: int) -> list[str]:
         """List files changed in a pull request.
 

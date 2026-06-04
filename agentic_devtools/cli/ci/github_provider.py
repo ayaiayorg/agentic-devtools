@@ -926,6 +926,45 @@ class GitHubActionsProvider(CIPlatformProvider):
         }
 
     @retry_with_backoff()
+    def count_unresolved_review_threads(self, pr_number: int) -> int:
+        """Count unresolved review comment threads on a pull request.
+
+        Reuses the existing thread signals query and counts threads whose
+        isResolved status is False. Each unique thread is counted once
+        regardless of how many comments it contains.
+        """
+        owner, repo_name = self._resolve_repo().split("/", maxsplit=1)
+        cursor: str | None = None
+        unresolved = 0
+
+        while True:
+            variables: dict[str, Any] = {
+                "owner": owner,
+                "repoName": repo_name,
+                "prNumber": pr_number,
+            }
+            if cursor is not None:
+                variables["threadsCursor"] = cursor
+            response = _gh_api(
+                "graphql",
+                method="POST",
+                body={"query": _REVIEW_THREADS_QUERY, "variables": variables},
+            )
+            data = json.loads(response)
+            thread_data = data["data"]["repository"]["pullRequest"]["reviewThreads"]
+            for thread in thread_data.get("nodes", []):
+                if not thread.get("isResolved", False):
+                    unresolved += 1
+
+            page_info = thread_data.get("pageInfo", {})
+            if page_info.get("hasNextPage") is True and page_info.get("endCursor"):
+                cursor = page_info["endCursor"]
+            else:
+                break
+
+        return unresolved
+
+    @retry_with_backoff()
     def approve_pr(self, pr_number: int, head_sha: str, body: str) -> bool:
         """Approve a pull request.
 
