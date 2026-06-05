@@ -59,6 +59,8 @@ silently.
 
 ### User Story 1 - Automatic Agent Assignment After Spec Merge (Priority: P1)
 
+Related Requirements: FR-001, FR-004, FR-005, FR-006, FR-007
+
 As a repository maintainer relying on the speckit automation pipeline, I need the Copilot coding agent to be automatically and reliably assigned to an issue when its phase 5 specification PR merges,
 so that the implementation phase begins without any manual intervention.
 
@@ -95,6 +97,8 @@ configured model (default `claude-opus-4.6`).
 
 ### User Story 2 - Loud Failure on Missing Token (Priority: P2)
 
+Related Requirements: FR-002
+
 As a DevOps engineer configuring the speckit pipeline for a new repository, I need the workflow to fail loudly and with a clear error message if neither `SPECKIT_PR_TOKEN` nor `COPILOT_GITHUB_TOKEN`
 is configured, so that I can diagnose setup problems immediately rather than debugging silent failures after deployment.
 
@@ -121,6 +125,8 @@ explicit error annotation naming the missing secrets.
 ---
 
 ### User Story 3 - Assignment Identity Logging (Priority: P3)
+
+Related Requirements: FR-003
 
 As a pipeline operator investigating a failed or suspicious agent assignment, I need the workflow to log which token identity was used for the assignment attempt, so that I can correlate the operation
 with the correct PAT and verify it has appropriate scopes.
