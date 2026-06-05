@@ -154,6 +154,8 @@ Update `.devcontainer/README.md`, `.github/copilot-instructions.md`, and `docs/0
 As a CI pipeline, I expect all install steps to use `uv pip install` when the `astral-sh/setup-uv` action has run
 successfully, so that dependency install time is meaningfully shorter than with plain pip.
 
+**Related Functional Requirements**: FR-001, FR-002, FR-006
+
 **Acceptance Scenarios**:
 
 1. **Given** the `astral-sh/setup-uv@v4` action has run successfully, **When** the workflow reaches the install step,
@@ -171,6 +173,8 @@ successfully, so that dependency install time is meaningfully shorter than with 
 As a developer running a workflow in an environment where `uv` is not installed, I expect the install step to fall
 back to `python -m pip install` so that the workflow still completes successfully.
 
+**Related Functional Requirements**: FR-003
+
 **Acceptance Scenarios**:
 
 1. **Given** `uv` is not present on the PATH, **When** the fallback shell guard runs, **Then** `python -m pip install`
@@ -185,6 +189,8 @@ back to `python -m pip install` so that the workflow still completes successfull
 
 As a developer opening the repository in a devcontainer, I expect the `postCreateCommand` to use `uv` so that local
 environment setup is as fast as CI.
+
+**Related Functional Requirements**: FR-004
 
 **Acceptance Scenarios**:
 
@@ -201,6 +207,8 @@ As an Azure DevOps pipeline maintainer, I expect `uv` to be bootstrapped via `pi
 used for subsequent installs, with a fallback to plain pip if bootstrapping fails, so that installs stay fast
 without sacrificing pipeline reliability.
 
+**Related Functional Requirements**: FR-001, FR-002, FR-003
+
 **Acceptance Scenarios**:
 
 1. **Given** the Azure DevOps pipeline runs `pip install "uv>=0.7,<1.0"` successfully, **When** the install step
@@ -208,6 +216,19 @@ without sacrificing pipeline reliability.
 
 2. **Given** `pip install "uv>=0.7,<1.0"` fails (e.g., network issue or restricted environment), **When** the fallback
    guard runs, **Then** `python -m pip install agentic-devtools` is executed and the pipeline succeeds.
+
+### User Story 5 - Documentation reflects uv-first installs (Priority: P3)
+
+As a repository maintainer, I expect setup and strategy documentation to describe `uv` as the recommended installer so
+contributors follow the same install approach used in CI and automation.
+
+**Related Functional Requirements**: FR-005
+
+**Acceptance Scenarios**:
+
+1. **Given** a contributor reads `.devcontainer/README.md`, `.github/copilot-instructions.md`, or
+   `docs/04-solution-strategy.md`, **When** they review installation guidance, **Then** `uv` is described as the
+   recommended installer with bootstrap/fallback context where applicable.
 
 ## Requirements
 
