@@ -85,13 +85,21 @@ class TestMainFunction:
 
     @pytest.fixture(autouse=True)
     def _mock_copilot_sdk(self):
-        """Provide fake ``copilot`` and ``copilot.session`` packages so the script can be imported."""
+        """Provide fake copilot packages so the script can be imported."""
         fake_copilot = MagicMock()
+        fake_copilot_config = MagicMock()
         fake_copilot_session = MagicMock()
         # PermissionHandler.approve_all needs to be a callable sentinel
         fake_copilot_session.PermissionHandler.approve_all = MagicMock(name="approve_all")
-        with patch.dict(sys.modules, {"copilot": fake_copilot, "copilot.session": fake_copilot_session}):
-            yield fake_copilot, fake_copilot_session
+        with patch.dict(
+            sys.modules,
+            {
+                "copilot": fake_copilot,
+                "copilot.config": fake_copilot_config,
+                "copilot.session": fake_copilot_session,
+            },
+        ):
+            yield fake_copilot, fake_copilot_config, fake_copilot_session
 
     def test_empty_stdin_returns_1(self, _mock_copilot_sdk):
         module, spec = _load_module()
@@ -123,7 +131,7 @@ class TestMainFunction:
         Events are delivered from the ``send()`` side-effect (not during
         ``on()`` registration) to mirror the real Copilot SDK ordering.
         """
-        fake_copilot, _fake_copilot_session = _mock_copilot_sdk
+        fake_copilot, _fake_copilot_config, _fake_copilot_session = _mock_copilot_sdk
 
         mock_session = AsyncMock()
         mock_session.disconnect = AsyncMock()
@@ -191,7 +199,7 @@ class TestMainFunction:
         assert "model" in call_kwargs.kwargs
         assert call_kwargs.kwargs["model"] == "test-model"
         assert "on_permission_request" in call_kwargs.kwargs
-        _fake_copilot, fake_copilot_session = _mock_copilot_sdk
+        _fake_copilot, _fake_copilot_config, fake_copilot_session = _mock_copilot_sdk
         assert call_kwargs.kwargs["on_permission_request"] is fake_copilot_session.PermissionHandler.approve_all
         assert call_kwargs.kwargs["infinite_sessions"] == {"enabled": False}
 
@@ -444,7 +452,7 @@ class TestMainFunction:
         import asyncio
         import io
 
-        fake_copilot, _fake_copilot_session = _mock_copilot_sdk
+        fake_copilot, _fake_copilot_config, _fake_copilot_session = _mock_copilot_sdk
 
         mock_session = AsyncMock()
         mock_session.disconnect = AsyncMock()
@@ -529,7 +537,7 @@ class TestMainFunction:
         import asyncio
         import io
 
-        fake_copilot, _fake_copilot_session = _mock_copilot_sdk
+        fake_copilot, _fake_copilot_config, _fake_copilot_session = _mock_copilot_sdk
 
         mock_client_instance = AsyncMock()
         mock_client_instance.start = AsyncMock()
@@ -581,7 +589,7 @@ class TestImportFailurePath:
         # Setting sys.modules["copilot"] = None causes Python to raise ImportError
         # on any "from copilot import ..." statement, triggering the except block.
         with (
-            patch.dict(sys.modules, {"copilot": None, "copilot.session": None}),
+            patch.dict(sys.modules, {"copilot": None, "copilot.config": None, "copilot.session": None}),
             patch("subprocess.run", side_effect=[fake_sdk_result, fake_wrong_result]),
             patch("sys.stderr", stderr_buf),
         ):
@@ -610,7 +618,7 @@ class TestImportFailurePath:
         stderr_buf = io.StringIO()
 
         with (
-            patch.dict(sys.modules, {"copilot": None, "copilot.session": None}),
+            patch.dict(sys.modules, {"copilot": None, "copilot.config": None, "copilot.session": None}),
             patch("subprocess.run", side_effect=[fake_sdk_result, fake_wrong_result]),
             patch("sys.stderr", stderr_buf),
         ):
