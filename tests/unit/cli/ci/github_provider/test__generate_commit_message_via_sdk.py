@@ -26,8 +26,8 @@ def _make_event(event_type: str, content: str | None = None) -> MagicMock:
 def _build_sdk_mocks(
     create_session_side_effect: Exception | None = None,
     create_session_fallback: bool = False,
-) -> tuple[MagicMock, MagicMock, MagicMock, MagicMock]:
-    """Return (mock_copilot_module, mock_copilot_config, mock_session_module, mock_session).
+) -> tuple[MagicMock, MagicMock, MagicMock]:
+    """Return (mock_copilot_module, mock_session_module, mock_session).
 
     ``mock_session.send`` is left as a plain MagicMock so callers can replace it
     with an async function that fires events into the captured on_event callback.
@@ -55,7 +55,52 @@ def _build_sdk_mocks(
 
     mock_copilot = MagicMock()
     mock_copilot.CopilotClient.return_value = mock_client
+    mock_copilot.SubprocessConfig = MagicMock()
 
+    mock_session_module = MagicMock()
+    mock_session_module.PermissionHandler = MagicMock()
+
+    return mock_copilot, mock_session_module, mock_session
+
+
+def _build_sdk_mocks_no_subprocess_config(
+    events: list[tuple[str, str | None]] | None = None,
+) -> tuple[MagicMock, MagicMock, MagicMock, MagicMock]:
+    """Build mocks where SubprocessConfig is missing from copilot but present in copilot.config.
+
+    Returns (mock_copilot, mock_copilot_config, mock_session_module, mock_session).
+    ``mock_copilot`` has spec=['CopilotClient'] so accessing SubprocessConfig raises AttributeError,
+    which Python converts to ImportError when doing ``from copilot import SubprocessConfig``.
+    """
+    mock_session = MagicMock()
+    mock_session.disconnect = AsyncMock()
+
+    captured_callback: list = []
+
+    def capture_on(cb: object) -> None:
+        captured_callback.append(cb)
+
+    mock_session.on = MagicMock(side_effect=capture_on)
+
+    _events = events or [("assistant.message", "feat: fallback"), ("session.idle", None)]
+
+    async def fire_events(prompt: str) -> None:  # noqa: ARG001
+        cb = captured_callback[0]
+        for ev_type, ev_content in _events:
+            cb(_make_event(ev_type, ev_content))
+
+    mock_session.send = fire_events
+
+    mock_client = MagicMock()
+    mock_client.start = AsyncMock()
+    mock_client.stop = AsyncMock()
+    mock_client.create_session = AsyncMock(return_value=mock_session)
+
+    # copilot module WITHOUT SubprocessConfig (spec limits accessible attributes)
+    mock_copilot = MagicMock(spec=["CopilotClient"])
+    mock_copilot.CopilotClient.return_value = mock_client
+
+    # copilot.config module WITH SubprocessConfig
     mock_copilot_config = MagicMock()
     mock_copilot_config.SubprocessConfig = MagicMock()
 
@@ -93,7 +138,7 @@ class TestGenerateCommitMessageViaSdk:
     def test_sdk_happy_path_returns_message(self, monkeypatch: object) -> None:
         """SDK session fires assistant.message then session.idle; clean message returned."""
         monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
-        mock_copilot, mock_copilot_config, mock_session_module, mock_session = _build_sdk_mocks()
+        mock_copilot, mock_session_module, mock_session = _build_sdk_mocks()
 
         captured_callback: list = []
 
@@ -109,10 +154,7 @@ class TestGenerateCommitMessageViaSdk:
 
         mock_session.send = fire_events_and_return
 
-        with patch.dict(
-            sys.modules,
-            {"copilot": mock_copilot, "copilot.config": mock_copilot_config, "copilot.session": mock_session_module},
-        ):
+        with patch.dict(sys.modules, {"copilot": mock_copilot, "copilot.session": mock_session_module}):
             provider = GitHubActionsProvider(repo="owner/repo")
             result = provider._generate_commit_message_via_sdk(
                 head_sha="abc123",
@@ -124,7 +166,7 @@ class TestGenerateCommitMessageViaSdk:
     def test_sdk_empty_content_returns_none(self, monkeypatch: object) -> None:
         """SDK fires session.idle without any assistant.message; returns None."""
         monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
-        mock_copilot, mock_copilot_config, mock_session_module, mock_session = _build_sdk_mocks()
+        mock_copilot, mock_session_module, mock_session = _build_sdk_mocks()
 
         captured_callback: list = []
 
@@ -139,10 +181,7 @@ class TestGenerateCommitMessageViaSdk:
 
         mock_session.send = fire_idle_only
 
-        with patch.dict(
-            sys.modules,
-            {"copilot": mock_copilot, "copilot.config": mock_copilot_config, "copilot.session": mock_session_module},
-        ):
+        with patch.dict(sys.modules, {"copilot": mock_copilot, "copilot.session": mock_session_module}):
             provider = GitHubActionsProvider(repo="owner/repo")
             result = provider._generate_commit_message_via_sdk(
                 head_sha="abc123",
@@ -156,7 +195,7 @@ class TestGenerateCommitMessageViaSdk:
     def test_sdk_error_event_returns_none(self, monkeypatch: object) -> None:
         """SDK fires an error event; returns None and logs a warning."""
         monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
-        mock_copilot, mock_copilot_config, mock_session_module, mock_session = _build_sdk_mocks()
+        mock_copilot, mock_session_module, mock_session = _build_sdk_mocks()
 
         captured_callback: list = []
 
@@ -171,10 +210,7 @@ class TestGenerateCommitMessageViaSdk:
 
         mock_session.send = fire_error_event
 
-        with patch.dict(
-            sys.modules,
-            {"copilot": mock_copilot, "copilot.config": mock_copilot_config, "copilot.session": mock_session_module},
-        ):
+        with patch.dict(sys.modules, {"copilot": mock_copilot, "copilot.session": mock_session_module}):
             provider = GitHubActionsProvider(repo="owner/repo")
             result = provider._generate_commit_message_via_sdk(
                 head_sha="abc123",
@@ -188,7 +224,7 @@ class TestGenerateCommitMessageViaSdk:
     def test_sdk_timeout_returns_none(self, monkeypatch: object) -> None:
         """asyncio.wait_for times out inside _run(); returns None and logs a warning."""
         monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
-        mock_copilot, mock_copilot_config, mock_session_module, mock_session = _build_sdk_mocks()
+        mock_copilot, mock_session_module, mock_session = _build_sdk_mocks()
 
         captured_callback: list = []
 
@@ -202,10 +238,7 @@ class TestGenerateCommitMessageViaSdk:
 
         mock_session.send = send_without_events
 
-        with patch.dict(
-            sys.modules,
-            {"copilot": mock_copilot, "copilot.config": mock_copilot_config, "copilot.session": mock_session_module},
-        ):
+        with patch.dict(sys.modules, {"copilot": mock_copilot, "copilot.session": mock_session_module}):
             with patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()):
                 provider = GitHubActionsProvider(repo="owner/repo")
                 result = provider._generate_commit_message_via_sdk(
@@ -219,17 +252,14 @@ class TestGenerateCommitMessageViaSdk:
     def test_sdk_timeout_covers_client_start(self, monkeypatch: object) -> None:
         """Timeout also covers SDK startup before a session is created."""
         monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
-        mock_copilot, mock_copilot_config, mock_session_module, _ = _build_sdk_mocks()
+        mock_copilot, mock_session_module, _ = _build_sdk_mocks()
 
         async def hang_on_start() -> None:
             await asyncio.Future()
 
         mock_copilot.CopilotClient.return_value.start = hang_on_start
 
-        with patch.dict(
-            sys.modules,
-            {"copilot": mock_copilot, "copilot.config": mock_copilot_config, "copilot.session": mock_session_module},
-        ):
+        with patch.dict(sys.modules, {"copilot": mock_copilot, "copilot.session": mock_session_module}):
             provider = GitHubActionsProvider(repo="owner/repo")
             result = provider._generate_commit_message_via_sdk(
                 head_sha="abc123",
@@ -244,9 +274,7 @@ class TestGenerateCommitMessageViaSdk:
     def test_sdk_github_token_type_error_falls_back(self, monkeypatch: object) -> None:
         """Older SDK that doesn't accept github_token kwarg; fallback create_session used."""
         monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
-        mock_copilot, mock_copilot_config, mock_session_module, mock_session = _build_sdk_mocks(
-            create_session_fallback=True,
-        )
+        mock_copilot, mock_session_module, mock_session = _build_sdk_mocks(create_session_fallback=True)
 
         captured_callback: list = []
 
@@ -262,10 +290,7 @@ class TestGenerateCommitMessageViaSdk:
 
         mock_session.send = fire_events_and_return
 
-        with patch.dict(
-            sys.modules,
-            {"copilot": mock_copilot, "copilot.config": mock_copilot_config, "copilot.session": mock_session_module},
-        ):
+        with patch.dict(sys.modules, {"copilot": mock_copilot, "copilot.session": mock_session_module}):
             provider = GitHubActionsProvider(repo="owner/repo")
             result = provider._generate_commit_message_via_sdk(
                 head_sha="abc123",
@@ -281,7 +306,7 @@ class TestGenerateCommitMessageViaSdk:
     def test_sdk_fenced_message_cleaned_before_return(self, monkeypatch: object) -> None:
         """Fence markers in SDK output are stripped before the message is returned."""
         monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
-        mock_copilot, mock_copilot_config, mock_session_module, mock_session = _build_sdk_mocks()
+        mock_copilot, mock_session_module, mock_session = _build_sdk_mocks()
 
         captured_callback: list = []
 
@@ -297,10 +322,7 @@ class TestGenerateCommitMessageViaSdk:
 
         mock_session.send = fire_fenced_message
 
-        with patch.dict(
-            sys.modules,
-            {"copilot": mock_copilot, "copilot.config": mock_copilot_config, "copilot.session": mock_session_module},
-        ):
+        with patch.dict(sys.modules, {"copilot": mock_copilot, "copilot.session": mock_session_module}):
             provider = GitHubActionsProvider(repo="owner/repo")
             result = provider._generate_commit_message_via_sdk(
                 head_sha="abc123",
@@ -312,7 +334,7 @@ class TestGenerateCommitMessageViaSdk:
     def test_sdk_conversational_message_returns_none(self, monkeypatch: object) -> None:
         """Conversational SDK output is rejected; returns None for deterministic fallback."""
         monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
-        mock_copilot, mock_copilot_config, mock_session_module, mock_session = _build_sdk_mocks()
+        mock_copilot, mock_session_module, mock_session = _build_sdk_mocks()
 
         captured_callback: list = []
 
@@ -328,10 +350,7 @@ class TestGenerateCommitMessageViaSdk:
 
         mock_session.send = fire_conversational_message
 
-        with patch.dict(
-            sys.modules,
-            {"copilot": mock_copilot, "copilot.config": mock_copilot_config, "copilot.session": mock_session_module},
-        ):
+        with patch.dict(sys.modules, {"copilot": mock_copilot, "copilot.session": mock_session_module}):
             provider = GitHubActionsProvider(repo="owner/repo")
             result = provider._generate_commit_message_via_sdk(
                 head_sha="abc123",
@@ -339,3 +358,26 @@ class TestGenerateCommitMessageViaSdk:
             )
 
         assert result is None
+
+    # ── Fallback import (copilot.config.SubprocessConfig) ────────────────────
+
+    def test_sdk_fallback_import_path_succeeds(self, monkeypatch: object) -> None:
+        """When SubprocessConfig is absent from copilot, falls back to copilot.config."""
+        monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
+        mock_copilot, mock_copilot_config, mock_session_module, _ = _build_sdk_mocks_no_subprocess_config()
+
+        with patch.dict(
+            sys.modules,
+            {
+                "copilot": mock_copilot,
+                "copilot.config": mock_copilot_config,
+                "copilot.session": mock_session_module,
+            },
+        ):
+            provider = GitHubActionsProvider(repo="owner/repo")
+            result = provider._generate_commit_message_via_sdk(
+                head_sha="abc123",
+                commit_subjects=["feat: fallback"],
+            )
+
+        assert result == "feat: fallback"
