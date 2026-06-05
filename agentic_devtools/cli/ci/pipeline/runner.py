@@ -125,8 +125,11 @@ def run_pipeline(
 
             if not refreshed_after_invalidation:
                 try:
+                    exclusion_context = derived.get("exclusion_context")
                     current_snapshot = build_pr_state_snapshot(provider, current_snapshot.pr_number)
                     derived = DerivedState(current_snapshot)
+                    if exclusion_context is not None:
+                        derived.set("exclusion_context", exclusion_context)
                     refreshed_after_invalidation = True
                 except Exception as exc:
                     logger.error(

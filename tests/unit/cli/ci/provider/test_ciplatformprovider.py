@@ -6,6 +6,7 @@ from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
     FinalizationResult,
+    IssueCommentInfo,
     IssueEvent,
     PRMetadata,
     ReviewCommentInfo,
@@ -69,6 +70,9 @@ class _ConcreteProvider(CIPlatformProvider):
 
     def list_review_comments(self, pr_number: int, review_id: int) -> list[ReviewCommentInfo]:
         return [ReviewCommentInfo(id=1, path="file.py", body="review comment", html_url="")]
+
+    def list_issue_comments(self, pr_number: int) -> list[IssueCommentInfo]:
+        return []
 
     def finalize_post_repair(
         self,
@@ -196,6 +200,11 @@ class TestCIPlatformProvider:
         with pytest.raises(NotImplementedError, match="does not implement get_commit_range_diff"):
             provider.get_commit_range_diff("abc", "def")
 
+    def test_graphql_default_raises_not_implemented(self) -> None:
+        provider = _ConcreteProvider()
+        with pytest.raises(NotImplementedError, match="does not implement graphql"):
+            provider.graphql(query="{ viewer { login } }")
+
     def test_abstract_methods_list(self) -> None:
         """Verify all expected abstract methods are defined."""
         expected_methods = {
@@ -216,6 +225,7 @@ class TestCIPlatformProvider:
             "get_check_annotations",
             "dispatch_repair",
             "list_review_comments",
+            "list_issue_comments",
             "finalize_post_repair",
             "squash_post_repair",
             "list_pr_issue_events",

@@ -20,6 +20,7 @@ permissions:
 env:
   AGDT_USE_PYTHON_ORCHESTRATOR: "1"
   AGDT_USE_PIPELINE_V2: "1"
+  ENABLE_AUTO_APPLY_SUGGESTIONS: ${{ vars.ENABLE_AUTO_APPLY_SUGGESTIONS || 'false' }}
 concurrency:
   group: ai-pr-loop-${{ github.event.inputs.pr_number }}
   cancel-in-progress: false

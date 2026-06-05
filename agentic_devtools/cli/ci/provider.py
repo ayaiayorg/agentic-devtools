@@ -14,6 +14,7 @@ from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
     FinalizationResult,
+    IssueCommentInfo,
     IssueEvent,
     PRMetadata,
     ReviewCommentInfo,
@@ -243,6 +244,17 @@ class CIPlatformProvider(ABC):
         """
 
     @abstractmethod
+    def list_issue_comments(self, pr_number: int) -> list[IssueCommentInfo]:
+        """List issue/PR-level comments on a pull request.
+
+        Args:
+            pr_number: Pull request number.
+
+        Returns:
+            List of IssueCommentInfo for all PR comments, in API response order.
+        """
+
+    @abstractmethod
     def finalize_post_repair(
         self,
         *,
@@ -323,3 +335,20 @@ class CIPlatformProvider(ABC):
             NotImplementedError: If the provider does not support this operation.
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement get_commit_range_diff")
+
+    def graphql(self, *, query: str, variables: dict | None = None) -> dict:
+        """Execute a GraphQL query or mutation against the GitHub API.
+
+        Args:
+            query: The GraphQL query or mutation string.
+            variables: Optional dictionary of query variables.
+
+        Returns:
+            Parsed JSON response as a dictionary.
+
+        Raises:
+            NotImplementedError: If the provider does not support GraphQL.
+            RetryableError: On rate limit or transient failures.
+            RuntimeError: On non-retryable API errors.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not implement graphql")

@@ -110,6 +110,8 @@ class TestAzureDevOpsProvider:
         with pytest.raises(NotImplementedError):
             provider.list_review_comments(1, 1)
         with pytest.raises(NotImplementedError):
+            provider.list_issue_comments(1)
+        with pytest.raises(NotImplementedError):
             provider.finalize_post_repair(
                 pr_number=1,
                 base_branch="main",

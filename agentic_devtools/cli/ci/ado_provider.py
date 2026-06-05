@@ -12,6 +12,7 @@ from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
     EventPayload,
     FinalizationResult,
+    IssueCommentInfo,
     IssueEvent,
     PRMetadata,
     ReviewCommentInfo,
@@ -189,6 +190,10 @@ class AzureDevOpsProvider(CIPlatformProvider):
     def list_review_comments(self, pr_number: int, review_id: int) -> list[ReviewCommentInfo]:
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.list_review_comments() not yet implemented")
+
+    def list_issue_comments(self, pr_number: int) -> list[IssueCommentInfo]:
+        """Not implemented for ADO stub."""
+        raise NotImplementedError("AzureDevOpsProvider.list_issue_comments() not yet implemented")
 
     def finalize_post_repair(
         self,

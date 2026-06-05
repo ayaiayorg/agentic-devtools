@@ -9,6 +9,7 @@ from agentic_devtools.cli.ci.guards import (
     check_deduplication,
     is_duplicate_trigger,
 )
+from agentic_devtools.cli.ci.pipeline.exclusion import ExclusionContext
 from agentic_devtools.cli.ci.pipeline.models import ActionDecision, ActionResult
 from agentic_devtools.cli.ci.pipeline.snapshot import DerivedState, PRStateSnapshot
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
@@ -43,6 +44,8 @@ class DispatchRepairAction:
 
     Idempotency: Recent dispatch → skip.
     """
+
+    runs_after_invalidation = True
 
     @property
     def name(self) -> str:
@@ -115,6 +118,7 @@ class DispatchRepairAction:
                 # review-ID dedup guard is best-effort and should not block repair.
 
         ci_failing = snapshot.ci_status == "failing"
+        ci_passing = snapshot.ci_status == "passing"
         review_actionable = _is_copilot_review_actionable(snapshot)
         dedup_kwargs = {"max_dispatches": 1} if ci_failing and not review_actionable else {}
 
@@ -189,6 +193,31 @@ class DispatchRepairAction:
                 review_comments = provider.list_review_comments(snapshot.pr_number, snapshot.copilot_review_id)
             except Exception as exc:
                 logger.warning("PR #%d: Failed to fetch review comments: %s", snapshot.pr_number, exc)
+
+        # Filter out comments already handled by ApplySuggestionsAction (FR-005, FR-006)
+        exclusion_ctx: ExclusionContext | None = derived.get("exclusion_context")
+        if exclusion_ctx and exclusion_ctx.resolved_comment_ids and review_comments:
+            original_count = len(review_comments)
+            review_comments = [rc for rc in review_comments if rc.id not in exclusion_ctx.resolved_comment_ids]
+            filtered_count = original_count - len(review_comments)
+            if filtered_count > 0:
+                logger.info(
+                    "PR #%d: Excluded %d review comments already auto-applied",
+                    snapshot.pr_number,
+                    filtered_count,
+                )
+
+            # Re-evaluate: if no review comments remain and CI is passing, skip repair
+            if not review_comments and ci_passing:
+                logger.info(
+                    "PR #%d: All review comments were auto-applied and CI is passing — skipping repair",
+                    snapshot.pr_number,
+                )
+                return ActionResult(
+                    name=self.name,
+                    decision=ActionDecision.SKIP,
+                    details="All review comments auto-applied, CI passing — no repair needed",
+                )
 
         # Dispatch the repair
         try:
