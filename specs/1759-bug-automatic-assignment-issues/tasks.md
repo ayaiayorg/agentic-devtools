@@ -67,8 +67,10 @@
 - [ ] T016 [US1] Verify `permissions` block remains unchanged (NFR-004, FR-006) — no additions or removals in `.github/workflows/speckit-implement-trigger.yml`
 - [ ] T017 [US1] Verify no other workflow files were modified (NFR-004) — `git diff --name-only` shows only `.github/workflows/speckit-implement-trigger.yml`
 - [ ] T018 [US1] Verify `github-token` input in the "Assign Copilot Coding Agent" step uses the pattern `${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}` (FR-001)
-- [ ] T019 [US3] Verify token identity log line (`console.log`) referencing `steps.validate-token.outputs.token_identity` appears before the `github.request()` call in the assignment step script (FR-003)
-- [ ] T020 [US1] Verify all existing assignment parameters (`custom_agent`, `base_branch`, `custom_instructions`, `model`) remain present and unchanged in the assignment step after modifications (FR-005)
+- [ ] T019 [US3] Verify token identity log line (`console.log`) referencing `steps.validate-token.outputs.token_identity` appears before the `github.request()` call in the assignment step script
+  (FR-003)
+- [ ] T020 [US1] Verify all existing assignment parameters (`custom_agent`, `base_branch`, `custom_instructions`, `model`) remain present and unchanged in the assignment step after modifications
+  (FR-005)
 - [ ] T021 [US1] Verify original `if:` condition (`steps.discover.outputs.found == 'true' && steps.check-pr.outputs.exists != 'true'`) is preserved on the assignment step
   alongside the new preflight gate (FR-006)
 - [ ] T022 [US1] Verify "Update Labels" step and "Post Implementation Triggered Comment" step each have
