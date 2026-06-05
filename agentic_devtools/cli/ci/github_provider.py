@@ -1895,6 +1895,25 @@ class GitHubActionsProvider(CIPlatformProvider):
             raise RuntimeError("Repository must be in 'owner/repo' format for post-repair finalization.")
         return repo
 
+    @staticmethod
+    def _build_head_commit_line(head_sha: str, repo: str) -> str:
+        """Build a HEAD commit link line for resolution replies.
+
+        Returns an empty string if head_sha is missing or too short, or if
+        repo is not a valid 'owner/repo' string (e.g. contains whitespace,
+        extra slashes, or empty owner/repo segments).
+        """
+        if not head_sha or len(head_sha) < 7:
+            return ""
+        clean_repo = repo.strip()
+        if re.search(r"\s", clean_repo):
+            return ""
+        owner_repo = clean_repo.split("/", 1)
+        if len(owner_repo) != 2 or not owner_repo[0] or not owner_repo[1] or clean_repo.count("/") != 1:
+            return ""
+        short = head_sha[:7]
+        return f"\n\n**HEAD**: [{short}](https://github.com/{clean_repo}/commit/{head_sha})"
+
     def finalize_post_repair(
         self,
         *,
@@ -2223,18 +2242,25 @@ class GitHubActionsProvider(CIPlatformProvider):
                         and "fallback" not in (tier_result.tier_name or "")
                     )
                     if post_confirmation_reply or not has_existing_addressed_reply:
+                        # Resolution reply format selection:
+                        # ┌─ "fallback" in tier_name → format_unconfirmed_commit_change_reply()
+                        # ├─ post_confirmation_reply (re-eval) → build_full_reply()
+                        # ├─ tier_result available (normal) → build_full_reply()
+                        # └─ tier_result is None → static fallback text
+                        # All cases append HEAD commit link when head_sha is available.
                         if tier_result is not None and "fallback" in (tier_result.tier_name or ""):
                             reply_body = reply_formatter.format_unconfirmed_commit_change_reply(
                                 tier_result,
                                 model_id=self._model_id_for_tier_result(tier_result),
                             )
-                        elif post_confirmation_reply and tier_result is not None:
+                        elif tier_result is not None:
                             reply_body = reply_formatter.build_full_reply(
                                 tier_result,
                                 model_id=self._model_id_for_tier_result(tier_result),
                             )
                         else:
                             reply_body = _ADDRESSED_REPLY_BODY
+                        reply_body += self._build_head_commit_line(head_sha, repo)
                         self._reply_to_review_comment(pr_number, comment.id, body=reply_body)
                     resolutions.append(CommentResolution(comment_id=comment.id, verdict=verdict))
                 else:
