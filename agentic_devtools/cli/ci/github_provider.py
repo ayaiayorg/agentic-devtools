@@ -1040,6 +1040,25 @@ class GitHubActionsProvider(CIPlatformProvider):
         )
 
     @retry_with_backoff()
+    def graphql(self, *, query: str, variables: dict | None = None) -> dict:
+        """Execute a GraphQL query or mutation against the GitHub API.
+
+        Uses the ``gh api graphql`` endpoint with the provided query and variables.
+
+        Returns:
+            Parsed JSON response as a dictionary.
+        """
+        body: dict = {"query": query}
+        if variables:
+            body["variables"] = variables
+        response = _gh_api(
+            "graphql",
+            method="POST",
+            body=body,
+        )
+        return json.loads(response)
+
+    @retry_with_backoff()
     def list_pr_files(self, pr_number: int) -> list[str]:
         """List files changed in a pull request."""
         response = _gh_api(self._repo_api(f"/pulls/{pr_number}/files"), paginate=True)

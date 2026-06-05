@@ -435,6 +435,60 @@ class TestRunPipeline:
             ActionDecision.EXECUTE,
         ]
 
+    def test_runs_after_invalidation_preserves_exclusion_context(self) -> None:
+        """Exclusion context from pre-refresh derived state is carried into refreshed state."""
+        from agentic_devtools.cli.ci.pipeline.exclusion import ExclusionContext
+
+        provider = MagicMock()
+        snapshot = PRStateSnapshot(pr_number=1, head_sha="oldsha")
+        refreshed_snapshot = PRStateSnapshot(pr_number=1, head_sha="newsha")
+        exclusion_context = ExclusionContext(resolved_comment_ids={101, 102})
+
+        class _InvalidatingAction:
+            @property
+            def name(self):
+                return "apply_suggestions"
+
+            def evaluate(self, snapshot, derived) -> ActionResult:
+                return ActionResult(name="apply_suggestions", decision=ActionDecision.EXECUTE)
+
+            def execute(self, provider, snapshot, derived) -> ActionResult:
+                derived.set("exclusion_context", exclusion_context)
+                return ActionResult(
+                    name="apply_suggestions",
+                    decision=ActionDecision.EXECUTE,
+                    invalidates_snapshot=True,
+                )
+
+        class _OptInAction:
+            @property
+            def name(self):
+                return "dispatch_repair"
+
+            @property
+            def runs_after_invalidation(self):
+                return True
+
+            def evaluate(self, snapshot, derived) -> ActionResult:
+                assert snapshot.head_sha == "newsha"
+                assert derived.get("exclusion_context") == exclusion_context
+                return ActionResult(name="dispatch_repair", decision=ActionDecision.EXECUTE)
+
+            def execute(self, provider, snapshot, derived) -> ActionResult:
+                return ActionResult(name="dispatch_repair", decision=ActionDecision.EXECUTE)
+
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.runner.build_pr_state_snapshot",
+            return_value=refreshed_snapshot,
+        ) as mock_refresh:
+            summary = run_pipeline(provider, snapshot, [_InvalidatingAction(), _OptInAction()])
+
+        mock_refresh.assert_called_once_with(provider, 1)
+        assert [r.decision for r in summary.results] == [
+            ActionDecision.EXECUTE,
+            ActionDecision.EXECUTE,
+        ]
+
     def test_runs_after_invalidation_fails_when_snapshot_refresh_raises(self) -> None:
         """Refresh failures on opt-in actions fail closed and halt remaining actions."""
         provider = MagicMock()

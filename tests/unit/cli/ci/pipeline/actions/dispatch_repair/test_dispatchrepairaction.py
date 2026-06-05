@@ -535,3 +535,181 @@ class TestDispatchRepairAction:
 
         assert result.decision == ActionDecision.EXECUTE
         provider.dispatch_repair.assert_called_once()
+
+    def test_exclusion_context_filters_review_comments(self) -> None:
+        """ExclusionContext filters out already-applied comments from dispatch."""
+        from agentic_devtools.cli.ci.pipeline.exclusion import ExclusionContext
+
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            ci_status="failing",
+            head_sha="abc123",
+            review_state="CHANGES_REQUESTED",
+            copilot_review_id=100,
+            copilot_review_inline_count=3,
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        exclusion_ctx = ExclusionContext(resolved_comment_ids={101, 102})
+        derived.set("exclusion_context", exclusion_ctx)
+
+        provider = MagicMock()
+        provider.list_review_comments.return_value = [
+            MagicMock(id=101),
+            MagicMock(id=102),
+            MagicMock(id=103),
+        ]
+        provider.dispatch_repair.return_value = 999
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.is_duplicate_trigger",
+                return_value=False,
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+                return_value=(False, 0),
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_cycle_limit",
+                return_value=(False, 1),
+            ),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+        call_kwargs = provider.dispatch_repair.call_args
+        review_comments = call_kwargs.kwargs.get("review_comments") or call_kwargs[0][4]
+        assert len(review_comments) == 1
+
+    def test_exclusion_context_skips_repair_when_all_excluded_ci_passing(self) -> None:
+        """SKIP when all review comments excluded and CI is passing."""
+        from agentic_devtools.cli.ci.pipeline.exclusion import ExclusionContext
+
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            ci_status="passing",
+            head_sha="abc123",
+            review_state="CHANGES_REQUESTED",
+            copilot_review_id=100,
+            copilot_review_inline_count=2,
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        exclusion_ctx = ExclusionContext(resolved_comment_ids={101, 102})
+        derived.set("exclusion_context", exclusion_ctx)
+
+        provider = MagicMock()
+        provider.list_review_comments.return_value = [
+            MagicMock(id=101),
+            MagicMock(id=102),
+        ]
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.is_duplicate_trigger",
+                return_value=False,
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+                return_value=(False, 0),
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_cycle_limit",
+                return_value=(False, 1),
+            ),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.SKIP
+        assert "auto-applied" in result.details.lower()
+
+    def test_exclusion_context_no_matching_ids_still_dispatches(self) -> None:
+        """Dispatch when exclusion context IDs don't match any review comments."""
+        from agentic_devtools.cli.ci.pipeline.exclusion import ExclusionContext
+
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            ci_status="passing",
+            head_sha="abc123",
+            review_state="CHANGES_REQUESTED",
+            copilot_review_id=100,
+            copilot_review_inline_count=2,
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        # Exclusion context has IDs that don't match actual review comments
+        exclusion_ctx = ExclusionContext(resolved_comment_ids={999, 998})
+        derived.set("exclusion_context", exclusion_ctx)
+
+        provider = MagicMock()
+        provider.list_review_comments.return_value = [
+            MagicMock(id=101),
+            MagicMock(id=102),
+        ]
+        provider.dispatch_repair.return_value = 999
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.is_duplicate_trigger",
+                return_value=False,
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+                return_value=(False, 0),
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_cycle_limit",
+                return_value=(False, 1),
+            ),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+
+    def test_exclusion_context_does_not_skip_when_ci_unknown(self) -> None:
+        """Do not SKIP on unknown CI status even when all review comments are excluded."""
+        from agentic_devtools.cli.ci.pipeline.exclusion import ExclusionContext
+
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            ci_status="unknown",
+            head_sha="abc123",
+            review_state="CHANGES_REQUESTED",
+            copilot_review_id=100,
+            copilot_review_inline_count=2,
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        exclusion_ctx = ExclusionContext(resolved_comment_ids={101, 102})
+        derived.set("exclusion_context", exclusion_ctx)
+
+        provider = MagicMock()
+        provider.list_review_comments.return_value = [
+            MagicMock(id=101),
+            MagicMock(id=102),
+        ]
+        provider.dispatch_repair.return_value = 999
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.is_duplicate_trigger",
+                return_value=False,
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+                return_value=(False, 0),
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_cycle_limit",
+                return_value=(False, 1),
+            ),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+        provider.dispatch_repair.assert_called_once()

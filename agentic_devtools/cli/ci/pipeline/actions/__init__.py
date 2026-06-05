@@ -1,5 +1,6 @@
 """Pipeline actions package."""
 
+from agentic_devtools.cli.ci.pipeline.actions.apply_suggestions import ApplySuggestionsAction
 from agentic_devtools.cli.ci.pipeline.actions.approve import ApproveAction
 from agentic_devtools.cli.ci.pipeline.actions.dispatch_repair import DispatchRepairAction
 from agentic_devtools.cli.ci.pipeline.actions.guards import GuardsAction
@@ -10,6 +11,7 @@ from agentic_devtools.cli.ci.pipeline.actions.resolve_threads import ResolveThre
 from agentic_devtools.cli.ci.pipeline.actions.squash import SquashAction
 
 __all__ = [
+    "ApplySuggestionsAction",
     "ApproveAction",
     "DispatchRepairAction",
     "GuardsAction",

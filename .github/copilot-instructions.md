@@ -2117,3 +2117,46 @@ Update this file when:
 - Adding new integrations
 - Adding new workflow commands or prompt templates
 - Discovering new anti-patterns that AI agents should be warned about
+
+## 19. Copilot Code Review Instructions
+
+> These instructions apply specifically to Copilot Code Review when reviewing pull requests
+> in this repository. They help prevent false-positive suggestions that could interfere with
+> the automated AI PR Loop.
+
+### DO NOT Suggest Linting, Formatting, or Type Annotation Changes
+
+This repository enforces the following via CI (all actionable CI jobs must pass BEFORE
+Copilot Code Review is requested):
+
+- **Linting**: `ruff check` (all rules enforced, auto-fixable violations caught by pre-push hook)
+- **Formatting**: `ruff format` (canonical formatting, enforced by pre-push hook)
+- **Type checking**: `mypy --ignore-missing-imports --follow-imports=silent` on changed Python files
+- **Test coverage**: 100% branch coverage per source file
+
+Because these are enforced BEFORE review is requested, the following types of suggestions
+are always false positives and MUST NOT be included in reviews:
+
+1. Import reordering or unused import removal (ruff handles this)
+2. Whitespace, indentation, or formatting changes (ruff format handles this)
+3. Variable/function naming that conflicts with ruff naming rules
+4. Type-hint-only churn that doesn't affect correctness, behavior, or readability
+5. Line length violations (ruff enforces this)
+6. Trailing whitespace or missing newlines (ruff format handles this)
+
+### Focus Review Suggestions On
+
+- **Logic errors** and unhandled edge cases
+- **Security concerns** (hardcoded secrets, injection risks, unsafe deserialization)
+- **API design improvements** (naming clarity, parameter ordering, return type choices)
+- **Missing test coverage** for complex conditional branches
+- **Performance issues** (N+1 patterns, unnecessary allocations in hot paths)
+- **Concurrency bugs** (race conditions, missing locks, unsafe shared state)
+- **Error handling gaps** (swallowed exceptions, missing retry logic)
+
+### Review Style Preferences
+
+- Always explain the "why" behind a suggestion — not just what to change
+- Prefer suggestions with explicit replacement code (GitHub `suggestion` blocks)
+- Do not flag issues that would be caught by the existing CI pipeline
+- When suggesting code changes, ensure they maintain 100% branch coverage compatibility
