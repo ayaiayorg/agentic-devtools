@@ -51,7 +51,8 @@
         "T012",
         "T013",
         "T014",
-        "T015"
+        "T015",
+        "T016"
       ],
       "test_types": [
         "happy-path"
@@ -82,12 +83,12 @@
       ]
     }
   },
-  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-001 | US1 | T025 | happy-path | \u2705 Covered |\n| FR-002 | US1 | T026 | happy-path | \u2705 Covered |\n| FR-006 | US1 | T027 | happy-path | \u2705 Covered |\n| FR-003 | US2 | T011, T012, T013, T014, T015 | happy-path | \u2705 Covered |\n| FR-004 | US3 | T023 | None | \u2705 Covered |\n| FR-005 | US5 | T028 | happy-path | \u2705 Covered |\n",
+  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-001 | US1 | T025 | happy-path | \u2705 Covered |\n| FR-002 | US1 | T026 | happy-path | \u2705 Covered |\n| FR-006 | US1 | T027 | happy-path | \u2705 Covered |\n| FR-003 | US2 | T011, T012, T013, T014, T015, T016 | happy-path | \u2705 Covered |\n| FR-004 | US3 | T023 | None | \u2705 Covered |\n| FR-005 | US5 | T028 | happy-path | \u2705 Covered |\n",
   "summary": {
     "total_frs": 6,
     "covered_frs": 6,
     "uncovered_frs": 0,
-    "total_test_tasks": 10,
+    "total_test_tasks": 11,
     "unmapped_test_tasks": 0,
     "total_findings": 0
   }

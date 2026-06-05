@@ -4,88 +4,98 @@
 
 | Tasks Phase | Plan Phase(s) | Description |
 |---|---|---|
-| Phase 1: Setup | Phase 1: GitHub Actions Workflows, Phase 2: Copilot Cloud Agent Setup-Steps, Phase 3: Azure DevOps Pipeline | Shared setup pre-work for guarded install pattern across all execution contexts |
-| Phase 2: Foundational — uv Provisioning Steps | Phase 1: GitHub Actions Workflows, Phase 2: Copilot Cloud Agent Setup-Steps, Phase 3: Azure DevOps Pipeline | uv provisioning prerequisites before install-step migration |
-| Phase 3: User Story 1 — Happy Path: uv Present in CI (P1) | Phase 1: GitHub Actions Workflows, Phase 2: Copilot Cloud Agent Setup-Steps | Happy-path uv install migration in GitHub-hosted and Copilot setup flows |
-| Phase 4: User Story 2 — Graceful Fallback: uv Unavailable (P1) | Phase 1: GitHub Actions Workflows, Phase 2: Copilot Cloud Agent Setup-Steps, Phase 3: Azure DevOps Pipeline | Explicit fallback verification tasks for guarded pip behavior |
-| Phase 5: User Story 3 — Devcontainer: Fast Local Setup (P2) | Phase 4: Devcontainer | Devcontainer uv bootstrap and install migration |
-| Phase 6: User Story 4 — Azure DevOps Pipeline: uv Bootstrapped via pip (P1) | Phase 3: Azure DevOps Pipeline | Azure pipeline uv bootstrap and guarded install migration |
-| Phase 7: Polish & Cross-Cutting | Phase 5: Documentation Updates, Phase 6: Validation & PR | Documentation updates, cross-cutting rationale, and validation/timing checks |
+| Phase 1: Setup | — | Working-reference setup for guarded install pattern |
+| Phase 2: Foundational — uv Provisioning Steps | Phase 1: GitHub Actions Workflows, Phase 3: Azure DevOps Pipeline | Provision `uv` before guarded install replacements |
+| Phase 3: User Story 1 — Happy Path | Phase 1: GitHub Actions Workflows, Phase 2: Copilot Cloud Agent Setup-Steps | uv-first install implementation tasks for US1 |
+| Phase 4: User Story 2 — Graceful Fallback | Phase 1: GitHub Actions Workflows, Phase 2: Copilot Cloud Agent Setup-Steps, Phase 3: Azure DevOps Pipeline | Fallback verification tasks for US2 |
+| Phase 5: User Story 4 — Azure DevOps Pipeline | Phase 3: Azure DevOps Pipeline | Azure-specific guarded install implementation for US4 |
+| Phase 6: User Story 3 — Devcontainer | Phase 4: Devcontainer | Devcontainer install-path update for US3 |
+| Phase 7: User Story 5 — Documentation | Phase 5: Documentation Updates | Documentation updates for US5 |
+| Phase 8: Polish & Cross-Cutting — Validation | Phase 6: Validation & PR | Cross-cutting validation, coverage, and final checks |
 
 ## Phase 1: Setup
 
-- [ ] T001 Define the guarded install shell pattern as a reusable reference snippet for consistency across all files
+- [ ] T001 Define the guarded install shell snippet to be reused across all files (no file change — working reference for subsequent tasks)
 
 ## Phase 2: Foundational — uv Provisioning Steps
 
-- [ ] T002 Add `astral-sh/setup-uv@v4` step with `version: ">=0.7,<1.0"` after `actions/setup-python@v5` in `.github/workflows/ai-pr-loop.yml` (FR-002)
-- [ ] T003 [P] Add `astral-sh/setup-uv@v4` step with `version: ">=0.7,<1.0"` after `actions/setup-python@v5` in `.github/workflows/speckit-phase-progression.yml` (FR-002)
-- [ ] T004 [P] Add `astral-sh/setup-uv@v4` step with `version: ">=0.7,<1.0"` after `actions/setup-python@v5` in `.github/workflows/copilot-setup-steps.yml` (FR-002)
-- [ ] T005 [P] Add uv bootstrap via `pip install "uv>=0.7,<1.0" 2>/dev/null || true` in `.github/copilot-setup-steps.yml` (FR-002, non-fatal, run-only file)
-- [ ] T006 [P] Add uv bootstrap step `python -m pip install "uv>=0.7,<1.0"` with `continueOnError: true` in `pipelines/ai-review-stage.yaml` before both install scripts (FR-002)
+- [ ] T002 Add `astral-sh/setup-uv@v4` step (with `version: ">=0.7,<1.0"`) after `actions/setup-python@v5` in `.github/workflows/ai-pr-loop.yml`
+- [ ] T003 [P] Add `astral-sh/setup-uv@v4` step (with `version: ">=0.7,<1.0"`) after `actions/setup-python@v5` in `.github/workflows/speckit-phase-progression.yml`
+- [ ] T004 [P] Add `astral-sh/setup-uv@v4` step (with `version: ">=0.7,<1.0"`) after `actions/setup-python@v5` in `.github/workflows/copilot-setup-steps.yml`
+- [ ] T005 [P] Add uv bootstrap step (`pip install "uv>=0.7,<1.0"` with `continueOnError: true`) in `pipelines/ai-review-stage.yaml` before the ValidateConfig job install script at L63
+- [ ] T006 [P] Add uv bootstrap step (`pip install "uv>=0.7,<1.0"` with `continueOnError: true`) in `pipelines/ai-review-stage.yaml` before the DispatchReview job install script at L85
 
-## Phase 3: User Story 1 — Happy Path: uv Present in CI (P1)
+## Phase 3: User Story 1 — Happy Path: uv present in CI [P1]
 
-- [ ] T007 [US1] Replace install step in `.github/workflows/ai-pr-loop.yml` (L60-66) with guarded uv pattern; remove `pip install --upgrade pip` from uv branch; preserve `--force-reinstall --no-deps`
-  on github-copilot-sdk install (FR-001, FR-003, FR-006)
-- [ ] T008 [US1] [P] Replace install step in `.github/workflows/speckit-phase-progression.yml` (L480-487) with guarded uv pattern; preserve `--force-reinstall --no-deps` on github-copilot-sdk and `--no-deps`
-  on local package install (FR-001, FR-003, FR-006)
-- [ ] T009 [US1] [P] Replace install step in `.github/workflows/copilot-setup-steps.yml` (L22-25) with guarded uv pattern; preserve `-e ".[dev]"` flag; remove `pip install --upgrade pip` from uv
-  branch (FR-001, FR-003, FR-006)
-- [ ] T010 [US1] [P] Replace `pip install 'agentic-devtools[dev]'` in `.github/copilot-setup-steps.yml` with guarded uv pattern using `uv pip install 'agentic-devtools[dev]'` as primary path (FR-001,
-  FR-003)
+- [ ] T007 [US1] Replace install step in `.github/workflows/ai-pr-loop.yml` (L60-66) with guarded uv block preserving `--force-reinstall --no-deps` on copilot-sdk and plain install for
+  agentic-devtools; remove `pip install --upgrade pip` from uv branch
+- [ ] T008 [US1] [P] Replace install step in `.github/workflows/speckit-phase-progression.yml` (L481-488) with guarded uv block preserving `--force-reinstall --no-deps` on copilot-sdk and `--no-deps`
+  on local package install; remove `pip install --upgrade pip` from uv branch
+- [ ] T009 [US1] [P] Replace install step in `.github/workflows/copilot-setup-steps.yml` (L22-25) with guarded uv block using `uv pip install -e ".[dev]"`; remove `pip install --upgrade pip` from uv
+  branch
+- [ ] T010 [US1] [P] Replace install script in `.github/copilot-setup-steps.yml` (L2) with multi-line run block:
+  non-fatal `pip install "uv>=0.7,<1.0" 2>/dev/null || true` bootstrap followed by guarded `uv pip install 'agentic-devtools[dev]'` with pip fallback
 
-## Phase 4: User Story 2 — Graceful Fallback: uv Unavailable (P1)
+## Phase 4: User Story 2 — Graceful Fallback: uv unavailable [P1]
 
-- [ ] T011 [US2] Verify fallback happy-path branch in `.github/workflows/ai-pr-loop.yml` includes `python -m pip install --upgrade pip` before pip installs (FR-003)
-- [ ] T012 [US2] [P] Verify fallback happy-path branch in `.github/workflows/speckit-phase-progression.yml` includes `python -m pip install --upgrade pip` before pip installs (FR-003)
-- [ ] T013 [US2] [P] Verify fallback happy-path branch in `.github/workflows/copilot-setup-steps.yml` includes `python -m pip install --upgrade pip` before pip installs (FR-003)
-- [ ] T014 [US2] [P] Verify fallback happy-path branch in `.github/copilot-setup-steps.yml` uses `python -m pip install` when `uv` is not on PATH (FR-003)
-- [ ] T015 [US2] [P] Verify fallback happy-path branch in `pipelines/ai-review-stage.yaml` uses `python -m pip install` with `pip --upgrade` when `uv` is not available (FR-003)
+- [ ] T011 [US2] Verify happy-path success for fallback branch in `.github/workflows/ai-pr-loop.yml`: includes `python -m pip install --upgrade pip` before pip installs
+- [ ] T012 [US2] [P] Verify fallback branch in `.github/workflows/speckit-phase-progression.yml` includes `python -m pip install --upgrade pip` before pip installs
+- [ ] T013 [US2] [P] Verify fallback branch in `.github/workflows/copilot-setup-steps.yml` includes `python -m pip install --upgrade pip` before pip installs
+- [ ] T014 [US2] [P] Verify fallback branch in `.github/copilot-setup-steps.yml` uses `python -m pip install --upgrade pip` before pip install
+- [ ] T015 [US2] [P] Verify fallback branch in `pipelines/ai-review-stage.yaml` ValidateConfig job (L63-64) uses `python -m pip install --upgrade pip` before pip install
+- [ ] T016 [US2] [P] Verify fallback branch in `pipelines/ai-review-stage.yaml` DispatchReview job (L85-86) uses `python -m pip install --upgrade pip` before pip install
 
-## Phase 5: User Story 3 — Devcontainer: Fast Local Setup (P2)
+## Phase 5: User Story 4 — Azure DevOps Pipeline: uv bootstrapped via pip [P1]
 
-- [ ] T016 [US3] Update `postCreateCommand` in `.devcontainer/devcontainer.json` (L39) to `pip install "uv>=0.7,<1.0" && uv pip install -e '.[dev]' && git config core.hooksPath .githooks` (FR-004)
+- [ ] T017 [US4] Replace install script in `pipelines/ai-review-stage.yaml` ValidateConfig job (L63-64) with guarded uv block (`uv pip install agentic-devtools` primary, pip fallback)
+- [ ] T018 [US4] Replace install script in `pipelines/ai-review-stage.yaml` DispatchReview job (L85-86) with guarded uv block (`uv pip install agentic-devtools` primary, pip fallback)
 
-## Phase 6: User Story 4 — Azure DevOps Pipeline: uv Bootstrapped via pip (P1)
+## Phase 6: User Story 3 — Devcontainer: fast local setup [P2]
 
-- [ ] T017 [US4] Replace `python -m pip install agentic-devtools` at L63-64 in `pipelines/ai-review-stage.yaml` (ValidateConfig job) with guarded uv install pattern (FR-001, FR-003)
-- [ ] T018 [US4] [P] Replace `python -m pip install agentic-devtools` at L85-86 in `pipelines/ai-review-stage.yaml` (DispatchReview job) with guarded uv install pattern (FR-001, FR-003)
+- [ ] T019 [US3] Update `postCreateCommand` in `.devcontainer/devcontainer.json` (L39) to: `pip install "uv>=0.7,<1.0" && uv pip install -e '.[dev]' && git config core.hooksPath .githooks`
 
-## Phase 7: Polish & Cross-Cutting
+## Phase 7: User Story 5 — Documentation reflects uv-first installs [P3]
 
-- [ ] T019 [P] Update `.devcontainer/README.md` to document uv as the recommended installer and explain the bootstrap + guarded fallback pattern (FR-005)
-- [ ] T020 [P] Update `.github/copilot-instructions.md` installation section to reference `uv pip install` as the primary install method (FR-005)
-- [ ] T021 [P] Update `docs/04-solution-strategy.md` to reference `uv` as the recommended installer for distribution and CI (FR-005)
-- [ ] T022 Add version pinning rationale comment (`# Pin to 0.x series...`) adjacent to each `setup-uv` version or pip bootstrap command across all modified files
-- [ ] T023 Run full test suite (`agdt-test` + `agdt-task-wait`) to verify the uv-installed
-      environment is functionally identical to pip installs across workflows and devcontainer acceptance scenarios (FR-004, NFR-002)
-- [ ] T024 Measure before/after install time on a representative workflow run and document in PR description (NFR-001)
-- [ ] T025 Validate happy-path coverage: all targeted install steps use `uv pip install` as the primary path with guarded pip fallback in each modified workflow/pipeline context (FR-001)
-- [ ] T026 Verify happy-path provisioning prerequisites are present before install steps (`setup-uv` in GitHub Actions and non-fatal pip bootstrap where `uses:` is unsupported) (FR-002)
-- [ ] T027 Verify happy-path flag behavior: existing install flags (`--force-reinstall`, `--no-deps`, `-e`) remain preserved in uv commands (FR-006)
-- [ ] T028 Verify happy-path documentation coverage: `.devcontainer/README.md`, `.github/copilot-instructions.md`, and `docs/04-solution-strategy.md` reference uv as the recommended installer (FR-005)
+- [ ] T020 [US5] Update `.devcontainer/README.md` to document uv bootstrap in `postCreateCommand` and describe `uv` as the recommended installer
+- [ ] T021 [US5] [P] Update `.github/copilot-instructions.md` installation section to reference `uv pip install` as the recommended method with fallback context
+- [ ] T022 [US5] [P] Update `docs/04-solution-strategy.md` distribution/install reference to mention `uv` as recommended installer
 
-## Dependency Graph
+## Phase 8: Polish & Cross-Cutting — Validation
+
+- [ ] T023 [US3] Verify FR-004 by running full test suite (`agdt-test` + `agdt-task-wait`) to confirm no regressions from workflow file changes (NFR-002)
+- [ ] T024 Check all modified YAML files pass syntax check (e.g., `python -c "import yaml; yaml.safe_load(open(...))"`)
+- [ ] T025 Verify FR-001 happy-path behavior and document before/after install timing comparison in PR description (NFR-001)
+- [ ] T026 Test FR-002 happy-path provisioning criteria across all modified install targets
+- [ ] T027 Verify FR-006 happy-path install-flag preservation by asserting workflow scripts retain required flags (`--force-reinstall --no-deps`, `--no-deps`, `-e ".[dev]"`)
+- [ ] T028 Verify FR-005 happy-path documentation coverage by confirming all three doc targets describe uv-first installation guidance
+
+## Dependencies
 
 ```text
-T001 → T002, T003, T004, T005, T006 (pattern defined before application)
-T002 → T007 (setup-uv must exist before guarded install)
+T001 → T007, T008, T009, T010, T017, T018 (pattern reference)
+T002 → T007 (setup-uv must precede install replacement)
 T003 → T008
 T004 → T009
-T005 → T010
-T006 → T017, T018
-T007 → T011 (fallback verification after install replacement)
+T005 → T017 (bootstrap must precede guarded install in ValidateConfig)
+T006 → T018 (bootstrap must precede guarded install in DispatchReview)
+T007 → T011 (fallback verification follows install replacement)
 T008 → T012
 T009 → T013
 T010 → T014
-T017, T018 → T015
-T007-T018 → T022 (comments added after all installs updated)
-T007-T018 → T019, T020, T021 (docs updated after implementation complete)
-T007-T021 → T025, T026, T027, T028 (cross-file verification after implementation and docs updates)
-T019-T022, T025, T026, T027, T028 → T023 (full test suite validates everything)
-T023, T025 → T024 (timing measured after validation passes)
+T017 → T015 (fallback verification for ValidateConfig job)
+T018 → T016 (fallback verification for DispatchReview job)
+T007-T019 → T023 (validation after all changes)
+T023 → T024 → T025 → T026
+T025, T026 → T027, T028
 ```
+
+## Notes
+
+- **T017 and T018 intentionally target the same file** (`pipelines/ai-review-stage.yaml`) at two distinct install locations: the ValidateConfig job (L63-64) and the DispatchReview job (L85-86). These
+  are separate CI jobs with independent install scripts that must each receive the guarded uv pattern.
+- All guarded blocks use `command -v uv >/dev/null 2>&1` as the detection mechanism.
+- The `pip install --upgrade pip` line is **only** present in the fallback (else) branch, never in the uv branch.
+- No changes to `pyproject.toml`, source code, or test files are required.
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
