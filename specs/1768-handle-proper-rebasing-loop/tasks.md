@@ -75,7 +75,8 @@
 - [ ] T033 [US2] Write test: on next iteration after rebase, pipeline evaluates fresh snapshot with new CI status (integration-level) verifying FR-002 fresh CI check in
   `tests/unit/cli/ci/pipeline/actions/rebase/test_rebaseaction.py`
 - [ ] T034 [P] [US2] Export `RebaseAction` from `agentic_devtools/cli/ci/pipeline/actions/__init__.py`
-- [ ] T035 [US2] Insert `RebaseAction()` after `SquashAction()` and before `ResolveThreadsAction()` in action list in `agentic_devtools/cli/ci/pipeline/command.py` implementing FR-007 pipeline ordering
+- [ ] T035 [US2] Insert `RebaseAction()` after `SquashAction()` and before `ResolveThreadsAction()` in action list in `agentic_devtools/cli/ci/pipeline/command.py` implementing FR-007 pipeline
+  ordering
 
 ## Phase 5: User Story 3 — Re-request Copilot Review After Rebase (P2)
 
@@ -88,7 +89,8 @@
 ## Phase 6: User Story 4 — Rebase Conflict Handling (P2)
 
 - [ ] T039 [US4] Write test: `rebase_onto_base` attempts SDK conflict resolution before aborting verifying FR-006 resolution attempt in `tests/unit/cli/ci/github_provider/test_rebase_onto_base.py`
-- [ ] T040 [US4] Write test: `rebase_onto_base` calls `git rebase --abort` when resolution fails, leaving clean state (NFR-003) and verifying FR-006 abort behavior in `tests/unit/cli/ci/github_provider/test_rebase_onto_base.py`
+- [ ] T040 [US4] Write test: `rebase_onto_base` calls `git rebase --abort` when resolution fails, leaving clean state (NFR-003) and verifying FR-006 abort behavior in
+  `tests/unit/cli/ci/github_provider/test_rebase_onto_base.py`
 - [ ] T041 [US4] Write test: `rebase_onto_base` does NOT force-push partial state on conflict verifying FR-006 no broken state pushed in `tests/unit/cli/ci/github_provider/test_rebase_onto_base.py`
 - [ ] T042 [US4] Write test: `RebaseAction.execute()` returns BLOCKED with diagnostic message when conflict resolution fails verifying FR-006 BLOCKED return in
   `tests/unit/cli/ci/pipeline/actions/rebase/test_rebaseaction.py`
