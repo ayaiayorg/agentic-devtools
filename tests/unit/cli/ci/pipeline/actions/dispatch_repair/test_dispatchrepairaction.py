@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+from agentic_devtools.cli.ci.models import ReviewInfo
 from agentic_devtools.cli.ci.pipeline.actions.dispatch_repair import DispatchRepairAction
 from agentic_devtools.cli.ci.pipeline.models import ActionDecision
 from agentic_devtools.cli.ci.pipeline.snapshot import DerivedState, PRStateSnapshot
@@ -89,6 +90,40 @@ class TestDispatchRepairAction:
         action = DispatchRepairAction()
         result = action.evaluate(snapshot, derived)
         assert result.decision == ActionDecision.EXECUTE
+
+    def test_execute_when_prior_review_threads_are_stuck(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            ci_status="passing",
+            head_sha="head123",
+            copilot_review_id=0,
+            unresolved_threads=2,
+            reviews=[
+                ReviewInfo(id=10, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old123"),
+            ],
+        )
+        derived = DerivedState(snapshot)
+        action = DispatchRepairAction()
+        result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.EXECUTE
+        assert result.preconditions.get("stuck_prior_threads") is True
+
+    def test_skip_when_threads_exist_but_no_prior_copilot_review(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            ci_status="passing",
+            head_sha="head123",
+            copilot_review_id=0,
+            unresolved_threads=2,
+            reviews=[
+                ReviewInfo(id=10, user="alice", state="CHANGES_REQUESTED", commit_sha="old123"),
+            ],
+        )
+        derived = DerivedState(snapshot)
+        action = DispatchRepairAction()
+        result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.SKIP
+        assert result.preconditions.get("stuck_prior_threads") is False
 
     def test_execute_when_commented_review_inline_count_unknown(self) -> None:
         snapshot = PRStateSnapshot(
@@ -380,6 +415,148 @@ class TestDispatchRepairAction:
         call_kwargs = provider.dispatch_repair.call_args.kwargs
         assert call_kwargs["repair_type"] == "review"
         assert call_kwargs["review_comments"] == [provider.list_review_comments.return_value[0]]
+
+    def test_execute_dispatches_review_for_stuck_prior_threads(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=42,
+            ci_status="passing",
+            head_sha="head123",
+            copilot_review_id=0,
+            unresolved_threads=2,
+            reviews=[
+                ReviewInfo(
+                    id=11, user="Copilot", state="COMMENTED", commit_sha="old111", submitted_at="2024-01-01T10:00:00Z"
+                ),
+                ReviewInfo(
+                    id=12,
+                    user="Copilot",
+                    state="CHANGES_REQUESTED",
+                    commit_sha="old222",
+                    submitted_at="2024-01-01T11:00:00Z",
+                ),
+            ],
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        review_comment_a = MagicMock(id=101)
+        review_comment_b = MagicMock(id=102)
+        review_comment_b_duplicate = MagicMock(id=102)
+        review_comment_suppressed_a = MagicMock(id=-1)
+        review_comment_suppressed_b = MagicMock(id=-1)
+        provider.list_review_comments.side_effect = [
+            [review_comment_b, review_comment_suppressed_a],
+            [review_comment_a, review_comment_b_duplicate, review_comment_suppressed_b],
+        ]
+        provider.dispatch_repair.return_value = 88
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.is_duplicate_trigger",
+                return_value=False,
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+                return_value=(False, 0),
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_cycle_limit",
+                return_value=(False, 1),
+            ),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+        call_kwargs = provider.dispatch_repair.call_args.kwargs
+        assert call_kwargs["repair_type"] == "review"
+        assert call_kwargs["review_id"] == 12
+        assert call_kwargs["review_comments"] == [
+            review_comment_b,
+            review_comment_suppressed_a,
+            review_comment_a,
+            review_comment_suppressed_b,
+        ]
+        provider.list_review_comments.assert_any_call(42, 12)
+        provider.list_review_comments.assert_any_call(42, 11)
+
+    def test_execute_stuck_prior_threads_uses_stable_order_for_missing_or_invalid_timestamps(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=42,
+            ci_status="passing",
+            head_sha="head123",
+            copilot_review_id=0,
+            unresolved_threads=2,
+            reviews=[
+                ReviewInfo(id=11, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old111", submitted_at=""),
+                ReviewInfo(
+                    id=12,
+                    user="Copilot",
+                    state="CHANGES_REQUESTED",
+                    commit_sha="old222",
+                    submitted_at=None,  # type: ignore[arg-type]
+                ),
+                ReviewInfo(
+                    id=13,
+                    user="Copilot",
+                    state="CHANGES_REQUESTED",
+                    commit_sha="old333",
+                    submitted_at=123,  # type: ignore[arg-type]
+                ),
+            ],
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.list_review_comments.return_value = []
+        provider.dispatch_repair.return_value = 89
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.is_duplicate_trigger",
+                return_value=False,
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_deduplication",
+                return_value=(False, 0),
+            ),
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.check_cycle_limit",
+                return_value=(False, 1),
+            ),
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+        call_kwargs = provider.dispatch_repair.call_args.kwargs
+        assert call_kwargs["review_id"] == 13
+
+    def test_execute_skips_stuck_threads_when_review_id_dedup_matches_prior_review(self) -> None:
+        snapshot = PRStateSnapshot(
+            pr_number=42,
+            ci_status="passing",
+            head_sha="head123",
+            copilot_review_id=0,
+            unresolved_threads=2,
+            reviews=[
+                ReviewInfo(id=12, user="Copilot", state="CHANGES_REQUESTED", commit_sha="old222"),
+            ],
+            check_runs=[],
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+
+        with patch(
+            "agentic_devtools.cli.ci.pipeline.actions.dispatch_repair.is_duplicate_trigger",
+            return_value=True,
+        ):
+            action = DispatchRepairAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.SKIP
+        assert "review_id=12" in result.details
+        provider.dispatch_repair.assert_not_called()
 
     def test_execute_continues_when_review_comments_fetch_fails(self) -> None:
         snapshot = PRStateSnapshot(
