@@ -20,7 +20,8 @@
 >
 > **⚠️ COPILOT CLOUD AGENT RESTRICTIONS**:
 >
-> - Do NOT force-push (`git push --force` or `git push --force-with-lease`).
+> - Prefer maintaining a single-commit PR via amend + `git push --force-with-lease`.
+> - Use a non-force push with a new commit only when force-push is explicitly prohibited in the execution context.
 > - Do NOT attempt to resolve PR review comment threads — the post-push automation handles this.
 > - Do NOT attempt to re-request Copilot review — the post-push automation handles this.
 > - Do NOT merge the PR.
@@ -61,14 +62,13 @@ review. Follow this workflow systematically, completing each phase before procee
 |-----------|-------------------|----------------|
 | Reply to review comments | `agdt-gh-reply-to-review-comments` | `gh api .../comments/{id}/replies` per comment |
 | Run targeted tests | `agdt-test-pattern`, `agdt-test-file` | Install `agentic-devtools[dev]` from PyPI (not the PR branch: `pip install 'agentic-devtools[dev]'`), then use `agdt-test-pattern` |
-| Stage changes | `agdt-git-stage` | `git add` |
-| Commit & push | `agdt-git-save-work` | Install `agentic-devtools[dev]` from PyPI (not the PR branch: `pip install 'agentic-devtools[dev]'`), then use `agdt-git-save-work` |
+| Stage changes | `agdt-git-stage` | `git add -A` |
+| Commit & push | Raw git (see Phase 6) | N/A — raw git is the primary method for cloud agents |
 
-> **CI Repair Note**: This workflow requires `agentic-devtools` commands to be
-> available. If they are not installed, install from a trusted source —
-> **not** from the PR branch (`pip install 'agentic-devtools[dev]'`). Do **not** fall
-> back to running `pytest` directly or using raw `git commit`/`git push`; both
-> violate project policy (see `.github/copilot-instructions.md`).
+> **Copilot Cloud Agent Exception**: Due to cloud agent restrictions,
+> `agdt-git-save-work` is NOT compatible (it attempts force-push/rebase).
+> You are authorized to use raw git commands for commit and push in this context.
+> This is an explicit policy exception for this agent only.
 
 ---
 
@@ -312,17 +312,42 @@ gh api graphql -f query='query {
 
 ### Commit & Push
 
+> ⚠️ **Copilot Cloud Agent Exception**: Due to cloud agent restrictions,
+> `agdt-git-save-work` is NOT compatible (it attempts force-push/rebase).
+> You are authorized to use raw git commands for commit and push in this context.
+> This is an explicit policy exception for this agent only.
+
 Include `[ai-repair]` in the commit body so repair commits are identifiable in git log.
 
+Default flow (single-commit PR policy): amend and force-push with lease.
+
 ```bash
-agdt-set commit_message "<type>([#<issue>](https://github.com/{owner}/{repo}/issues/<issue>)): address copilot review feedback
+git add -A
+if ! git log -1 --format=%B | grep -Eq "^[[:space:]]*\\[ai-repair\\][[:space:]]*$"; then
+  msg_file=$(mktemp) || { echo "Failed to create temp file" >&2; exit 1; }
+  trap 'rm -f "$msg_file"' EXIT
+  git log -1 --format=%B > "$msg_file"
+  printf "\n[ai-repair]\n" >> "$msg_file"
+  git commit --amend -F "$msg_file"
+  trap - EXIT
+  rm -f "$msg_file"
+else
+  git commit --amend --no-edit
+fi
+git push --force-with-lease
+```
+
+Fallback flow (only when force-push is explicitly prohibited in the execution context):
+
+```bash
+git add -A
+git commit -m "<type>([#<issue>](https://github.com/{owner}/{repo}/issues/<issue>)): address copilot review feedback
 
 - <summary of changes>
 [ai-repair]
 
 [#<issue>](https://github.com/{owner}/{repo}/issues/<issue>)"
-agdt-git-save-work --skip-stage
-agdt-task-wait
+git push
 ```
 
 > ⚠️ After `git push`, the pre-push hook runs targeted checks automatically. This can
@@ -352,8 +377,40 @@ COMMIT_SHORT=$(git log -1 --format="%h")
 
 ### Edge Case: No Addressable Comments and No CI Failures
 
-If every comment was ❌ and there are no CI failures, skip the commit step and proceed
-directly to Phase 7 (summary comment).
+If every comment was ❌ and there are no CI failures, skip the commit step and instead
+follow the **No Changes Needed** protocol below.
+
+### No Changes Needed — Thread Evaluation Markers
+
+When ALL review comments are declined (❌) and no code changes were made:
+
+1. **Reply to EACH individual review comment thread** with a specific explanation of why
+   no change was needed, including the machine-readable marker:
+
+   ```text
+   <!-- ai-pr-loop:thread-evaluated -->
+   Already addressed in commit {sha} — {explanation of why no change is needed}.
+   ```
+
+2. **Post a summary comment** on the PR (NOT a review comment) with the global marker:
+
+   ```markdown
+   <!-- copilot-agent-result -->
+   <!-- ai-pr-loop:repair-satisfied -->
+   <!-- review-id:{review_id} -->
+
+   ## No Changes Needed
+
+   All review comments were evaluated. No code changes are required — the concerns
+   raised are already addressed or are not actionable.
+
+   <!-- /copilot-agent-result -->
+   ```
+
+> ⚠️ **IMPORTANT**: Do NOT post `<!-- ai-pr-loop:repair-satisfied -->` if ANY comment
+> was accepted (✅) or partially accepted (🟡) and code changes were made. The
+> `repair-satisfied` marker is ONLY for the scenario where ALL comments need no changes.
+> In mixed scenarios (some accepted, some declined), follow the normal commit flow.
 
 ---
 

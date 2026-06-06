@@ -84,6 +84,8 @@ class PostAgentSnapshot:
     lock_holder: str = ""
     lock_age_seconds: float = 0.0
     diff_text: str = ""
+    has_repair_satisfied_marker: bool = False
+    repair_satisfied_review_id: int | None = None
 
 
 class PostAgentClassification(Enum):
@@ -93,6 +95,7 @@ class PostAgentClassification(Enum):
     """
 
     complete = "complete"
+    repair_satisfied_no_changes = "repair_satisfied_no_changes"
     agent_claims_fixed_no_sentinel = "agent_claims_fixed_no_sentinel"
     threads_resolved_no_sentinel = "threads_resolved_no_sentinel"
     changes_made_threads_unresolved = "changes_made_threads_unresolved"
@@ -104,6 +107,7 @@ class PostAgentAction(Enum):
     """Action to take based on the classification."""
 
     no_action = "no_action"
+    resolve_evaluated_threads = "resolve_evaluated_threads"
     verify_and_resolve = "verify_and_resolve"
     synthesize_sentinel = "synthesize_sentinel"
     trigger_re_review = "trigger_re_review"
