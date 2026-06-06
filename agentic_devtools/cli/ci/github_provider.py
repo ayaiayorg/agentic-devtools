@@ -1519,22 +1519,13 @@ class GitHubActionsProvider(CIPlatformProvider):
 
         try:
             from copilot import CopilotClient
-            from copilot import SubprocessConfig as _CopilotSubprocessConfig
             from copilot.session import PermissionHandler
-
-            copilot_subprocess_config_cls = _CopilotSubprocessConfig
-        except Exception as primary_exc:
-            try:
-                from copilot import CopilotClient
-
-                copilot_subprocess_config_cls = importlib.import_module("copilot.config").SubprocessConfig
-                from copilot.session import PermissionHandler
-            except Exception as exc:  # pragma: no cover - optional dependency/runtime
-                logger.warning(
-                    "Copilot SDK unavailable for squash commit message generation: %s",
-                    primary_exc if not isinstance(primary_exc, ImportError) else exc,
-                )
-                return None
+        except Exception as exc:  # pragma: no cover - optional dependency/runtime
+            logger.warning(
+                "Copilot SDK unavailable for squash commit message generation: %s",
+                exc,
+            )
+            return None
 
         model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
         unique_subjects = [subject.strip() for subject in commit_subjects if subject.strip()]
@@ -1554,7 +1545,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             error_messages: list[str] = []
             done = asyncio.Event()
             try:
-                client = CopilotClient(copilot_subprocess_config_cls(github_token=token))
+                client = CopilotClient(github_token=token)
                 await client.start()
                 try:
                     session = await client.create_session(
@@ -1639,22 +1630,13 @@ class GitHubActionsProvider(CIPlatformProvider):
 
         try:
             from copilot import CopilotClient
-            from copilot import SubprocessConfig as _CopilotSubprocessConfig
             from copilot.session import PermissionHandler
-
-            copilot_subprocess_config_cls = _CopilotSubprocessConfig
-        except Exception as primary_exc:
-            try:
-                from copilot import CopilotClient
-
-                copilot_subprocess_config_cls = importlib.import_module("copilot.config").SubprocessConfig
-                from copilot.session import PermissionHandler
-            except Exception as exc:  # pragma: no cover - optional dependency/runtime
-                logger.warning(
-                    "Copilot SDK unavailable for conflict resolution: %s",
-                    primary_exc if not isinstance(primary_exc, ImportError) else exc,
-                )
-                return None
+        except Exception as exc:  # pragma: no cover - optional dependency/runtime
+            logger.warning(
+                "Copilot SDK unavailable for conflict resolution: %s",
+                exc,
+            )
+            return None
 
         model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
         prompt = (
@@ -1676,7 +1658,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             error_messages: list[str] = []
             done = asyncio.Event()
             try:
-                client = CopilotClient(copilot_subprocess_config_cls(github_token=token))
+                client = CopilotClient(github_token=token)
                 await client.start()
                 try:
                     session = await client.create_session(
@@ -2694,24 +2676,13 @@ class GitHubActionsProvider(CIPlatformProvider):
 
         try:
             from copilot import CopilotClient
-            from copilot import SubprocessConfig as _CopilotSubprocessConfig
             from copilot.session import PermissionHandler
-
-            copilot_subprocess_config_cls = _CopilotSubprocessConfig
-        except Exception as primary_exc:
-            try:
-                from copilot import CopilotClient
-
-                copilot_subprocess_config_cls = importlib.import_module("copilot.config").SubprocessConfig
-                from copilot.session import PermissionHandler
-            except Exception as exc:
-                logger.warning(
-                    "Copilot SDK unavailable for comment verification: %s",
-                    primary_exc if not isinstance(primary_exc, ImportError) else exc,
-                )
-                return {
-                    comment.id: VerificationVerdict.COMMENT_UNRESOLVE for comment, _diff_context in normalized_comments
-                }
+        except Exception as exc:
+            logger.warning(
+                "Copilot SDK unavailable for comment verification: %s",
+                exc,
+            )
+            return {comment.id: VerificationVerdict.COMMENT_UNRESOLVE for comment, _diff_context in normalized_comments}
 
         model = os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
 
@@ -2719,7 +2690,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             client = None
             session = None
             try:
-                client = CopilotClient(copilot_subprocess_config_cls(github_token=token))
+                client = CopilotClient(github_token=token)
                 await client.start()
                 try:
                     session = await client.create_session(
@@ -2825,19 +2796,10 @@ class GitHubActionsProvider(CIPlatformProvider):
 
         try:
             from copilot import CopilotClient
-            from copilot import SubprocessConfig as _CopilotSubprocessConfig
             from copilot.session import PermissionHandler
-
-            copilot_subprocess_config_cls = _CopilotSubprocessConfig
-        except Exception as primary_exc:
-            try:
-                from copilot import CopilotClient
-
-                copilot_subprocess_config_cls = importlib.import_module("copilot.config").SubprocessConfig
-                from copilot.session import PermissionHandler
-            except Exception as exc:
-                error = primary_exc if not isinstance(primary_exc, ImportError) else exc
-                raise RuntimeError(f"Copilot SDK unavailable: {error}") from error
+        except Exception as exc:
+            error = exc
+            raise RuntimeError(f"Copilot SDK unavailable: {error}") from error
 
         selected_model = model or os.environ.get("COPILOT_MODEL", "claude-opus-4.6")
 
@@ -2849,7 +2811,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             done = asyncio.Event()
 
             try:
-                client = CopilotClient(copilot_subprocess_config_cls(github_token=token))
+                client = CopilotClient(github_token=token)
                 await client.start()
                 try:
                     session = await client.create_session(
