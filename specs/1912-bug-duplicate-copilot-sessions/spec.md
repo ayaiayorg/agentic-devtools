@@ -5,6 +5,29 @@
 **Status**: Draft  
 **Source Issue**: #1912 (<https://github.com/ayaiayorg/agentic-devtools/issues/1912>)
 
+## Clarifications
+
+### Session 2026-06-06
+
+- Q: Where exactly should the session mutex check be implemented — in `start_copilot_session()` within `agentic_devtools/cli/copilot/session.py`, or as a separate guard function called before session
+  start? → A: The mutex check should be implemented as a guard function (e.g., `_check_session_mutex()`) within `agentic_devtools/cli/copilot/session.py` and called at the top of the public
+  `start_copilot_session()` function. The `agdt-copilot-auto-start` path MUST invoke this same guard as part of its session-start flow (directly or by delegating to `start_copilot_session()`).
+- Q: How should the grace period retry in FR-007 be implemented — should it be a polling loop within `agdt-copilot-auto-start`, within the `@agdt.advance-workflow` agent prompt logic, or within the
+  `advance_workflow_cmd()` function itself? → A: The grace period retry should be implemented within the `agdt-copilot-auto-start` CLI command (the entry point called by VS Code's auto-start task).
+  Before starting a Copilot session, it should poll for workflow state availability in the resolved worktree state file with configurable interval (default 2 seconds) and total timeout (default 10
+  seconds). This keeps the retry logic at the appropriate boundary without polluting the generic `advance_workflow_cmd()`.
+- Q: On Windows, should PID liveness verification use `ctypes` (OpenProcess/GetExitCodeProcess) or `subprocess` calling `tasklist`? The spec lists both as options but doesn't specify preference. → A:
+  Use `ctypes` with `kernel32.OpenProcess` and `kernel32.CloseHandle` for PID liveness verification on Windows. This is faster (no subprocess spawn), has no parsing overhead, and is standard library
+  only (ctypes is built-in). Fall back to `os.kill(pid, 0)` on Unix. Do NOT verify process name/command line — PID recycling on Windows within the short session lifetime is statistically negligible
+  and command-line matching adds fragile complexity.
+- Q: Should the state directory alignment fix (FR-002) modify `get_state_dir()` to accept an explicit worktree path parameter, or should the auto-execute command set `AGENTIC_DEVTOOLS_STATE_DIR` as an
+  environment variable before calling into the workflow? → A: The auto-execute command should set `AGENTIC_DEVTOOLS_STATE_DIR` as an environment variable pointing to the target worktree's state
+  directory before invoking the workflow command. This leverages the existing state directory resolution priority (env var takes precedence) without modifying the `get_state_dir()` API, maintaining
+  backward compatibility.
+- Q: What should happen when the grace period expires and no workflow state is found — should the auto-start task exit silently, exit with error, or attempt a single initiation? → A: The auto-start
+  task should exit with a non-zero exit code and emit a descriptive error message to stderr: "Timed out waiting for workflow state (10s). The auto-execute command may not have completed. Do not
+  re-initiate — verify with `agdt-show`." It MUST NOT attempt initiation as a fallback. This preserves the no-fallback-initiation principle from FR-003/FR-006.
+
 ## Problem Statement
 
 When the PR review workflow is initiated from a different repository context (e.g., running `agdt-initiate-pull-request-review-workflow` from `dfly-platform-management` targeting a worktree at
@@ -45,7 +68,7 @@ only one set of review thread scaffolding is created on the PR.
    auto-start task's agent finds the active workflow state and advances it (rather than re-initiating).
 
 3. **Given** a Copilot session is already running for the target worktree (verified by `copilot.pid` in state and process liveness check), **When** any command attempts to start a second Copilot
-   session for the same worktree, **Then** the second session is blocked and an informational message is emitted explaining that a session is already active.
+   session for the same worktree, **Then** the second session is blocked and a warning message is emitted to stderr explaining that a session is already active.
 
 ---
 
@@ -62,7 +85,7 @@ workflow.
 **Acceptance Scenarios**:
 
 1. **Given** the auto-execute command runs in the context of repo A but targets a worktree for repo B, **When** it writes workflow state, **Then** the state is written to the state directory scoped to
-   repo B's worktree (not repo A's).
+   repo B's worktree (not repo A's). The auto-execute command achieves this by setting `AGENTIC_DEVTOOLS_STATE_DIR` to the target worktree's resolved state path before invoking the workflow.
 
 2. **Given** the VS Code auto-start task runs inside the target worktree, **When** it resolves the state directory via `get_state_dir()`, **Then** it resolves to the same path that the auto-execute
    command wrote to.
@@ -120,30 +143,35 @@ the PID is alive, the session should be blocked.
 
 ### Edge Cases
 
-- What happens when the auto-execute command crashes mid-write of workflow state, leaving a partially written `state.json`? The auto-start task should detect the corrupted state and report an error
-  rather than re-initiating.
-- How does the system handle the case where VS Code's auto-start task fires before the auto-execute command has completed (extremely fast VS Code startup)? A brief retry/wait mechanism should be
-  employed.
-- What happens on Windows when the PID stored in state belongs to a recycled process (different application reusing the same PID)? The liveness check should verify the process name or command line
-  matches the expected Copilot session pattern.
+- What happens when the auto-execute command crashes mid-write of workflow state, leaving a partially written `state.json`? The auto-start task should detect the corrupted state (via JSON parse
+  failure) and report an error rather than re-initiating. The error message should instruct the user to clear state with `agdt-clear` and retry.
+- How does the system handle the case where VS Code's auto-start task fires before the auto-execute command has completed (extremely fast VS Code startup)? The `agdt-copilot-auto-start` command
+  MUST perform a polling retry with 2-second intervals up to a configurable 10-second grace period before concluding that no workflow exists.
+- What happens on Windows when the PID stored in state belongs to a recycled process (different application reusing the same PID)? The liveness check uses `ctypes` `kernel32.OpenProcess` which only
+  confirms process existence, not identity. Given the short time window (seconds to minutes between session start and mutex check), PID recycling is statistically negligible and no command-line
+  verification is performed.
 - What happens if the user manually kills the Copilot session and wants to restart? The user should be able to explicitly clear the mutex via `agdt-delete copilot.pid` (or by removing the
-  `copilot.pid` state key directly).
+  `copilot.pid` state key directly). The next session start will proceed normally since no live process will be found.
 
 ## Requirements
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST implement a session mutex that checks for an existing live Copilot session (via `copilot.pid` state key and OS-level process liveness verification) before starting any
-  new Copilot session for the same worktree. If a live session exists, the new session start MUST be blocked and an informational message MUST be emitted to stderr.
+- **FR-001**: The system MUST implement a session mutex guard function (`_check_session_mutex()`) within `agentic_devtools/cli/copilot/session.py` that checks for an existing live Copilot session (via
+  `copilot.pid` state key and OS-level process liveness verification) before starting any new Copilot session for the same worktree. If a live session exists, the new session start MUST be blocked and
+  a warning message MUST be emitted to stderr. The guard MUST be called at the top of the public `start_copilot_session()` function, and the `agdt-copilot-auto-start` code path MUST invoke this same
+  guard (either directly or by delegating to `start_copilot_session()`), so the mutex covers interactive and auto-start entry points.
 
 - **FR-002**: The system MUST ensure that the auto-execute command (running with `--skip-copilot-session` in the originating repo context) writes workflow state to the state directory scoped to the
-  TARGET worktree — not the originating repository's state directory. This means `get_state_dir()` must be called with the target worktree path as context during auto-execute.
+  TARGET worktree — not the originating repository's state directory. This is achieved by setting the `AGENTIC_DEVTOOLS_STATE_DIR` environment variable to the target worktree's resolved state path
+  before invoking the nested workflow command, leveraging the existing state directory resolution priority.
 
 - **FR-003**: The `agdt-advance-workflow` command MUST exit with a non-zero exit code and a descriptive error message when no active workflow is found in the current state directory. It MUST NOT
-  trigger any workflow initiation logic as a fallback. The error message must include guidance for the agent (e.g., "Check state directory resolution — do not re-initiate").
+  trigger any workflow initiation logic as a fallback. The error message must include guidance for the agent (e.g., "Check state directory resolution — do not re-initiate"). The message must
+  distinguish between "no workflow ever started" (empty/missing state) and "workflow was cleared" (state file exists but `workflow` key is absent or has `status: completed`).
 
-- **FR-004**: The session mutex MUST perform process liveness verification by checking whether the stored PID corresponds to a running process. If the stored PID is stale (process no longer running),
-  the system MUST clear the stale `copilot.pid` from state and allow the new session to proceed.
+- **FR-004**: The session mutex MUST perform process liveness verification using `os.kill(pid, 0)` on Unix/macOS and `ctypes` `kernel32.OpenProcess` on Windows. If the stored PID is stale (process no
+  longer running), the system MUST clear the stale `copilot.pid` from state and allow the new session to proceed.
 
 - **FR-005**: The system MUST write `copilot.pid` to the target worktree's state directory (not the originating repo's state directory) immediately upon starting a Copilot session, ensuring that
   subsequent session start attempts from the same worktree context will find the mutex.
@@ -151,31 +179,40 @@ the PID is alive, the session should be blocked.
 - **FR-006**: The `@agdt.copilot-auto-start` agent prompt MUST include explicit instructions to NEVER re-initiate a workflow if `@agdt.advance-workflow` fails. The agent must report the error and
   await human intervention or state resolution.
 
-- **FR-007**: The system MUST support a grace period (configurable, default 10 seconds) during which the auto-start task retries state directory resolution before concluding that no workflow exists.
-  This accounts for the timing gap between auto-execute completion and VS Code auto-start task execution.
+- **FR-007**: The `agdt-copilot-auto-start` CLI command MUST implement a grace period polling loop (configurable interval default 2 seconds, configurable total timeout default 10 seconds) during which
+  it retries workflow state detection in the resolved worktree state file before starting a Copilot session. If the grace period expires without finding workflow state, the command MUST exit with a
+  non-zero exit code and a descriptive message — it MUST NOT fall back to initiating a new workflow.
 
-- **FR-008**: When the session mutex blocks a session start, the system MUST log the blocking event (including the existing session's PID, start time, and session ID) to enable post-incident
-  debugging.
+- **FR-008**: When the session mutex blocks a session start, the system MUST log the blocking event to stderr including: the existing session's PID, start time (from `copilot.start_time` state key),
+  and session ID (from `copilot.session_id` state key), to enable post-incident debugging.
 
 ### Non-Functional Requirements
 
-- **NFR-001**: The session mutex check (PID lookup and liveness verification) MUST complete within 500 milliseconds on both Windows and Linux/macOS to avoid delaying normal session startup.
+- **NFR-001**: The session mutex check (PID lookup and liveness verification) MUST complete within 500 milliseconds on both Windows and Linux/macOS to avoid delaying normal session startup. This is
+  measured from the start of `_check_session_mutex()` to its return, excluding any state file I/O that would already have occurred.
 
 - **NFR-002**: The state directory alignment fix MUST maintain backward compatibility with existing single-repo workflows where the originating repo and target worktree are the same repository. No
-  behavioral change should be observed for the common case.
+  behavioral change should be observed for the common case. Specifically, when `AGENTIC_DEVTOOLS_STATE_DIR` is not set (the common single-repo case), `get_state_dir()` continues to resolve via the
+  bootstrap file as before.
 
 - **NFR-003**: All error messages emitted by the advance-workflow guard and session mutex MUST be actionable — they must tell the agent or user what to do next (e.g., "Run `agdt-show` to verify state
   directory" or "Clear stale session with `agdt-delete copilot.pid`").
 
-- **NFR-004**: The fix MUST NOT introduce additional external dependencies. Process liveness checking must use Python standard library facilities and built-in OS capabilities invoked through them
-  (`os.kill(pid, 0)` on Unix, `ctypes` or `subprocess` with built-in `tasklist` on Windows).
+- **NFR-004**: The fix MUST NOT introduce additional external dependencies. Process liveness checking must use Python standard library facilities only: `os.kill(pid, 0)` on Unix, `ctypes` with
+  `kernel32.OpenProcess`/`kernel32.CloseHandle` on Windows.
 
 ### Key Entities
 
-- **Session Mutex**: A logical lock represented by the `copilot.pid` state key combined with OS-level process liveness verification. Scoped to a single worktree's state directory.
-- **State Directory**: The resolved path `.agdt/workflows/{identity}/{worktree_key}/` where workflow state and session metadata are persisted. Must be deterministic given a worktree path.
-- **Auto-Execute Context**: The execution phase that runs inside the originating repo but targets a different worktree. Must write state to the target worktree's state directory.
-- **Auto-Start Context**: The execution phase that runs inside the target worktree via VS Code's `task.json` `folderOpen` trigger. Must find state in its own worktree's state directory.
+- **Session Mutex**: A logical lock implemented as a guard function (`_check_session_mutex()`) in `agentic_devtools/cli/copilot/session.py`, represented by the `copilot.pid` state key combined with
+  OS-level process liveness verification via `os.kill(pid, 0)` (Unix) or `ctypes` `kernel32.OpenProcess` (Windows). Scoped to a single worktree's state directory.
+- **State Directory**: The resolved path `.agdt/workflows/{identity}/{worktree_key}/` where workflow state and session metadata are persisted. Must be deterministic given a worktree path. For
+  cross-repo scenarios, the auto-execute command explicitly sets `AGENTIC_DEVTOOLS_STATE_DIR` to the target worktree's state directory.
+- **Auto-Execute Context**: The execution phase that runs inside the originating repo but targets a different worktree. Must write state to the target worktree's state directory by setting
+  `AGENTIC_DEVTOOLS_STATE_DIR` before invoking the nested workflow command.
+- **Auto-Start Context**: The execution phase that runs inside the target worktree via VS Code's `tasks.json` `folderOpen` trigger. Must find state in its own worktree's state directory via normal
+  `get_state_dir()` resolution (bootstrap file).
+- **Grace Period**: A polling loop in `agdt-copilot-auto-start` (default 10 seconds total, 2-second intervals) that accounts for timing gaps between auto-execute completion and VS Code auto-start task
+  execution.
 
 ## Success Criteria
 
