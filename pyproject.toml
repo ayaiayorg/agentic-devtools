@@ -24,12 +24,10 @@ dependencies = [
     "langgraph-checkpoint-sqlite>=3.0.1",
     "mcp>=1.0.0",
     "packaging>=21.0",
+    "github-copilot-sdk>=0.1.0,<1.0.0",
 ]
 
 [project.optional-dependencies]
-copilot-sdk = [
-    "github-copilot-sdk>=0.1.0,<1.0.0",
-]
 langchain = [
     "langchain-core>=0.3,<1.0",
 ]
