@@ -476,13 +476,23 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: 'pip'
+
+      - name: Install uv
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true'
+        uses: astral-sh/setup-uv@v4
+        continue-on-error: true
+        with:
+          version: ">=0.7,<1.0" # Stay on the tested 0.x series while allowing patch/minor updates.
 
       - name: Install Dependencies
         if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true'
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install .
+          if command -v uv >/dev/null 2>&1; then
+            uv pip install --system .
+          else
+            python -m pip install --upgrade pip
+            python -m pip install .
+          fi
 
       - name: Generate Phase Artifacts
         if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped != 'true'

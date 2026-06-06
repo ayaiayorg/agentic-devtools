@@ -226,8 +226,8 @@ flowchart LR
 
 ## 4.7 Deployment Strategy
 
-- **Distribution**: PyPI package (`pip install agentic-devtools`)
-- **Installation**: Global via pip/pipx
+- **Distribution**: PyPI package (`uv pip install --system agentic-devtools` or `pip install agentic-devtools`)
+- **Installation**: Global via `uv pip install --system`, `pip install`, or `pipx install`
 - **Configuration**: Environment variables for credentials
 - **Updates**: Version from Git tags via hatch-vcs
 - **CI/CD**: GitHub Actions for test, lint, publish
