@@ -378,31 +378,77 @@ jobs:
               console.log('Could not add speckit:failed label:', e.message);
             }
 
+      - name: Validate Agent Assignment Token
+        id: validate-token
+        if: steps.discover.outputs.found == 'true' && steps.check-pr.outputs.exists != 'true'
+        env:
+          SPECKIT_PR_TOKEN: ${{ secrets.SPECKIT_PR_TOKEN }}
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+        run: |
+          if [[ -n "$SPECKIT_PR_TOKEN" ]]; then
+            echo "Agent assignment token identity: SPECKIT_PR_TOKEN (primary)"
+            echo "token_identity=SPECKIT_PR_TOKEN (primary)" >> "$GITHUB_OUTPUT"
+          elif [[ -n "$COPILOT_GITHUB_TOKEN" ]]; then
+            echo "Agent assignment token identity: COPILOT_GITHUB_TOKEN (fallback)"
+            echo "token_identity=COPILOT_GITHUB_TOKEN (fallback)" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Neither SPECKIT_PR_TOKEN nor COPILOT_GITHUB_TOKEN is configured. At least one of these secrets must be set for Copilot agent assignment."
+            exit 1
+          fi
+
       - name: Assign Copilot Coding Agent
         id: assign-agent
-        if: steps.discover.outputs.found == 'true' && steps.check-pr.outputs.exists != 'true'
+        if: steps.discover.outputs.found == 'true' && steps.check-pr.outputs.exists != 'true' && steps.validate-token.outcome == 'success'
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}
           script: |
             const issueNumber = ${{ steps.issue.outputs.number }};
             const specDir = ${{ toJSON(steps.discover.outputs.spec_dir) }};
             const model = ${{ toJSON(env.COPILOT_MODEL) }};
+            const tokenIdentity = ${{ toJSON(steps.validate-token.outputs.token_identity) }};
+
+            console.log(`Agent assignment token identity: ${tokenIdentity}`);
 
             // Assign copilot to the issue with agent_assignment
             // The custom_agent field references the speckit.implement agent definition
             // The custom_instructions provide the spec directory context
-            const response = await github.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issueNumber,
-              agent_assignment: {
-                target_repo: `${context.repo.owner}/${context.repo.repo}`,
-                base_branch: 'main',
-                custom_instructions: `Implement all tasks defined in the planning artifacts located at ${specDir}/ (path is relative to the repository root — resolve to an absolute path before reading files). Read ${specDir}/tasks.md for the task list, ${specDir}/plan.md for architecture, and ${specDir}/spec.md for requirements. Follow the speckit.implement agent workflow.`,
-                custom_agent: 'speckit.implement',
-                model: model
+            let response;
+            try {
+              response = await github.request('PATCH /repos/{owner}/{repo}/issues/{issue_number}', {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                agent_assignment: {
+                  target_repo: `${context.repo.owner}/${context.repo.repo}`,
+                  base_branch: 'main',
+                  custom_instructions: `Implement all tasks defined in the planning artifacts located at ${specDir}/ (path is relative to the repository root — resolve to an absolute path before reading files). Read ${specDir}/tasks.md for the task list, ${specDir}/plan.md for architecture, and ${specDir}/spec.md for requirements. Follow the speckit.implement agent workflow.`,
+                  custom_agent: 'speckit.implement',
+                  model: model
+                }
+              });
+            } catch (error) {
+              if (error.status === 404) {
+                core.warning(`Issue #${issueNumber} was not found or is not accessible with the configured token (possible missing repo scope/permissions). Skipping Copilot assignment.`);
+                core.setOutput('assigned', 'false');
+                return;
               }
-            });
+
+              if (error.status === 401) {
+                core.setFailed(`Copilot assignment authentication failed (HTTP 401). Verify SPECKIT_PR_TOKEN or COPILOT_GITHUB_TOKEN permissions. ${error.message}`);
+                return;
+              }
+
+              const status = error.status ?? 'unknown';
+              const body = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+              core.setFailed(`Copilot assignment API call failed (HTTP ${status}): ${body}`);
+              return;
+            }
+
+            if (!response || response.status < 200 || response.status >= 300) {
+              core.setFailed(`Copilot assignment API returned non-success status: ${response?.status ?? 'unknown'}`);
+              return;
+            }
 
             core.setOutput('assigned', 'true');
             console.log(`Copilot coding agent assigned to issue #${issueNumber} with model: ${model}`);
@@ -413,6 +459,7 @@ jobs:
         if: steps.assign-agent.outputs.assigned == 'true'
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}
           script: |
             const issueNumber = ${{ steps.issue.outputs.number }};
 
@@ -456,6 +503,7 @@ jobs:
         if: steps.assign-agent.outputs.assigned == 'true' && vars.SPECKIT_COMMENT_ON_ISSUE != 'false'
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}
           script: |
             const issueNumber = ${{ steps.issue.outputs.number }};
             const specDir = ${{ toJSON(steps.discover.outputs.spec_dir) }};

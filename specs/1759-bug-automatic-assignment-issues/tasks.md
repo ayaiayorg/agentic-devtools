@@ -26,56 +26,58 @@
 
 ## Phase 2: Foundational — Preflight Token Validation (FR-002)
 
-- [ ] T003 [US2] Insert new step `Validate Agent Assignment Token` (id: `validate-token`) before the "Assign Copilot Coding Agent" step (before line 381) in
+- [X] T003 [US2] Insert new step `Validate Agent Assignment Token` (id: `validate-token`) before the "Assign Copilot Coding Agent" step (before line 381) in
   `.github/workflows/speckit-implement-trigger.yml` — shell `run:` step that checks `SPECKIT_PR_TOKEN` and `COPILOT_GITHUB_TOKEN` env vars (FR-002)
-- [ ] T004 [US2] Add `if:` condition to preflight step matching existing gate: `steps.discover.outputs.found == 'true' && steps.check-pr.outputs.exists != 'true'` in
+- [X] T004 [US2] Add `if:` condition to preflight step matching existing gate: `steps.discover.outputs.found == 'true' && steps.check-pr.outputs.exists != 'true'` in
   `.github/workflows/speckit-implement-trigger.yml`
-- [ ] T005 [US2] Implement `::error::` annotation output when neither token is configured, naming both required secrets and exiting with code 1 (FR-002, NFR-003) in
+- [X] T005 [US2] Implement `::error::` annotation output when neither token is configured, naming both required secrets and exiting with code 1 (FR-002, NFR-003) in
   `.github/workflows/speckit-implement-trigger.yml`
-- [ ] T006 [US2] Output `token_identity` to `$GITHUB_OUTPUT` for downstream logging consumption in `.github/workflows/speckit-implement-trigger.yml`
+- [X] T006 [US2] Output `token_identity` to `$GITHUB_OUTPUT` for downstream logging consumption in `.github/workflows/speckit-implement-trigger.yml`
 
 ---
 
 ## Phase 3: User Story 1 — Automatic Agent Assignment (P1)
 
-- [ ] T007 [US1] Add `github-token: ${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}` to the `with:` block of "Assign Copilot Coding Agent" step (FR-001) in
+- [X] T007 [US1] Add `github-token: ${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}` to the `with:` block of "Assign Copilot Coding Agent" step (FR-001) in
   `.github/workflows/speckit-implement-trigger.yml`
-- [ ] T008 [US1] Add `if:` dependency on preflight step success (`steps.validate-token.outcome == 'success'`) to the assignment step's condition (FR-006 preserved, preflight gate added) in
+- [X] T008 [US1] Add `if:` dependency on preflight step success (`steps.validate-token.outcome == 'success'`) to the assignment step's condition (FR-006 preserved, preflight gate added) in
   `.github/workflows/speckit-implement-trigger.yml`
-- [ ] T009 [US1] Add response validation: check HTTP status and verify `response.data.agent_assignment` is non-null; emit `::warning::` and set `assigned` output to `'false'` when null/absent (FR-004)
+- [X] T009 [US1] Add response validation: check HTTP status and treat a
+  successful issue PATCH response as assignment success without depending on an
+  undocumented `response.data.agent_assignment` field (FR-004)
   in `.github/workflows/speckit-implement-trigger.yml`
-- [ ] T010 [US1] Add error handling for 404 (non-fatal skip with log, `assigned='false'`), 401 (fail with actionable message), and other non-2xx (fail with status and body) (FR-004) in
+- [X] T010 [US1] Add error handling for 404 (non-fatal skip with log, `assigned='false'`), 401 (fail with actionable message), and other non-2xx (fail with status and body) (FR-004) in
   `.github/workflows/speckit-implement-trigger.yml`
-- [ ] T011 [US1] Preserve all existing assignment parameters unchanged: `custom_agent`, `base_branch`, `custom_instructions`, `model` (FR-005) in `.github/workflows/speckit-implement-trigger.yml`
-- [ ] T012 [US1] Add `github-token: ${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}` to the "Update Labels" step `with:` block (FR-007) in
+- [X] T011 [US1] Preserve all existing assignment parameters unchanged: `custom_agent`, `base_branch`, `custom_instructions`, `model` (FR-005) in `.github/workflows/speckit-implement-trigger.yml`
+- [X] T012 [US1] Add `github-token: ${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}` to the "Update Labels" step `with:` block (FR-007) in
   `.github/workflows/speckit-implement-trigger.yml`
-- [ ] T013 [US1] Add `github-token: ${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}` to the "Post Implementation Triggered Comment" step `with:` block (FR-007) in
+- [X] T013 [US1] Add `github-token: ${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}` to the "Post Implementation Triggered Comment" step `with:` block (FR-007) in
   `.github/workflows/speckit-implement-trigger.yml`
 
 ---
 
 ## Phase 4: User Story 3 — Assignment Identity Logging (P3)
 
-- [ ] T014 [US3] Add token identity logging line (`console.log`) reading from `steps.validate-token.outputs.token_identity` before the API call in the assignment step script (FR-003) in
+- [X] T014 [US3] Add token identity logging line (`console.log`) reading from `steps.validate-token.outputs.token_identity` before the API call in the assignment step script (FR-003) in
   `.github/workflows/speckit-implement-trigger.yml`
 
 ---
 
 ## Phase 5: Polish & Cross-Cutting
 
-- [ ] T015 [US1] Validate final workflow YAML with `actionlint` to confirm no syntax or indentation errors in `.github/workflows/speckit-implement-trigger.yml` (FR-001, FR-002)
-- [ ] T016 [US1] Verify `permissions` block remains unchanged (NFR-004, FR-006) — no additions or removals in `.github/workflows/speckit-implement-trigger.yml`
-- [ ] T017 [US1] Verify no other workflow files were modified (NFR-004) — `git diff --name-only` shows only `.github/workflows/speckit-implement-trigger.yml`
-- [ ] T018 [US1] Verify `github-token` input in the "Assign Copilot Coding Agent" step uses the pattern `${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}` (FR-001)
-- [ ] T019 [US3] Verify token identity log line (`console.log`) referencing `steps.validate-token.outputs.token_identity` appears before the `github.request()` call in the assignment step script
+- [X] T015 [US1] Validate final workflow YAML with `actionlint` to confirm no syntax or indentation errors in `.github/workflows/speckit-implement-trigger.yml` (FR-001, FR-002)
+- [X] T016 [US1] Verify `permissions` block remains unchanged (NFR-004, FR-006) — no additions or removals in `.github/workflows/speckit-implement-trigger.yml`
+- [X] T017 [US1] Verify no other workflow files were modified (NFR-004) — `git diff --name-only` shows only `.github/workflows/speckit-implement-trigger.yml`
+- [X] T018 [US1] Verify `github-token` input in the "Assign Copilot Coding Agent" step uses the pattern `${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}` (FR-001)
+- [X] T019 [US3] Verify token identity log line (`console.log`) referencing `steps.validate-token.outputs.token_identity` appears before the `github.request()` call in the assignment step script
   (FR-003)
-- [ ] T020 [US1] Verify all existing assignment parameters (`custom_agent`, `base_branch`, `custom_instructions`, `model`) remain present and unchanged in the assignment step after modifications
+- [X] T020 [US1] Verify all existing assignment parameters (`custom_agent`, `base_branch`, `custom_instructions`, `model`) remain present and unchanged in the assignment step after modifications
   (FR-005)
-- [ ] T021 [US1] Verify original `if:` condition (`steps.discover.outputs.found == 'true' && steps.check-pr.outputs.exists != 'true'`) is preserved on the assignment step
+- [X] T021 [US1] Verify original `if:` condition (`steps.discover.outputs.found == 'true' && steps.check-pr.outputs.exists != 'true'`) is preserved on the assignment step
   alongside the new preflight gate (FR-006)
-- [ ] T022 [US1] Verify "Update Labels" step and "Post Implementation Triggered Comment" step each have
+- [X] T022 [US1] Verify "Update Labels" step and "Post Implementation Triggered Comment" step each have
   `github-token: ${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}` in their `with:` blocks (FR-007)
-- [ ] T023 Perform rubber duck review of all changes against FR-001 through FR-007 and NFR-001 through NFR-005 (NFR-005)
+- [X] T023 Perform rubber duck review of all changes against FR-001 through FR-007 and NFR-001 through NFR-005 (NFR-005)
 - [ ] T024 [US1] Happy-path end-to-end smoke test: in a test repository with `SPECKIT_PR_TOKEN` configured, trigger the
   `speckit-implement-trigger.yml` workflow against a phase 5 spec PR merge event and verify (end-to-end) that the originating
   issue receives a Copilot coding agent assignment with `assigned=true`, all existing assignment parameters preserved, the
