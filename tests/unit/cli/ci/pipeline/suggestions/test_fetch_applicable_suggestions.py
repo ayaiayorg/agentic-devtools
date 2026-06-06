@@ -1,5 +1,6 @@
 """Tests for fetch_applicable_suggestions function."""
 
+import logging
 import os
 from unittest.mock import MagicMock, patch
 
@@ -43,34 +44,64 @@ def _build_graphql_response(
     }
 
 
+def _build_thread_comments_response(
+    comments: list[dict | None],
+    *,
+    has_next_page: bool = False,
+    end_cursor: str | None = None,
+) -> dict:
+    """Build a GraphQL node() response for paginated thread comments."""
+    return {
+        "data": {
+            "node": {
+                "comments": {
+                    "pageInfo": {
+                        "hasNextPage": has_next_page,
+                        "endCursor": end_cursor,
+                    },
+                    "nodes": comments,
+                }
+            }
+        }
+    }
+
+
 def _make_thread(
     thread_id: str,
     *,
     is_resolved: bool = False,
-    comments: list[dict] | None = None,
+    is_outdated: bool = False,
+    comments: list[dict | None] | None = None,
+    comments_has_next_page: bool = False,
+    comments_end_cursor: str | None = None,
 ) -> dict:
     """Build a thread node."""
     return {
         "id": thread_id,
         "isResolved": is_resolved,
-        "comments": {"nodes": comments or []},
+        "isOutdated": is_outdated,
+        "comments": {
+            "pageInfo": {
+                "hasNextPage": comments_has_next_page,
+                "endCursor": comments_end_cursor,
+            },
+            "nodes": comments or [],
+        },
     }
 
 
 def _make_comment(
     database_id: int,
-    suggestions: list[dict] | None = None,
+    *,
+    comment_id: str = "COMMENT_NODE_1",
+    body: str = "regular review comment",
 ) -> dict:
     """Build a comment node."""
     return {
+        "id": comment_id,
         "databaseId": database_id,
-        "suggestedChanges": {"nodes": suggestions or []},
+        "body": body,
     }
-
-
-def _make_suggestion(suggestion_id: str, *, outdated: bool = False) -> dict:
-    """Build a suggestion node."""
-    return {"id": suggestion_id, "outdated": outdated}
 
 
 class TestFetchApplicableSuggestions:
@@ -83,32 +114,48 @@ class TestFetchApplicableSuggestions:
         assert suggestions == []
         assert pr_id == "PR_NODE_1"
 
-    def test_query_requests_suggested_changes_with_pagination(self) -> None:
-        """GraphQL query includes required pagination arg for suggestedChanges."""
+    def test_query_avoids_forbidden_fields(self) -> None:
+        """GraphQL query does not use unsupported suggestion fields."""
         provider = _make_provider([_build_graphql_response([])])
         fetch_applicable_suggestions(provider, 42)
         query = provider.graphql.call_args.kwargs["query"]
-        assert "suggestedChanges(first: 100)" in query
+        assert "suggestedChanges" not in query
+        assert "suggestions" not in query
 
-    def test_filters_outdated_suggestions(self) -> None:
-        """Outdated suggestions are excluded."""
+    def test_detects_suggestions_from_comment_body(self) -> None:
+        """Only comments with ```suggestion code blocks are returned."""
         thread = _make_thread(
             "T1",
             comments=[
-                _make_comment(
-                    100,
-                    [
-                        _make_suggestion("SC1", outdated=True),
-                        _make_suggestion("SC2", outdated=False),
-                    ],
-                ),
+                _make_comment(100, comment_id="C1", body="looks good"),
+                _make_comment(101, comment_id="C2", body="Please update:\n```suggestion\nvalue = 1\n```"),
+                _make_comment(102, comment_id="C3", body="  ```suggestion\nvalue = 2\n```"),
+                _make_comment(103, comment_id="C4", body="```suggestion\r\nvalue = 3\r\n```\r\n"),
+                _make_comment(104, comment_id="C5", body="```suggestion:-1+1\nvalue = 4\n```"),
+                _make_comment(105, comment_id="C6", body="```suggestion:abc\nvalue = 5\n```"),
             ],
         )
         provider = _make_provider([_build_graphql_response([thread])])
         suggestions, _ = fetch_applicable_suggestions(provider, 1)
-        assert len(suggestions) == 1
-        assert suggestions[0].suggestion_id == "SC2"
-        assert suggestions[0].comment_database_id == 100
+        assert len(suggestions) == 4
+        assert suggestions[0].suggestion_id == "C2"
+        assert suggestions[1].suggestion_id == "C3"
+        assert suggestions[2].suggestion_id == "C4"
+        assert suggestions[3].suggestion_id == "C5"
+        assert suggestions[0].comment_database_id == 101
+
+    def test_filters_outdated_thread_suggestions(self) -> None:
+        """Suggestions from outdated threads are excluded."""
+        thread = _make_thread(
+            "T1",
+            is_outdated=True,
+            comments=[
+                _make_comment(100, comment_id="C1", body="```suggestion\nnew line\n```"),
+            ],
+        )
+        provider = _make_provider([_build_graphql_response([thread])])
+        suggestions, _ = fetch_applicable_suggestions(provider, 1)
+        assert suggestions == []
 
     def test_skips_resolved_threads(self) -> None:
         """Resolved threads are skipped entirely."""
@@ -116,7 +163,7 @@ class TestFetchApplicableSuggestions:
             "T1",
             is_resolved=True,
             comments=[
-                _make_comment(100, [_make_suggestion("SC1")]),
+                _make_comment(100, comment_id="C1", body="```suggestion\nnew line\n```"),
             ],
         )
         provider = _make_provider([_build_graphql_response([thread])])
@@ -127,11 +174,11 @@ class TestFetchApplicableSuggestions:
         """Handles multiple pages of threads."""
         thread1 = _make_thread(
             "T1",
-            comments=[_make_comment(100, [_make_suggestion("SC1")])],
+            comments=[_make_comment(100, comment_id="C1", body="```suggestion\nline\n```")],
         )
         thread2 = _make_thread(
             "T2",
-            comments=[_make_comment(200, [_make_suggestion("SC2")])],
+            comments=[_make_comment(200, comment_id="C2", body="```suggestion\nline2\n```")],
         )
         provider = _make_provider(
             [
@@ -141,27 +188,158 @@ class TestFetchApplicableSuggestions:
         )
         suggestions, _ = fetch_applicable_suggestions(provider, 1)
         assert len(suggestions) == 2
-        assert suggestions[0].suggestion_id == "SC1"
-        assert suggestions[1].suggestion_id == "SC2"
+        assert suggestions[0].suggestion_id == "C1"
+        assert suggestions[1].suggestion_id == "C2"
 
-    def test_multiple_suggestions_per_comment(self) -> None:
-        """Multiple suggestions in a single comment are all returned."""
+    def test_paginates_comments_within_thread(self) -> None:
+        """Handles comments pagination for a single thread."""
         thread = _make_thread(
             "T1",
-            comments=[
-                _make_comment(
-                    100,
-                    [
-                        _make_suggestion("SC1"),
-                        _make_suggestion("SC2"),
-                    ],
-                ),
-            ],
+            comments=[_make_comment(100, comment_id="C1", body="first comment")],
+            comments_has_next_page=True,
+            comments_end_cursor="comments-cursor-1",
         )
-        provider = _make_provider([_build_graphql_response([thread])])
+        paged_comment_response = _build_thread_comments_response(
+            [_make_comment(101, comment_id="C2", body="```suggestion\nnew\n```")],
+            has_next_page=False,
+            end_cursor=None,
+        )
+        provider = _make_provider([_build_graphql_response([thread]), paged_comment_response])
+
         suggestions, _ = fetch_applicable_suggestions(provider, 1)
-        assert len(suggestions) == 2
-        assert all(s.comment_database_id == 100 for s in suggestions)
+
+        assert len(suggestions) == 1
+        assert suggestions[0].suggestion_id == "C2"
+        second_call = provider.graphql.call_args_list[1]
+        assert second_call.kwargs["variables"]["threadId"] == "T1"
+        assert second_call.kwargs["variables"]["commentsCursor"] == "comments-cursor-1"
+
+    def test_thread_comment_schema_error_logs_warning_and_raises_runtime_error(
+        self,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Schema mismatch while paginating thread comments is fail-closed."""
+        thread = _make_thread(
+            "T1",
+            comments=[_make_comment(100, comment_id="C1", body="first comment")],
+            comments_has_next_page=True,
+            comments_end_cursor="comments-cursor-1",
+        )
+        provider = _make_provider(
+            [
+                _build_graphql_response([thread]),
+                {
+                    "errors": [{"message": "Cannot query field 'comments' on type 'PullRequestReviewThread'"}],
+                },
+            ]
+        )
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(RuntimeError, match="GraphQL query failed"):
+                fetch_applicable_suggestions(provider, 1)
+        assert "Thread comments GraphQL schema mismatch" in caplog.text
+
+    def test_thread_comment_rate_limit_error_raises_retryable_error(self) -> None:
+        """Transient errors from paged thread comments are retryable."""
+        thread = _make_thread(
+            "T1",
+            comments=[_make_comment(100, comment_id="C1", body="first comment")],
+            comments_has_next_page=True,
+            comments_end_cursor="comments-cursor-1",
+        )
+        provider = _make_provider(
+            [
+                _build_graphql_response([thread]),
+                {
+                    "errors": [{"message": "You have exceeded a secondary rate limit. Please wait a few minutes."}],
+                },
+            ]
+        )
+        with pytest.raises(RetryableError, match="Transient GraphQL query error"):
+            fetch_applicable_suggestions(provider, 1)
+
+    def test_thread_comment_non_schema_error_raises_runtime_error(self) -> None:
+        """Non-transient, non-schema errors from paged comments fail closed."""
+        thread = _make_thread(
+            "T1",
+            comments=[_make_comment(100, comment_id="C1", body="first comment")],
+            comments_has_next_page=True,
+            comments_end_cursor="comments-cursor-1",
+        )
+        provider = _make_provider(
+            [
+                _build_graphql_response([thread]),
+                {
+                    "errors": [{"message": "Could not resolve node ID"}],
+                },
+            ]
+        )
+        with pytest.raises(RuntimeError, match="GraphQL query failed"):
+            fetch_applicable_suggestions(provider, 1)
+
+    def test_thread_comment_node_without_comments_dict_is_treated_as_empty(self) -> None:
+        """Missing thread comments payload in paged fetch yields no extra comments."""
+        thread = _make_thread(
+            "T1",
+            comments=[_make_comment(100, comment_id="C1", body="first comment")],
+            comments_has_next_page=True,
+            comments_end_cursor="comments-cursor-1",
+        )
+        provider = _make_provider(
+            [
+                _build_graphql_response([thread]),
+                {"data": {"node": {"comments": None}}},
+            ]
+        )
+        suggestions, _ = fetch_applicable_suggestions(provider, 1)
+        assert suggestions == []
+
+    def test_thread_comment_pageinfo_none_is_treated_as_empty_dict(self) -> None:
+        """Null pageInfo in paged thread comments does not crash pagination logic."""
+        thread = _make_thread(
+            "T1",
+            comments=[_make_comment(100, comment_id="C1", body="first comment")],
+            comments_has_next_page=True,
+            comments_end_cursor="comments-cursor-1",
+        )
+        provider = _make_provider(
+            [
+                _build_graphql_response([thread]),
+                {
+                    "data": {
+                        "node": {
+                            "comments": {
+                                "pageInfo": None,
+                                "nodes": [_make_comment(101, comment_id="C2", body="```suggestion\nnew\n```")],
+                            }
+                        }
+                    }
+                },
+            ]
+        )
+        suggestions, _ = fetch_applicable_suggestions(provider, 1)
+        assert len(suggestions) == 1
+        assert suggestions[0].suggestion_id == "C2"
+
+    def test_initial_thread_comments_pageinfo_none_is_treated_as_empty_dict(self) -> None:
+        """Null pageInfo on initial thread comments does not crash pagination logic."""
+        response = _build_graphql_response(
+            [
+                {
+                    "id": "T1",
+                    "isResolved": False,
+                    "isOutdated": False,
+                    "comments": {
+                        "pageInfo": None,
+                        "nodes": [_make_comment(101, comment_id="C2", body="```suggestion\nnew\n```")],
+                    },
+                }
+            ]
+        )
+        provider = _make_provider([response])
+        suggestions, _ = fetch_applicable_suggestions(provider, 1)
+        assert len(suggestions) == 1
+        assert suggestions[0].suggestion_id == "C2"
+        assert provider.graphql.call_count == 1
 
     def test_raises_when_repo_not_determinable(self) -> None:
         """RuntimeError when provider has no _repo and GITHUB_REPOSITORY is unset."""
@@ -184,6 +362,20 @@ class TestFetchApplicableSuggestions:
 
         with pytest.raises(RuntimeError, match="GraphQL query failed"):
             fetch_applicable_suggestions(provider, 9999)
+
+    def test_schema_error_logs_warning_and_raises_runtime_error(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Schema mismatch GraphQL errors are fail-closed with warning logs."""
+        provider = _make_provider(
+            [
+                {
+                    "errors": [{"message": "Cannot query field 'suggestedChanges' on type 'PullRequestReviewComment'"}],
+                }
+            ]
+        )
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(RuntimeError, match="GraphQL query failed"):
+                fetch_applicable_suggestions(provider, 42)
+        assert "Suggestion fetch GraphQL schema mismatch" in caplog.text
 
     def test_raises_runtime_error_when_pull_request_node_is_null(self) -> None:
         """Null pullRequest node raises a deterministic RuntimeError."""
@@ -219,55 +411,37 @@ class TestFetchApplicableSuggestions:
         """Null entries in reviewThreads.nodes are skipped without error."""
         valid_thread = _make_thread(
             "T1",
-            comments=[_make_comment(100, [_make_suggestion("SC1")])],
+            comments=[_make_comment(100, comment_id="C1", body="```suggestion\nSC1\n```")],
         )
         response = _build_graphql_response([None, valid_thread])
         provider = _make_provider([response])
         suggestions, _ = fetch_applicable_suggestions(provider, 1)
         assert len(suggestions) == 1
-        assert suggestions[0].suggestion_id == "SC1"
+        assert suggestions[0].suggestion_id == "C1"
 
     def test_null_comment_node_is_skipped(self) -> None:
         """Null entries in comments.nodes are skipped without error."""
-        valid_comment = _make_comment(200, [_make_suggestion("SC2")])
-        thread = {
-            "id": "T1",
-            "isResolved": False,
-            "comments": {"nodes": [None, valid_comment]},
-        }
+        valid_comment = _make_comment(200, comment_id="C2", body="```suggestion\nSC2\n```")
+        thread = _make_thread("T1", comments=[None, valid_comment])
         provider = _make_provider([_build_graphql_response([thread])])
         suggestions, _ = fetch_applicable_suggestions(provider, 1)
         assert len(suggestions) == 1
-        assert suggestions[0].suggestion_id == "SC2"
+        assert suggestions[0].suggestion_id == "C2"
 
-    def test_null_suggestion_node_is_skipped(self) -> None:
-        """Null entries in suggestedChanges.nodes are skipped without error."""
+    def test_comment_without_id_is_skipped(self) -> None:
+        """Comments missing an id field are skipped without error."""
         comment = {
             "databaseId": 300,
-            "suggestedChanges": {"nodes": [None, {"id": "SC3", "outdated": False}]},
+            "body": "```suggestion\nSC3\n```",
         }
-        thread = {"id": "T1", "isResolved": False, "comments": {"nodes": [comment]}}
+        thread = _make_thread(
+            "T1",
+            comments=[comment, _make_comment(301, comment_id="C3", body="```suggestion\nok\n```")],
+        )
         provider = _make_provider([_build_graphql_response([thread])])
         suggestions, _ = fetch_applicable_suggestions(provider, 1)
         assert len(suggestions) == 1
-        assert suggestions[0].suggestion_id == "SC3"
-
-    def test_suggestion_without_id_is_skipped(self) -> None:
-        """Suggestion entries missing an 'id' field are skipped without error."""
-        comment = {
-            "databaseId": 400,
-            "suggestedChanges": {
-                "nodes": [
-                    {"outdated": False},
-                    {"id": "SC4", "outdated": False},
-                ]
-            },
-        }
-        thread = {"id": "T1", "isResolved": False, "comments": {"nodes": [comment]}}
-        provider = _make_provider([_build_graphql_response([thread])])
-        suggestions, _ = fetch_applicable_suggestions(provider, 1)
-        assert len(suggestions) == 1
-        assert suggestions[0].suggestion_id == "SC4"
+        assert suggestions[0].suggestion_id == "C3"
 
     def test_null_review_threads_value_is_handled(self) -> None:
         """Explicit null for reviewThreads in response yields empty suggestions."""
@@ -289,10 +463,11 @@ class TestFetchApplicableSuggestions:
     def test_non_int_database_id_defaults_to_zero(self) -> None:
         """Non-int databaseId values are coerced to 0 rather than leaking."""
         comment = {
+            "id": "C5",
             "databaseId": "not-an-int",
-            "suggestedChanges": {"nodes": [{"id": "SC5", "outdated": False}]},
+            "body": "```suggestion\nSC5\n```",
         }
-        thread = {"id": "T1", "isResolved": False, "comments": {"nodes": [comment]}}
+        thread = _make_thread("T1", comments=[comment])
         provider = _make_provider([_build_graphql_response([thread])])
         suggestions, _ = fetch_applicable_suggestions(provider, 1)
         assert len(suggestions) == 1
@@ -301,10 +476,11 @@ class TestFetchApplicableSuggestions:
     def test_none_database_id_defaults_to_zero(self) -> None:
         """Explicit null databaseId is coerced to 0 rather than leaking."""
         comment = {
+            "id": "C6",
             "databaseId": None,
-            "suggestedChanges": {"nodes": [{"id": "SC6", "outdated": False}]},
+            "body": "```suggestion\nSC6\n```",
         }
-        thread = {"id": "T1", "isResolved": False, "comments": {"nodes": [comment]}}
+        thread = _make_thread("T1", comments=[comment])
         provider = _make_provider([_build_graphql_response([thread])])
         suggestions, _ = fetch_applicable_suggestions(provider, 1)
         assert len(suggestions) == 1
@@ -314,7 +490,7 @@ class TestFetchApplicableSuggestions:
         """hasNextPage=True with null endCursor stops pagination rather than looping."""
         thread = _make_thread(
             "T1",
-            comments=[_make_comment(100, [_make_suggestion("SC1")])],
+            comments=[_make_comment(100, comment_id="C1", body="```suggestion\nSC1\n```")],
         )
         response = _build_graphql_response([thread], has_next_page=True, end_cursor=None)
         provider = _make_provider([response])
@@ -322,4 +498,4 @@ class TestFetchApplicableSuggestions:
         # Should not loop: only the first page is consumed
         assert provider.graphql.call_count == 1
         assert len(suggestions) == 1
-        assert suggestions[0].suggestion_id == "SC1"
+        assert suggestions[0].suggestion_id == "C1"

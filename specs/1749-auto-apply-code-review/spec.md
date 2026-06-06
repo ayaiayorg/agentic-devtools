@@ -179,8 +179,8 @@ during automated processing, especially when reviewing the PR timeline after the
 
 The system must handle the following boundary conditions:
 
-- **Deleted file reference**: When a suggestion references a file that was deleted in a subsequent commit pushed between review and loop execution, the action should detect this via the `outdated`
-  field or mutation error and exclude the suggestion gracefully, logging it as skipped with reason "file deleted / outdated".
+- **Deleted file reference**: When a suggestion references a file that was deleted in a subsequent commit pushed between review and loop execution, the action should detect this via thread
+  `isOutdated` or mutation error and exclude the suggestion gracefully, logging it as skipped with reason "file deleted / outdated".
 
 - **Single conflicting suggestion**: When the PR has exactly one suggestion and it conflicts, the bisection fallback should degrade gracefully to a no-op since there is nothing left to split, and the
   single suggestion passes through to repair dispatch.
@@ -201,16 +201,16 @@ The system must handle the following boundary conditions:
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST query the GitHub GraphQL API to retrieve all `SuggestedChange` nodes on the PR's review threads, filtering to only those where the `outdated` field is `false` and the
-  parent thread is unresolved.
+- **FR-001**: The system MUST query the GitHub GraphQL API to retrieve unresolved review-thread comments and detect apply-able suggestions by parsing each comment `body` for literal markdown
+  triple-backtick suggestion fences (```` ```suggestion ````).
 
 - **FR-002**: The system MUST attempt to apply all valid suggestions in a single `applySuggestedChanges` GraphQL mutation call, producing exactly one commit when the batch succeeds without conflicts.
 
 - **FR-003**: When the batch mutation fails due to conflicting hunks or partial errors, the system MUST fall back to a bisection strategy that subdivides the suggestion set and retries application of
   non-conflicting subsets, minimizing the number of API calls while maximizing the number of successfully applied suggestions.
 
-- **FR-004**: The system MUST exclude suggestions with `outdated: true` from any application attempt and log them as skipped for auto-apply; this exclusion MUST NOT, by itself, remove their parent
-  review comments from repair dispatch context.
+- **FR-004**: The system MUST exclude suggestions from outdated threads (`isOutdated: true`) from any application attempt and log them as skipped for auto-apply; this exclusion MUST NOT, by itself,
+  remove their parent review comments from repair dispatch context.
 
 - **FR-005**: The system MUST record the `databaseId` of each `PullRequestReviewComment` node that contains an applied suggestion (i.e., the `reviewComment.databaseId` REST API numeric ID) and pass
   those IDs to the repair dispatch action via `ExclusionContext` so that `provider.list_review_comments()` can exclude those comments from the repair context.
