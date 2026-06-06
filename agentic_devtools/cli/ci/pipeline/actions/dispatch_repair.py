@@ -9,6 +9,7 @@ from agentic_devtools.cli.ci.guards import (
     check_deduplication,
     is_duplicate_trigger,
 )
+from agentic_devtools.cli.ci.models import COPILOT_LOGINS, ReviewInfo
 from agentic_devtools.cli.ci.pipeline.exclusion import ExclusionContext
 from agentic_devtools.cli.ci.pipeline.models import ActionDecision, ActionResult
 from agentic_devtools.cli.ci.pipeline.snapshot import DerivedState, PRStateSnapshot
@@ -34,11 +35,34 @@ def _is_copilot_review_actionable(snapshot: PRStateSnapshot) -> bool:
     return False
 
 
+def _list_prior_actionable_copilot_reviews(snapshot: PRStateSnapshot) -> list[ReviewInfo]:
+    """Return actionable Copilot reviews that target commits prior to HEAD."""
+    return [
+        r
+        for r in snapshot.reviews
+        if r.user in COPILOT_LOGINS
+        and r.commit_sha
+        and r.commit_sha != snapshot.head_sha
+        and r.state in ("CHANGES_REQUESTED", "COMMENTED")
+    ]
+
+
+def _has_stuck_prior_review_threads(snapshot: PRStateSnapshot) -> bool:
+    """Return True when unresolved prior-review threads should trigger repair."""
+    return (
+        snapshot.ci_status == "passing"
+        and snapshot.copilot_review_id == 0
+        and snapshot.unresolved_threads > 0
+        and bool(_list_prior_actionable_copilot_reviews(snapshot))
+    )
+
+
 class DispatchRepairAction:
-    """Dispatch a repair when CI fails or actionable Copilot review exists.
+    """Dispatch a repair when CI fails or actionable review feedback exists.
 
     Preconditions:
     - CI failed OR actionable Copilot review on HEAD
+      OR stuck unresolved threads from prior Copilot review(s)
     - Deduplication limit not exceeded
     - Cycle limit not exceeded
 
@@ -55,19 +79,25 @@ class DispatchRepairAction:
         """Evaluate whether repair dispatch is needed."""
         preconditions: dict[str, bool] = {}
 
-        # CI failed OR actionable review
+        # CI failed OR actionable review OR unresolved prior-review threads are stuck
         ci_failing = snapshot.ci_status == "failing"
         review_actionable = _is_copilot_review_actionable(snapshot)
-        needs_repair = ci_failing or review_actionable
+        stuck_prior_threads = _has_stuck_prior_review_threads(snapshot)
+        needs_repair = ci_failing or review_actionable or stuck_prior_threads
         preconditions["ci_failing"] = ci_failing
         preconditions["review_actionable"] = review_actionable
+        preconditions["stuck_prior_threads"] = stuck_prior_threads
         preconditions["needs_repair"] = needs_repair
         if not needs_repair:
             return ActionResult(
                 name=self.name,
                 decision=ActionDecision.SKIP,
                 preconditions=preconditions,
-                details=f"No repair needed (ci_status={snapshot.ci_status}, review_actionable={review_actionable})",
+                details=(
+                    "No repair needed "
+                    f"(ci_status={snapshot.ci_status}, review_actionable={review_actionable}, "
+                    f"stuck_prior_threads={stuck_prior_threads})"
+                ),
             )
 
         # CI pending check - don't dispatch repair while CI still running
@@ -96,21 +126,33 @@ class DispatchRepairAction:
     ) -> ActionResult:
         """Dispatch repair by posting @copilot comment."""
         # Check review-ID level deduplication first (FR-012).
-        # Only applies when the review is actionable; _is_copilot_review_actionable()
-        # already guarantees copilot_review_id > 0 when True, but the explicit check
-        # keeps the intent clear for readers.
-        if _is_copilot_review_actionable(snapshot) and snapshot.copilot_review_id > 0:
+        # Applies to both normal actionable reviews on HEAD and stuck prior-review
+        # thread repairs (where review context is from a prior commit review).
+        review_actionable = _is_copilot_review_actionable(snapshot)
+        prior_reviews = _list_prior_actionable_copilot_reviews(snapshot)
+        prior_reviews.sort(
+            key=lambda r: (
+                r.submitted_at if isinstance(r.submitted_at, str) else "",
+                r.id,
+            ),
+            reverse=True,
+        )
+        stuck_prior_threads = _has_stuck_prior_review_threads(snapshot)
+        review_context_id = (
+            snapshot.copilot_review_id if review_actionable else (prior_reviews[0].id if stuck_prior_threads else 0)
+        )
+        if review_context_id > 0:
             try:
-                if is_duplicate_trigger(provider, snapshot.pr_number, snapshot.copilot_review_id):
+                if is_duplicate_trigger(provider, snapshot.pr_number, review_context_id):
                     logger.info(
                         "PR #%d: Trigger comment already exists for review_id=%d — skipping",
                         snapshot.pr_number,
-                        snapshot.copilot_review_id,
+                        review_context_id,
                     )
                     return ActionResult(
                         name=self.name,
                         decision=ActionDecision.SKIP,
-                        details=f"Repair already dispatched for review_id={snapshot.copilot_review_id}",
+                        details=f"Repair already dispatched for review_id={review_context_id}",
                     )
             except Exception as exc:
                 logger.warning("PR #%d: Review-ID dedup check failed: %s", snapshot.pr_number, exc)
@@ -119,8 +161,7 @@ class DispatchRepairAction:
 
         ci_failing = snapshot.ci_status == "failing"
         ci_passing = snapshot.ci_status == "passing"
-        review_actionable = _is_copilot_review_actionable(snapshot)
-        dedup_kwargs = {"max_dispatches": 1} if ci_failing and not review_actionable else {}
+        dedup_kwargs = {"max_dispatches": 1} if ci_failing and not (review_actionable or stuck_prior_threads) else {}
 
         # Check deduplication limits
         try:
@@ -175,9 +216,10 @@ class DispatchRepairAction:
             )
 
         # Determine repair type
-        if ci_failing and review_actionable:
+        review_repair_needed = review_actionable or stuck_prior_threads
+        if ci_failing and review_repair_needed:
             repair_type = "both"
-        elif review_actionable:
+        elif review_repair_needed:
             repair_type = "review"
         else:
             repair_type = "ci"
@@ -188,11 +230,19 @@ class DispatchRepairAction:
 
         # Get review comments if needed
         review_comments = []
-        if review_actionable and snapshot.copilot_review_id:
-            try:
-                review_comments = provider.list_review_comments(snapshot.pr_number, snapshot.copilot_review_id)
-            except Exception as exc:
-                logger.warning("PR #%d: Failed to fetch review comments: %s", snapshot.pr_number, exc)
+        if review_repair_needed and review_context_id:
+            review_ids = [r.id for r in prior_reviews] if stuck_prior_threads else [review_context_id]
+            seen_comment_keys: set[tuple[int, int]] = set()
+            for review_id in review_ids:
+                try:
+                    for comment in provider.list_review_comments(snapshot.pr_number, review_id):
+                        dedup_key = (review_id, comment.id) if comment.id < 0 else (0, comment.id)
+                        if dedup_key in seen_comment_keys:
+                            continue
+                        seen_comment_keys.add(dedup_key)
+                        review_comments.append(comment)
+                except Exception as exc:
+                    logger.warning("PR #%d: Failed to fetch review comments: %s", snapshot.pr_number, exc)
 
         # Filter out comments already handled by ApplySuggestionsAction (FR-005, FR-006)
         exclusion_ctx: ExclusionContext | None = derived.get("exclusion_context")
@@ -227,7 +277,7 @@ class DispatchRepairAction:
                 repair_type=repair_type,
                 failed_checks=failed_checks,
                 review_comments=review_comments,
-                review_id=snapshot.copilot_review_id,
+                review_id=review_context_id,
             )
         except Exception as exc:
             logger.error("PR #%d: Repair dispatch failed: %s", snapshot.pr_number, exc)
