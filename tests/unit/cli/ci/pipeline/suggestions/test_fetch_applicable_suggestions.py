@@ -24,6 +24,8 @@ def _build_graphql_response(
     has_next_page: bool = False,
     end_cursor: str | None = None,
     pr_node_id: str = "PR_NODE_1",
+    head_ref_name: str = "feature-branch",
+    head_ref_oid: str = "abc123def456",
 ) -> dict:
     """Build a GraphQL response with given threads."""
     return {
@@ -31,6 +33,8 @@ def _build_graphql_response(
             "repository": {
                 "pullRequest": {
                     "id": pr_node_id,
+                    "headRefName": head_ref_name,
+                    "headRefOid": head_ref_oid,
                     "reviewThreads": {
                         "pageInfo": {
                             "hasNextPage": has_next_page,
@@ -95,12 +99,18 @@ def _make_comment(
     *,
     comment_id: str = "COMMENT_NODE_1",
     body: str = "regular review comment",
+    path: str = "src/example.py",
+    line: int = 10,
+    start_line: int | None = None,
 ) -> dict:
     """Build a comment node."""
     return {
         "id": comment_id,
         "databaseId": database_id,
         "body": body,
+        "path": path,
+        "line": line,
+        "startLine": start_line,
     }
 
 
@@ -114,13 +124,63 @@ class TestFetchApplicableSuggestions:
         assert suggestions == []
         assert pr_id == "PR_NODE_1"
 
-    def test_query_avoids_forbidden_fields(self) -> None:
-        """GraphQL query does not use unsupported suggestion fields."""
+    def test_query_includes_path_and_line_fields(self) -> None:
+        """GraphQL query requests path, line, and startLine fields."""
         provider = _make_provider([_build_graphql_response([])])
         fetch_applicable_suggestions(provider, 42)
         query = provider.graphql.call_args.kwargs["query"]
-        assert "suggestedChanges" not in query
-        assert "suggestions" not in query
+        assert "path" in query
+        assert "line" in query
+        assert "startLine" in query
+
+    def test_detects_suggestions_from_comment_body_with_path_and_line(self) -> None:
+        """Suggestions include path and line range from comment fields."""
+        thread = _make_thread(
+            "T1",
+            comments=[
+                _make_comment(
+                    100,
+                    comment_id="C1",
+                    body="```suggestion\nvalue = 1\n```",
+                    path="src/main.py",
+                    line=15,
+                    start_line=14,
+                ),
+            ],
+        )
+        provider = _make_provider([_build_graphql_response([thread])])
+        suggestions, _ = fetch_applicable_suggestions(provider, 1)
+        assert len(suggestions) == 1
+        assert suggestions[0].suggestion_id == "C1"
+        assert suggestions[0].path == "src/main.py"
+        assert suggestions[0].start_line == 14
+        assert suggestions[0].end_line == 15
+        assert suggestions[0].replacement == "value = 1\n"
+
+    def test_skips_comments_without_path_or_line(self) -> None:
+        """Comments with suggestion blocks but missing path/line are skipped."""
+        thread = _make_thread(
+            "T1",
+            comments=[
+                _make_comment(
+                    100,
+                    comment_id="C1",
+                    body="```suggestion\nvalue = 1\n```",
+                    path="",
+                    line=10,
+                ),
+                _make_comment(
+                    101,
+                    comment_id="C2",
+                    body="```suggestion\nvalue = 2\n```",
+                    path="file.py",
+                    line=0,
+                ),
+            ],
+        )
+        provider = _make_provider([_build_graphql_response([thread])])
+        suggestions, _ = fetch_applicable_suggestions(provider, 1)
+        assert len(suggestions) == 0
 
     def test_detects_suggestions_from_comment_body(self) -> None:
         """Only comments with ```suggestion code blocks are returned."""
@@ -213,6 +273,7 @@ class TestFetchApplicableSuggestions:
         second_call = provider.graphql.call_args_list[1]
         assert second_call.kwargs["variables"]["threadId"] == "T1"
         assert second_call.kwargs["variables"]["commentsCursor"] == "comments-cursor-1"
+        assert "path" in second_call.kwargs["query"]
 
     def test_thread_comment_schema_error_logs_warning_and_raises_runtime_error(
         self,
@@ -433,6 +494,9 @@ class TestFetchApplicableSuggestions:
         comment = {
             "databaseId": 300,
             "body": "```suggestion\nSC3\n```",
+            "path": "file.py",
+            "line": 5,
+            "startLine": None,
         }
         thread = _make_thread(
             "T1",
@@ -450,6 +514,8 @@ class TestFetchApplicableSuggestions:
                 "repository": {
                     "pullRequest": {
                         "id": "PR_NODE_X",
+                        "headRefName": "branch",
+                        "headRefOid": "abc123",
                         "reviewThreads": None,
                     }
                 }
@@ -466,6 +532,9 @@ class TestFetchApplicableSuggestions:
             "id": "C5",
             "databaseId": "not-an-int",
             "body": "```suggestion\nSC5\n```",
+            "path": "file.py",
+            "line": 10,
+            "startLine": None,
         }
         thread = _make_thread("T1", comments=[comment])
         provider = _make_provider([_build_graphql_response([thread])])
@@ -479,6 +548,9 @@ class TestFetchApplicableSuggestions:
             "id": "C6",
             "databaseId": None,
             "body": "```suggestion\nSC6\n```",
+            "path": "file.py",
+            "line": 10,
+            "startLine": None,
         }
         thread = _make_thread("T1", comments=[comment])
         provider = _make_provider([_build_graphql_response([thread])])
@@ -499,3 +571,44 @@ class TestFetchApplicableSuggestions:
         assert provider.graphql.call_count == 1
         assert len(suggestions) == 1
         assert suggestions[0].suggestion_id == "C1"
+
+    def test_malformed_suggestion_block_is_skipped(self) -> None:
+        """Suggestion block without closing backticks is skipped."""
+        # Block pattern matches the opening line but content pattern requires closing ```
+        thread = _make_thread(
+            "T1",
+            comments=[
+                _make_comment(
+                    100,
+                    comment_id="C1",
+                    body="```suggestion\nsome content without closing fence",
+                    path="src/file.py",
+                    line=5,
+                    start_line=5,
+                ),
+            ],
+        )
+        provider = _make_provider([_build_graphql_response([thread])])
+        suggestions, _ = fetch_applicable_suggestions(provider, 1)
+        assert suggestions == []
+
+    def test_empty_suggestion_block_is_valid_delete(self) -> None:
+        """Empty suggestion block is retained as an empty replacement (delete)."""
+        thread = _make_thread(
+            "T1",
+            comments=[
+                _make_comment(
+                    100,
+                    comment_id="C1",
+                    body="```suggestion\n```",
+                    path="src/file.py",
+                    line=5,
+                    start_line=5,
+                ),
+            ],
+        )
+        provider = _make_provider([_build_graphql_response([thread])])
+        suggestions, _ = fetch_applicable_suggestions(provider, 1)
+        assert len(suggestions) == 1
+        assert suggestions[0].suggestion_id == "C1"
+        assert suggestions[0].replacement == ""

@@ -159,14 +159,21 @@ class ApplySuggestionsAction:
 
         suggestion_ids = [s.suggestion_id for s in suggestions]
         logger.info(
-            "PR #%d: Applying %d suggestions via GraphQL",
+            "PR #%d: Applying %d suggestions via createCommitOnBranch",
             snapshot.pr_number,
             len(suggestion_ids),
         )
 
         # Apply suggestions — batch first, bisection fallback on conflict
         try:
-            result = apply_suggestions_with_bisection(provider, pr_node_id, suggestion_ids)
+            result = apply_suggestions_with_bisection(
+                provider,
+                pr_node_id,
+                suggestion_ids,
+                suggestions=suggestions,
+                head_ref=snapshot.head_branch,
+                head_oid=snapshot.head_sha,
+            )
         except Exception as exc:
             logger.warning("PR #%d: Failed to apply suggestions: %s", snapshot.pr_number, exc)
             # Return SKIP (not FAILED) to avoid halting pipeline per FR-010
