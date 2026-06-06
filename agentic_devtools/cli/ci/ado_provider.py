@@ -221,3 +221,18 @@ class AzureDevOpsProvider(CIPlatformProvider):
     def list_pr_issue_events(self, pr_number: int) -> list[IssueEvent]:
         """ADO does not support the GitHub Issues Events API — returns empty list."""
         return []
+
+    def count_commits_behind(self, *, pr_number: int, base_branch: str, head_branch: str) -> int:
+        """ADO stub — returns 0 (not yet implemented)."""
+        return 0
+
+    def rebase_onto_base(
+        self,
+        *,
+        pr_number: int,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+    ) -> None:
+        """Not implemented for ADO stub."""
+        raise NotImplementedError("AzureDevOpsProvider.rebase_onto_base() not yet implemented")

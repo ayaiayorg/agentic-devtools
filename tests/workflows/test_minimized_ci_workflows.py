@@ -57,6 +57,8 @@ class TestMinimizedCiWorkflows:
         content = AI_PR_LOOP.read_text(encoding="utf-8")
         assert "concurrency:" in content
         assert "github.event.inputs.pr_number" in content
+        assert "replace(replace(replace(" not in content
+        assert 'pr_number="${pr_number#"${pr_number%%[! ]*}"}"' not in content
 
     def test_ai_pr_loop_uses_workflow_dispatch_only(self) -> None:
         content = AI_PR_LOOP.read_text(encoding="utf-8")

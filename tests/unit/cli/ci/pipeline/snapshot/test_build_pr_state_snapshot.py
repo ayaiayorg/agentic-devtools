@@ -13,11 +13,17 @@ from agentic_devtools.cli.ci.pipeline.snapshot import (
 )
 
 
+def _make_provider() -> MagicMock:
+    provider = MagicMock()
+    provider.count_commits_behind.return_value = 0
+    return provider
+
+
 class TestBuildPrStateSnapshot:
     """Tests for build_pr_state_snapshot behavior."""
 
     def test_ci_status_unknown_for_non_success_non_failure_completed_checks(self) -> None:
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test PR",
@@ -46,7 +52,7 @@ class TestBuildPrStateSnapshot:
 
     def test_uses_explicit_actionable_check_names_when_provided(self) -> None:
         """Explicit actionable set should be used without defaulting."""
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test PR",
@@ -68,7 +74,7 @@ class TestBuildPrStateSnapshot:
         assert snapshot.ci_status == "passing"
 
     def test_unresolved_threads_fails_closed_when_review_comments_fetch_fails(self) -> None:
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test PR",
@@ -92,7 +98,7 @@ class TestBuildPrStateSnapshot:
         assert snapshot.unresolved_threads == 1
 
     def test_unresolved_threads_counts_across_all_prior_copilot_reviews(self) -> None:
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test PR",
@@ -135,7 +141,7 @@ class TestBuildPrStateSnapshot:
         assert provider.list_review_comments.call_count == 2
 
     def test_unresolved_threads_fails_closed_after_partial_aggregation(self) -> None:
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test PR",
@@ -171,7 +177,7 @@ class TestBuildPrStateSnapshot:
 
     def test_unresolved_threads_excludes_resolved_threads(self) -> None:
         """Only threads with isResolved=False should be counted."""
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test",
@@ -205,7 +211,7 @@ class TestBuildPrStateSnapshot:
 
     def test_unresolved_threads_falls_back_when_thread_states_unavailable(self) -> None:
         """When list_review_thread_states raises, fall back to counting all comments."""
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test",
@@ -233,7 +239,7 @@ class TestBuildPrStateSnapshot:
 
     def test_unresolved_threads_falls_back_without_thread_state_method(self) -> None:
         """When thread-state lookup is unavailable, count non-synthetic comments."""
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test",
@@ -261,7 +267,7 @@ class TestBuildPrStateSnapshot:
 
     def test_unresolved_threads_deduplicates_same_comment_id_across_reviews(self) -> None:
         """Same comment ID appearing in multiple prior reviews is only counted once."""
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test",
@@ -291,7 +297,7 @@ class TestBuildPrStateSnapshot:
 
     def test_unresolved_threads_skips_comments_not_in_thread_statuses(self) -> None:
         """Comments not found in thread status data are skipped rather than fail-closed."""
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test",
@@ -324,7 +330,7 @@ class TestBuildPrStateSnapshot:
         This ensures the caller (run_ai_pr_loop_v2) exits with EXIT_METADATA_FAILED
         rather than proceeding with an assumed commit count of 1.
         """
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test PR",
@@ -341,6 +347,27 @@ class TestBuildPrStateSnapshot:
         provider.count_commits_above_merge_base.side_effect = RuntimeError("git failure")
 
         with pytest.raises(RuntimeError, match="git failure"):
+            build_pr_state_snapshot(provider, 1)
+
+    def test_count_commits_behind_error_propagates_as_metadata_failure(self) -> None:
+        """When count_commits_behind raises, build_pr_state_snapshot raises too."""
+        provider = _make_provider()
+        provider.get_pr_metadata.return_value = PRMetadata(
+            number=1,
+            title="Test PR",
+            head_branch="feature",
+            head_sha="head-sha",
+            base_branch="main",
+            requested_reviewers=[],
+        )
+        provider.list_pr_files.return_value = ["a.py"]
+        provider.list_check_runs.return_value = []
+        provider.list_reviews.return_value = []
+        provider.list_pr_issue_events.return_value = []
+        provider.count_commits_above_merge_base.return_value = 1
+        provider.count_commits_behind.side_effect = RuntimeError("compare failed")
+
+        with pytest.raises(RuntimeError, match="compare failed"):
             build_pr_state_snapshot(provider, 1)
 
     def test_count_commits_provider_without_support_defaults_to_1(self) -> None:
@@ -379,7 +406,7 @@ class TestBuildPrStateSnapshot:
         rather than proceeding with an empty check list that silently drives
         ci_status to 'pending' and allows readiness evaluation against stale data.
         """
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test PR",
@@ -401,7 +428,7 @@ class TestBuildPrStateSnapshot:
         rather than proceeding with an empty file list that bypasses guard checks
         (privileged-path / Dockerfile checks rely on snapshot.files).
         """
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test PR",
@@ -417,7 +444,7 @@ class TestBuildPrStateSnapshot:
 
     def test_list_reviews_error_propagates_as_metadata_failure(self) -> None:
         """When list_reviews raises, build_pr_state_snapshot raises too."""
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test PR",
@@ -435,7 +462,7 @@ class TestBuildPrStateSnapshot:
 
     def test_has_approval_on_head_uses_effective_latest_review_per_reviewer(self) -> None:
         """A superseded approval should not count as current approval on HEAD."""
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test PR",
@@ -462,7 +489,7 @@ class TestBuildPrStateSnapshot:
 
     def test_has_approval_on_head_false_when_reviewer_latest_state_is_changes_requested(self) -> None:
         """If latest effective HEAD review is CHANGES_REQUESTED, approval should be false."""
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test PR",
@@ -485,7 +512,7 @@ class TestBuildPrStateSnapshot:
         assert snapshot.has_approval_on_head is False
 
     def test_inline_count_unknown_when_head_commented_review_comments_fetch_fails(self) -> None:
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test PR",
@@ -552,7 +579,7 @@ class TestBuildPrStateSnapshot:
         assert failed == []
 
     def test_head_commented_review_inline_count_is_comment_count(self) -> None:
-        provider = MagicMock()
+        provider = _make_provider()
         provider.get_pr_metadata.return_value = PRMetadata(
             number=1,
             title="Test PR",

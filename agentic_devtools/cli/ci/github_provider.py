@@ -15,6 +15,7 @@ import re
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, cast
+from urllib.parse import quote
 
 from agentic_devtools.cli.ci.exceptions import MalformedEventError
 from agentic_devtools.cli.ci.models import (
@@ -690,10 +691,14 @@ class GitHubActionsProvider(CIPlatformProvider):
         (action="completed") so the orchestrator routes it to the squash-wait path.
         """
         inputs = raw.get("inputs") or {}
-        pr_number_str = str(inputs.get("pr_number", "") or "").strip()
-        try:
-            pr_number = int(pr_number_str) if pr_number_str else 0
-        except (ValueError, TypeError):
+        pr_number_str = str(inputs.get("pr_number", "") or "")
+        pr_number_str = pr_number_str.strip(" ")
+        quoted_pr_number_match = re.fullmatch(r'"([0-9]+)"|\'([0-9]+)\'', pr_number_str)
+        if quoted_pr_number_match:
+            pr_number_str = quoted_pr_number_match.group(1) or quoted_pr_number_match.group(2)
+        if re.fullmatch(r"[0-9]+", pr_number_str):
+            pr_number = int(pr_number_str)
+        else:
             pr_number = 0
         return EventPayload(
             pr_number=pr_number,
@@ -1513,12 +1518,16 @@ class GitHubActionsProvider(CIPlatformProvider):
             return None
 
         try:
-            from copilot import CopilotClient, SubprocessConfig
+            from copilot import CopilotClient
+            from copilot import SubprocessConfig as _CopilotSubprocessConfig
             from copilot.session import PermissionHandler
+
+            copilot_subprocess_config_cls = _CopilotSubprocessConfig
         except Exception as primary_exc:
             try:
                 from copilot import CopilotClient
-                from copilot.config import SubprocessConfig
+
+                copilot_subprocess_config_cls = importlib.import_module("copilot.config").SubprocessConfig
                 from copilot.session import PermissionHandler
             except Exception as exc:  # pragma: no cover - optional dependency/runtime
                 logger.warning(
@@ -1545,7 +1554,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             error_messages: list[str] = []
             done = asyncio.Event()
             try:
-                client = CopilotClient(SubprocessConfig(github_token=token))
+                client = CopilotClient(copilot_subprocess_config_cls(github_token=token))
                 await client.start()
                 try:
                     session = await client.create_session(
@@ -1629,12 +1638,16 @@ class GitHubActionsProvider(CIPlatformProvider):
             return None
 
         try:
-            from copilot import CopilotClient, SubprocessConfig
+            from copilot import CopilotClient
+            from copilot import SubprocessConfig as _CopilotSubprocessConfig
             from copilot.session import PermissionHandler
+
+            copilot_subprocess_config_cls = _CopilotSubprocessConfig
         except Exception as primary_exc:
             try:
                 from copilot import CopilotClient
-                from copilot.config import SubprocessConfig
+
+                copilot_subprocess_config_cls = importlib.import_module("copilot.config").SubprocessConfig
                 from copilot.session import PermissionHandler
             except Exception as exc:  # pragma: no cover - optional dependency/runtime
                 logger.warning(
@@ -1663,7 +1676,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             error_messages: list[str] = []
             done = asyncio.Event()
             try:
-                client = CopilotClient(SubprocessConfig(github_token=token))
+                client = CopilotClient(copilot_subprocess_config_cls(github_token=token))
                 await client.start()
                 try:
                     session = await client.create_session(
@@ -1796,7 +1809,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                 self._run_git(["add", file_path])
 
             try:
-                self._run_git(["rebase", "--continue"])
+                self._run_git(["-c", "core.editor=true", "rebase", "--continue"])
                 logger.info("Rebase conflict resolution completed successfully.")
                 return True
             except RuntimeError as exc:
@@ -1887,6 +1900,93 @@ class GitHubActionsProvider(CIPlatformProvider):
         merge_base = self._run_git(["merge-base", head_sha, f"origin/{base_branch}"]).strip()
         commit_count_raw = self._run_git(["rev-list", "--count", f"{merge_base}..{head_sha}"]).strip()
         return int(commit_count_raw or "0")
+
+    def count_commits_behind(self, *, pr_number: int, base_branch: str, head_branch: str) -> int:
+        """Return how many commits head_branch is behind base_branch using compare API.
+
+        Uses ``gh api /repos/{owner}/{repo}/compare/{base}...{head}`` and reads
+        ``behind_by`` directly.
+        """
+        repo = self._resolve_repo()
+        compare_ref = f"{quote(base_branch, safe='')}...{quote(head_branch, safe='')}"
+        cmd = [
+            "gh",
+            "api",
+            f"/repos/{repo}/compare/{compare_ref}",
+            "--jq",
+            ".behind_by",
+        ]
+        try:
+            result = run_safe(cmd, capture_output=True, text=True, shell=False)
+        except Exception as exc:
+            raise RuntimeError(f"PR #{pr_number}: compare API request failed") from exc
+        if result.returncode != 0:
+            stderr = result.stderr.strip()
+            message = stderr or f"exit code {result.returncode}"
+            raise RuntimeError(f"PR #{pr_number}: compare API failed: {message}")
+        return int(result.stdout.strip() or "0")
+
+    def rebase_onto_base(
+        self,
+        *,
+        pr_number: int,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+    ) -> None:
+        """Rebase head_branch onto base_branch and force-push with lease.
+
+        Raises:
+            RebaseConflictError: When conflicts cannot be auto-resolved.
+            ForceWithLeaseError: When force-push-with-lease fails.
+        """
+        from agentic_devtools.cli.ci.pipeline.exceptions import (
+            ForceWithLeaseError,
+            RebaseConflictError,
+        )
+
+        self._run_git(["fetch", "origin", base_branch, head_branch])
+        self._run_git(["checkout", head_branch])
+        expected_head = self._run_git(["rev-parse", head_sha]).strip()
+        current_head = self._run_git(["rev-parse", "HEAD"]).strip()
+        if current_head != expected_head:
+            raise RuntimeError(
+                "Head SHA changed before rebase "
+                f"(expected resolved {expected_head} from input {head_sha}, got {current_head}). "
+                "The branch may have been updated by another process; aborting "
+                "to avoid overwriting changes."
+            )
+
+        rebase_target = f"origin/{base_branch}"
+        try:
+            logger.info("PR #%d: Rebasing %s onto %s", pr_number, head_branch, rebase_target)
+            self._run_git(["rebase", rebase_target])
+            logger.info("PR #%d: Rebase onto %s completed successfully", pr_number, rebase_target)
+        except RuntimeError as exc:
+            logger.warning("PR #%d: Rebase onto %s failed: %s", pr_number, rebase_target, exc)
+            logger.info("PR #%d: Attempting conflict resolution via Copilot SDK", pr_number)
+            try:
+                resolved = self._resolve_rebase_conflicts_via_sdk(
+                    base_branch=base_branch,
+                    head_branch=head_branch,
+                )
+            except RuntimeError as resolve_exc:
+                logger.warning("PR #%d: Conflict resolution helper raised: %s", pr_number, resolve_exc)
+                resolved = False
+            if not resolved:
+                logger.warning("PR #%d: Could not auto-resolve rebase conflicts. Aborting rebase.", pr_number)
+                try:
+                    self._run_git(["rebase", "--abort"])
+                except RuntimeError as abort_exc:
+                    raise RebaseConflictError(
+                        f"Rebase conflicts unresolvable and abort failed: {abort_exc}"
+                    ) from abort_exc
+                raise RebaseConflictError("Rebase conflicts could not be auto-resolved") from exc
+
+        try:
+            self._run_git(["push", "--force-with-lease", "origin", f"HEAD:{head_branch}"])
+        except RuntimeError as exc:
+            raise ForceWithLeaseError(f"Force-push-with-lease failed: {exc}") from exc
 
     def _resolve_repo(self) -> str:
         """Resolve the repository in ``owner/repo`` format."""
@@ -2593,12 +2693,16 @@ class GitHubActionsProvider(CIPlatformProvider):
             return {comment.id: VerificationVerdict.COMMENT_UNRESOLVE for comment, _diff_context in normalized_comments}
 
         try:
-            from copilot import CopilotClient, SubprocessConfig
+            from copilot import CopilotClient
+            from copilot import SubprocessConfig as _CopilotSubprocessConfig
             from copilot.session import PermissionHandler
+
+            copilot_subprocess_config_cls = _CopilotSubprocessConfig
         except Exception as primary_exc:
             try:
                 from copilot import CopilotClient
-                from copilot.config import SubprocessConfig
+
+                copilot_subprocess_config_cls = importlib.import_module("copilot.config").SubprocessConfig
                 from copilot.session import PermissionHandler
             except Exception as exc:
                 logger.warning(
@@ -2615,7 +2719,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             client = None
             session = None
             try:
-                client = CopilotClient(SubprocessConfig(github_token=token))
+                client = CopilotClient(copilot_subprocess_config_cls(github_token=token))
                 await client.start()
                 try:
                     session = await client.create_session(
@@ -2720,12 +2824,16 @@ class GitHubActionsProvider(CIPlatformProvider):
             raise RuntimeError("COPILOT_GITHUB_TOKEN not set")
 
         try:
-            from copilot import CopilotClient, SubprocessConfig
+            from copilot import CopilotClient
+            from copilot import SubprocessConfig as _CopilotSubprocessConfig
             from copilot.session import PermissionHandler
+
+            copilot_subprocess_config_cls = _CopilotSubprocessConfig
         except Exception as primary_exc:
             try:
                 from copilot import CopilotClient
-                from copilot.config import SubprocessConfig
+
+                copilot_subprocess_config_cls = importlib.import_module("copilot.config").SubprocessConfig
                 from copilot.session import PermissionHandler
             except Exception as exc:
                 error = primary_exc if not isinstance(primary_exc, ImportError) else exc
@@ -2741,7 +2849,7 @@ class GitHubActionsProvider(CIPlatformProvider):
             done = asyncio.Event()
 
             try:
-                client = CopilotClient(SubprocessConfig(github_token=token))
+                client = CopilotClient(copilot_subprocess_config_cls(github_token=token))
                 await client.start()
                 try:
                     session = await client.create_session(

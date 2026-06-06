@@ -13,6 +13,7 @@ from agentic_devtools.cli.ci.pipeline.actions import (
     GuardsAction,
     MergeAction,
     PublishAction,
+    RebaseAction,
     RequestReviewAction,
     ResolveThreadsAction,
     SquashAction,
@@ -43,11 +44,12 @@ def run_ai_pr_loop_v2(
     """Run the idempotent AI PR loop pipeline.
 
     Replaces the event-branching orchestrator with a sequential pipeline
-    of 9 action evaluators. Every run evaluates all actions regardless of
+    of 10 action evaluators. Every run evaluates all actions regardless of
     trigger type.
 
     Pipeline ordering:
-        Guards → Publish → ApplySuggestions → DispatchRepair → ResolveThreads → Squash → RequestReview → Approve → Merge
+        Guards → Publish → ApplySuggestions → DispatchRepair → ResolveThreads
+        → Squash → Rebase → RequestReview → Approve → Merge
 
     ApplySuggestions runs before DispatchRepair so that autofixable suggestions
     are committed first, potentially eliminating the need for repair dispatch.
@@ -101,6 +103,7 @@ def run_ai_pr_loop_v2(
             DispatchRepairAction(),
             ResolveThreadsAction(),
             SquashAction(),
+            RebaseAction(),
             RequestReviewAction(),
             ApproveAction(),
             MergeAction(),
@@ -134,6 +137,7 @@ def _determine_exit_code(results: list[ActionResult], *, snapshot: PRStateSnapsh
         "resolve_threads",
         "dispatch_repair",
         "squash",
+        "rebase",
         "approve",
         "merge",
     }

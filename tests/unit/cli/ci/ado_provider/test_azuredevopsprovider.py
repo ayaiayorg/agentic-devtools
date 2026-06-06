@@ -280,3 +280,15 @@ class TestAzureDevOpsProvider:
         assert result.action == "git.pullrequest.created"
         assert result.edit_changes_known is False
         assert result.title_changed is False
+
+    def test_count_commits_behind_returns_zero(self) -> None:
+        """ADO provider count_commits_behind stub returns 0."""
+        provider = AzureDevOpsProvider()
+        result = provider.count_commits_behind(pr_number=1, base_branch="main", head_branch="feature")
+        assert result == 0
+
+    def test_rebase_onto_base_raises_not_implemented(self) -> None:
+        """ADO provider rebase_onto_base raises NotImplementedError."""
+        provider = AzureDevOpsProvider()
+        with pytest.raises(NotImplementedError, match="not yet implemented"):
+            provider.rebase_onto_base(pr_number=1, base_branch="main", head_branch="feature", head_sha="abc")
