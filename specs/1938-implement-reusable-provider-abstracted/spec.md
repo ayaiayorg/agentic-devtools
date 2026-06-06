@@ -75,6 +75,8 @@ issue.
 **Independent Test**: Can be tested by supplying completed GitHub Actions runs with a mix of retriable and non-retriable conclusions, then verifying the reconciliation entry point selects the oldest
 eligible run below `MAX_RUN_ATTEMPTS` (default: 3) or escalates instead of rerunning when the cap is reached. Only the single oldest eligible run is processed per invocation.
 
+**Mapped Functional Requirements**: FR-001, FR-002, FR-003, FR-005
+
 **Acceptance Scenarios**:
 
 1. **Given** one or more completed GitHub Actions runs for the SpecKit workflow with conclusion `failure`,
@@ -97,6 +99,8 @@ retry mechanism to be actionable in real workflows.
 **Independent Test**: Can be tested by providing completed runs from issue-triggered, PR-triggered, and branch-triggered workflows, then verifying the provider abstraction resolves the correct status
 reporting target before posting rerun updates or escalation comments.
 
+**Mapped Functional Requirements**: FR-006
+
 **Acceptance Scenarios**:
 
 1. **Given** a completed retriable GitHub Actions run created from an issue comment, **When** the reconciliation step prepares status feedback, **Then** it maps the run back to that issue and uses the
@@ -115,6 +119,8 @@ partial implementations.
 
 **Independent Test**: Can be tested by invoking the retry/reconciliation entry point through the ADO `AzureDevOpsProvider` implementation and verifying it raises `NotImplementedError` while the
 GitHub Actions provider (`GitHubActionsProvider`) continues to handle eligible completed runs.
+
+**Mapped Functional Requirements**: FR-004
 
 **Acceptance Scenarios**:
 
