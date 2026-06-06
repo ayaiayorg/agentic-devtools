@@ -12,8 +12,8 @@
 
 - Purpose: structured output for batch and bisection apply flows.
 - Core fields:
-  - `applied_ids: list[str]` (GraphQL review-comment node IDs passed as `suggestedChangeIds`)
-  - `skipped_ids: list[str]` (GraphQL review-comment node IDs passed as `suggestedChangeIds`)
+  - `applied_ids: list[str]` (GraphQL `PullRequestReviewComment.id` values for suggestions that were applied)
+  - `skipped_ids: list[str]` (GraphQL `PullRequestReviewComment.id` values for suggestions that were skipped)
   - `commit_shas: list[str]`
   - `error: str | None`
 

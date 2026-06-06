@@ -1,11 +1,12 @@
 """GraphQL suggestion query/mutation logic, bisection fallback, and result types.
 
 Provides the core functions for querying applicable suggestions on a PR
-and applying them via the ``applySuggestedChanges`` GraphQL mutation.
+and applying them via the ``createCommitOnBranch`` GraphQL mutation.
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import re
@@ -19,6 +20,10 @@ logger = logging.getLogger(__name__)
 # Maximum bisection recursion depth to cap API calls
 _MAX_BISECTION_DEPTH = 4
 _SUGGESTION_BLOCK_PATTERN = re.compile(r"(?m)^[ \t]*```suggestion(?::-?\d+(?:\+\d+)?)?(?:[ \t].*)?\r?$")
+_SUGGESTION_CONTENT_PATTERN = re.compile(
+    r"```suggestion(?::-?\d+(?:\+\d+)?)?(?:[ \t].*)?(?:\r?\n)(.*?)```",
+    re.DOTALL,
+)
 
 
 @dataclass
@@ -26,18 +31,27 @@ class SuggestedChange:
     """A single autofixable code suggestion from a review comment.
 
     Attributes:
-        suggestion_id: GraphQL node ID of the review comment carrying a
-            markdown suggestion block.
+        suggestion_id: GraphQL node ID of the review comment carrying the
+            suggestion (used for tracking and exclusion context).
         outdated: Whether the parent review thread is outdated (stale).
         comment_database_id: REST API ``databaseId`` of the parent
             ``PullRequestReviewComment``.
         thread_id: GraphQL node ID of the parent review thread.
+        path: File path the suggestion applies to.
+        start_line: Start line of the range to replace (inclusive).
+            Same as ``end_line`` for single-line suggestions.
+        end_line: End line of the range to replace (inclusive).
+        replacement: The replacement text content from the suggestion block.
     """
 
     suggestion_id: str
     outdated: bool
     comment_database_id: int
     thread_id: str
+    path: str = ""
+    start_line: int = 0
+    end_line: int = 0
+    replacement: str = ""
 
 
 @dataclass
@@ -45,8 +59,8 @@ class ApplySuggestionsResult:
     """Structured output for batch and bisection apply flows.
 
     Attributes:
-        applied_ids: Review-comment GraphQL node IDs passed as
-            ``suggestedChangeIds`` and successfully applied.
+        applied_ids: Review-comment GraphQL node IDs for suggestions that
+            were successfully applied.
         skipped_ids: Review-comment GraphQL node IDs that were excluded
             (outdated, conflicting, or errored).
         commit_shas: Ordered list of autofix commit SHAs produced by batch
@@ -66,6 +80,8 @@ query($owner: String!, $repoName: String!, $prNumber: Int!, $threadsCursor: Stri
   repository(owner: $owner, name: $repoName) {
     pullRequest(number: $prNumber) {
       id
+      headRefName
+      headRefOid
       reviewThreads(first: 100, after: $threadsCursor) {
         pageInfo { hasNextPage endCursor }
         nodes {
@@ -78,6 +94,9 @@ query($owner: String!, $repoName: String!, $prNumber: Int!, $threadsCursor: Stri
               id
               databaseId
               body
+              path
+              line
+              startLine
             }
           }
         }
@@ -98,6 +117,9 @@ query($threadId: ID!, $commentsCursor: String) {
           id
           databaseId
           body
+          path
+          line
+          startLine
         }
       }
     }
@@ -105,15 +127,35 @@ query($threadId: ID!, $commentsCursor: String) {
 }
 """
 
-# GraphQL mutation for applying suggested changes
-_APPLY_SUGGESTIONS_MUTATION = """\
-mutation($pullRequestId: ID!, $suggestedChangeIds: [ID!]!) {
-  applySuggestedChanges(input: {
-    pullRequestId: $pullRequestId,
-    suggestedChangeIds: $suggestedChangeIds
+# GraphQL mutation for creating a commit with applied suggestions
+_CREATE_COMMIT_MUTATION = """\
+mutation($repoWithOwner: String!, $branchName: String!, $headOid: GitObjectID!,
+         $message: CommitMessage!, $fileChanges: FileChanges!) {
+  createCommitOnBranch(input: {
+    branch: {
+      repositoryNameWithOwner: $repoWithOwner,
+      branchName: $branchName
+    },
+    expectedHeadOid: $headOid,
+    message: $message,
+    fileChanges: $fileChanges
   }) {
-    pullRequest { id }
-    appliedSuggestedChanges { id }
+    commit {
+      oid
+    }
+  }
+}
+"""
+
+# GraphQL query for fetching file content at a specific ref
+_FILE_CONTENT_QUERY = """\
+query($owner: String!, $repoName: String!, $expression: String!) {
+  repository(owner: $owner, name: $repoName) {
+    object(expression: $expression) {
+      ... on Blob {
+        text
+      }
+    }
   }
 }
 """
@@ -127,7 +169,8 @@ def fetch_applicable_suggestions(
 
     Retrieves all review comments from unresolved review threads and treats
     comments containing markdown "```suggestion" fenced blocks as applicable
-    suggestions. Thread-level ``isOutdated`` is propagated onto each
+    suggestions. Extracts the replacement content, file path, and line range
+    from each comment. Thread-level ``isOutdated`` is propagated onto each
     discovered suggestion and filtered out. Handles pagination for PRs with
     more than 100 review threads and for thread comment pages over 100.
 
@@ -137,7 +180,7 @@ def fetch_applicable_suggestions(
 
     Returns:
         Tuple of (list of applicable SuggestedChange objects, PR node ID).
-        The PR node ID is needed for the apply mutation.
+        The PR node ID is needed for commit creation context.
 
     Raises:
         RuntimeError: On non-retryable API errors.
@@ -211,12 +254,29 @@ def fetch_applicable_suggestions(
                 if not isinstance(comment_id, str) or not comment_id:
                     continue
                 if _SUGGESTION_BLOCK_PATTERN.search(body):
+                    replacement = _extract_suggestion_content(body)
+                    if replacement is None:
+                        logger.debug(
+                            "Suggestion %s skipped: unable to extract replacement "
+                            "content (likely missing closing backticks)",
+                            comment_id,
+                        )
+                        continue
+                    path = comment.get("path") or ""
+                    end_line = comment.get("line") or 0
+                    start_line = comment.get("startLine") or end_line
+                    if not path or not end_line:
+                        continue
                     suggestions.append(
                         SuggestedChange(
                             suggestion_id=comment_id,
                             outdated=thread_outdated,
                             comment_database_id=comment_db_id,
                             thread_id=thread_id,
+                            path=path,
+                            start_line=start_line,
+                            end_line=end_line,
+                            replacement=replacement,
                         )
                     )
 
@@ -245,15 +305,23 @@ def apply_suggestions_batch(
     provider: CIPlatformProvider,
     pr_node_id: str,
     suggestion_ids: list[str],
+    *,
+    suggestions: list[SuggestedChange] | None = None,
+    head_ref: str = "",
+    head_oid: str = "",
 ) -> ApplySuggestionsResult:
-    """Apply all given suggestions in a single GraphQL mutation.
+    """Apply all given suggestions as a single commit via createCommitOnBranch.
 
-    Produces exactly one commit when the batch succeeds.
+    Fetches current file contents, applies each suggestion's replacement to the
+    appropriate line range, and creates a commit on the PR branch.
 
     Args:
         provider: CI platform provider.
-        pr_node_id: GraphQL node ID of the pull request.
+        pr_node_id: GraphQL node ID of the pull request (unused but kept for API compat).
         suggestion_ids: List of suggestion node IDs to apply.
+        suggestions: Full SuggestedChange objects with path/line/replacement data.
+        head_ref: Branch name for the commit.
+        head_oid: Current HEAD OID for optimistic locking.
 
     Returns:
         ApplySuggestionsResult with applied IDs and commit SHA.
@@ -261,53 +329,142 @@ def apply_suggestions_batch(
     if not suggestion_ids:
         return ApplySuggestionsResult()
 
+    if not suggestions or not head_ref or not head_oid:
+        return ApplySuggestionsResult(
+            skipped_ids=suggestion_ids,
+            error="Missing required context (suggestions, head_ref, or head_oid)",
+        )
+
+    owner, repo_name = _get_repo_parts(provider)
+    repo_with_owner = f"{owner}/{repo_name}"
+
+    # Build a lookup from suggestion_id to SuggestedChange
+    suggestion_map = {s.suggestion_id: s for s in suggestions}
+    target_suggestions = [suggestion_map[sid] for sid in suggestion_ids if sid in suggestion_map]
+
+    if not target_suggestions:
+        return ApplySuggestionsResult(
+            skipped_ids=suggestion_ids,
+            error="No matching suggestion objects found for given IDs",
+        )
+
+    # Group suggestions by file path
+    by_file: dict[str, list[SuggestedChange]] = {}
+    for s in target_suggestions:
+        by_file.setdefault(s.path, []).append(s)
+
     try:
+        # Fetch file contents and apply suggestions
+        file_additions: list[dict] = []
+        applied_ids: list[str] = []
+        skipped_ids: list[str] = []
+
+        for file_path, file_suggestions in by_file.items():
+            # Fetch current file content from the branch
+            file_content = _fetch_file_content(provider, owner, repo_name, head_ref, file_path)
+            if file_content is None:
+                for s in file_suggestions:
+                    skipped_ids.append(s.suggestion_id)
+                logger.warning("Cannot fetch file %s at ref %s — skipping suggestions", file_path, head_ref)
+                continue
+
+            crlf_count = file_content.count("\r\n")
+            lf_count = file_content.count("\n")
+            line_sep = "\r\n" if crlf_count > 0 and crlf_count == lf_count else "\n"
+            lines = file_content.split(line_sep)
+
+            # Sort suggestions by start_line descending so we apply from bottom to top
+            # (avoids line number shifts affecting later replacements)
+            sorted_suggestions = sorted(file_suggestions, key=lambda s: s.start_line, reverse=True)
+
+            # Check for overlapping suggestions
+            occupied_ranges: list[tuple[int, int]] = []
+            valid_suggestions: list[SuggestedChange] = []
+            for s in sorted_suggestions:
+                overlaps = any(
+                    not (s.end_line < existing_start or s.start_line > existing_end)
+                    for existing_start, existing_end in occupied_ranges
+                )
+                if overlaps:
+                    skipped_ids.append(s.suggestion_id)
+                    logger.info("Suggestion %s overlaps with another — skipping", s.suggestion_id)
+                else:
+                    valid_suggestions.append(s)
+                    occupied_ranges.append((s.start_line, s.end_line))
+
+            # Apply non-overlapping suggestions (already sorted bottom-to-top)
+            applied_suggestion_ids_for_file: list[str] = []
+            for s in valid_suggestions:
+                # Lines are 1-indexed in GitHub, convert to 0-indexed
+                start_idx = s.start_line - 1
+                end_idx = s.end_line  # exclusive (replace lines start_idx to end_idx-1 inclusive)
+                if start_idx < 0 or end_idx > len(lines):
+                    skipped_ids.append(s.suggestion_id)
+                    logger.warning(
+                        "Suggestion %s line range %d-%d out of bounds (file has %d lines)",
+                        s.suggestion_id,
+                        s.start_line,
+                        s.end_line,
+                        len(lines),
+                    )
+                    continue
+
+                # Empty replacement means "delete selected lines"
+                replacement_lines = s.replacement.splitlines() if s.replacement else []
+                lines[start_idx:end_idx] = replacement_lines
+                applied_ids.append(s.suggestion_id)
+                applied_suggestion_ids_for_file.append(s.suggestion_id)
+
+            if applied_suggestion_ids_for_file:
+                new_content = line_sep.join(lines)
+                encoded = base64.b64encode(new_content.encode("utf-8")).decode("ascii")
+                file_additions.append({"path": file_path, "contents": encoded})
+
+        if not file_additions:
+            return ApplySuggestionsResult(
+                applied_ids=[],
+                skipped_ids=suggestion_ids,
+                error="No suggestions could be applied (all skipped or file fetch failed)",
+            )
+
+        # Create the commit
+        count = len(applied_ids)
+
         response = provider.graphql(
-            query=_APPLY_SUGGESTIONS_MUTATION,
+            query=_CREATE_COMMIT_MUTATION,
             variables={
-                "pullRequestId": pr_node_id,
-                "suggestedChangeIds": suggestion_ids,
+                "repoWithOwner": repo_with_owner,
+                "branchName": head_ref,
+                "headOid": head_oid,
+                "message": {"headline": f"Apply {count} suggestion{'s' if count != 1 else ''} from code review"},
+                "fileChanges": {"additions": file_additions},
             },
         )
         data = json.loads(response) if isinstance(response, str) else response
 
-        # Check for errors in the response (only when the list is non-empty)
         if data.get("errors"):
             error_messages = [e.get("message", "") for e in data["errors"]]
             error_str = "; ".join(m for m in error_messages if m) or "Unknown GraphQL error"
-            # Classify as conflict if it mentions conflict-related terms
             if _is_conflict_error(error_str):
                 return ApplySuggestionsResult(
                     skipped_ids=suggestion_ids,
                     error=f"Conflict: {error_str}",
                 )
-            # Transient errors
             if _is_transient_error(error_str):
                 raise RetryableError(f"Transient error: {error_str}")
-            # Fatal/unknown error
             return ApplySuggestionsResult(
                 skipped_ids=suggestion_ids,
                 error=error_str,
             )
 
-        # Extract applied suggestion IDs
-        mutation_data = data.get("data", {}).get("applySuggestedChanges", {})
-        applied = [sc["id"] for sc in mutation_data.get("appliedSuggestedChanges", [])]
+        commit_data = (data.get("data") or {}).get("createCommitOnBranch") or {}
+        commit_oid = (commit_data.get("commit") or {}).get("oid", "")
+        commit_shas = [commit_oid] if commit_oid else []
 
-        if not applied:
-            # Mutation succeeded but applied nothing (e.g. already applied, rejected, or
-            # GitHub returned an empty appliedSuggestedChanges list).  Treat as skipped so
-            # the repair path is not short-circuited on a false positive.
-            return ApplySuggestionsResult(
-                skipped_ids=suggestion_ids,
-                error="Mutation returned no applied suggestions",
-            )
-
-        # The mutation produces a commit; get the SHA from the PR HEAD
-        # (we'll capture it in the action via snapshot refresh)
         return ApplySuggestionsResult(
-            applied_ids=applied,
-            commit_shas=["pending_refresh"],  # Placeholder; actual SHA from snapshot refresh
+            applied_ids=applied_ids,
+            skipped_ids=skipped_ids,
+            commit_shas=commit_shas,
         )
 
     except RetryableError:
@@ -324,6 +481,9 @@ def apply_suggestions_with_bisection(
     pr_node_id: str,
     suggestion_ids: list[str],
     *,
+    suggestions: list[SuggestedChange] | None = None,
+    head_ref: str = "",
+    head_oid: str = "",
     depth: int = 0,
 ) -> ApplySuggestionsResult:
     """Apply suggestions using bisection fallback on conflict errors.
@@ -336,6 +496,9 @@ def apply_suggestions_with_bisection(
         provider: CI platform provider.
         pr_node_id: GraphQL node ID of the pull request.
         suggestion_ids: List of suggestion node IDs to apply.
+        suggestions: Full SuggestedChange objects with path/line/replacement data.
+        head_ref: Branch name for commits.
+        head_oid: Current HEAD OID for optimistic locking.
         depth: Current recursion depth (internal use).
 
     Returns:
@@ -345,7 +508,14 @@ def apply_suggestions_with_bisection(
         return ApplySuggestionsResult()
 
     # Try full batch first
-    result = apply_suggestions_batch(provider, pr_node_id, suggestion_ids)
+    result = apply_suggestions_batch(
+        provider,
+        pr_node_id,
+        suggestion_ids,
+        suggestions=suggestions,
+        head_ref=head_ref,
+        head_oid=head_oid,
+    )
 
     # If no conflict error, return as-is (success or fatal error)
     if result.error is None or not _is_conflict_error(result.error):
@@ -384,8 +554,33 @@ def apply_suggestions_with_bisection(
         len(right_ids),
     )
 
-    left_result = apply_suggestions_with_bisection(provider, pr_node_id, left_ids, depth=depth + 1)
-    right_result = apply_suggestions_with_bisection(provider, pr_node_id, right_ids, depth=depth + 1)
+    # After left batch commits, we need to refresh head_oid for the right batch
+    left_result = apply_suggestions_with_bisection(
+        provider,
+        pr_node_id,
+        left_ids,
+        suggestions=suggestions,
+        head_ref=head_ref,
+        head_oid=head_oid,
+        depth=depth + 1,
+    )
+
+    # Update head_oid if left produced a commit
+    updated_head_oid = head_oid
+    if left_result.commit_shas:
+        latest_sha = left_result.commit_shas[-1]
+        if latest_sha:
+            updated_head_oid = latest_sha
+
+    right_result = apply_suggestions_with_bisection(
+        provider,
+        pr_node_id,
+        right_ids,
+        suggestions=suggestions,
+        head_ref=head_ref,
+        head_oid=updated_head_oid,
+        depth=depth + 1,
+    )
 
     # Merge results — preserve any error from either side
     errors = [e for e in [left_result.error, right_result.error] if e]
@@ -395,6 +590,69 @@ def apply_suggestions_with_bisection(
         commit_shas=left_result.commit_shas + right_result.commit_shas,
         error="; ".join(errors) if errors else None,
     )
+
+
+def _extract_suggestion_content(body: str) -> str | None:
+    """Extract the replacement content from a markdown suggestion block.
+
+    Parses the first ````` ```suggestion ... ``` ````` block in the comment body
+    and returns the content between the fences.
+
+    Returns:
+        The suggestion replacement text, empty string for a valid delete
+        suggestion, or ``None`` if no complete block is found.
+    """
+    match = _SUGGESTION_CONTENT_PATTERN.search(body)
+    if not match:
+        return None
+    return match.group(1)
+
+
+def _fetch_file_content(
+    provider: CIPlatformProvider,
+    owner: str,
+    repo_name: str,
+    ref: str,
+    path: str,
+) -> str | None:
+    """Fetch file content from the repository at a given ref.
+
+    Uses the GraphQL ``repository.object(expression:)`` query to retrieve
+    the file as a Blob.
+
+    Returns:
+        File content as a string, or None if not found.
+
+    Raises:
+        RetryableError: On rate limit or transient failures.
+    """
+    expression = f"{ref}:{path}"
+    try:
+        response = provider.graphql(
+            query=_FILE_CONTENT_QUERY,
+            variables={
+                "owner": owner,
+                "repoName": repo_name,
+                "expression": expression,
+            },
+        )
+        data = json.loads(response) if isinstance(response, str) else response
+        errors = data.get("errors", [])
+        if errors:
+            error_messages = [e.get("message", "") for e in errors if isinstance(e, dict)]
+            error_str = "; ".join(msg for msg in error_messages if msg) or "Unknown GraphQL error"
+            if _is_transient_error(error_str):
+                raise RetryableError(f"Transient GraphQL file-content error: {error_str}")
+            return None
+        obj = (data.get("data") or {}).get("repository", {}).get("object")
+        if not isinstance(obj, dict):
+            return None
+        text = obj.get("text")
+        return text if isinstance(text, str) else None
+    except RetryableError:
+        raise
+    except Exception:
+        return None
 
 
 def _is_conflict_error(error_msg: str) -> bool:

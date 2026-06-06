@@ -4,7 +4,7 @@
 **Created**: 2026-06-03  
 **Status**: Draft  
 **Input**: User description: "Implement an automated step in the ai-pr-loop workflow to programmatically apply all available autofixable GitHub PR review suggestions using the GraphQL
-`applySuggestedChanges` mutation before dispatching an AI repair job."  
+`createCommitOnBranch` mutation before dispatching an AI repair job."  
 **Source Issue**: #1749 (<https://github.com/ayaiayorg/agentic-devtools/issues/1749>)
 
 ---
@@ -32,7 +32,7 @@
   API comment IDs. The `ExclusionContext.resolved_comment_ids` field stores these numeric IDs.
 
 - Q: When bisection fallback produces multiple mutation calls, should each successful call produce its own commit, or should the action attempt to consolidate into a single commit? → A: Each
-  successful `applySuggestedChanges` mutation call produces its own commit (this is GitHub API behavior — each mutation creates one commit). The `ApplySuggestionsResult.commit_shas` list captures all
+  successful `createCommitOnBranch` mutation call produces its own commit (this is GitHub API behavior — each mutation creates one commit). The `ApplySuggestionsResult.commit_shas` list captures all
   commits produced. `SquashAction` will consolidate them on a subsequent run. The action should NOT attempt manual squashing; it relies on the existing pipeline squash mechanism.
 
 ---
@@ -41,8 +41,8 @@
 
 The AI PR Loop (`ai-pr-loop.yml`) currently treats all actionable Copilot review comments uniformly — when a review with suggestions lands, the pipeline dispatches a full agentic repair job that must
 read each comment, understand the suggested change, apply it manually in code, commit, and push. This approach works but introduces unnecessary overhead for a significant subset of review feedback:
-suggestions that GitHub already understands as structured, autofixable diffs. These suggestions carry explicit replacement code that could be applied programmatically via the `applySuggestedChanges`
-GraphQL mutation — the same mechanism that powers the "Commit suggestion" button visible to human reviewers in the GitHub pull request UI.
+suggestions that GitHub renders as autofixable diffs. These suggestions carry explicit replacement code that can be extracted from markdown ` ```suggestion ` blocks and applied programmatically via the
+`createCommitOnBranch` GraphQL mutation.
 
 The inefficiency manifests in three dimensions. First, AI agent tokens and compute cycles are consumed processing suggestions whose resolution is deterministic and requires no reasoning. A suggestion
 with explicit replacement code is, by definition, a solved problem — the reviewer has already written the fix. Passing this to an AI repair agent is analogous to asking a software engineer to retype
@@ -185,7 +185,7 @@ The system must handle the following boundary conditions:
 - **Single conflicting suggestion**: When the PR has exactly one suggestion and it conflicts, the bisection fallback should degrade gracefully to a no-op since there is nothing left to split, and the
   single suggestion passes through to repair dispatch.
 
-- **Branch protection violation**: When the `applySuggestedChanges` mutation succeeds but the resulting commit triggers a branch protection rule violation (e.g., required status checks), the pipeline
+- **Branch protection violation**: When the `createCommitOnBranch` mutation succeeds but the resulting commit triggers a branch protection rule violation (e.g., required status checks), the pipeline
   should treat this as any other post-commit state and re-evaluate CI status in the next loop iteration. The `invalidates_snapshot = True` flag refreshes pipeline state; only actions that opt in via
   `runs_after_invalidation=True` continue in the same run.
 
@@ -201,10 +201,10 @@ The system must handle the following boundary conditions:
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST query the GitHub GraphQL API to retrieve unresolved review-thread comments and detect apply-able suggestions by parsing each comment `body` for literal markdown
-  triple-backtick suggestion fences (```` ```suggestion ````).
+- **FR-001**: The system MUST query the GitHub GraphQL API to retrieve unresolved review-thread comments and detect apply-able suggestions via markdown body fence parsing
+  (```` ```suggestion ````) combined with comment location fields (`path`, `line`, `startLine`).
 
-- **FR-002**: The system MUST attempt to apply all valid suggestions in a single `applySuggestedChanges` GraphQL mutation call, producing exactly one commit when the batch succeeds without conflicts.
+- **FR-002**: The system MUST attempt to apply all valid suggestions in a single `createCommitOnBranch` GraphQL mutation call, producing exactly one commit when the batch succeeds without conflicts.
 
 - **FR-003**: When the batch mutation fails due to conflicting hunks or partial errors, the system MUST fall back to a bisection strategy that subdivides the suggestion set and retries application of
   non-conflicting subsets, minimizing the number of API calls while maximizing the number of successfully applied suggestions.
@@ -265,7 +265,7 @@ The system must handle the following boundary conditions:
   containing: `applied_ids` (list of successfully applied suggestion IDs),
   `skipped_ids` (list of suggestions excluded due to outdated status or
   conflicts), `commit_shas` (ordered list of autofix commit SHAs produced by
-  batch and/or fallback application — each `applySuggestedChanges` mutation call produces exactly one commit, so multiple entries indicate bisection fallback was used; empty when nothing was applied),
+  batch and/or fallback application — each `createCommitOnBranch` mutation call produces exactly one commit, so multiple entries indicate bisection fallback was used; empty when nothing was applied),
   `error`
   (optional error detail for partial failures).
 
