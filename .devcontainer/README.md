@@ -38,10 +38,10 @@ This directory contains the configuration for a Python development container tha
 After the container is created, the following command runs automatically:
 
 ```bash
-pip install -e '.[dev]'
+pip install 'uv>=0.7,<1.0' && uv pip install --system -e '.[dev]'
 ```
 
-This installs the `agentic-devtools` package in editable mode with all development dependencies.
+This installs `uv` (a fast pip replacement) and then installs the `agentic-devtools` package in editable mode with all development dependencies.
 
 ## Customization
 

@@ -60,8 +60,14 @@ stages:
           # install from the checked-out template repo/ref to prevent
           # template/CLI version drift once the stubs are replaced with
           # real implementations.
-          - script: |
-              python -m pip install agentic-devtools
+          - bash: |
+              python -m pip install "uv>=0.7,<1.0" || true
+              if command -v uv >/dev/null 2>&1; then
+                uv pip install --system agentic-devtools
+              else
+                python -m pip install --upgrade pip
+                python -m pip install agentic-devtools
+              fi
             displayName: 'Install agentic-devtools'
 
           - script: |
@@ -82,8 +88,14 @@ stages:
 
           # TODO: Pin to a specific version or install from the template
           # repo/ref — see comment in ValidateConfig job above.
-          - script: |
-              python -m pip install agentic-devtools
+          - bash: |
+              python -m pip install "uv>=0.7,<1.0" || true
+              if command -v uv >/dev/null 2>&1; then
+                uv pip install --system agentic-devtools
+              else
+                python -m pip install --upgrade pip
+                python -m pip install agentic-devtools
+              fi
             displayName: 'Install agentic-devtools'
 
           - script: |

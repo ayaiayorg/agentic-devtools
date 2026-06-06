@@ -36,7 +36,7 @@
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "pip install -e '.[dev]' && git config core.hooksPath .githooks",
+	"postCreateCommand": "(pip install 'uv>=0.7,<1.0' && uv pip install --system -e '.[dev]' || pip install -e '.[dev]') && git config core.hooksPath .githooks",
 
 	// Configure tool-specific properties.
 	"features": {
