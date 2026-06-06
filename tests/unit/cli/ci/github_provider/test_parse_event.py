@@ -173,6 +173,28 @@ class TestParseEvent:
         assert result.pr_number == 0
         assert result.action == "completed"
 
+    def test_workflow_dispatch_with_quoted_pr_number(self) -> None:
+        """workflow_dispatch event with quoted numeric pr_number parses successfully."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "inputs": {"pr_number": '"42"'},
+            "repository": {"full_name": "owner/repo"},
+        }
+        result = provider.parse_event(payload, "workflow_dispatch")
+        assert result.pr_number == 42
+        assert result.action == "completed"
+
+    def test_workflow_dispatch_tab_wrapped_pr_number_defaults_to_zero(self) -> None:
+        """workflow_dispatch event with non-space whitespace wrapper stays invalid."""
+        provider = GitHubActionsProvider(repo="owner/repo")
+        payload = {
+            "inputs": {"pr_number": "\t42\t"},
+            "repository": {"full_name": "owner/repo"},
+        }
+        result = provider.parse_event(payload, "workflow_dispatch")
+        assert result.pr_number == 0
+        assert result.action == "completed"
+
     def test_pull_request_edited_title_change(self) -> None:
         """Edited event with changes.title populates title_changed."""
         provider = GitHubActionsProvider(repo="owner/repo")

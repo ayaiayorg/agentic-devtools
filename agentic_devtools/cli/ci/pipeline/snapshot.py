@@ -45,6 +45,7 @@ class PRStateSnapshot:
         check_runs: All check run statuses.
         reviews: All reviews for the PR.
         has_changes: Whether the PR has file changes.
+        commits_behind: Number of commits the head branch is behind the base branch.
     """
 
     pr_number: int = 0
@@ -72,6 +73,7 @@ class PRStateSnapshot:
     check_runs: list[CheckRunStatus] = field(default_factory=list)
     reviews: list[ReviewInfo] = field(default_factory=list)
     has_changes: bool = False
+    commits_behind: int = 0
 
 
 class DerivedState:
@@ -180,6 +182,11 @@ def build_pr_state_snapshot(
     # Count commits above merge-base
     commit_count = _count_commits(provider, base_branch=pr_meta.base_branch, head_sha=pr_meta.head_sha)
 
+    # Count commits behind base branch
+    commits_behind = _count_commits_behind(
+        provider, pr_number=pr_number, base_branch=pr_meta.base_branch, head_branch=pr_meta.head_branch
+    )
+
     return PRStateSnapshot(
         pr_number=pr_number,
         head_sha=pr_meta.head_sha,
@@ -205,6 +212,7 @@ def build_pr_state_snapshot(
         check_runs=check_runs,
         reviews=reviews,
         has_changes=bool(files),
+        commits_behind=commits_behind,
     )
 
 
@@ -326,6 +334,20 @@ def _count_commits(provider: CIPlatformProvider, *, base_branch: str, head_sha: 
         return 1
     count = counter(base_branch=base_branch, head_sha=head_sha)
     return int(count)
+
+
+def _count_commits_behind(provider: CIPlatformProvider, *, pr_number: int, base_branch: str, head_branch: str) -> int:
+    """Return how many commits head is behind base, or 0 when unsupported.
+
+    Raises:
+        Exception: Propagated from the provider when behind-counting is supported
+            but fails. The caller should treat this as a metadata failure so the
+            pipeline does not proceed with an unknown behind count.
+    """
+    counter = getattr(provider, "count_commits_behind", None)
+    if not callable(counter):
+        return 0
+    return int(counter(pr_number=pr_number, base_branch=base_branch, head_branch=head_branch))
 
 
 def get_effective_head_reviews(reviews: list[ReviewInfo], current_head_sha: str) -> list[ReviewInfo]:

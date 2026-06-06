@@ -30,7 +30,7 @@ class TestResolveRebaseConflictsViaSdk:
                 raise RuntimeError("not available")
             if args == ["add", "src.py"]:
                 return ""
-            if args == ["rebase", "--continue"]:
+            if args == ["-c", "core.editor=true", "rebase", "--continue"]:
                 return ""
             return ""
 
@@ -43,7 +43,7 @@ class TestResolveRebaseConflictsViaSdk:
         assert resolved is True
         assert conflicted.read_text(encoding="utf-8") == "merged\n"
         mock_run_git.assert_any_call(["add", "src.py"])
-        mock_run_git.assert_any_call(["rebase", "--continue"])
+        mock_run_git.assert_any_call(["-c", "core.editor=true", "rebase", "--continue"])
         mock_resolve_file.assert_called_once()
 
     @patch.object(GitHubActionsProvider, "_resolve_conflicted_file_content_via_sdk")
@@ -109,7 +109,7 @@ class TestResolveRebaseConflictsViaSdk:
         assert conflicted.read_text(encoding="utf-8") == original
         called_git_args = [entry.args[0] for entry in mock_run_git.call_args_list]
         assert ["add", "src.py"] not in called_git_args
-        assert ["rebase", "--continue"] not in called_git_args
+        assert ["-c", "core.editor=true", "rebase", "--continue"] not in called_git_args
 
     @patch.object(GitHubActionsProvider, "_resolve_conflicted_file_content_via_sdk")
     @patch.object(GitHubActionsProvider, "_run_git")
@@ -178,7 +178,7 @@ class TestResolveRebaseConflictsViaSdk:
                 raise RuntimeError("not available")
             if args == ["add", "src.py"]:
                 return ""
-            if args == ["rebase", "--continue"]:
+            if args == ["-c", "core.editor=true", "rebase", "--continue"]:
                 raise RuntimeError("cannot continue")
             return ""
 
@@ -213,7 +213,7 @@ class TestResolveRebaseConflictsViaSdk:
                 raise RuntimeError("not available")
             if args == ["add", "src.py"]:
                 return ""
-            if args == ["rebase", "--continue"]:
+            if args == ["-c", "core.editor=true", "rebase", "--continue"]:
                 raise RuntimeError("conflict remains")
             return ""
 

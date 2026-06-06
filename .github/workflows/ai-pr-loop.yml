@@ -22,7 +22,7 @@ env:
   AGDT_USE_PIPELINE_V2: "1"
   ENABLE_AUTO_APPLY_SUGGESTIONS: ${{ vars.ENABLE_AUTO_APPLY_SUGGESTIONS || 'false' }}
 concurrency:
-  group: ai-pr-loop-${{ github.event.inputs.pr_number }}
+  group: ai-pr-loop-${{ replace(replace(github.event.inputs.pr_number, '"', ''), '''', '') }}
   cancel-in-progress: false
 jobs:
   ai-pr-loop:
@@ -34,9 +34,13 @@ jobs:
         id: dispatch-pr
         env:
           GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
+          PR_NUMBER_INPUT: ${{ github.event.inputs.pr_number }}
         run: |
           set -euo pipefail
-          pr_number='${{ github.event.inputs.pr_number }}'
+          pr_number="$PR_NUMBER_INPUT"
+          if [[ "$pr_number" =~ ^\"([0-9]+)\"$ || "$pr_number" =~ ^\'([0-9]+)\'$ ]]; then
+            pr_number="${BASH_REMATCH[1]}"
+          fi
           if [[ ! "$pr_number" =~ ^[0-9]+$ ]]; then
             echo "::error::workflow_dispatch input pr_number must be a numeric pull request number"
             exit 1
@@ -68,7 +72,20 @@ jobs:
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           AGDT_PR_APPROVER_PAT: ${{ secrets.AGDT_PR_APPROVER_PAT }}
           AGDT_ALLOW_PRIVILEGED_PATHS: "1"
-        run: agdt-ai-pr-loop
+        run: |
+          exit_code=0
+          set +e
+          agdt-ai-pr-loop
+          exit_code=$?
+          set -e
+          # Control-flow exits from ai-pr-loop:
+          #   1 = guard-blocked
+          #   5 = repair-dispatched
+          if [[ "$exit_code" -eq 1 || "$exit_code" -eq 5 ]]; then
+            echo "::notice::ai-pr-loop exited with control-flow code ${exit_code}; treating as non-fatal."
+            exit 0
+          fi
+          exit "$exit_code"
       - name: Dispatch AI PR Loop Redispatch
         if: always()
         env:

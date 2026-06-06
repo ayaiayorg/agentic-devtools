@@ -205,6 +205,16 @@ class TestCIPlatformProvider:
         with pytest.raises(NotImplementedError, match="does not implement graphql"):
             provider.graphql(query="{ viewer { login } }")
 
+    def test_count_commits_behind_default_returns_zero(self) -> None:
+        provider = _ConcreteProvider()
+        result = provider.count_commits_behind(pr_number=1, base_branch="main", head_branch="feature")
+        assert result == 0
+
+    def test_rebase_onto_base_default_raises_not_implemented(self) -> None:
+        provider = _ConcreteProvider()
+        with pytest.raises(NotImplementedError, match="does not implement rebase_onto_base"):
+            provider.rebase_onto_base(pr_number=1, base_branch="main", head_branch="feature", head_sha="abc123")
+
     def test_abstract_methods_list(self) -> None:
         """Verify all expected abstract methods are defined."""
         expected_methods = {

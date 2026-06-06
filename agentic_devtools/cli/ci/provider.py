@@ -336,6 +336,45 @@ class CIPlatformProvider(ABC):
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement get_commit_range_diff")
 
+    def count_commits_behind(self, *, pr_number: int, base_branch: str, head_branch: str) -> int:
+        """Return how many commits the head branch is behind the base branch.
+
+        Args:
+            pr_number: Pull request number (for logging).
+            base_branch: Target branch name.
+            head_branch: Source branch name.
+
+        Returns:
+            Number of commits the head branch is behind. Returns 0 when the
+            provider does not support this operation.
+        """
+        return 0
+
+    def rebase_onto_base(
+        self,
+        *,
+        pr_number: int,
+        base_branch: str,
+        head_branch: str,
+        head_sha: str,
+    ) -> None:
+        """Rebase the head branch onto the base branch and force-push.
+
+        Performs: fetch → checkout → rebase → conflict resolution → force-push-with-lease.
+
+        Args:
+            pr_number: Pull request number (for logging).
+            base_branch: Target branch to rebase onto.
+            head_branch: Source branch to rebase.
+            head_sha: Current HEAD SHA (for safety).
+
+        Raises:
+            RebaseConflictError: When rebase conflicts cannot be auto-resolved.
+            ForceWithLeaseError: When force-push-with-lease fails.
+            NotImplementedError: When the provider does not support this operation.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not implement rebase_onto_base")
+
     def graphql(self, *, query: str, variables: dict | None = None) -> dict:
         """Execute a GraphQL query or mutation against the GitHub API.
 
