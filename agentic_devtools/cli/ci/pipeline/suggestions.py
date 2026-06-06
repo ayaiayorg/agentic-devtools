@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 
 from agentic_devtools.cli.ci.provider import CIPlatformProvider
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Maximum bisection recursion depth to cap API calls
 _MAX_BISECTION_DEPTH = 4
+_SUGGESTION_BLOCK_PATTERN = re.compile(r"(?m)^[ \t]*```suggestion(?::-?\d+(?:\+\d+)?)?(?:[ \t].*)?\r?$")
 
 
 @dataclass
@@ -24,8 +26,9 @@ class SuggestedChange:
     """A single autofixable code suggestion from a review comment.
 
     Attributes:
-        suggestion_id: GraphQL node ID of the SuggestedChange.
-        outdated: Whether the suggestion is outdated (stale).
+        suggestion_id: GraphQL node ID of the review comment carrying a
+            markdown suggestion block.
+        outdated: Whether the parent review thread is outdated (stale).
         comment_database_id: REST API ``databaseId`` of the parent
             ``PullRequestReviewComment``.
         thread_id: GraphQL node ID of the parent review thread.
@@ -42,8 +45,9 @@ class ApplySuggestionsResult:
     """Structured output for batch and bisection apply flows.
 
     Attributes:
-        applied_ids: GraphQL SuggestedChange node IDs that were successfully applied.
-        skipped_ids: GraphQL SuggestedChange node IDs that were excluded
+        applied_ids: Review-comment GraphQL node IDs passed as
+            ``suggestedChangeIds`` and successfully applied.
+        skipped_ids: Review-comment GraphQL node IDs that were excluded
             (outdated, conflicting, or errored).
         commit_shas: Ordered list of autofix commit SHAs produced by batch
             and/or fallback application.
@@ -56,7 +60,7 @@ class ApplySuggestionsResult:
     error: str | None = None
 
 
-# GraphQL query for fetching suggested changes on a PR
+# GraphQL query for fetching suggestion-candidate review comments on a PR
 _SUGGESTIONS_QUERY = """\
 query($owner: String!, $repoName: String!, $prNumber: Int!, $threadsCursor: String) {
   repository(owner: $owner, name: $repoName) {
@@ -67,17 +71,33 @@ query($owner: String!, $repoName: String!, $prNumber: Int!, $threadsCursor: Stri
         nodes {
           id
           isResolved
+          isOutdated
           comments(first: 100) {
+            pageInfo { hasNextPage endCursor }
             nodes {
+              id
               databaseId
-              suggestedChanges(first: 100) {
-                nodes {
-                  id
-                  outdated
-                }
-              }
+              body
             }
           }
+        }
+      }
+    }
+  }
+}
+"""
+
+# GraphQL query for paginating comments within a single review thread
+_THREAD_COMMENTS_QUERY = """\
+query($threadId: ID!, $commentsCursor: String) {
+  node(id: $threadId) {
+    ... on PullRequestReviewThread {
+      comments(first: 100, after: $commentsCursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id
+          databaseId
+          body
         }
       }
     }
@@ -105,9 +125,11 @@ def fetch_applicable_suggestions(
 ) -> tuple[list[SuggestedChange], str]:
     """Query GitHub GraphQL API for all applicable suggestions on a PR.
 
-    Retrieves all SuggestedChange nodes from unresolved review threads,
-    filtering out those marked as outdated. Handles pagination for PRs
-    with more than 100 review threads.
+    Retrieves all review comments from unresolved review threads and treats
+    comments containing markdown "```suggestion" fenced blocks as applicable
+    suggestions. Thread-level ``isOutdated`` is propagated onto each
+    discovered suggestion and filtered out. Handles pagination for PRs with
+    more than 100 review threads and for thread comment pages over 100.
 
     Args:
         provider: CI platform provider for API interactions.
@@ -148,6 +170,8 @@ def fetch_applicable_suggestions(
             error_str = "; ".join(msg for msg in error_messages if msg) or "Unknown GraphQL error"
             if _is_transient_error(error_str):
                 raise RetryableError(f"Transient GraphQL query error: {error_str}")
+            if _is_schema_error(error_str):
+                logger.warning("Suggestion fetch GraphQL schema mismatch: %s", error_str)
             raise RuntimeError(f"GraphQL query failed: {error_str}")
 
         pr_data = data.get("data", {}).get("repository", {}).get("pullRequest")
@@ -165,21 +189,32 @@ def fetch_applicable_suggestions(
                 continue
 
             thread_id = thread.get("id", "")
-            for comment in (thread.get("comments") or {}).get("nodes") or []:
+            thread_outdated = bool(thread.get("isOutdated", False))
+            comments_data = thread.get("comments") or {}
+            comments: list[dict] = list(comments_data.get("nodes") or [])
+            page_info = comments_data.get("pageInfo")
+            if not isinstance(page_info, dict):
+                page_info = {}
+            comments_cursor = page_info.get("endCursor") if page_info.get("hasNextPage") else None
+            while comments_cursor and thread_id:
+                next_comments, next_page_info = _fetch_additional_thread_comments(provider, thread_id, comments_cursor)
+                comments.extend(next_comments)
+                comments_cursor = next_page_info.get("endCursor") if next_page_info.get("hasNextPage") else None
+
+            for comment in comments:
                 if not isinstance(comment, dict):
                     continue
                 raw_db_id = comment.get("databaseId")
                 comment_db_id = raw_db_id if isinstance(raw_db_id, int) else 0
-                for sc in (comment.get("suggestedChanges") or {}).get("nodes") or []:
-                    if not isinstance(sc, dict):
-                        continue
-                    sc_id = sc.get("id")
-                    if not sc_id:
-                        continue
+                comment_id = comment.get("id")
+                body = str(comment.get("body") or "")
+                if not isinstance(comment_id, str) or not comment_id:
+                    continue
+                if _SUGGESTION_BLOCK_PATTERN.search(body):
                     suggestions.append(
                         SuggestedChange(
-                            suggestion_id=sc_id,
-                            outdated=sc.get("outdated", False),
+                            suggestion_id=comment_id,
+                            outdated=thread_outdated,
                             comment_database_id=comment_db_id,
                             thread_id=thread_id,
                         )
@@ -388,6 +423,45 @@ def _is_transient_error(error_msg: str) -> bool:
     ]
     lower = error_msg.lower()
     return any(indicator in lower for indicator in transient_indicators)
+
+
+def _is_schema_error(error_msg: str) -> bool:
+    """Classify an error message as a GraphQL schema/field mismatch."""
+    lower = error_msg.lower()
+    return "doesn't exist on type" in lower or "cannot query field" in lower
+
+
+def _fetch_additional_thread_comments(
+    provider: CIPlatformProvider,
+    thread_id: str,
+    cursor: str,
+) -> tuple[list[dict], dict]:
+    """Fetch one additional paginated page of review-thread comments."""
+    response = provider.graphql(
+        query=_THREAD_COMMENTS_QUERY,
+        variables={
+            "threadId": thread_id,
+            "commentsCursor": cursor,
+        },
+    )
+    data = json.loads(response) if isinstance(response, str) else response
+    errors = data.get("errors", [])
+    if errors:
+        error_messages = [e.get("message", "") for e in errors if isinstance(e, dict)]
+        error_str = "; ".join(msg for msg in error_messages if msg) or "Unknown GraphQL error"
+        if _is_transient_error(error_str):
+            raise RetryableError(f"Transient GraphQL query error: {error_str}")
+        if _is_schema_error(error_str):
+            logger.warning("Thread comments GraphQL schema mismatch: %s", error_str)
+        raise RuntimeError(f"GraphQL query failed: {error_str}")
+
+    comments_data = (data.get("data", {}).get("node") or {}).get("comments")
+    if not isinstance(comments_data, dict):
+        return [], {}
+    page_info = comments_data.get("pageInfo")
+    if not isinstance(page_info, dict):
+        page_info = {}
+    return [comment for comment in (comments_data.get("nodes") or []) if isinstance(comment, dict)], page_info
 
 
 def _get_repo_parts(provider: CIPlatformProvider) -> tuple[str, str]:
