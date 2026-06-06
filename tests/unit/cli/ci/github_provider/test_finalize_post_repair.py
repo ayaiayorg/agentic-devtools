@@ -40,53 +40,12 @@ def _build_sdk_modules() -> tuple[MagicMock, MagicMock, MagicMock]:
 
     mock_copilot = MagicMock()
     mock_copilot.CopilotClient.return_value = mock_client
-    mock_copilot.SubprocessConfig = MagicMock()
 
     mock_session_module = MagicMock()
     mock_session_module.PermissionHandler = MagicMock()
     mock_session_module.PermissionHandler.approve_all = object()
 
     return mock_copilot, mock_session_module, mock_session
-
-
-def _build_sdk_modules_no_subprocess_config(response: str) -> tuple[MagicMock, MagicMock, MagicMock]:
-    """Return (mock_copilot, mock_copilot_config, mock_session_module) where SubprocessConfig
-    is absent from copilot but present in copilot.config, to exercise the fallback import path."""
-    mock_session = MagicMock()
-    mock_session.disconnect = AsyncMock()
-
-    callbacks: list = []
-
-    def capture_on(cb: object) -> None:
-        callbacks.append(cb)
-
-    mock_session.on = MagicMock(side_effect=capture_on)
-
-    async def send_and_emit(_: str) -> None:
-        callback = callbacks[0]
-        callback(_make_sdk_event("assistant.message", response))
-        callback(_make_sdk_event("session.idle"))
-
-    mock_session.send = send_and_emit
-
-    mock_client = MagicMock()
-    mock_client.start = AsyncMock()
-    mock_client.stop = AsyncMock()
-    mock_client.create_session = AsyncMock(return_value=mock_session)
-
-    # copilot module WITHOUT SubprocessConfig (spec limits attribute access)
-    mock_copilot = MagicMock(spec=["CopilotClient"])
-    mock_copilot.CopilotClient.return_value = mock_client
-
-    # copilot.config WITH SubprocessConfig
-    mock_copilot_config = MagicMock()
-    mock_copilot_config.SubprocessConfig = MagicMock()
-
-    mock_session_module = MagicMock()
-    mock_session_module.PermissionHandler = MagicMock()
-    mock_session_module.PermissionHandler.approve_all = object()
-
-    return mock_copilot, mock_copilot_config, mock_session_module
 
 
 def _build_sdk_client_for_response(response: str) -> tuple[MagicMock, MagicMock]:
@@ -114,7 +73,6 @@ def _build_sdk_client_for_response(response: str) -> tuple[MagicMock, MagicMock]
 
     mock_copilot = MagicMock()
     mock_copilot.CopilotClient.return_value = mock_client
-    mock_copilot.SubprocessConfig = MagicMock()
 
     mock_session_module = MagicMock()
     mock_session_module.PermissionHandler = MagicMock()
@@ -750,7 +708,10 @@ class TestFinalizePostRepair:
 
         mock_session.send = send_and_emit
 
-        with patch.dict(sys.modules, {"copilot": mock_copilot, "copilot.session": mock_session_module}):
+        with patch.dict(
+            sys.modules,
+            {"copilot": mock_copilot, "copilot.session": mock_session_module},
+        ):
             provider = GitHubActionsProvider(repo="owner/repo")
             result = provider._verify_comments_via_sdk(
                 [
@@ -761,7 +722,7 @@ class TestFinalizePostRepair:
 
         assert result[101] == VerificationVerdict.COMMENT_RESOLVE
         assert result[202] == VerificationVerdict.COMMENT_UNRESOLVE
-        assert mock_copilot.SubprocessConfig.call_args.kwargs["github_token"] == "test-token"
+        assert mock_copilot.CopilotClient.call_args.kwargs["github_token"] == "test-token"
 
     @patch.object(GitHubActionsProvider, "_verify_comments_via_tiered_engine")
     def test_verify_comments_via_sdk_with_head_sha_uses_tiered_engine_for_legacy_tuples(self, mock_verify) -> None:
@@ -1235,31 +1196,14 @@ class TestFinalizePostRepair:
         monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
         mock_copilot, mock_session_module, _mock_session = _build_sdk_modules()
 
-        with patch.dict(sys.modules, {"copilot": mock_copilot, "copilot.session": mock_session_module}):
+        with patch.dict(
+            sys.modules,
+            {"copilot": mock_copilot, "copilot.session": mock_session_module},
+        ):
             with patch("agentic_devtools.cli.ci.github_provider.asyncio.run", side_effect=RuntimeError("boom")):
                 provider = GitHubActionsProvider(repo="owner/repo")
                 with pytest.raises(RuntimeError, match="boom"):
                     provider._run_prompt_via_sdk("prompt")
-
-    def test_run_prompt_via_sdk_fallback_import_path_succeeds(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """When SubprocessConfig is absent from copilot, falls back to copilot.config."""
-        monkeypatch.setenv("COPILOT_GITHUB_TOKEN", "test-token")  # type: ignore[attr-defined]
-        mock_copilot, mock_copilot_config, mock_session_module = _build_sdk_modules_no_subprocess_config(
-            "COMMENT_RESOLVE"
-        )
-
-        with patch.dict(
-            sys.modules,
-            {
-                "copilot": mock_copilot,
-                "copilot.config": mock_copilot_config,
-                "copilot.session": mock_session_module,
-            },
-        ):
-            provider = GitHubActionsProvider(repo="owner/repo")
-            result = provider._run_prompt_via_sdk("prompt")
-
-        assert result == "COMMENT_RESOLVE"
 
     def test_run_prompt_via_sdk_fallback_uses_default_fallback_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("COPILOT_FALLBACK_MODEL", raising=False)
@@ -1304,12 +1248,15 @@ class TestFinalizePostRepair:
 
         mock_session.send = send_and_emit
 
-        with patch.dict(sys.modules, {"copilot": mock_copilot, "copilot.session": mock_session_module}):
+        with patch.dict(
+            sys.modules,
+            {"copilot": mock_copilot, "copilot.session": mock_session_module},
+        ):
             provider = GitHubActionsProvider(repo="owner/repo")
             result = provider._verify_comment_via_sdk("Comment one", "diff --git a/a.py b/a.py\n+fix")
 
         assert result == VerificationVerdict.COMMENT_RESOLVE
-        assert mock_copilot.SubprocessConfig.call_args.kwargs["github_token"] == "test-token"
+        assert mock_copilot.CopilotClient.call_args.kwargs["github_token"] == "test-token"
 
     @patch("agentic_devtools.cli.ci.github_provider._gh_api")
     def test_dispatch_repair_uses_token_and_returns_comment_id(self, mock_gh_api) -> None:

@@ -85,12 +85,18 @@ class TestMainFunction:
 
     @pytest.fixture(autouse=True)
     def _mock_copilot_sdk(self):
-        """Provide fake ``copilot`` and ``copilot.session`` packages so the script can be imported."""
+        """Provide fake copilot packages so the script can be imported."""
         fake_copilot = MagicMock()
         fake_copilot_session = MagicMock()
         # PermissionHandler.approve_all needs to be a callable sentinel
         fake_copilot_session.PermissionHandler.approve_all = MagicMock(name="approve_all")
-        with patch.dict(sys.modules, {"copilot": fake_copilot, "copilot.session": fake_copilot_session}):
+        with patch.dict(
+            sys.modules,
+            {
+                "copilot": fake_copilot,
+                "copilot.session": fake_copilot_session,
+            },
+        ):
             yield fake_copilot, fake_copilot_session
 
     def test_empty_stdin_returns_1(self, _mock_copilot_sdk):
@@ -583,4 +589,4 @@ class TestImportFailurePath:
         assert exc_info.value.code == 1
         stderr_output = stderr_buf.getvalue()
         assert "Copilot SDK import failed" in stderr_output
-        assert "python -m pip install agentic-devtools" in stderr_output
+        assert "github-copilot-sdk" in stderr_output
