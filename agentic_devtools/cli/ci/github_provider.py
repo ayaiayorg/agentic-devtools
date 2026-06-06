@@ -1145,6 +1145,8 @@ class GitHubActionsProvider(CIPlatformProvider):
                 diff_hunk=c.get("diff_hunk", ""),
                 commit_id=c.get("commit_id") or "",
                 original_commit_id=c.get("original_commit_id") or "",
+                author_login=((c.get("user") or {}).get("login", "") if isinstance(c.get("user"), dict) else ""),
+                in_reply_to_id=(int(c["in_reply_to_id"]) if c.get("in_reply_to_id") is not None else None),
             )
             for c in comments
         ]
@@ -2544,6 +2546,7 @@ class GitHubActionsProvider(CIPlatformProvider):
 
         from agentic_devtools.cli.ci.resolution.tiers.diff_heuristic import DiffHeuristicTier
         from agentic_devtools.cli.ci.resolution.tiers.swe_agent_reply import SweAgentReplyTier
+        from agentic_devtools.cli.ci.resolution.tiers.thread_evaluated import ThreadEvaluatedTier
 
         engine = TieredResolutionEngine(
             cast(
@@ -2552,6 +2555,7 @@ class GitHubActionsProvider(CIPlatformProvider):
                     OutdatedTier(),
                     AutomationMarkerTier(),
                     SweAgentReplyTier(),
+                    ThreadEvaluatedTier(),
                     DiffHeuristicTier(),
                     SdkEvaluationTier(
                         sdk_caller=self._run_prompt_via_sdk,

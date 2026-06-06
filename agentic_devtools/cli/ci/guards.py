@@ -47,6 +47,11 @@ DEFAULT_MAX_CYCLES = 50
 # Cycle tracker marker
 CYCLE_TRACKER_MARKER = "<!-- ai-pr-loop-cycle-tracker -->"
 
+# Repair-satisfied markers (no-commit-needed agent signal)
+REPAIR_SATISFIED_MARKER = "<!-- ai-pr-loop:repair-satisfied -->"
+THREAD_EVALUATED_MARKER = "<!-- ai-pr-loop:thread-evaluated -->"
+REVIEW_ID_MARKER_RE = re.compile(r"<!--\s*review-id\s*:\s*(\d+)\s*-->")
+
 _DEDUP_WRITER_TOKEN: str | None = None
 
 

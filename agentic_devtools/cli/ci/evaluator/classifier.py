@@ -19,10 +19,11 @@ def classify_post_agent_state(snapshot: PostAgentSnapshot) -> PostAgentClassific
     Classification priority:
     1. Concurrent evaluation check (lock held by another run)
     2. Complete (sentinel already present)
-    3. Threads resolved but no sentinel
-    4. Agent claims fixed (comment present, no code change, unresolved threads)
-    5. Changes made but threads still unresolved
-    6. Agent silent (fallback)
+    3. Repair satisfied — no changes needed (agent posted marker)
+    4. Threads resolved but no sentinel
+    5. Agent claims fixed (comment present, no code change, unresolved threads)
+    6. Changes made but threads still unresolved
+    7. Agent silent (fallback)
 
     Args:
         snapshot: Immutable snapshot of PR state.
@@ -38,21 +39,26 @@ def classify_post_agent_state(snapshot: PostAgentSnapshot) -> PostAgentClassific
     if snapshot.has_sentinel:
         return PostAgentClassification.complete
 
+    # 3. Repair satisfied — agent posted marker indicating no changes needed
+    review_id_matches = snapshot.review_id == 0 or snapshot.repair_satisfied_review_id == snapshot.review_id
+    if snapshot.has_repair_satisfied_marker and not snapshot.head_changed_since_review and review_id_matches:
+        return PostAgentClassification.repair_satisfied_no_changes
+
     # Determine thread states
     unresolved_threads = [t for t in snapshot.threads if not t.is_resolved]
     all_threads_resolved = len(unresolved_threads) == 0 and len(snapshot.threads) > 0
 
-    # 3. All threads resolved but no sentinel posted
+    # 4. All threads resolved but no sentinel posted
     if all_threads_resolved and not snapshot.has_sentinel:
         return PostAgentClassification.threads_resolved_no_sentinel
 
-    # 4. Agent left a comment claiming fixed, but threads still unresolved
+    # 5. Agent left a comment claiming fixed, but threads still unresolved
     if snapshot.latest_agent_comment is not None and not snapshot.head_changed_since_review and unresolved_threads:
         return PostAgentClassification.agent_claims_fixed_no_sentinel
 
-    # 5. Code was changed but threads remain unresolved
+    # 6. Code was changed but threads remain unresolved
     if snapshot.head_changed_since_review and unresolved_threads:
         return PostAgentClassification.changes_made_threads_unresolved
 
-    # 6. Fallback: agent didn't respond meaningfully
+    # 7. Fallback: agent didn't respond meaningfully
     return PostAgentClassification.agent_silent

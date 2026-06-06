@@ -149,6 +149,8 @@ class ReviewCommentInfo:
         original_commit_id: The original commit SHA the comment was placed on, before
             any remapping by GitHub (empty if not available). Use this for guards that
             compare whether the comment predates the current HEAD.
+        author_login: Login of the review comment author when available.
+        in_reply_to_id: Review comment ID this comment replies to (None for root).
     """
 
     id: int
@@ -163,6 +165,8 @@ class ReviewCommentInfo:
     diff_hunk: str = ""
     commit_id: str = ""
     original_commit_id: str = ""
+    author_login: str = ""
+    in_reply_to_id: int | None = None
 
 
 @dataclass(frozen=True)

@@ -19,3 +19,12 @@ class TestGetLatestAgentComment:
         result = _get_latest_agent_comment(provider, 42)
 
         assert result is None
+
+    def test_returns_none_without_provider_support(self):
+        """Latest agent helper returns None when provider has no issue-comment method."""
+        provider = MagicMock()
+        provider.list_issue_comments = None
+
+        result = _get_latest_agent_comment(provider, 42)
+
+        assert result is None

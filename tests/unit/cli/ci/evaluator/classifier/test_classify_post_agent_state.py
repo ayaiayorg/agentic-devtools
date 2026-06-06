@@ -10,7 +10,7 @@ from agentic_devtools.cli.ci.evaluator.models import (
 
 
 class TestClassifyPostAgentState:
-    """Tests covering all six classification branches."""
+    """Tests covering all seven classification branches."""
 
     def test_concurrent_evaluation_skipped(self):
         """Lock held by another run → concurrent_evaluation_skipped."""
@@ -26,6 +26,60 @@ class TestClassifyPostAgentState:
         """Sentinel present but lock held → concurrent_evaluation_skipped (lock takes priority)."""
         snap = PostAgentSnapshot(pr_number=1, has_sentinel=True, lock_holder="other")
         assert classify_post_agent_state(snap) == PostAgentClassification.concurrent_evaluation_skipped
+
+    def test_repair_satisfied_no_changes(self):
+        """Repair-satisfied marker present, no head change → repair_satisfied_no_changes."""
+        threads = (ThreadInfo(comment_id=1, is_resolved=False),)
+        snap = PostAgentSnapshot(
+            pr_number=1,
+            threads=threads,
+            has_repair_satisfied_marker=True,
+            review_id=42,
+            repair_satisfied_review_id=42,
+            head_changed_since_review=False,
+        )
+        assert classify_post_agent_state(snap) == PostAgentClassification.repair_satisfied_no_changes
+
+    def test_repair_satisfied_ignored_when_head_changed(self):
+        """Repair-satisfied marker present but head changed → NOT repair_satisfied."""
+        threads = (ThreadInfo(comment_id=1, is_resolved=False),)
+        snap = PostAgentSnapshot(
+            pr_number=1,
+            threads=threads,
+            has_repair_satisfied_marker=True,
+            repair_satisfied_review_id=42,
+            head_changed_since_review=True,
+        )
+        # head_changed + unresolved → changes_made_threads_unresolved
+        assert classify_post_agent_state(snap) == PostAgentClassification.changes_made_threads_unresolved
+
+    def test_repair_satisfied_takes_priority_over_agent_claims_fixed(self):
+        """Repair-satisfied marker takes priority over agent_claims_fixed_no_sentinel."""
+        threads = (ThreadInfo(comment_id=1, is_resolved=False),)
+        comment = CommentInfo(id=99, author="copilot[bot]", body="No changes needed")
+        snap = PostAgentSnapshot(
+            pr_number=1,
+            threads=threads,
+            latest_agent_comment=comment,
+            has_repair_satisfied_marker=True,
+            review_id=42,
+            repair_satisfied_review_id=42,
+            head_changed_since_review=False,
+        )
+        assert classify_post_agent_state(snap) == PostAgentClassification.repair_satisfied_no_changes
+
+    def test_repair_satisfied_ignored_on_review_id_mismatch(self):
+        """Mismatched review-id marker is ignored and falls through."""
+        threads = (ThreadInfo(comment_id=1, is_resolved=False),)
+        snap = PostAgentSnapshot(
+            pr_number=1,
+            threads=threads,
+            has_repair_satisfied_marker=True,
+            review_id=101,
+            repair_satisfied_review_id=42,
+            head_changed_since_review=False,
+        )
+        assert classify_post_agent_state(snap) == PostAgentClassification.agent_silent
 
     def test_threads_resolved_no_sentinel(self):
         """All threads resolved, no sentinel → threads_resolved_no_sentinel."""
