@@ -74,7 +74,7 @@ def _get_attribution_params(
     review_state: Any,
     config: AzureDevOpsConfig,
     file_path: str | None = None,
-) -> dict[str, str | None]:
+) -> dict[str, Any]:
     """Extract attribution parameters from ReviewState for comment rendering.
 
     Replicates the logic from ``file_review_commands._get_attribution_params()``
@@ -276,7 +276,7 @@ def process_submission(
 
             # Record verdict when a model ID is available
             if review_state.sessions:
-                model_id = review_state.sessions[-1].modelId
+                model_id: str | None = review_state.sessions[-1].modelId
             else:
                 model_id = getattr(review_state, "modelId", None)
             if model_id:

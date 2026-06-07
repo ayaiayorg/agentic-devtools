@@ -485,7 +485,7 @@ def read_branch_tree(
     if result.returncode != 0:
         raise GitPlumbingError("git ls-tree failed: " + result.stderr.strip())
 
-    tree = {}  # type: Dict[str, str]
+    tree = {}  # type: dict[str, str]
     for line in result.stdout.splitlines():
         # Format: "<mode> <type> <sha>\t<path>"
         meta, path = line.split("\t", 1)
@@ -659,7 +659,7 @@ def _discover_workflow_files(repo_root: Path, identity: str, worktree_key: str) 
     base = repo_root / ".agdt" / "workflows" / identity / worktree_key
     if not base.is_dir():
         return {}
-    files = {}  # type: Dict[str, str]
+    files = {}  # type: dict[str, str]
     for file_path in sorted(base.rglob("*")):
         if not file_path.is_file():
             continue
@@ -763,7 +763,7 @@ def _read_tree_for_commit(commit_sha: str) -> dict[str, str]:
     if result.returncode != 0:
         raise GitPlumbingError("git ls-tree failed: " + result.stderr.strip())
 
-    tree = {}  # type: Dict[str, str]
+    tree = {}  # type: dict[str, str]
     for line in result.stdout.splitlines():
         # Format: "<mode> <type> <sha>\t<path>"
         meta, path = line.split("\t", 1)
@@ -869,7 +869,7 @@ def persist_workflow_state(
         #    When creating a brand-new -agdt branch, resolve the source branch
         #    HEAD upfront so we can (a) use its tree as the base and (b) set it
         #    as the parent commit.
-        src_sha = None  # type: Optional[str]
+        src_sha = None  # type: str | None
         if branch_is_new:
             src_result = _run_plumbing("rev-parse", source_branch)
             if src_result.returncode != 0:
@@ -889,7 +889,8 @@ def persist_workflow_state(
         #    in the newly discovered updates, so deleted files do not persist
         #    indefinitely in the -agdt branch.
         if branch_is_new:
-            existing_tree = _read_tree_for_commit(src_sha)  # type: Dict[str, str]
+            assert src_sha is not None  # Set to non-None when branch_is_new is True
+            existing_tree = _read_tree_for_commit(src_sha)  # type: dict[str, str]
         else:
             existing_tree = read_branch_tree(target_branch)
         workflow_prefix = f".agdt/workflows/{identity}/{worktree_key}/"
@@ -897,7 +898,7 @@ def persist_workflow_state(
             path: sha
             for path, sha in existing_tree.items()
             if not (path.startswith(workflow_prefix) and path not in updates)
-        }  # type: Dict[str, str]
+        }  # type: dict[str, str]
         merged = dict(filtered_existing, **updates)
         tree_sha = build_tree(merged)
 
@@ -993,7 +994,7 @@ def persist_workflow_state(
                 path: sha
                 for path, sha in remote_tree.items()
                 if not (path.startswith(workflow_prefix) and path not in updates)
-            }  # type: Dict[str, str]
+            }  # type: dict[str, str]
             merged = dict(filtered_remote, **updates)
             tree_sha = build_tree(merged)
 

@@ -116,6 +116,12 @@ def create_epic() -> None:
         print("  agdt-create-epic", file=sys.stderr)
         sys.exit(1)
 
+    # At this point all required values are non-None (validated above)
+    assert summary is not None
+    assert role is not None
+    assert desired_outcome is not None
+    assert benefit is not None
+
     acceptance_criteria = _parse_multiline_string(get_jira_value("acceptance_criteria"))
     additional_information = _parse_multiline_string(get_jira_value("additional_information"))
     custom_labels = _parse_comma_separated(get_jira_value("labels"))
@@ -191,6 +197,12 @@ def create_issue() -> None:
         print(f"Error: Missing required fields: {', '.join(missing)}", file=sys.stderr)
         sys.exit(1)
 
+    # At this point all required values are non-None (validated above)
+    assert summary is not None
+    assert role is not None
+    assert desired_outcome is not None
+    assert benefit is not None
+
     acceptance_criteria = _parse_multiline_string(get_jira_value("acceptance_criteria"))
     additional_information = _parse_multiline_string(get_jira_value("additional_information"))
     custom_labels = _parse_comma_separated(get_jira_value("labels"))
@@ -258,6 +270,12 @@ def create_subtask() -> None:
     if missing:
         print(f"Error: Missing required fields: {', '.join(missing)}", file=sys.stderr)
         sys.exit(1)
+
+    # At this point all required values are non-None (validated above)
+    assert summary is not None
+    assert role is not None
+    assert desired_outcome is not None
+    assert benefit is not None
 
     if parent_key:
         project_key = parent_key.split("-")[0]

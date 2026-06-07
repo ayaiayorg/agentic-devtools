@@ -257,16 +257,16 @@ def _verify_replies(
     if expected_reply_map:
         # Build precise lookup: (id, in_reply_to_id) pairs
         comment_pairs = {(c.get("id"), c.get("in_reply_to_id")) for c in comments}
-        result: dict[int, bool] = {}
+        verification: dict[int, bool] = {}
         for cid in expected_comment_ids:
             reply_id = expected_reply_map.get(cid)
             if reply_id is not None:
                 # Verify the specific reply we posted exists
-                result[cid] = (reply_id, cid) in comment_pairs
+                verification[cid] = (reply_id, cid) in comment_pairs
             else:
                 # No known reply ID; fall back to presence check
-                result[cid] = cid in reply_to_ids
-        return result
+                verification[cid] = cid in reply_to_ids
+        return verification
 
     return {cid: (cid in reply_to_ids) for cid in expected_comment_ids}
 

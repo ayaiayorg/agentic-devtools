@@ -92,3 +92,12 @@ class TestParseMarker:
         result = parse_marker(content)
         assert result is not None
         assert result["_version"] == "1"
+
+    def test_token_without_colon_is_ignored(self):
+        """Tokens without a colon separator are skipped."""
+        content = "<!-- agdt-review:v1 type:file-summary stray_token pr:5 -->"
+        result = parse_marker(content)
+        assert result is not None
+        assert "stray_token" not in result
+        assert result["type"] == "file-summary"
+        assert result["pr"] == "5"

@@ -592,6 +592,47 @@ class TestPersistWorkflowStateErrorHandling:
         msg = mock_commit.call_args[0][2]
         assert "agdt: persist review state for PROJECT-1234" in msg
 
+    @patch(f"{_MOD}.get_value", return_value=None)
+    @patch(f"{_MOD}.push_branch", return_value=_ok())
+    @patch(f"{_MOD}.update_ref")
+    @patch(f"{_MOD}.create_commit", return_value="ccc")
+    @patch(f"{_MOD}.build_tree", return_value="ttt")
+    @patch(f"{_MOD}.read_branch_tree", return_value={})
+    @patch(f"{_MOD}._run_plumbing")
+    @patch(f"{_MOD}._branch_exists_remotely", return_value=False)
+    @patch(f"{_MOD}._branch_exists_locally", return_value=True)
+    @patch(
+        f"{_MOD}._discover_workflow_files",
+        return_value={"f": "sha"},
+    )
+    @patch(f"{_MOD}._get_repo_root", return_value=Path("/repo"))
+    def test_explicit_commit_message_used(
+        self,
+        _root,
+        _discover,
+        _loc,
+        _rem,
+        mock_plumbing,
+        _read,
+        _build,
+        mock_commit,
+        _update,
+        _push,
+        _get_val,
+    ):
+        """Explicit commit_message is used without auto-generation."""
+        mock_plumbing.return_value = _ok(stdout="sha\n")
+        mock_commit.return_value = "ccc"
+
+        persist_workflow_state(
+            "feat",
+            worktree_key="KEY",
+            commit_message="custom: my message",
+        )
+
+        msg = mock_commit.call_args[0][2]
+        assert msg == "custom: my message"
+
     @patch(f"{_MOD}.get_value", return_value="abc123")
     @patch(f"{_MOD}._has_matching_run_id", return_value=False)
     @patch(f"{_MOD}.push_branch", return_value=_ok())

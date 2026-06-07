@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 import urllib.parse
+from collections.abc import Sequence
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -240,7 +241,7 @@ def filter_agdt_threads(threads: list[dict[str, Any] | None]) -> list[dict[str, 
     return [t for t in threads if t and has_agdt_marker(_get_first_comment_content(t))]
 
 
-def classify_agdt_threads(threads: list[dict[str, Any] | None]) -> dict[str, list[dict[str, Any]]]:
+def classify_agdt_threads(threads: Sequence[dict[str, Any] | None]) -> dict[str, list[dict[str, Any]]]:
     """Group agdt-marked threads by their marker ``type`` value.
 
     Only threads with a valid marker are included.  Threads without markers

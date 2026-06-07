@@ -252,6 +252,66 @@ class TestProcessSubmission:
     @patch("agentic_devtools.submission_processor.update_file_status")
     @patch("agentic_devtools.submission_processor.clear_suggestions_for_re_review")
     @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
+    def test_duplicate_skipped_after_iterating_past_non_matching(
+        self,
+        mock_rmw,
+        mock_clear,
+        mock_update_status,
+        mock_record_verdict,
+        mock_render,
+        mock_patch_comment,
+        mock_patch_thread,
+        mock_mark_reviewed,
+        mock_cascade,
+        mock_exec_cascade,
+        config,
+    ):
+        """Duplicate detection iterates past non-matching entries before finding a match."""
+        non_matching = SuggestionEntry(
+            threadId=800,
+            commentId=801,
+            line=5,
+            endLine=5,
+            severity="low",
+            outOfScope=False,
+            linkText="line 5",
+            content="Different issue",
+        )
+        matching = SuggestionEntry(
+            threadId=999,
+            commentId=998,
+            line=10,
+            endLine=10,
+            severity="high",
+            outOfScope=False,
+            linkText="line 10",
+            content="Fix this",
+        )
+        state = make_review_state(model_id="test-model", suggestions=[non_matching, matching])
+        setup_rmw_mock(mock_rmw, state)
+        mock_update_status.side_effect = lambda rs, fp, st, summary=None: rs
+
+        mock_requests = MagicMock()
+
+        # Same suggestion data as the second (matching) entry
+        suggestions = [{"line": 10, "severity": "high", "content": "Fix this"}]
+        item = make_item(outcome="request-changes", summary="Issues", suggestions=suggestions)
+
+        process_submission(item, config, {"Auth": "x"}, REPO_ID, requests_module=mock_requests)
+
+        # No POST should have been made (duplicate detected after skipping non-matching)
+        mock_requests.post.assert_not_called()
+
+    @patch("agentic_devtools.submission_processor.execute_cascade")
+    @patch("agentic_devtools.submission_processor.cascade_status_update", return_value=[])
+    @patch("agentic_devtools.submission_processor.mark_file_reviewed")
+    @patch("agentic_devtools.submission_processor.patch_thread_status")
+    @patch("agentic_devtools.submission_processor.patch_comment")
+    @patch("agentic_devtools.submission_processor.render_file_summary", return_value="rendered")
+    @patch("agentic_devtools.submission_processor.record_verdict")
+    @patch("agentic_devtools.submission_processor.update_file_status")
+    @patch("agentic_devtools.submission_processor.clear_suggestions_for_re_review")
+    @patch("agentic_devtools.submission_processor.read_modify_write_review_state")
     def test_duplicate_detection_checks_previous_suggestions(
         self,
         mock_rmw,

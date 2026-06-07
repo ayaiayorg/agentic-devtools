@@ -160,6 +160,15 @@ class TestChecklist:
         result = checklist.remove_item(999)
         assert result is False
 
+    def test_remove_item_skips_non_matching(self):
+        """Test removing an item iterates past non-matching items."""
+        items = [ChecklistItem(id=1, text="First"), ChecklistItem(id=2, text="Second")]
+        checklist = Checklist(items=items)
+        result = checklist.remove_item(2)
+        assert result is True
+        assert len(checklist.items) == 1
+        assert checklist.items[0].id == 1
+
     def test_update_item(self):
         """Test updating an item's text."""
         items = [ChecklistItem(id=1, text="Old text")]

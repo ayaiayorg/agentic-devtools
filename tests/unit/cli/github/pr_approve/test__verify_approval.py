@@ -203,6 +203,20 @@ class TestVerifyApproval:
 
         assert review is None
 
+    def test_blank_lines_in_response_skipped(self):
+        """Blank lines in ndjson output are skipped without error."""
+        reviews = [_make_review("alice", "APPROVED", "2026-01-01T00:00:00Z", 100)]
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        # Blank line between valid JSON lines (strip() won't remove middle blank lines)
+        mock_result.stdout = _ndjson(reviews) + "\n\n" + _ndjson(reviews)
+
+        with patch.object(pr_approve, "run_safe", return_value=mock_result):
+            review, _ = pr_approve._verify_approval(1, "o/r", "alice", max_retries=0)
+
+        assert review is not None
+        assert review["id"] == 100
+
     def test_malformed_json_response(self):
         """Handles malformed JSON gracefully."""
         mock_result = MagicMock()

@@ -307,7 +307,7 @@ def parse_completed_items_arg(arg: str) -> list[int]:
     Returns:
         List of item IDs
     """
-    ids = []
+    ids: list[int] = []
     # Split by comma or space
     parts = arg.replace(",", " ").split()
 

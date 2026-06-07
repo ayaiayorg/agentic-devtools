@@ -168,7 +168,7 @@ def list_tasks() -> None:
     print(f"\nTotal: {len(tasks)} task(s)")
 
     # Count by status
-    status_counts = {}
+    status_counts: dict[TaskStatus, int] = {}
     for task in tasks:
         status_counts[task.status] = status_counts.get(task.status, 0) + 1
 
