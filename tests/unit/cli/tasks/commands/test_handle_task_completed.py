@@ -140,3 +140,35 @@ class TestHandleTaskCompleted:
         captured = capsys.readouterr()
         assert "OTHER TASKS FAILED" in captured.out
         assert "agdt-failed-cmd" in captured.out
+
+    def test_no_exit_code_displayed_when_none(self, mock_state_dir, capsys):
+        """Test exit_code line is omitted when exit_code is None."""
+        task = _create_and_add_task("agdt-no-exit-code")
+        task.mark_running()
+        task.mark_completed(exit_code=0)
+        task.exit_code = None  # Simulate missing exit_code
+        update_task(task)
+
+        with (
+            patch(
+                "agentic_devtools.task_state.get_incomplete_most_recent_per_command",
+                return_value=[],
+            ),
+            patch(
+                "agentic_devtools.task_state.get_failed_most_recent_per_command",
+                return_value=[],
+            ),
+            patch(
+                "agentic_devtools.cli.tasks.commands._try_advance_pr_review_to_decision",
+                return_value=False,
+            ),
+            patch(
+                "agentic_devtools.cli.workflows.get_next_workflow_prompt_cmd",
+            ),
+        ):
+            from agentic_devtools.cli.tasks.commands import _handle_task_completed
+
+            _handle_task_completed(task, task.id, 300.0)
+
+        captured = capsys.readouterr()
+        assert "Exit code:" not in captured.out

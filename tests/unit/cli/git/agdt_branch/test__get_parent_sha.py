@@ -36,3 +36,10 @@ class TestGetParentSha:
         mock = MagicMock(returncode=0, stdout=stdout, stderr="")
         monkeypatch.setattr(f"{_MOD}._run_plumbing", lambda *a, **kw: mock)
         assert _get_parent_sha("sha") is None
+
+    def test_returns_none_when_no_parent_and_no_blank_line(self, monkeypatch):
+        """Returns None when output has no parent line and no blank separator."""
+        stdout = "tree abc123\nauthor Someone"
+        mock = MagicMock(returncode=0, stdout=stdout, stderr="")
+        monkeypatch.setattr(f"{_MOD}._run_plumbing", lambda *a, **kw: mock)
+        assert _get_parent_sha("sha") is None

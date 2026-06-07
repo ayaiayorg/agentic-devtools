@@ -88,3 +88,93 @@ class TestGetProjectRoleDetails:
         assert "Developers" in captured.out
         assert "Albert Marsnik" in captured.out
         assert "Developer Group" in captured.out
+
+    def test_prints_only_group_actors_when_no_users(self, capsys):
+        """Test prints group actors when no user actors present."""
+        from unittest.mock import MagicMock, patch
+
+        from agentic_devtools.cli.jira.role_commands import get_project_role_details
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "name": "Viewers",
+            "id": 10200,
+            "description": "View-only",
+            "actors": [
+                {
+                    "type": "atlassian-group-role-actor",
+                    "displayName": "Viewer Group",
+                    "actorGroup": {"name": "viewerGroup"},
+                },
+            ],
+        }
+
+        mock_requests = MagicMock()
+        mock_requests.get.return_value = mock_response
+
+        def mock_get_jira_value(key):
+            if key == "project_id_or_key":
+                return "PROJ"
+            if key == "role_id":
+                return "10200"
+            return None
+
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
+                    with patch(
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
+                        return_value="https://jira.example.com",
+                    ):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
+                            get_project_role_details()
+
+        captured = capsys.readouterr()
+        assert "Viewer Group" in captured.out
+        assert "Users" not in captured.out
+
+    def test_prints_only_user_actors_when_no_groups(self, capsys):
+        """Test prints user actors when no group actors present."""
+        from unittest.mock import MagicMock, patch
+
+        from agentic_devtools.cli.jira.role_commands import get_project_role_details
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "name": "Admins",
+            "id": 10300,
+            "description": "Admin access",
+            "actors": [
+                {
+                    "type": "atlassian-user-role-actor",
+                    "displayName": "Jane Admin",
+                    "actorUser": {"name": "jadmin"},
+                },
+            ],
+        }
+
+        mock_requests = MagicMock()
+        mock_requests.get.return_value = mock_response
+
+        def mock_get_jira_value(key):
+            if key == "project_id_or_key":
+                return "PROJ"
+            if key == "role_id":
+                return "10300"
+            return None
+
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
+                    with patch(
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
+                        return_value="https://jira.example.com",
+                    ):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
+                            get_project_role_details()
+
+        captured = capsys.readouterr()
+        assert "Jane Admin" in captured.out
+        assert "Groups" not in captured.out

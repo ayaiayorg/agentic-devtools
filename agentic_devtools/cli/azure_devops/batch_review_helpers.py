@@ -10,6 +10,8 @@ intended to be reused by a future refactor of ``agdt-submit-reviews``.
 
 from __future__ import annotations
 
+from typing import Any
+
 # Valid outcomes for batch reviews (compared case-insensitively)
 _VALID_OUTCOMES = frozenset({"approve", "request-changes", "request-changes-with-suggestion"})
 
@@ -32,7 +34,7 @@ def _is_empty_or_whitespace(value: object) -> bool:
     return False
 
 
-def resolve_batch_reviews(payload: dict) -> list[object]:
+def resolve_batch_reviews(payload: dict) -> list[Any]:
     """Resolve defaults into individual review items from a batch payload.
 
     Takes a payload dict with optional ``default_outcome``,
@@ -57,13 +59,13 @@ def resolve_batch_reviews(payload: dict) -> list[object]:
     # Normalize items to a list so non-list / None values surface as
     # validation errors instead of crashing with TypeError.
     if raw_items is None:
-        items: list[object] = []
+        items: list[Any] = []
     elif isinstance(raw_items, list):
         items = raw_items
     else:
         items = [raw_items]
 
-    resolved: list[object] = []
+    resolved: list[Any] = []
     for item in items:
         # Non-dict items are passed through so validate_batch_reviews()
         # can surface a user-friendly error instead of an opaque TypeError.

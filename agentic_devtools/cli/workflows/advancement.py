@@ -161,7 +161,7 @@ def try_advance_workflow_after_pr_creation(
     Returns:
         True if a workflow transition was triggered, False otherwise
     """
-    context_updates = {}
+    context_updates: dict[str, int | str] = {}
     if pull_request_id:
         context_updates["pull_request_id"] = pull_request_id
     if pull_request_url:

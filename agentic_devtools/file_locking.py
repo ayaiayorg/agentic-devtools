@@ -73,8 +73,8 @@ def _lock_file_windows(file_handle: IO, exclusive: bool = True, timeout: float =
         try:
             # On Windows, we lock the first byte of the file
             # LK_NBLCK for exclusive, LK_NBRLCK for shared (read-only)
-            lock_mode = msvcrt.LK_NBLCK if exclusive else msvcrt.LK_NBRLCK
-            msvcrt.locking(file_handle.fileno(), lock_mode, 1)
+            lock_mode = msvcrt.LK_NBLCK if exclusive else msvcrt.LK_NBRLCK  # type: ignore[attr-defined]
+            msvcrt.locking(file_handle.fileno(), lock_mode, 1)  # type: ignore[attr-defined]
             return
         except OSError as e:
             if time.time() - start_time > timeout:
@@ -87,7 +87,7 @@ def _unlock_file_windows(file_handle: IO) -> None:
     import msvcrt
 
     try:
-        msvcrt.locking(file_handle.fileno(), msvcrt.LK_UNLCK, 1)
+        msvcrt.locking(file_handle.fileno(), msvcrt.LK_UNLCK, 1)  # type: ignore[attr-defined]
     except OSError:
         # Ignore unlock errors - file may already be unlocked
         pass

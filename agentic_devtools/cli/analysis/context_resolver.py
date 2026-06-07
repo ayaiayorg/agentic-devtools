@@ -121,6 +121,7 @@ def resolve_analysis_context(
             msg = "Not in a git repository. Cannot resolve analysis context."
             raise ValueError(msg)
 
+    assert git_root is not None  # Resolved above in all branches
     caller_state_dir = get_state_dir()
 
     return AnalysisContext(

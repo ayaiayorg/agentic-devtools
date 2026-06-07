@@ -163,9 +163,9 @@ def check_users_exist() -> None:
     if existing_users:  # pragma: no cover
         print(f"\nUsers that CAN be added to roles ({len(existing_users)}):")
         usernames = [u["username"] for u in existing_users]
-        print(f"  {','.join(usernames)}")
+        print(f"  {','.join(str(u) for u in usernames)}")
         print("\nTo add these users to a role, run:")
-        print(f'  agdt-set jira.users "{",".join(usernames)}"')
+        print(f'  agdt-set jira.users "{",".join(str(u) for u in usernames)}"')
         print("  agdt-add-users-to-project-role")
 
 
@@ -465,7 +465,7 @@ def add_users_to_project_role_batch() -> None:
     failed = []
 
     for user_info in existing_users:
-        user = user_info["username"]
+        user = str(user_info["username"])
         payload = {"user": [user]}
         response = requests.post(url, headers=headers, json=payload, verify=ssl_verify, timeout=30)
 

@@ -186,3 +186,46 @@ class TestAddUsersToProjectRoleBatch:
 
         captured = capsys.readouterr()
         assert "Failed to add" in captured.out
+
+    def test_batch_all_adds_fail(self, capsys, tmp_path):
+        """Test batch add when all role additions fail (no successes)."""
+        from unittest.mock import MagicMock, patch
+
+        from agentic_devtools.cli.jira.role_commands import add_users_to_project_role_batch
+
+        # Mock user existence check - user exists
+        def mock_user_response(url, *args, **kwargs):
+            response = MagicMock()
+            response.status_code = 200
+            response.json.return_value = {"active": True, "displayName": "User"}
+            return response
+
+        # Mock role add - always fails
+        def mock_post(url, *args, **kwargs):
+            response = MagicMock()
+            response.status_code = 400
+            response.text = "Permission denied"
+            return response
+
+        mock_requests = MagicMock()
+        mock_requests.get.side_effect = mock_user_response
+        mock_requests.post.side_effect = mock_post
+
+        def mock_get_jira_value(key):
+            return {"project_id_or_key": "PROJ", "role_id": "10100", "users": "user1"}.get(key)
+
+        with patch("agentic_devtools.cli.jira.role_commands.get_jira_value", side_effect=mock_get_jira_value):
+            with patch("agentic_devtools.cli.jira.role_commands._get_requests", return_value=mock_requests):
+                with patch("agentic_devtools.cli.jira.role_commands._get_ssl_verify", return_value=True):
+                    with patch(
+                        "agentic_devtools.cli.jira.role_commands.get_jira_base_url",
+                        return_value="https://jira.example.com",
+                    ):
+                        with patch("agentic_devtools.cli.jira.role_commands.get_jira_headers", return_value={}):
+                            with patch("agentic_devtools.cli.jira.role_commands.TEMP_DIR", str(tmp_path)):
+                                add_users_to_project_role_batch()
+
+        captured = capsys.readouterr()
+        assert "Failed to add" in captured.out
+        # Verify successful section is not printed (empty list)
+        assert "✓ Successfully added" not in captured.out

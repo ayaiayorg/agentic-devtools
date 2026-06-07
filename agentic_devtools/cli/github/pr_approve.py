@@ -217,7 +217,7 @@ def _verify_approval(
                 # Sort by submitted_at descending. Coerce non-string /
                 # null values to "" so the sort key is always comparable.
                 matching.sort(
-                    key=lambda r: r.get("submitted_at") if isinstance(r.get("submitted_at"), str) else "",
+                    key=lambda r: r.get("submitted_at") if isinstance(r.get("submitted_at"), str) else "",  # type: ignore[arg-type, return-value]
                     reverse=True,
                 )
                 latest = matching[0]

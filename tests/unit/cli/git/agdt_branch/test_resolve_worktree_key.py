@@ -244,6 +244,17 @@ class TestResolveWorktreeKeyFailure:
         assert "pull_request_id" in str(exc_info.value)
         assert "jira.issue_key" in str(exc_info.value)
 
+    @patch(f"{_MOD}.get_value")
+    def test_raises_when_pr_id_is_whitespace_only(self, mock_get):
+        """Raises ValueError when pull_request_id strips to empty string."""
+        mock_get.side_effect = lambda k: {
+            "issue_key": None,
+            "jira.issue_key": None,
+            "pull_request_id": "   ",
+        }.get(k)
+        with pytest.raises(ValueError, match="Cannot resolve worktree key"):
+            resolve_worktree_key()
+
 
 # ---------------------------------------------------------------------------
 #  Integration: persist_workflow_state

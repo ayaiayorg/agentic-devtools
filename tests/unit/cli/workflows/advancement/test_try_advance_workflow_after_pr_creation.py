@@ -33,6 +33,22 @@ class TestTryAdvanceWorkflowAfterPrCreation:
         result = advancement.try_advance_workflow_after_pr_creation(12345)
         assert result is False
 
+    def test_url_only_without_pr_id(self, temp_state_dir, clear_state_before):
+        """Test that pull_request_url is passed without pull_request_id."""
+        state.set_workflow_state(
+            name="work-on-jira-issue",
+            status="in-progress",
+            step="pull-request",
+            context={"jira_issue_key": "PROJECT-1850"},
+        )
+
+        result = advancement.try_advance_workflow_after_pr_creation(pull_request_url="https://example.com/pr/99")
+
+        assert result is True
+        workflow = state.get_workflow_state()
+        assert workflow["context"]["pull_request_url"] == "https://example.com/pr/99"
+        assert "pull_request_id" not in workflow["context"]
+
     def test_advances_from_pull_request_to_completion(self, temp_state_dir, clear_state_before):
         """Test that workflow sets pending transition from pull-request to completion.
 

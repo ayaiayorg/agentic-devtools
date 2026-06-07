@@ -29,7 +29,7 @@ import tempfile
 from collections.abc import Iterator
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 from .file_locking import FileLockError, locked_state_file
 
@@ -1481,6 +1481,15 @@ def get_all_keys() -> list[str]:
 # Convenience functions for common parameters
 
 
+if TYPE_CHECKING:
+
+    @overload
+    def get_pull_request_id(required: Literal[True]) -> int: ...
+
+    @overload
+    def get_pull_request_id(required: bool = ...) -> int | None: ...
+
+
 def get_pull_request_id(required: bool = False) -> int | None:
     """Get the pull request ID from state."""
     value = get_value("pull_request_id", required=required)
@@ -1490,6 +1499,15 @@ def get_pull_request_id(required: bool = False) -> int | None:
 def set_pull_request_id(pull_request_id: int) -> None:
     """Set the pull request ID in state."""
     set_value("pull_request_id", pull_request_id)
+
+
+if TYPE_CHECKING:
+
+    @overload
+    def get_thread_id(required: Literal[True]) -> int: ...
+
+    @overload
+    def get_thread_id(required: bool = ...) -> int | None: ...
 
 
 def get_thread_id(required: bool = False) -> int | None:

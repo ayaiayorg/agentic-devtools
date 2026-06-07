@@ -117,3 +117,23 @@ class TestTaskLogLineLimits:
 
         captured = capsys.readouterr()
         assert "not found" in captured.out.lower()
+
+    def test_task_log_with_zero_line_limit(self, mock_state_dir, capsys, tmp_path):
+        """Test task_log with zero line limit shows all lines (no truncation)."""
+        from agentic_devtools.state import set_value
+
+        log_file = tmp_path / "test.log"
+        log_file.write_text("Line 1\nLine 2\nLine 3\n")
+
+        task = BackgroundTask.create(command="agdt-zero-test", log_file=log_file)
+        add_task(task)
+
+        set_value("background.task_id", task.id)
+        set_value("background.log_lines", "0")
+
+        task_log()
+
+        captured = capsys.readouterr()
+        assert "Line 1" in captured.out
+        assert "Line 2" in captured.out
+        assert "Line 3" in captured.out

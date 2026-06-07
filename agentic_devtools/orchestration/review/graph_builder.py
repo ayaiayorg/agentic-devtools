@@ -35,11 +35,11 @@ def build_pr_review_graph(checkpointer=None) -> CompiledStateGraph:
     """
     graph = StateGraph(PRReviewState)
 
-    graph.add_node("fetch_pr_details", fetch_pr_details_node)
-    graph.add_node("scaffold", scaffold_node)
-    graph.add_node("review_files", review_file_node)
-    graph.add_node("summarize", summarize_node)
-    graph.add_node("complete", complete_node)
+    graph.add_node("fetch_pr_details", fetch_pr_details_node)  # type: ignore[type-var]
+    graph.add_node("scaffold", scaffold_node)  # type: ignore[type-var]
+    graph.add_node("review_files", review_file_node)  # type: ignore[type-var]
+    graph.add_node("summarize", summarize_node)  # type: ignore[type-var]
+    graph.add_node("complete", complete_node)  # type: ignore[type-var]
 
     graph.set_entry_point("fetch_pr_details")
 

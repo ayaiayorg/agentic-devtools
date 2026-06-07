@@ -39,6 +39,8 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=4.0.0",
     "ruff>=0.4.0",
+    "types-PyYAML>=6.0.0",
+    "types-requests>=2.28.0",
     "vcrpy>=6.0.0",
     "pytest-recording>=0.13.0",
 ]
@@ -261,3 +263,24 @@ exclude_also = [
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = ["langgraph.*", "mcp.*", "azure.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "agentic_devtools.cli.azure_devops.vpn_toggle",
+    "agentic_devtools.cli.azure_devops.mark_reviewed",
+    "agentic_devtools.cli.azure_devops.helpers",
+    "agentic_devtools.cli.azure_devops.file_review_commands",
+    "agentic_devtools.cli.azure_devops.pull_request_details_commands",
+    "agentic_devtools.cli.azure_devops.run_details_commands",
+    "agentic_devtools.cli.azure_context.commands",
+]
+ignore_errors = true

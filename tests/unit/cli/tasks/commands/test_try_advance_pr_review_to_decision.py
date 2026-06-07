@@ -232,3 +232,52 @@ class TestTryAdvancePrReviewToDecision:
         call_kwargs = mock_advance.call_args[1]
         assert call_kwargs["variables"]["approval_count"] == 1
         assert call_kwargs["variables"]["changes_count"] == 1
+
+    def test_skips_files_with_other_statuses(self, mock_state_dir, capsys):
+        """Test that files with status other than approved/needs-work are skipped."""
+        from unittest.mock import MagicMock
+
+        from agentic_devtools.cli.tasks.commands import _try_advance_pr_review_to_decision
+        from agentic_devtools.state import set_value
+
+        set_value("pull_request_id", "12345")
+
+        mock_file_approved = MagicMock()
+        mock_file_approved.status = "approved"
+        mock_file_pending = MagicMock()
+        mock_file_pending.status = "pending"
+        mock_review_state = MagicMock()
+        mock_review_state.files = {
+            "/src/a.py": mock_file_approved,
+            "/src/b.py": mock_file_pending,
+        }
+
+        with (
+            patch(
+                "agentic_devtools.state.get_workflow_state",
+                return_value={"active": "pull-request-review", "step": "file-review", "context": {}},
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.file_review_commands.get_queue_status",
+                return_value={
+                    "all_complete": True,
+                    "completed_count": 2,
+                    "pending_count": 0,
+                    "total_count": 2,
+                },
+            ),
+            patch(
+                "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+                return_value=mock_review_state,
+            ),
+            patch(
+                "agentic_devtools.cli.workflows.base.advance_workflow_step",
+                return_value="rendered prompt",
+            ) as mock_advance,
+        ):
+            result = _try_advance_pr_review_to_decision()
+
+        assert result is True
+        call_kwargs = mock_advance.call_args[1]
+        assert call_kwargs["variables"]["approval_count"] == 1
+        assert call_kwargs["variables"]["changes_count"] == 0

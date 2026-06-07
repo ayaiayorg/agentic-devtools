@@ -203,3 +203,35 @@ class TestTaskWait:
         # Should have used 0.05s wait interval from state
         assert elapsed >= 0.05
         assert elapsed < 0.5
+
+    def test_task_still_running_no_start_time(self, mock_state_dir, capsys):
+        """Test _handle_task_still_running when elapsed is None (no start_time)."""
+        from agentic_devtools.cli.tasks.commands import _handle_task_still_running
+
+        task = _create_and_add_task("agdt-no-start")
+        task.mark_running()
+        task.start_time = None  # Simulate missing start_time
+        update_task(task)
+
+        with pytest.raises(SystemExit) as exc_info:
+            _handle_task_still_running(task, task.id, 5.0)
+        assert exc_info.value.code == 0
+
+        captured = capsys.readouterr()
+        assert "Running for:" not in captured.out
+
+    def test_task_timeout_no_start_time(self, mock_state_dir, capsys):
+        """Test _handle_task_timeout when elapsed is None (no start_time)."""
+        from agentic_devtools.cli.tasks.commands import _handle_task_timeout
+
+        task = _create_and_add_task("agdt-timeout-no-start")
+        task.mark_running()
+        task.start_time = None  # Simulate missing start_time
+        update_task(task)
+
+        with pytest.raises(SystemExit) as exc_info:
+            _handle_task_timeout(task, task.id, 60.0)
+        assert exc_info.value.code == 2
+
+        captured = capsys.readouterr()
+        assert "Running for:" not in captured.out
