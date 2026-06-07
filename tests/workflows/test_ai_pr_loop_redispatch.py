@@ -61,16 +61,16 @@ class TestAiPrLoopRedispatch:
         content = AI_PR_LOOP_REDISPATCH.read_text(encoding="utf-8")
         assert "COOLDOWN" in content
         assert "sleep_seconds" in content
-        assert "agent-session-monitor.yml/runs" in content
+        assert "ai-pr-loop-throttler.yml/runs" in content
 
     def test_sleeps_before_dispatch(self) -> None:
         content = AI_PR_LOOP_REDISPATCH.read_text(encoding="utf-8")
         assert "sleep" in content
         assert "sleep_seconds" in content
 
-    def test_dispatches_agent_session_monitor(self) -> None:
+    def test_dispatches_ai_pr_loop_throttler(self) -> None:
         content = AI_PR_LOOP_REDISPATCH.read_text(encoding="utf-8")
-        assert "gh workflow run agent-session-monitor.yml" in content
+        assert "gh workflow run ai-pr-loop-throttler.yml" in content
         assert "default_branch" in content
 
     def test_stop_conditions_are_guarded(self) -> None:
