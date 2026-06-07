@@ -112,6 +112,9 @@ specs/*/contracts/*
 !specs/1913-bug-review-workflow-state/research.md
 !specs/1913-bug-review-workflow-state/data-model.md
 !specs/1913-bug-review-workflow-state/quickstart.md
+!specs/1915-review-scaffolding-403-cross/research.md
+!specs/1915-review-scaffolding-403-cross/data-model.md
+!specs/1915-review-scaffolding-403-cross/quickstart.md
 specs/*/checklists/.generation-prompt-*.md
 .specify/memory/agent-file.md
 .markdownlint-debug.log
