@@ -96,6 +96,8 @@ just created.
 **Independent Test**: Start workflow initiation from a source repo with worktree auto-setup enabled, then run `@agdt.advance-workflow` in the first auto-start session.
 Verify it succeeds without manual state repair.
 
+**Related Functional Requirements**: FR-001, FR-003, FR-004, FR-008.
+
 **Acceptance Scenarios**:
 
 1. **Given** auto-execute runs from a source repository and writes workflow state, **When** the first Copilot session starts in the target worktree, **Then** the
@@ -114,6 +116,8 @@ As an automation maintainer, I need both initialization steps to use a single ca
 **Independent Test**: Trigger the same review initiation flow and verify logs from both setup stages reference one canonical state directory and one prompt-root identity
 for that run.
 
+**Related Functional Requirements**: FR-001, FR-002, FR-005, FR-006.
+
 **Acceptance Scenarios**:
 
 1. **Given** `agdt-initiate-pull-request-review-workflow` performs multiple internal setup calls, **When** prompt/state paths are recorded, **Then** the paths remain
@@ -130,6 +134,8 @@ As an existing user, I need workflows that do not involve source→worktree hand
 **Why this priority**: The fix must not regress stable workflows while resolving the cross-directory mismatch bug.
 
 **Independent Test**: Run a standard workflow that already uses one repository context and confirm state resolution and workflow progression are unchanged.
+
+**Related Functional Requirements**: FR-007.
 
 **Acceptance Scenarios**:
 
