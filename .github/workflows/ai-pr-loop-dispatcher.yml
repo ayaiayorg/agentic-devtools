@@ -1,11 +1,11 @@
-# PR Activity → Agent Session Monitor Dispatch
+# PR Activity → AI PR Loop Throttler Dispatch
 #
-# Reacts to pull request events and triggers the Agent Session Monitor.
+# Reacts to pull request events and triggers the AI PR Loop Throttler.
 # Uses pull_request_target so it runs without approval even for Copilot PRs.
 # Concurrency group ensures at most one in flight; throttle check ensures
-# we don't dispatch if the monitor ran within the last 60 seconds.
+# we don't dispatch if the throttler ran within the last 60 seconds.
 
-name: PR Activity Dispatch
+name: AI PR Loop Dispatcher
 
 on:
   pull_request_target:
@@ -23,7 +23,7 @@ permissions:
   actions: write
 
 concurrency:
-  group: pr-activity-dispatch
+  group: ai-pr-loop-dispatcher
   cancel-in-progress: false
 
 jobs:
@@ -41,8 +41,8 @@ jobs:
           COOLDOWN_SECONDS=60
           DEFAULT_BRANCH="${{ github.event.repository.default_branch }}"
 
-          # Get the most recent run of agent-session-monitor on the default branch (any status)
-          LAST_RUN_JSON=$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/agent-session-monitor.yml/runs?per_page=1&branch=${DEFAULT_BRANCH}" \
+          # Get the most recent run of ai-pr-loop-throttler on the default branch (any status)
+          LAST_RUN_JSON=$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/ai-pr-loop-throttler.yml/runs?per_page=1&branch=${DEFAULT_BRANCH}" \
             --jq '.workflow_runs[0] // {}')
 
           LAST_RUN_STATUS=$(echo "$LAST_RUN_JSON" | jq -r '.status // empty')
@@ -50,7 +50,7 @@ jobs:
           LAST_RUN_END=$(echo "$LAST_RUN_JSON" | jq -r '.updated_at // empty')
 
           if [ -n "$LAST_RUN_STATUS" ] && [ "$LAST_RUN_STATUS" != "completed" ]; then
-            echo "::notice::Throttled — agent-session-monitor is currently ${LAST_RUN_STATUS}"
+            echo "::notice::Throttled — ai-pr-loop-throttler is currently ${LAST_RUN_STATUS}"
             echo "throttled=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -80,11 +80,11 @@ jobs:
             echo "throttled=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Dispatch Agent Session Monitor
+      - name: Dispatch AI PR Loop Throttler
         if: steps.throttle.outputs.throttled != 'true'
         env:
           GH_TOKEN: ${{ secrets.AGDT_PR_APPROVER_PAT }}
         run: |
-          gh workflow run agent-session-monitor.yml \
+          gh workflow run ai-pr-loop-throttler.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref "${{ github.event.repository.default_branch }}"

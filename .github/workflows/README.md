@@ -14,7 +14,7 @@ This directory contains GitHub Actions workflows for the agentic-devtools projec
 **How it works**:
 
 1. **Scheduler-only trigger**: The workflow is invoked exclusively via `workflow_dispatch` by the
-   agent-session-monitor scheduler, which selects exactly one PR per invocation
+   ai-pr-loop-throttler scheduler, which selects exactly one PR per invocation
 2. **Exclusion Labels**: `ai-pr-loop-ignore` skips entirely; missing `ai-auto-merge-allowed` prevents merge but allows fixes/approval
 3. **Repair dispatch**: Uses failed PR checks and Copilot review state to decide when to request fixes
 4. **Amend & Push**: Amends fixes into the last commit with `--force-with-lease`
@@ -40,12 +40,12 @@ After Copilot pushes a repair commit and CI passes, the squash is handled inline
 
 **Concurrency**: Single instance per PR (`ai-pr-loop-{pr_number}`), non-cancelling
 
-### agent-session-monitor.yml
+### ai-pr-loop-throttler.yml
 
 **PR Scheduler — Oldest-Eligible PR Dispatch**
 
 - Runs on: `workflow_dispatch` only (no cron; driven continuously by `ai-pr-loop-redispatch.yml`,
-  and cold-started by `pr-activity-dispatch.yml` on PR events)
+  and cold-started by `ai-pr-loop-dispatcher.yml` on PR events)
 - Purpose: Selects the oldest eligible open PR and dispatches `ai-pr-loop.yml` for it.
   At most one PR is processed per invocation.
 
@@ -77,30 +77,30 @@ stall the queue.
 
 - Runs on: `workflow_dispatch` only (dispatched by `ai-pr-loop.yml` after each run)
 - Purpose: Keeps the AI PR processing loop running continuously without a cron scheduler.
-  Calculates the safe time to dispatch `agent-session-monitor.yml` (respecting the 60 s cooldown
-  enforced by `pr-activity-dispatch.yml`) and sleeps until then.
+  Calculates the safe time to dispatch `ai-pr-loop-throttler.yml` (respecting the 60 s cooldown
+  enforced by `ai-pr-loop-dispatcher.yml`) and sleeps until then.
 
 **Loop lifecycle**:
 
 ```text
-pr-activity-dispatch (cold-start on PR events)
-  → agent-session-monitor (selects oldest eligible PR)
+ai-pr-loop-dispatcher (cold-start on PR events)
+  → ai-pr-loop-throttler (selects oldest eligible PR)
     → ai-pr-loop (processes the PR: fix / review / merge)
       → ai-pr-loop-redispatch (checks stop conditions → sleeps → dispatches)
-        → agent-session-monitor → ...
+        → ai-pr-loop-throttler → ...
 ```
 
 **Stop conditions** (loop breaks if either is true):
 
 1. **No eligible open PRs** — no open PRs outside the `ai-pr-loop-ignore` label exist. The loop
-   breaks cleanly; `pr-activity-dispatch` will restart it when a new PR is opened or updated.
+   breaks cleanly; `ai-pr-loop-dispatcher` will restart it when a new PR is opened or updated.
 2. **No merges to main in 24+ hours** — likely stuck PRs needing human intervention.
 
-**Loop restart**: `pr-activity-dispatch` fires on `opened`, `synchronize`, `reopened`, `labeled`,
+**Loop restart**: `ai-pr-loop-dispatcher` fires on `opened`, `synchronize`, `reopened`, `labeled`,
 `unlabeled`, `ready_for_review`, `review_requested`, and `closed` PR events.
 
-**Sleep calculation**: Queries the last `agent-session-monitor` run's `updated_at` timestamp
-and sleeps until `last_completed + 65s` (5 s margin over `pr-activity-dispatch`'s 60 s cooldown).
+**Sleep calculation**: Queries the last `ai-pr-loop-throttler` run's `updated_at` timestamp
+and sleeps until `last_completed + 65s` (5 s margin over `ai-pr-loop-dispatcher`'s 60 s cooldown).
 
 **Required Permissions**:
 
