@@ -54,7 +54,8 @@
 
 - [ ] T015 [US1] Write tests for `GitHubActionsProvider.list_workflow_runs()` in `tests/unit/cli/ci/github_provider/test_list_workflow_runs.py` covering conclusion filtering, window filtering, and
   attempt cap (FR-003)
-- [ ] T016 [US1] Write tests for `GitHubActionsProvider.rerun_workflow()` in `tests/unit/cli/ci/github_provider/test_rerun_workflow.py` covering success, transient failure retry, and auth error (FR-003)
+- [ ] T016 [US1] Write tests for `GitHubActionsProvider.rerun_workflow()` in `tests/unit/cli/ci/github_provider/test_rerun_workflow.py` covering success, transient failure retry, and auth error
+  (FR-003)
 - [ ] T017 [US1] Implement `GitHubActionsProvider.list_workflow_runs()` in `agentic_devtools/cli/ci/github_provider.py` — calls `gh api` for workflow runs, filters by conclusion/window/attempts,
   wrapped with `@retry_with_backoff` (FR-003)
 - [ ] T018 [US1] Implement `GitHubActionsProvider.rerun_workflow()` in `agentic_devtools/cli/ci/github_provider.py` — calls `gh api` to trigger re-run all jobs, wrapped with `@retry_with_backoff`
@@ -79,7 +80,8 @@
 - [ ] T023 [US2] Write happy-path tests for `map_run_context()` with `issue_comment` event in `tests/unit/cli/ci/reconciliation/context_mapper/test_map_run_context.py` (FR-006)
 - [ ] T024 [US2] Write tests for `map_run_context()` with `pull_request` event in `tests/unit/cli/ci/reconciliation/context_mapper/test_map_run_context.py` (FR-006)
 - [ ] T025 [US2] Write tests for `map_run_context()` with `push` (branch) event in `tests/unit/cli/ci/reconciliation/context_mapper/test_map_run_context.py` (FR-006)
-- [ ] T026 [US2] Write tests for `map_run_context()` raising `UnmappableContextError` when context cannot be resolved in `tests/unit/cli/ci/reconciliation/context_mapper/test_map_run_context.py` (FR-006)
+- [ ] T026 [US2] Write tests for `map_run_context()` raising `UnmappableContextError` when context cannot be resolved in `tests/unit/cli/ci/reconciliation/context_mapper/test_map_run_context.py`
+  (FR-006)
 - [ ] T027 [US2] Implement `map_run_context()` in `agentic_devtools/cli/ci/reconciliation/context_mapper.py` — parses `event` field (`workflow_dispatch`, `issue_comment`, `pull_request`, `push`) to
   resolve target
 - [ ] T028 [US2] Write tests for escalation posting to correct target (issue/PR/branch) in `tests/unit/cli/ci/reconciliation/engine/test_reconcile.py` — verifies signal uses existing devtools helpers
