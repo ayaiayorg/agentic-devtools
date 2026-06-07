@@ -26,7 +26,8 @@ The state directory mismatch occurs because the cross-worktree workflow has thre
 - VS Code fires the `runOn: folderOpen` task in the **target worktree** context.
 - `copilot_auto_start_cmd` explicitly **clears** `AGENTIC_DEVTOOLS_STATE_DIR` before resolving state.
 - `get_state_dir()` falls through resolution order: env var (cleared) → pin file → bootstrap → fallback.
-- With no pin file in the target worktree, resolution reaches bootstrap-based paths, which may resolve a **different physical directory** (e.g., `C:\repos\DFLYP-5279\` instead of `C:\repos\dfly-platform-management\`).
+- With no pin file in the target worktree, resolution reaches bootstrap-based paths, which may resolve a **different physical directory** (e.g., `C:\repos\DFLYP-5279\` instead of
+  `C:\repos\dfly-platform-management\`).
 
 ## 2. Key Code Locations
 
