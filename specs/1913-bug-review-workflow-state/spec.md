@@ -22,9 +22,9 @@
   auto-execute subprocess runs synchronously within `_setup_worktree_from_state` and must complete (or timeout) before VS Code opens the worktree and the `runOn:folderOpen` task fires. There is no
   race between auto-execute writing and auto-start reading — the issue is purely about directory resolution, not timing. The pin file write is atomic (`os.replace`), so even if there were a race, the
   auto-start task would either see the pin or not (never a partial write).
-- Q: Should the pin file be cleaned up (deleted) after the workflow completes, or left to expire via TTL? → A: Preserve the existing cleanup contract. On normal workflow completion, the pin file should
-  still be explicitly deleted when the completing workflow matches, and `agdt-clear-workflow` should continue to delete it unconditionally. TTL (default 24 hours) remains a safety net for stale or
-  crashed sessions, and `read_and_validate_pin_file` should continue ignoring expired pins.
+- Q: Should the pin file be cleaned up (deleted) after the workflow completes, or left to expire via TTL? → A: Preserve the existing cleanup contract. On normal workflow completion, the pin file
+  should still be explicitly deleted when the completing workflow matches, and `agdt-clear-workflow` should continue to delete it unconditionally.
+  TTL (default 24 hours) remains a safety net for stale or crashed sessions, and `read_and_validate_pin_file` should continue ignoring expired pins.
 - Q: In the auto-start task (`copilot_auto_start_cmd`), should state resolution change from using `get_state_file_path()` after clearing `AGENTIC_DEVTOOLS_STATE_DIR` and `chdir`ing into
   `--worktree-path` to using `get_state_dir()`
   (which consults the pin file), or should a pin-file read be added as an additional resolution step? → A: Keep the current `get_state_file_path()` → `get_state_dir()` resolution path. It already
