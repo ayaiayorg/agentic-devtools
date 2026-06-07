@@ -1,9 +1,31 @@
 # Feature Specification: initiate-create-jira-issue-workflow picks up existing issue instead of creating new one
 
-> ⚠️ **FALLBACK SKELETON** — This specification was generated via deterministic fallback after all LLM retry attempts were exhausted. It requires manual enrichment. Review each section and replace
-> placeholder content with detailed, issue-specific information.
-
 **Source Issue**: #1740 (<https://github.com/ayaiayorg/agentic-devtools/issues/1740>)
+
+## Clarifications
+
+### Session 2026-06-07
+
+- Q: Should `clear_state_for_workflow_initiation()` be modified globally to clear `jira.issue_key`, or should the fix be scoped only to the create-jira-issue workflow? → A: The fix should be scoped to
+  the create-jira-issue workflow entry point only. Modifying `clear_state_for_workflow_initiation()` globally could break other workflows (e.g., work-on-jira-issue) that legitimately depend on
+  preserving `jira.issue_key` across workflow boundaries. The create-jira-issue command should explicitly clear or ignore `jira.issue_key` when `--issue-key` is not provided.
+
+- Q: When `--issue-key` IS explicitly provided to `agdt-initiate-create-jira-issue-workflow`, should the command still create a new issue or should it resume/attach to the provided key? → A: When
+  `--issue-key` is explicitly provided, the command should attach to that existing issue (current behavior preserved). The fix only applies to the no-`--issue-key` path where the fallback to
+  `get_value("jira.issue_key")` causes unintentional reuse.
+
+- Q: Should the stale `jira.issue_key` be deleted from state during the create flow, or merely ignored (not read) during resolution? → A: The stale `jira.issue_key` should be explicitly deleted from
+  state at the start of the create-jira-issue workflow when `--issue-key` is not provided. This prevents downstream code paths (pre-flight checks, worktree setup) from accidentally reading the stale
+  value. Deletion is safer than ignore-only because multiple code paths read `jira.issue_key` from state.
+
+- Q: What logging level and format should be used when stale state is detected and cleared? → A: Emit an informational console message to stderr using
+  `print(..., file=sys.stderr)` with a message like:
+  `"ℹ️  Cleared stale issue selection state (issue_key/jira.issue_key) from prior workflow — creating fresh issue."` Keep the existing emoji-prefixed
+  status-message pattern.
+
+- Q: Should `issue_key` (top-level provider-agnostic key) also be cleared alongside `jira.issue_key` when the create flow detects stale state? → A: Yes. Both `issue_key` and `jira.issue_key` must be
+  cleared when the create-jira-issue workflow starts without `--issue-key`. Per the state management documentation, both keys participate in issue resolution priority, and leaving either one could
+  cause downstream leakage via `_get_issue_key_from_state()` or `resolve_worktree_key()`.
 
 ## Problem Statement
 
@@ -16,6 +38,12 @@ attempt worktree setup for the wrong issue.
 This is problematic because users explicitly invoke this workflow to create a new issue.
 State leakage breaks that contract, sends work to the wrong ticket, and forces manual
 recovery (`agdt-clear-workflow` + `agdt-clear`) before retrying.
+
+**Root cause location**: In `agentic_devtools/cli/workflows/commands.py` at line 1438,
+`resolved_issue_key = issue_key or get_value("jira.issue_key")` falls back to state when
+`issue_key` is `None`. The upstream `clear_state_for_workflow_initiation()` in
+`agentic_devtools/cli/workflows/base.py` intentionally preserves `jira.issue_key` (lines
+35–37), so the stale value persists.
 
 ## Steps to Reproduce
 
@@ -35,15 +63,23 @@ recovery (`agdt-clear-workflow` + `agdt-clear`) before retrying.
 without `--issue-key` can still inherit a stale key from prior workflows and take the
 "existing issue" path instead of always creating a fresh issue.
 
+The fix must be applied in the create-jira-issue workflow entry point (not in
+`clear_state_for_workflow_initiation()` which is shared by all workflows). Specifically,
+after `_ensure_scoped_bootstrap_and_clear(issue_key)` returns at line 1415, the command
+should delete `jira.issue_key` and `issue_key` from state when `issue_key` (the CLI
+parameter) is `None`/falsy.
+
 ## Expected Behavior
 
 Starting a new `create-jira-issue` workflow should:
 
-1. Clear or ignore stale issue-selection state (especially `jira.issue_key`) when
-   `--issue-key` is not provided, while preserving unrelated context (for example,
+1. Clear or ignore stale issue-selection state (especially `jira.issue_key` and `issue_key`)
+   when `--issue-key` is not provided, while preserving unrelated context (for example,
    `jira.project_key`) that is intentionally retained.
 2. Always call the Jira create API to get a fresh issue number.
 3. Never reuse an issue key from a different workflow type.
+4. Emit a diagnostic message to stderr when stale issue-selection state is detected and
+   cleared, so the user has visibility into the automatic cleanup.
 
 ## Actual Behavior
 
@@ -99,13 +135,32 @@ state-reset commands.
 
 **Acceptance Scenarios**:
 
-1. **Given** create-jira-issue detects stale `jira.issue_key` while `--issue-key` is absent,
+1. **Given** create-jira-issue detects stale issue-selection state (`issue_key` and/or
+   `jira.issue_key`) while `--issue-key` is absent,
    **When** initiation proceeds,
-   **Then** output/logging makes clear that stale issue-selection state was ignored/reset.
+   **Then** output to stderr includes a message indicating stale issue-selection state was
+   cleared (e.g., `"ℹ️  Cleared stale issue selection state (issue_key/jira.issue_key) from
+   prior workflow — creating fresh issue."`).
 
 2. **Given** stale state was ignored and a new issue was created,
    **When** downstream setup runs,
    **Then** context validation and setup reference only the newly created issue key.
+
+### User Story 4 - Explicit --issue-key Preserves Existing Behavior (Priority: P1)
+
+As a developer providing `--issue-key` explicitly to `agdt-initiate-create-jira-issue-workflow`,
+I want the command to attach to the specified issue (existing behavior) so that intentional
+reuse is not broken by the stale-state fix.
+
+**Acceptance Scenarios**:
+
+1. **Given** `--issue-key DFLY-2966` is explicitly passed on the command line,
+   **When** the command runs,
+   **Then** it uses `DFLY-2966` as the resolved issue key (no clearing, no new creation).
+
+2. **Given** both `--issue-key` and a stale `jira.issue_key` exist in state,
+   **When** the command runs,
+   **Then** the explicit CLI value takes precedence and no stale-state warning is emitted.
 
 ## Requirements
 
@@ -115,8 +170,10 @@ state-reset commands.
   `--issue-key`, the system MUST treat the run as a new-issue flow and MUST NOT reuse any
   previously stored issue key from prior workflows.
 
-- **FR-002**: At workflow start, the system MUST clear or ignore stale issue-related state
-  that can influence issue selection, including values persisted by other workflow types.
+- **FR-002**: At workflow start (after `_ensure_scoped_bootstrap_and_clear` and before issue
+  resolution), the system MUST delete both `jira.issue_key` and `issue_key` from state when
+  `--issue-key` is not provided, preventing downstream fallback reads from picking up stale
+  values.
 
 - **FR-003**: For create-new-issue runs, the system MUST call Jira issue creation and return
   the newly created issue key.
@@ -125,14 +182,29 @@ state-reset commands.
   branch planning) using only the newly created issue key for that run.
 
 - **FR-005**: If stale issue-related state is detected during create-new-issue flow, the
-  system MUST log that stale state was ignored/reset and continue with fresh issue creation
-  without requiring manual `agdt-clear-workflow` or `agdt-clear`.
+  system MUST log to stderr which issue-selection key(s) were cleared (for `issue_key`,
+  `jira.issue_key`, or both), with a message format such as:
+  `"ℹ️  Cleared stale issue selection state (issue_key/jira.issue_key) from prior workflow — creating fresh issue."`
+  and continue with fresh issue creation without requiring manual `agdt-clear-workflow` or
+  `agdt-clear`.
+
+- **FR-006**: When `--issue-key` IS explicitly provided, the system MUST preserve current
+  behavior: use the provided key as the resolved issue key without clearing state or
+  creating a new issue.
+
+- **FR-007**: The fix MUST NOT modify `clear_state_for_workflow_initiation()` in
+  `agentic_devtools/cli/workflows/base.py`. The change must be scoped to the
+  create-jira-issue workflow entry point only, to avoid breaking other workflows that depend
+  on preserved `jira.issue_key`.
 
 ### Non-Functional Requirements
 
-- **NFR-001**: The implementation must complete all operations within 120 seconds under normal conditions.
+- **NFR-001**: The implementation must complete all operations within 120 seconds under
+  normal network conditions (Jira API latency ≤ 5s).
 
-- **NFR-002**: The implementation must maintain backward compatibility with existing interfaces and contracts.
+- **NFR-002**: The implementation must maintain backward compatibility with existing
+  interfaces and contracts — no changes to CLI argument signatures, no changes to the
+  behavior of other workflow initiation commands.
 
 ## Success Criteria
 
@@ -146,8 +218,14 @@ state-reset commands.
 - **SC-003**: Automated tests verify preserved non-issue-selection context (for example,
   `jira.project_key`) remains usable while stale issue-selection state is ignored.
 
----
-*Generated via fallback skeleton — manual enrichment required*
+- **SC-004**: Automated tests verify that explicit `--issue-key` still works correctly
+  (attaches to specified key, no stale-state warning, no deletion).
+
+- **SC-005**: Automated tests verify both `jira.issue_key` and `issue_key` (top-level) are
+  cleared when stale state is detected in the no-`--issue-key` path.
+
+- **SC-006**: All tests follow the 1:1:1 test structure under
+  `tests/unit/cli/workflows/commands/` with appropriate symbol naming.
 
 ---
 *Generated by Copilot SDK (claude-opus-4.6)*
