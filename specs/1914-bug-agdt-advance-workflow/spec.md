@@ -62,6 +62,8 @@ and corrupting review state. This scenario was directly observed in production a
 **Independent Test**: Can be tested by invoking `@agdt.advance-workflow` in a workspace where no `state.json` exists or where the workflow state is empty. The test passes if the agent produces an
 error message and does NOT invoke any initiate command.
 
+**Associated Functional Requirements**: FR-001, FR-004, FR-005
+
 **Acceptance Scenarios**:
 
 1. **Given** the current state directory contains no `state.json` file, **When** the user invokes `@agdt.advance-workflow`, **Then** the agent outputs an error message stating "No active workflow
@@ -84,6 +86,8 @@ the entire workflow from scratch, wasting additional time and credits.
 **Independent Test**: Can be tested by invoking `@agdt.advance-workflow` with no active workflow and verifying that the output contains specific CLI commands the operator can run to diagnose the
 problem.
 
+**Associated Functional Requirements**: FR-002, FR-003, FR-007
+
 **Acceptance Scenarios**:
 
 1. **Given** no active workflow is found in the current state directory, **When** the agent reports the failure, **Then** the error message includes the full absolute filesystem path of the state
@@ -105,6 +109,8 @@ state. While less critical than the safety guardrail (P1), it reduces false-nega
 
 **Independent Test**: Can be tested by simulating a delay between workflow initiation and advance-workflow invocation. The test passes if the agent waits briefly and retries once before reporting
 failure — without ever falling back to re-initiation.
+
+**Associated Functional Requirements**: FR-006
 
 **Retry Behavior**: The retry is enabled by default with no flag or argument required. The agent transparently waits 3-5 seconds and re-checks workflow state once before reporting failure.
 
