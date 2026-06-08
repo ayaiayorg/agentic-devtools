@@ -187,6 +187,7 @@ agdt-speckit-trigger = "agentic_devtools.cli.ci.commands:speckit_trigger_command
 agdt-segments-status = "agentic_devtools.cli.runner:run_as_script"
 agdt-segments-clean = "agentic_devtools.cli.runner:run_as_script"
 agdt-mcp-server = "agentic_devtools.mcp.server:main"
+agdt-ci-reconcile = "agentic_devtools.cli.ci.reconciliation.command:reconcile_command"
 
 [tool.hatch.version]
 source = "vcs"

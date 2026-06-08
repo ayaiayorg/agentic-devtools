@@ -215,6 +215,18 @@ class TestCIPlatformProvider:
         with pytest.raises(NotImplementedError, match="does not implement rebase_onto_base"):
             provider.rebase_onto_base(pr_number=1, base_branch="main", head_branch="feature", head_sha="abc123")
 
+    def test_list_workflow_runs_default_raises_not_implemented(self) -> None:
+        """Default list_workflow_runs raises NotImplementedError."""
+        provider = _ConcreteProvider()
+        with pytest.raises(NotImplementedError, match="does not implement list_workflow_runs"):
+            provider.list_workflow_runs(workflow_id="ci.yml")
+
+    def test_rerun_workflow_default_raises_not_implemented(self) -> None:
+        """Default rerun_workflow raises NotImplementedError."""
+        provider = _ConcreteProvider()
+        with pytest.raises(NotImplementedError, match="does not implement rerun_workflow"):
+            provider.rerun_workflow(run_id=12345)
+
     def test_abstract_methods_list(self) -> None:
         """Verify all expected abstract methods are defined."""
         expected_methods = {

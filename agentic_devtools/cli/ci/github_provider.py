@@ -14,7 +14,7 @@ import os
 import re
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import quote
 
 from agentic_devtools.cli.ci.exceptions import MalformedEventError
@@ -58,6 +58,9 @@ from agentic_devtools.cli.subprocess_utils import run_safe
 from agentic_devtools.state import get_state_dir
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from agentic_devtools.cli.ci.reconciliation.models import WorkflowRun
 
 _resolve_review_threads_module = importlib.import_module("agentic_devtools.cli.github.resolve_review_threads")
 _resolve_review_threads = _resolve_review_threads_module.resolve_review_threads
@@ -2941,3 +2944,86 @@ class GitHubActionsProvider(CIPlatformProvider):
         pr_meta = self.get_pr_metadata(pr_number)
         if pr_meta.is_draft:
             self.publish_pr(pr_number)
+
+    @retry_with_backoff()
+    def list_workflow_runs(
+        self,
+        workflow_id: str,
+        *,
+        window_hours: int = 24,
+    ) -> list[WorkflowRun]:
+        """List recent completed workflow runs for a workflow.
+
+        Queries the GitHub Actions API for completed runs within the
+        specified time window, paginating through all results.
+
+        Args:
+            workflow_id: Workflow file name or numeric ID.
+            window_hours: How far back to look for runs (in hours).
+
+        Returns:
+            List of WorkflowRun instances.
+        """
+        from datetime import datetime, timedelta, timezone
+
+        from agentic_devtools.cli.ci.reconciliation.models import WorkflowRun
+
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+        cutoff_str = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        runs: list[WorkflowRun] = []
+        page = 1
+        while True:
+            endpoint = self._repo_api(
+                f"/actions/workflows/{quote(workflow_id, safe='')}/runs"
+                f"?status=completed&per_page=100&page={page}&created=%3E%3D{cutoff_str}"
+            )
+            response = _gh_api(endpoint)
+            data = json.loads(response)
+            page_runs = data.get("workflow_runs", [])
+            if not page_runs:
+                break
+
+            for r in page_runs:
+                pull_requests = r.get("pull_requests") or []
+                first_pr = pull_requests[0] if pull_requests and isinstance(pull_requests[0], dict) else None
+                pr_number = first_pr.get("number", 0) if first_pr else 0
+                runs.append(
+                    WorkflowRun(
+                        id=r["id"],
+                        name=r.get("name", ""),
+                        conclusion=r.get("conclusion") or "",
+                        run_attempt=r.get("run_attempt", 1),
+                        created_at=r.get("created_at", ""),
+                        event=r.get("event", ""),
+                        head_branch=r.get("head_branch", ""),
+                        html_url=r.get("html_url", ""),
+                        triggering_actor=r.get("triggering_actor", {}).get("login", "")
+                        if isinstance(r.get("triggering_actor"), dict)
+                        else "",
+                        repository_full_name=r.get("repository", {}).get("full_name", "")
+                        if isinstance(r.get("repository"), dict)
+                        else "",
+                        pr_number=pr_number,
+                    )
+                )
+
+            # If the page returned fewer than 100 results, we've reached the last page.
+            if len(page_runs) < 100:
+                break
+            page += 1
+
+        return runs
+
+    @retry_with_backoff()
+    def rerun_workflow(self, run_id: int) -> None:
+        """Trigger a re-run of all jobs for the given workflow run.
+
+        Args:
+            run_id: The workflow run ID to re-run.
+
+        Raises:
+            RuntimeError: If the re-run API call fails.
+        """
+        endpoint = self._repo_api(f"/actions/runs/{run_id}/rerun")
+        _gh_api(endpoint, method="POST")

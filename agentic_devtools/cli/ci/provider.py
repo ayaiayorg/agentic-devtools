@@ -9,6 +9,7 @@ posting, merge gating) rather than issue CRUD.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 from agentic_devtools.cli.ci.models import (
     CheckRunStatus,
@@ -20,6 +21,9 @@ from agentic_devtools.cli.ci.models import (
     ReviewCommentInfo,
     ReviewInfo,
 )
+
+if TYPE_CHECKING:
+    from agentic_devtools.cli.ci.reconciliation.models import WorkflowRun
 
 
 class CIPlatformProvider(ABC):
@@ -391,3 +395,38 @@ class CIPlatformProvider(ABC):
             RuntimeError: On non-retryable API errors.
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement graphql")
+
+    def list_workflow_runs(
+        self,
+        workflow_id: str,
+        *,
+        window_hours: int = 24,
+    ) -> list[WorkflowRun]:
+        """List recent completed workflow runs for the specified workflow.
+
+        Implementations should query the CI platform for completed runs within
+        the given time window.
+
+        Args:
+            workflow_id: Workflow file name or numeric ID.
+            window_hours: How far back to look for runs (in hours).
+
+        Returns:
+            List of WorkflowRun instances.
+
+        Raises:
+            NotImplementedError: If the provider does not support this operation.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not implement list_workflow_runs")
+
+    def rerun_workflow(self, run_id: int) -> None:
+        """Trigger a re-run of all jobs for the given workflow run.
+
+        Args:
+            run_id: The workflow run ID to re-run.
+
+        Raises:
+            NotImplementedError: If the provider does not support this operation.
+            RuntimeError: If the re-run API call fails.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not implement rerun_workflow")
