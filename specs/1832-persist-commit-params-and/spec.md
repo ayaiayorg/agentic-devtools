@@ -6,6 +6,32 @@
 **Input**: User description: "Persist commit params and rendered messages to state"  
 **Source Issue**: #1832 (<https://github.com/ayaiayorg/agentic-devtools/issues/1832>)
 
+## Clarifications
+
+### Session 2026-06-08
+
+- Q: Where in the `commit_cmd()` flow should the state persistence occur — immediately after
+  the `create_commit()`/`amend_commit()` call returns (before rebase/push), or after the entire
+  workflow (including push) succeeds? → A: Immediately after a successful non-dry-run
+  `create_commit()`/`amend_commit()` operation returns (before rebase/push). The persistence
+  records what was committed to git locally;
+  push failures should not prevent state persistence since the commit itself exists in the local repository.
+- Q: For FR-007's "single all-or-nothing update," should the implementation use
+  `save_state_locked()` (file-locking variant) or the standard `save_state()`
+  given that `agdt-git-save-work` already runs as a background task? → A: Use an
+  exclusive-locking read/modify/write (e.g., `read_modify_write_state()` with a
+  single lock across load→mutate→save), since multiple background
+  tasks/processes can update state concurrently. This preserves the
+  all-or-nothing guarantee without risking lost updates from interleaved writes.
+- Q: When the `git.last_commit_message` fallback is used (FR-001, no `--commit-message` and empty `commit_message` state key), should `get_commit_message()` be modified in `core.py` or should the
+  fallback logic live in `commit_cmd()` before calling `get_commit_message()`? → A: The fallback logic should live in `commit_cmd()` (in `commands.py`), checking `git.last_commit_message` from state
+  before calling `get_commit_message()`. This keeps `get_commit_message()` as a simple state reader for the `commit_message` key and avoids coupling the fallback into the shared utility function.
+- Q: Should `commit_message_title` (top-level key) be cleared/removed when `agdt-clear` is run, consistent with other top-level state keys? → A: Yes. `commit_message_title` is a standard top-level
+  state key and MUST be cleared by `agdt-clear` like all other keys. No special handling is needed — `agdt-clear` already removes all keys.
+- Q: Does FR-001's `git.last_commit_message` fallback apply only to amend operations (where reusing the prior message is natural) or also to new-commit operations on the same branch? → A: It applies
+  to both new-commit and amend operations. The fallback fires when no `commit_message` is provided regardless of create-vs-amend path. In practice, under the single-commit-per-PR policy, this
+  primarily benefits the amend path, but it is not restricted to it.
+
 ## Problem Statement
 
 When `agdt-git-save-work` executes a commit or amend operation, `commit_message` is written to state as a pre-commit input parameter (whether supplied via state or `--commit-message`), but it is
@@ -142,6 +168,12 @@ made" (where the key would be absent or null). The `git.last_commit_message` mus
 What happens when the commit message title exceeds conventional length limits? The system persists the title as-is without truncation. Validation of commit message format is outside the scope of this
 feature — the persistence layer is a faithful recorder, not a linter.
 
+What happens when `agdt-git-save-work` succeeds at the commit step but fails during rebase or push? The state keys ARE persisted because the commit was created successfully in the local repository.
+Push/rebase failures do not invalidate the local commit. The persistence occurs immediately after `create_commit()`/`amend_commit()` returns, before rebase or push operations begin.
+
+What happens when `agdt-clear` is run? All persisted keys (`commit_message_title`, `git.last_commit_title`, `git.last_commit_message`, `git.last_commit_body`) are cleared along with all other state
+keys, consistent with standard `agdt-clear` behavior.
+
 ## Requirements
 
 ### Functional Requirements
@@ -153,8 +185,9 @@ feature — the persistence layer is a faithful recorder, not a linter.
   use the previously persisted `git.last_commit_message` value as the default commit message for
   that invocation (preserving the complete message including footer), so the commit convention
   (footer repeating issue link) is not violated and no previously-established body or footer
-  content is silently dropped. This defaulting applies to message content only and is independent
-  of create-vs-amend path selection (see FR-009).
+  content is silently dropped. This defaulting applies to both new-commit and amend paths and is independent
+  of create-vs-amend path selection (see FR-009). The fallback logic MUST reside in `commit_cmd()` (in `commands.py`), checking `git.last_commit_message` from state before calling
+  `get_commit_message()`, so that `get_commit_message()` in `core.py` remains a simple state reader for the `commit_message` key.
 
   **Note — relationship between `commit_message_title` reuse and `git.last_commit_message` fallback**:
   The source issue (#1832) states that `commit_message_title` should be "reusable on the next
@@ -186,8 +219,8 @@ feature — the persistence layer is a faithful recorder, not a linter.
 
 - **FR-007**: The system MUST write all persisted keys (`commit_message_title`, `git.last_commit_title`, `git.last_commit_message`, `git.last_commit_body`) as a single all-or-nothing update after a
   confirmed successful operation. Either all keys are written or none are written. This prevents partial state (e.g., title written but body missing) that could arise from a crash between
-  individual writes. This is an application-level atomicity guarantee (no partial key writes) achieved by batching all state updates into a single write call; it does not imply that the git operation
-  and the state write are a single atomic filesystem transaction.
+  individual writes. This is an application-level atomicity guarantee (no partial key writes) achieved by batching all state updates into one exclusive-locking read/modify/write operation (for
+  example via `read_modify_write_state()` with a single lock spanning load→mutate→save). It does not imply that the git operation and the state write are a single atomic filesystem transaction.
 
 - **FR-008**: The persisted keys (`commit_message_title`, `git.last_commit_title`, `git.last_commit_message`, `git.last_commit_body`) MUST be readable via the standard `agdt-get` command (e.g.,
   `agdt-get commit_message_title`, `agdt-get git.last_commit_title`) and follow existing key naming conventions.
@@ -219,10 +252,22 @@ feature — the persistence layer is a faithful recorder, not a linter.
   PR titles and Jira comment references.
 
 - **Full Commit Message** (`git.last_commit_message`): The complete multi-line string passed to git during commit creation/amend, including title, separator, body, and footers. Serves as the
-  authoritative record of what was committed.
+  authoritative record of what was committed. Also serves as the fallback commit message for subsequent `agdt-git-save-work` invocations when no `commit_message` is explicitly provided.
 
 - **Commit Body** (`git.last_commit_body`): Content after the title line (first newline), excluding one optional leading blank separator line. Contains bullet points, explanations, breaking change
   notices, and issue references. Empty string when the message is title-only.
+
+### Implementation Placement
+
+The state persistence logic MUST be placed in `commit_cmd()` within `agentic_devtools/cli/git/commands.py`, immediately after the `create_commit()` or `amend_commit()` call returns successfully
+(before rebase/push steps). This ensures:
+
+1. The commit exists in the local repository before state is written.
+2. Push/rebase failures do not prevent state persistence.
+3. The persistence is co-located with the orchestration logic that knows whether the operation succeeded.
+
+The `git.last_commit_message` fallback logic (FR-001) MUST also reside in `commit_cmd()`, before the existing `get_commit_message()` call, so that `get_commit_message()` in `core.py` remains a simple
+single-key state reader.
 
 ## Success Criteria
 
