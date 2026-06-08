@@ -12,7 +12,8 @@ Expected files include `spec.md`, `plan.md`, `data-model.md`, `research.md`, and
 
 - Phase 1 reuses `agentic_devtools/cli/azure_devops/finalization/identity.py` (or a shared module).
 - Phase 4 helper signature includes `repo_id` and `pull_request_id`.
-- Phase 5 fallback path uses a shared PATCH helper while preserving the current URL-based `_patch_comment_content` inputs (`requests_module`, `headers`, `threads_url`, `thread_id`, `comment_id`, `new_content`).
+- Phase 5 fallback path uses a shared PATCH helper while preserving the current URL-based `_patch_comment_content` inputs (`requests_module`, `headers`, `threads_url`, `thread_id`, `comment_id`,
+  `new_content`).
 - Phase 6 timeout is configurable with default `120` seconds.
 
 ## 3) Run repository checks

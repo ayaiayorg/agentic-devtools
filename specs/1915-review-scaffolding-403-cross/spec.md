@@ -111,6 +111,8 @@ finish in one pass.
 **Why this priority**: This is the primary failure mode observed in production and blocks
 structured review completion for cross-identity recoveries.
 
+**Mapped requirements**: FR-001, FR-002, FR-004, FR-006, FR-007.
+
 **Independent Test**: Can be fully tested by recovering scaffolding where at least one thread
 was authored by another identity and verifying submission completes without fatal errors.
 
@@ -143,6 +145,8 @@ the blocked update so that other files and summary/activity updates still comple
 **Why this priority**: Batch-level aborts are the main reason sessions fell back to free-form
 behavior and lost scaffold continuity.
 
+**Mapped requirements**: FR-003.
+
 **Independent Test**: Can be tested with a batch containing both same-identity and
 different-identity threads, confirming the same-identity updates still succeed when 403 occurs
 for one thread.
@@ -163,6 +167,8 @@ fallback artifacts so that review completion and auditability are preserved.
 
 **Why this priority**: This ensures predictable behavior in restrictive permission setups without
 silently losing review intent.
+
+**Mapped requirements**: FR-005.
 
 **Independent Test**: Can be tested by forcing both PATCH and reply APIs to return forbidden and
 verifying local state + PR-level reporting still completes.
