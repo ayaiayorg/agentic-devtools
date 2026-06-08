@@ -1,9 +1,36 @@
 # Feature Specification: Jinja2 Commit Message Template System
 
-**Feature Branch**: `speckit/1829/phase-1-specify`
+**Feature Branch**: `speckit/1829/phase-2-clarify`
 **Created**: 2026-06-07
 **Status**: Draft
 **Source Issue**: #1829 (<https://github.com/ayaiayorg/agentic-devtools/issues/1829>)
+
+## Clarifications
+
+### Session 2026-06-07
+
+- Q: Where exactly in the `agdt-setup` flow should template creation and validation be inserted — before or after dependency checks, env var persistence, and workflow template generation? → A:
+  Template creation and validation should occur after dependency checks and env var persistence but before (or alongside) workflow template generation, since it is a repo-level configuration artifact
+  similar to workflow templates. It should be gated by the existing `skip_repo_steps` flag (version guard) and the `--skip-templates` CLI flag, consistent with how other repo-file-creating steps are
+  skipped. Because this extends `--skip-templates` behavior beyond workflow templates, the `agdt-setup` CLI flag help text and setup documentation must explicitly describe that commit-template
+  creation/validation are skipped too.
+
+- Q: When both a template file exists AND rendering fails (syntax error or empty file), and the fallback to `commit_message` state key is taken, should the system also emit a warning about the
+  template failure, or silently fall back? → A: The system MUST emit a diagnostic warning to stderr describing the template failure (including the Jinja2 error message for syntax errors, or "commit
+  template file is empty or whitespace-only" for zero-byte/whitespace-only files) before falling back to the `commit_message` state key. This ensures the user is aware their template is broken.
+
+- Q: For `issueLink` derivation — when `resolve_github_repo()` calls `sys.exit(1)` on resolution failure, should the template renderer catch that exit and treat `issueLink` as unresolved instead of
+  letting the process terminate? → A: Yes. The template render-context builder MUST NOT call `resolve_github_repo()` directly (which exits on failure). Instead, it should use a non-exiting
+  repo-resolution path with equivalent semantics (e.g., catch `SystemExit`, or otherwise separate resolution logic from process exit behavior). If repo resolution fails, `issueLink` is simply
+  unresolved and follows the standard unresolved-variable warning path.
+
+- Q: Should the `--commit-message` CLI argument to `agdt-git-save-work` override the template system entirely (i.e., skip template rendering), or should it be ignored when a template exists? → A: The
+  `--commit-message` CLI argument MUST override the template system entirely. Priority order is: (1) `--commit-message` CLI arg (use verbatim, no template rendering), (2) template rendering if
+  `.agdt/config/commit-template.j2` exists, (3) raw `commit_message` state key fallback. This preserves the existing CLI-arg-overrides-state pattern.
+
+- Q: Does the `versionControl.commitMessageBodyFile` path resolution use an absolute path, or is it relative to the git repository root? → A: The path stored in `versionControl.commitMessageBodyFile`
+  is resolved as follows: if the value is an OS-native absolute path, use it directly; if relative, resolve it relative to the git repository root. If the file does not exist at the resolved path,
+  `commitMessageBody` is treated as unresolved.
 
 ## Problem Statement
 
@@ -29,12 +56,15 @@ commit time. Variables are resolved from state, and any unresolved variables tri
 
 ### User Story 1 — Default Template Auto-Creation on Setup (Priority: P1)
 
-As a developer running `agdt-setup` for the first time in a repository, I expect the system to create a sensible default commit message template at `.agdt/config/commit-template.j2` so that I
+As a developer running `agdt-setup` for the first time in a repository, I want the system to create a sensible default commit message template at `.agdt/config/commit-template.j2` so that I
 immediately benefit from structured commit messages without any additional configuration. The template should follow the conventional-commit format already documented in the project's
 COMMIT_CONVENTION.md file, including the issue type, scoped issue link, title line, body content, and footer reference.
 
 **Why this priority**: Without the default template being created during setup, the entire feature has no entry point. Every other capability (rendering, validation, warnings) depends on a template
 existing on disk. This is the foundational piece that bootstraps the system.
+
+**Integration with `agdt-setup` flow**: Template creation occurs after dependency checks and env var persistence, alongside (or immediately before) workflow template generation. It is gated by the
+existing `skip_repo_steps` flag and the `--skip-templates` CLI flag, so that version-guard-blocked or template-skipped runs do not attempt template creation or validation.
 
 **Independent Test**: Run `agdt-setup` in a repository that has no `.agdt/config/commit-template.j2` file and verify the file is created with the expected default content. Then run `agdt-setup` again
 and verify the file is not overwritten.
@@ -50,6 +80,9 @@ and verify the file is not overwritten.
 3. **Given** a repository where the `.agdt/config/` directory does not yet exist, **When** `agdt-setup` runs and creates the template, **Then** the directory structure is created automatically and the
    template file is placed correctly within it.
 
+4. **Given** `agdt-setup` is invoked with `--skip-templates` or the version guard returns `"force"` (setting `skip_repo_steps = True`), **When** the template creation step is reached, **Then** it is
+   skipped entirely and no file is created or validated.
+
 ---
 
 ### User Story 2 — Commit Message Rendering from Template (Priority: P1)
@@ -62,7 +95,10 @@ point between the template on disk and the git commit flow.
 
 **Note on `commitMessageBody`**: Unlike other variables that are resolved directly from state keys, `commitMessageBody` is populated by reading the content of a file whose path is stored in the
 `versionControl.commitMessageBodyFile` state key. This avoids requiring agents to set a large multiline string directly in state; instead they write the body text to a file and point the state key at
-that path.
+that path. The path is resolved using OS-native absolute-path semantics; if the configured path is not absolute, it is resolved relative to the git repository root.
+
+**Priority order for commit message source**: (1) `--commit-message` CLI argument (use verbatim, no template rendering), (2) template rendering if `.agdt/config/commit-template.j2` exists (attempt
+rendering; if invalid/empty, emit warning and fall back per FR-007), (3) raw `commit_message` state key fallback.
 
 **Independent Test**: Set the state inputs required by the FR-003 render-context mapping (including `versionControl.commitMessageBodyFile` pointing to a file containing the body text), invoke
 `agdt-git-save-work`, and verify the resulting commit message matches the rendered template output with all variables substituted correctly (including `commitMessageBody` populated from the file).
@@ -77,6 +113,12 @@ that path.
 
 3. **Given** no template file exists at the expected path, **When** the commit message is rendered, **Then** the system falls back to using the raw `commit_message` state key directly
    (backward-compatible behavior).
+
+4. **Given** a valid template exists but the `--commit-message` CLI argument is provided, **When** `agdt-git-save-work` executes, **Then** the CLI argument value is used verbatim as the commit message
+   and template rendering is skipped entirely.
+
+5. **Given** `versionControl.commitMessageBodyFile` contains a relative path (e.g., `docs/body.txt`), **When** the template is rendered, **Then** the path is resolved relative to the git repository
+   root.
 
 ---
 
@@ -146,13 +188,21 @@ the feature is additive rather than disruptive.
 
 ### Edge Cases
 
-What happens when the template file exists but is empty (zero bytes)? The system should treat an empty template as invalid, print a warning, and fall back to the raw `commit_message` state key.
+What happens when the template file exists but is empty (zero bytes)? The system MUST treat an empty template as invalid, print a diagnostic warning to stderr (stating "commit template file is empty
+or whitespace-only"), and fall back to the raw `commit_message` state key.
 
-What happens when the template file contains syntax errors (e.g., unclosed `{{ }}`)? The system should catch the Jinja2 `TemplateSyntaxError`, print a diagnostic warning with the error details, and
-fall back to the raw `commit_message` state key rather than crashing.
+What happens when the template file contains syntax errors (e.g., unclosed `{{ }}`)? The system MUST catch the Jinja2 `TemplateSyntaxError`, print a diagnostic warning to stderr with the error details
+(including the Jinja2 error message), and fall back to the raw `commit_message` state key rather than crashing.
 
 What happens when none of the template variables are set in state? All variables should appear as unresolved warnings, and the rendered output should contain empty strings in place of the variable
 values (using the configured Jinja2 `Undefined` behavior that renders missing variables as empty strings).
+
+What happens when `resolve_github_repo()` would call `sys.exit(1)` during `issueLink` derivation? The template render-context builder MUST use a non-exiting resolution approach with equivalent
+repo-resolution semantics (for example by catching `SystemExit` or otherwise separating resolution logic from process exit behavior). If repo resolution fails, `issueLink` is treated as unresolved and
+follows the standard warning path without terminating the process.
+
+What happens when `versionControl.commitMessageBodyFile` contains a relative path? It is resolved relative to the git repository root. If the resolved path does not exist, `commitMessageBody` is
+treated as unresolved.
 
 ## Requirements
 
@@ -169,12 +219,14 @@ values (using the configured Jinja2 `Undefined` behavior that renders missing va
   [{{ issueKey }}]({{ issueLink }})
   ```
 
-  The indentation around this code block is for Markdown readability only and MUST NOT be written to the template file.
+  The indentation around this code block is for Markdown readability only and MUST NOT be written to the template file. Template creation MUST be gated by the existing `skip_repo_steps` flag and the
+  `--skip-templates` CLI flag, consistent with other repo-file-creating steps in `agdt-setup`.
 
 - **FR-002**: The system MUST NOT overwrite an existing `.agdt/config/commit-template.j2` file during `agdt-setup` execution, regardless of whether the existing file matches the default content or has
   been customized by the user.
 
-- **FR-003**: The system MUST render the commit message template using Jinja2 when `.agdt/config/commit-template.j2` exists and the commit flow is invoked via `agdt-git-save-work`. The system MUST
+- **FR-003**: The system MUST render the commit message template using Jinja2 when `.agdt/config/commit-template.j2` exists and the commit flow is invoked via `agdt-git-save-work` AND no
+  `--commit-message` CLI argument was provided. The `--commit-message` CLI argument takes highest priority and bypasses template rendering entirely. The system MUST
   construct a render context that maps template variable names (`issueType`, `issueKey`, `issueLink`, `commitMessageTitle`, `commitMessageBody`) to values derived from state, without requiring or
   introducing new un-namespaced top-level state keys named after template variables. This mapping MUST support namespaced state keys and legacy fallbacks where applicable, with the following
   deterministic resolution order:
@@ -205,13 +257,19 @@ values (using the configured Jinja2 `Undefined` behavior that renders missing va
     integer extracted from the raw `issueKey` value — for a Python `int` raw value this is the
     value itself; for a digits-only string this is `int(raw)`; for a `#N`-pattern string this is
     `int(raw[1:])`. If repository resolution fails, or if the issue key matched rule (c),
-    `issueLink` is unresolved.
+    `issueLink` is unresolved. **IMPORTANT**: The render-context builder MUST NOT call
+    `resolve_github_repo()` directly because that function calls `sys.exit(1)` on failure.
+    Instead, it MUST use a non-exiting repo-resolution path with equivalent semantics (for
+    example by catching `SystemExit` or otherwise separating the resolution logic from process
+    exit behavior) so that a failed repo resolution simply leaves `issueLink` as unresolved.
   - `commitMessageTitle`: `versionControl.commitMessageTitle` → unresolved
   - `issueType`: `versionControl.commitMessageType` → explicit mapped value derived from `issueManagement.issueType` or `jira.issue_type` → unresolved
+  - `commitMessageBody`: Read file content from the path in `versionControl.commitMessageBodyFile`. Path resolution: absolute paths are used directly; relative paths are resolved relative to the git
+    repository root. If the state key is missing, empty, or the resolved file path does not exist or cannot be read, `commitMessageBody` is unresolved.
 
-  `issueType` in the render context MUST be a Conventional Commits type (`feat`, `fix`, `docs`, etc.), and when derived from Jira issue type it MUST use this default mapping unless explicitly overridden
-  by configuration: `Story`/`Feature` → `feat`, `Task` → `chore`, `Bug` → `fix`, `Epic` → `feat`, `Sub-task` → `chore`. `commitMessageBody` MUST be populated by reading the file content at the path
-  specified by the `versionControl.commitMessageBodyFile` state key.
+  `issueType` in the render context MUST be a Conventional Commits type (`feat`, `fix`, `docs`, etc.), and when derived from Jira issue type it MUST use this default mapping unless explicitly
+  overridden
+  by configuration: `Story`/`Feature` → `feat`, `Task` → `chore`, `Bug` → `fix`, `Epic` → `feat`, `Sub-task` → `chore`.
 
 - **FR-004**: The system MUST emit a warning to stderr for each template variable that cannot be resolved from state during rendering. Each warning MUST identify the specific unresolved variable by
   name. If `versionControl.commitMessageBodyFile` is missing or points to a file that cannot be read, the system MUST treat `commitMessageBody` as unresolved, emit the same warning behavior for
@@ -221,9 +279,11 @@ values (using the configured Jinja2 `Undefined` behavior that renders missing va
   flow.
 
 - **FR-006**: The system MUST validate existing templates during `agdt-setup` by checking that all required variables (`issueType`, `issueKey`, `issueLink`, `commitMessageTitle`, `commitMessageBody`)
-  are referenced in the template. Validation failures MUST produce a warning (not an error) and MUST NOT prevent setup from completing.
+  are referenced in the template, unless `--skip-templates` is provided or `skip_repo_steps` is true (in which case validation is skipped). Validation failures MUST produce a warning (not an error)
+  and MUST NOT prevent setup from completing.
 
-- **FR-007**: The system MUST handle invalid template content gracefully during rendering by printing a diagnostic warning and falling back to the raw `commit_message` state key rather than
+- **FR-007**: The system MUST handle invalid template content gracefully during rendering by printing a diagnostic warning to stderr (including the Jinja2 error message for syntax errors, or "commit
+  template file is empty or whitespace-only" for zero-byte/whitespace-only files) and falling back to the raw `commit_message` state key rather than
   propagating an exception. This requirement MUST cover both Jinja2 `TemplateSyntaxError` exceptions and empty template content (zero-byte or whitespace-only template files). If this fallback path
   is taken and `commit_message` is missing or empty, the system MUST exit with a clear, actionable error that explicitly instructs users/agents to either fix the template or set `commit_message`.
 
@@ -231,7 +291,8 @@ values (using the configured Jinja2 `Undefined` behavior that renders missing va
 
 - **FR-009**: Documentation MUST be updated to describe the commit message template system, including: how to use the default template, how to customize the template for repository-specific formats,
   and troubleshooting guidance for common issues (unresolved variables, Jinja2 syntax errors, and empty template fallback behaviour). This MUST include updating `docs/state-keys.md` to document the
-  new inputs (`versionControl.commitMessageType`, `versionControl.commitMessageTitle`, `versionControl.commitMessageBodyFile`) and optional `issueManagement.issueLink`.
+  new inputs (`versionControl.commitMessageType`, `versionControl.commitMessageTitle`, `versionControl.commitMessageBodyFile`) and optional `issueManagement.issueLink`. It MUST also include updating
+  `agdt-setup --skip-templates` CLI help text and setup documentation to state that the flag skips commit-template creation/validation in addition to workflow template generation.
 
 ### Non-Functional Requirements
 
@@ -252,10 +313,13 @@ values (using the configured Jinja2 `Undefined` behavior that renders missing va
 
 - **Template Variables**: Named placeholders within the template (`issueType`, `issueKey`, `issueLink`, `commitMessageTitle`, `commitMessageBody`) that map to render-context entries at render
   time. Render-context values are derived from namespaced and legacy state keys (rather than requiring same-name top-level keys). `commitMessageBody` is a special case: it is populated by reading
-  the file content referenced by the `versionControl.commitMessageBodyFile` state key rather than being set directly as a multiline string in state.
+  the file content referenced by the `versionControl.commitMessageBodyFile` state key (resolved as absolute or relative to git repo root) rather than being set directly as a multiline string in state.
   Each variable has a required/optional designation for validation purposes.
 
 - **Render Context**: The dictionary of resolved variable values passed to Jinja2 for template rendering, constructed from the current workflow state at commit time.
+
+- **Commit Message Source Priority**: The deterministic order in which the system resolves the final commit message: (1) `--commit-message` CLI argument (verbatim, no template), (2) template rendering
+  from `.agdt/config/commit-template.j2`, (3) raw `commit_message` state key fallback.
 
 ## Success Criteria
 
