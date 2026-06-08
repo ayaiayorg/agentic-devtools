@@ -1,9 +1,34 @@
 # Feature Specification: Split create vs. amend commit title parameters & transparency logging
 
-**Feature Branch**: `speckit/1830/phase-1-specify`
+**Feature Branch**: `speckit/1830/phase-2-clarify`
 **Created**: 2026-06-07
 **Status**: Draft
 **Source Issue**: #1830 (<https://github.com/ayaiayorg/agentic-devtools/issues/1830>)
+
+## Clarifications
+
+### Session 2026-06-07
+
+- Q: FR-001 says `--commit-message-title` must reject branches with commits ahead of `main` — does this mean the parameter is *only* valid for creating the first commit, and agents must always use
+  `--overwrite-commit-message-title` when the branch already has a commit ahead of main? → A: Yes. `--commit-message-title` is exclusively for creating the first commit on a branch. If commits already
+  exist ahead of `main`, the command exits with status 1 and an error directing the caller to use `--overwrite-commit-message-title`. This aligns with the single-commit-per-PR policy.
+
+- Q: How is the commit body resolved when `--commit-message-title` is used? The spec says "resolve the body from the existing `commit_message` body portion" — what happens if `commit_message` contains
+  only a single line (title only) with no body after the first line? → A: If `commit_message` is set but contains only a title (no body after the first line), the commit is created with the new title
+  and an empty body. If `commit_message` is not set at all (neither the `--commit-message` CLI flag nor the `commit_message` state key), the command exits with status 1 and an error directing the
+  caller to set `commit_message` (or pass `--commit-message`).
+
+- Q: For `--overwrite-commit-message-title`, does the body of the amended commit remain unchanged (preserving the existing commit body), or is it also resolved from `commit_message`? → A: The body of
+  the amended commit remains unchanged — only the title (first line) is overwritten. The existing commit body is preserved from the prior commit. This makes the flag a pure title-replacement
+  operation, which is the minimal and safest overwrite behavior.
+
+- Q: What is the exact separator format for transparency logging (FR-004)? The spec mentions `--- Commit Message ---` / `---` as an example — is this the canonical format or illustrative? → A: The
+  canonical format is: a header line `--- Resolved Commit Message ---`, followed by the full message content, followed by a closing `---` line. For amend before/after diffs (FR-005), the format is a
+  header `--- Commit Title Change ---`, then `- <old title>`, then `+ <new title>`, then `---`. These specific strings are the canonical delimiters for machine-parseable log scanning.
+
+- Q: Should `--overwrite-commit-message-title` also accept a body override (e.g., `--overwrite-commit-message-body`), or is the scope limited strictly to title-only replacement in this feature? → A:
+  The scope of this feature is strictly title-only replacement. Body override is explicitly out of scope for this iteration. A future feature may add `--overwrite-commit-message-body` if needed, but
+  this spec addresses only the title parameter split and transparency logging as described in issue #1830.
 
 ## Problem Statement
 
@@ -44,10 +69,17 @@ message is printed to stdout before the commit executes, and (c) the commit mess
    **When** `agdt-git-save-work` runs, **Then** a new commit is created with
    that title and the resolved commit message is printed to stdout immediately before the commit executes.
 
-2. **Given** `--commit-message-title` is supplied alongside a `commit_message` state key, **When** the command resolves the message, **Then** the CLI flag takes precedence over the state key.
+2. **Given** `--commit-message-title` is supplied, the `commit_message_title` state key is also set, and both legacy body sources are available (`--commit-message` CLI flag
+   and `commit_message` state key), **When** the command resolves the message,
+   **Then** the CLI flag takes precedence over the state key for both sources: title resolution uses `--commit-message-title` over `commit_message_title`, and body resolution uses `--commit-message`
+   content after the first line before falling back to `commit_message` state content after the first line; if the selected source has no body lines, the body is empty.
 
-3. **Given** neither `--commit-message-title`, `--overwrite-commit-message-title`, nor `commit_message` is available, **When** `agdt-git-save-work` runs, **Then** the command exits with a non-zero
-   status and prints a clear error message identifying which parameter is required.
+3. **Given** `--commit-message-title` is supplied but `commit_message` is unavailable from both legacy body sources (`--commit-message` CLI flag and `commit_message` state key), **When**
+   `agdt-git-save-work` runs, **Then** the command exits with exit status 1 and prints a clear error message directing the caller to either pass the `--commit-message` CLI flag or set
+   the `commit_message` state key to supply the body.
+
+4. **Given** `--commit-message-title` is supplied on a branch that already has commits ahead of `main`, **When** `agdt-git-save-work` runs, **Then** the command exits with exit status 1 and prints
+   an error directing the caller to use `--overwrite-commit-message-title`.
 
 ---
 
@@ -60,23 +92,28 @@ and the system does not silently apply the new title as a fresh commit.
 **Why this priority**: Without an explicit overwrite flag, agents cannot express intent unambiguously. The `--overwrite-commit-message-title` parameter is the counterpart to `--commit-message-title`
 and together they form the complete, intent-explicit parameter model required by the issue.
 
+**Body preservation**: When `--overwrite-commit-message-title` is used, only the first line (title) of the existing commit message is replaced. All existing lines after the first line are preserved
+unchanged.
+
 **Independent Test**: On a branch with at least one commit ahead of `main`, invoke
 `agdt-git-save-work --overwrite-commit-message-title "fix([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): new title"` and verify: (a) the command amends rather than creates
-a new commit, (b) stdout includes the before (old) and after (new) commit message titles, and (c) the amended commit title matches the supplied value.
+a new commit, (b) stdout includes the before (old) and after (new) commit message titles, and (c) the amended commit title matches the supplied value while the body is preserved.
 
 **Acceptance Scenarios**:
 
 1. **Given** a branch with at least one commit ahead of `main` and
    `--overwrite-commit-message-title "fix([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): new title"`
    is supplied, **When** `agdt-git-save-work` runs, **Then** the existing commit ahead of `main` is amended
-   with the new title and a before/after diff of the commit message titles is printed to stdout.
+   with the new title (body preserved) and stdout includes the before/after title diff enclosed in
+   `--- Commit Title Change ---` / `---` delimiters (old title prefixed with `-` followed by one space,
+   new title prefixed with `+` followed by one space).
 
 2. **Given** `--overwrite-commit-message-title` is supplied, **When** the command determines the operation type, **Then** it always amends regardless of the `should_amend_instead_of_commit` heuristic
    result — the explicit parameter overrides the heuristic.
 
 3. **Given** `--overwrite-commit-message-title` is supplied but the branch has no commits ahead of
-   `main` to amend, **When** the command attempts to amend, **Then** it exits with a non-zero status and a
-   clear error message explaining that there is no commit to amend.
+   `main` to amend, **When** the command attempts to amend, **Then** it exits with status 1 and a clear
+   error message explaining that there is no commit to amend.
 
 ---
 
@@ -88,18 +125,28 @@ create and amend — so that I can confirm exactly what was committed without ru
 **Why this priority**: The issue explicitly requires that the resolved final message is always printed. This is the minimal transparency requirement that applies to all commit paths. Without it,
 agents cannot verify their own output.
 
+**Canonical format**: The resolved message is enclosed between `--- Resolved Commit Message ---` (header) and `---` (footer) delimiter lines. This format is stable and machine-parseable.
+
 **Independent Test**: Run `agdt-git-save-work` with `--commit-message-title` on a clean branch and capture stdout. Verify that the full resolved commit message (title + body) appears in stdout
-between a clearly identifiable delimiter before the `git commit` command runs.
+between `--- Resolved Commit Message ---` and `---` delimiter lines before the `git commit` command runs.
 
 **Acceptance Scenarios**:
 
-1. **Given** `agdt-git-save-work` is about to create a new commit, **When** the command runs, **Then** the full resolved commit message is printed to stdout with a separator line before the commit
+1. **Given** `agdt-git-save-work` is about to create a new commit, **When** the command runs, **Then** the full resolved commit message is printed to stdout enclosed in `--- Resolved Commit Message ---`
+   and `---` delimiter lines before the commit
    executes (not after), so that log output is present even if the commit fails.
 
-2. **Given** `agdt-git-save-work` is about to amend an existing commit, **When** the command runs, **Then** the full resolved new commit message is printed to stdout before the amend executes.
+2. **Given** `agdt-git-save-work` is about to amend an existing commit, **When** the command runs, **Then** the full resolved new commit message is printed to stdout enclosed in
+   `--- Resolved Commit Message ---` and `---` delimiter lines before the amend executes.
 
 3. **Given** `--dry-run` is specified, **When** the command prints the resolved message, **Then** the output is identical in format to the non-dry-run case (the message is always printed regardless of
    the dry-run flag; the dry-run only suppresses the actual git command).
+
+4. **Given** `agdt-git-amend` is invoked directly (FR-007), **When** the command runs, **Then** it prints
+   both the before/after title diff enclosed in `--- Commit Title Change ---` / `---` delimiters (old title
+   prefixed with `-` followed by one space, new title prefixed with `+` followed by one space) and the full
+   resolved commit message enclosed in `--- Resolved Commit Message ---` / `---` delimiters to stdout before
+   the `git commit --amend` command executes.
 
 ---
 
@@ -110,10 +157,15 @@ unintended modifications during a post-run audit.
 
 **Why this priority**: The issue acceptance criteria explicitly require a before/after diff for amend/overwrite operations. This is the key audit transparency mechanism for agentic commit workflows.
 
+**Canonical diff format**: The before/after block is enclosed between `--- Commit Title Change ---` (header) and `---` (footer) delimiter lines, with the old title on a line prefixed by `-` followed
+by a single space, and the new title on a line prefixed by `+` followed by a single space.
+
 **Independent Test**: Create a branch with one commit with title
 `feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): original`. Run
 `agdt-git-save-work --overwrite-commit-message-title "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): updated"`. Verify that stdout contains
-lines showing the old title prefixed with `-` and the new title prefixed with `+` (or an equivalent clearly labeled before/after format).
+`--- Commit Title Change ---`, then
+`- feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): original`, then
+`+ feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): updated`, then `---`.
 
 **Acceptance Scenarios**:
 
@@ -121,15 +173,16 @@ lines showing the old title prefixed with `-` and the new title prefixed with `+
    `feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): original title` and
    `--overwrite-commit-message-title "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): updated title"`
    is supplied, **When** the command runs, **Then** stdout
-   includes both the old title (prefixed with a `-` line) and the new title (prefixed with a `+` line), or equivalent labeled before/after lines, before the amend executes.
+   includes `--- Commit Title Change ---`, the old title prefixed with `-` plus a single space, the new title prefixed with `+` plus a single space, and a closing `---`, before the amend executes.
 
-2. **Given** the old and new titles are identical, **When** the command runs, **Then** stdout still prints the before/after block (with no visible diff lines) to confirm no change occurred, rather
+2. **Given** the old and new titles are identical, **When** the command runs, **Then** stdout still prints the before/after block (with identical `-` and `+` lines) to confirm no change occurred,
+   rather
    than silently suppressing the diff.
 
-3. **Given** the branch has no commits ahead of `main` (nothing to read as
-   "before"), **When** an amend is requested, **Then** the command exits with a
-   non-zero status and an error message before any git operation — no partial
-   output is printed that could mislead the caller.
+3. **Given** `--overwrite-commit-message-title` is supplied and the branch has no commits ahead of
+   `main` (nothing to read as "before"), **When** the command attempts to amend, **Then** the command exits
+   with status 1 and an error message before any git operation — no partial output is printed that could
+   mislead the caller.
 
 ---
 
@@ -176,25 +229,33 @@ As an agent or developer using the existing `commit_message` state key workflow,
 ### Functional Requirements
 
 - **FR-001**: `agdt-git-save-work` MUST accept a `--commit-message-title` CLI flag whose presence signals intent to create a **new** commit. When this flag is present, the command MUST skip
-  `should_amend_instead_of_commit` and always call `create_commit`. Validation order MUST be deterministic: (1) reject branches with commits ahead of `main` with an error directing the caller to use
-  `--overwrite-commit-message-title`; then (2) resolve the body from the existing `commit_message` body portion. Scope note: this change does **not** add a new file-read source in
-  `agdt-git-save-work`; if upstream automation renders `commit_message` from a markdown file, that remains the body source indirectly through `commit_message`. If `commit_message` cannot be resolved
-  (from CLI or state), exit with status 1 and print an error to stderr explaining that a body source is required. This prevents creating a second commit in violation of the single-commit-per-PR
-  policy.
+  `should_amend_instead_of_commit` and always call `create_commit`. Validation order MUST be deterministic: (1) if both create-intent and amend-intent signals are present in the same invocation
+  (CLI flags, state keys, or mixed), the command MUST exit with status 1 and print the FR-002 conflict error for the detected conflict source (CLI, state-key, or mixed); then (2) reject branches
+  with commits ahead of `main` with an error directing the caller to use `--overwrite-commit-message-title`; then (3) resolve the body from the existing legacy body sources (`--commit-message`
+  CLI flag or `commit_message` state key, with CLI flag taking precedence), using lines after the first line of the selected source; if the selected source has no body lines, the commit body is
+  empty; if neither legacy body source is available, the command MUST exit with status 1 and print an error to stderr directing the caller to either pass `--commit-message` or set the
+  `commit_message` state key to supply the body. Scope note: this change does **not** add a new file-read source in `agdt-git-save-work`; if upstream automation renders `commit_message` from a
+  markdown file, that remains the body source indirectly through `commit_message`. This prevents creating a second commit in violation of the single-commit-per-PR policy.
 
-- **FR-002**: `agdt-git-save-work` MUST accept a `--overwrite-commit-message-title` CLI flag whose presence signals intent to **amend** the existing commit. When this flag is present, the command
-  MUST skip `should_amend_instead_of_commit` and always call `amend_commit`. If the branch has no commits ahead of `main`, the command MUST exit with status 1 and print an error to stderr. If both
-  create-intent and amend-intent signals are present in the same invocation (CLI flags, state keys, or mixed), the command MUST exit with status 1 and print a single stable conflict error message that
-  explicitly says to provide exactly one of `--commit-message-title` or `--overwrite-commit-message-title`, instead of choosing one path implicitly.
+- **FR-002**: `agdt-git-save-work` MUST accept a `--overwrite-commit-message-title` CLI flag whose presence signals intent to **amend** the existing commit. When this flag is present, or when the
+  `overwrite_commit_message_title` state key is set, the command MUST skip `should_amend_instead_of_commit` and always call `amend_commit`. Validation order MUST be deterministic: (1) if both
+  create-intent and amend-intent signals are present in the same
+  invocation (CLI flags, state keys, or mixed), the command MUST exit with status 1 and print a single stable conflict error message. The message MUST name the specific source of each conflicting
+  signal: for CLI-flag conflicts it MUST say to pass only one of `--commit-message-title` or `--overwrite-commit-message-title`; for state-key conflicts it MUST say to set only one of the
+  `commit_message_title` or `overwrite_commit_message_title` state keys; for mixed conflicts it MUST say to supply only one create-intent or amend-intent signal across flags and state keys. Then
+  (2) if the branch has no commits ahead of `main`, the command MUST exit with status 1 and print an error to stderr. The amend
+  operation MUST only replace the first line (title) of the existing commit message; all existing lines after the first line MUST be preserved unchanged.
 
 - **FR-003**: State keys `commit_message_title` (str) and `overwrite_commit_message_title` (str) MUST be read as fallback sources when the corresponding CLI flags are absent. CLI flags take
   precedence over state keys. The existing `commit_message` state key continues to serve as the legacy fallback when neither new key/flag is present.
 
-- **FR-004**: On every `create_commit` call, the system MUST print the full resolved commit message to stdout, enclosed in separator lines (e.g., `--- Commit Message ---` / `---`), before the
+- **FR-004**: On every `create_commit` call, the system MUST print the full resolved commit message to stdout, enclosed in canonical separator lines (`--- Resolved Commit Message ---` header / `---`
+  footer), before the
   `git commit` command is executed. This requirement applies equally in dry-run mode (the message is always printed; only the git command is suppressed).
 
-- **FR-005**: On every `amend_commit` call, the system MUST print: (a) the old commit message title derived from the first line of `get_last_commit_message()` output, prefixed with a `-` character;
-  (b) the new commit message title, prefixed with a `+` character; and (c) the full resolved new commit message, before the `git commit --amend` command is executed. The before/after block MUST
+- **FR-005**: On every `amend_commit` call, the system MUST print: (a) the before/after title diff enclosed in `--- Commit Title Change ---` header / `---` footer, with the old commit message title
+  (first line of `get_last_commit_message()` output) prefixed with `-` followed by one space and the new commit message title prefixed with `+` followed by one space; and (b) the full resolved new
+  commit message enclosed in `--- Resolved Commit Message ---` / `---`, before the `git commit --amend` command is executed. The before/after block MUST
   appear even when old and new titles are identical.
 
 - **FR-006**: All existing invocations using `--commit-message` CLI flag or `commit_message` state key MUST continue to work without modification. The heuristic-based `should_amend_instead_of_commit`
@@ -207,7 +268,8 @@ As an agent or developer using the existing `commit_message` state key workflow,
 
 ### Non-Functional Requirements
 
-- **NFR-001**: The transparency logging added by FR-004 and FR-005 MUST complete synchronously before the git command runs, with negligible overhead on overall `agdt-git-save-work` wall-clock time.
+- **NFR-001**: The transparency logging added by FR-004 and FR-005 MUST complete synchronously before the git command runs, with negligible overhead that does not materially affect overall
+  `agdt-git-save-work` execution time.
 
 - **NFR-002**: The implementation MUST maintain 100% test coverage on `commands.py`, `operations.py`, and any new helper functions introduced (per the project's `--cov-fail-under=100` pytest
   configuration).
@@ -217,14 +279,18 @@ As an agent or developer using the existing `commit_message` state key workflow,
 
 ## Success Criteria
 
-- **SC-001**: `agdt-git-save-work --commit-message-title "..."` creates a new commit and prints the resolved message to stdout on a branch with no commits ahead of `main`.
+- **SC-001**: `agdt-git-save-work --commit-message-title "..."` creates a new commit and prints the resolved message to stdout (enclosed in `--- Resolved Commit Message ---` / `---` delimiters) on a
+  branch with no commits ahead of `main`.
 
-- **SC-002**: `agdt-git-save-work --overwrite-commit-message-title "..."` amends the existing commit and prints the before/after diff to stdout on a branch with at least one commit ahead of `main`.
+- **SC-002**: `agdt-git-save-work --overwrite-commit-message-title "..."` amends the existing commit (title only, body preserved) and prints the before/after diff to stdout (enclosed in
+  `--- Commit Title Change ---` / `---` delimiters) on a branch with at least one commit ahead of `main`.
 
 - **SC-003**: All existing usages of `commit_message` state key continue to work without modification, confirmed by existing unit tests passing without change.
 
 - **SC-004**: New unit tests cover: (a) `--commit-message-title` new-commit path with logging assertion, (b) `--overwrite-commit-message-title` amend path with before/after diff assertion, (c) state
-  key fallback for both new parameters, (d) error when `--overwrite-commit-message-title` is used on a branch with no commits ahead of `main`, and (e) both new paths in dry-run mode.
+  key fallback for both new parameters, (d) error when `--overwrite-commit-message-title` is used on a branch with no commits ahead of `main`, (e) both new paths in dry-run mode, (f) conflict error
+  when both create-intent and amend-intent signals are present simultaneously, (g) body preservation during title-only overwrite, and (h) `agdt-git-amend` transparency logging (FR-007): resolved
+  commit message printed before `git commit --amend` executes, including before/after title diff.
 
 - **SC-005**: `markdownlint` passes on all modified documentation files, including updated command docstrings exported as markdown.
 
