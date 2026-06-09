@@ -63,6 +63,8 @@ COMMIT_CONVENTION.md file, including the issue type, scoped issue link, title li
 **Why this priority**: Without the default template being created during setup, the entire feature has no entry point. Every other capability (rendering, validation, warnings) depends on a template
 existing on disk. This is the foundational piece that bootstraps the system.
 
+**Functional Requirements**: FR-001, FR-002, FR-008.
+
 **Integration with `agdt-setup` flow**: Template creation occurs after dependency checks and env var persistence, alongside (or immediately before) workflow template generation. It is gated by the
 existing `skip_repo_steps` flag and the `--skip-templates` CLI flag, so that version-guard-blocked or template-skipped runs do not attempt template creation or validation.
 
@@ -100,6 +102,8 @@ that path. The path is resolved using OS-native absolute-path semantics; if the 
 **Priority order for commit message source**: (1) `--commit-message` CLI argument (use verbatim, no template rendering), (2) template rendering if `.agdt/config/commit-template.j2` exists (attempt
 rendering; if invalid/empty, emit warning and fall back per FR-007), (3) raw `commit_message` state key fallback.
 
+**Functional Requirements**: FR-003.
+
 **Independent Test**: Set the state inputs required by the FR-003 render-context mapping (including `versionControl.commitMessageBodyFile` pointing to a file containing the body text), invoke
 `agdt-git-save-work`, and verify the resulting commit message matches the rendered template output with all variables substituted correctly (including `commitMessageBody` populated from the file).
 
@@ -130,6 +134,8 @@ able to proceed with the commit if I choose to.
 **Why this priority**: Hard failures on missing variables would block agents and break existing workflows that partially rely on state being set. A warning-based approach provides discoverability and
 helpful feedback without introducing regressions. This is critical for the system to be adopted incrementally.
 
+**Functional Requirements**: FR-004.
+
 **Independent Test**: Set all state keys except one (e.g., omit `versionControl.commitMessageBodyFile`), render the template, and verify that a warning is printed to stderr listing
 `commitMessageBody` as the unresolved variable, while the rendered output contains an empty string in place of the unresolved variable (consistent with FR-004).
 
@@ -153,6 +159,8 @@ potential issues before they cause problems at commit time.
 **Why this priority**: This is a quality-of-life improvement that catches configuration errors early. While not strictly required for the system to function, it significantly reduces debugging time
 when templates are misconfigured. It depends on User Story 1 being in place.
 
+**Functional Requirements**: FR-006, FR-009.
+
 **Independent Test**: Create a template that omits one of the required variables (e.g., `{{ issueKey }}`), run `agdt-setup`, and verify a validation warning is printed identifying the missing
 variable.
 
@@ -175,6 +183,8 @@ state key behavior, so that the template system does not break any existing work
 
 **Why this priority**: Backward compatibility is essential for incremental adoption. Users who have not opted into the template system must not experience any change in behavior. This story ensures
 the feature is additive rather than disruptive.
+
+**Functional Requirements**: FR-005, FR-007.
 
 **Independent Test**: Remove or never create the template file, set `commit_message` in state, run `agdt-git-save-work`, and verify the commit uses the raw state value exactly as before.
 
