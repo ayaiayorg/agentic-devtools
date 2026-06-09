@@ -23,7 +23,8 @@
 
 ## Phase 2: Foundational — Identity Detection & Caching
 
-- [ ] T003 Write failing happy-path tests for `resolve_pat_identity_snapshot()` returning `{id, uniqueName, displayName}` in `tests/unit/cli/azure_devops/finalization/identity/test_resolve_pat_identity_snapshot.py`
+- [ ] T003 Write failing happy-path tests for `resolve_pat_identity_snapshot()` returning `{id, uniqueName, displayName}` in
+  `tests/unit/cli/azure_devops/finalization/identity/test_resolve_pat_identity_snapshot.py`
   (FR-007)
 - [ ] T004 Write failing tests for `IdentityCache.get_or_fetch()` ensuring single fetch per session in `tests/unit/cli/azure_devops/finalization/identity/test_identity_cache.py` (FR-007)
 - [ ] T005 Write failing tests for `is_cross_identity()` comparator (primary: `author.id` vs cached `id`, fallback: `uniqueName`) in
@@ -60,7 +61,8 @@
 
 ## Phase 5: User Story Implementation — Reply-Based Update Path (US1)
 
-- [ ] T021 [US1] Write failing happy-path tests for cross-identity reply posting with full scaffold content and correct markers in `tests/unit/cli/azure_devops/review_scaffold/test_cross_identity_reply.py`
+- [ ] T021 [US1] Write failing happy-path tests for cross-identity reply posting with full scaffold content and correct markers in
+  `tests/unit/cli/azure_devops/review_scaffold/test_cross_identity_reply.py`
   (FR-002)
 - [ ] T022 [US1] Write failing tests for reply idempotency — skip if matching marker reply already exists in `tests/unit/cli/azure_devops/review_scaffold/test_reply_idempotency.py` (FR-002)
 - [ ] T023 [US1] Implement reply-based update function (reusing existing `_post_reply` or shared helper) that posts full scaffold content prefixed with
