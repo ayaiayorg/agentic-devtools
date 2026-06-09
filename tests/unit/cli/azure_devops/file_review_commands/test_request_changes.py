@@ -258,6 +258,40 @@ class TestRequestChanges:
         captured = capsys.readouterr()
         assert "severity" in captured.err
 
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch(f"{_MOD}.mark_file_reviewed")
+    @patch(f"{_MOD}.get_repository_id", return_value="repo-guid-123")
+    @patch(f"{_MOD}.require_requests")
+    def test_legacy_flow_omits_thread_context_for_root_path(
+        self, mock_requests, _mock_repo, mock_mark_reviewed, temp_state_dir, clear_state_before
+    ):
+        """Legacy fallback should skip threadContext when the normalized path is empty."""
+        from agentic_devtools.state import set_value
+
+        mock_req_module = MagicMock()
+        mock_response = MagicMock()
+        mock_req_module.post.return_value = mock_response
+        mock_requests.return_value = mock_req_module
+
+        set_value("pull_request_id", "23046")
+        set_value("file_review.file_path", "/")
+        set_value("file_review.summary", "Root-level concern.")
+        set_value("file_review.suggestions", json.dumps([{"line": 42, "severity": "high", "content": "Fix root"}]))
+
+        with (
+            patch(
+                "agentic_devtools.cli.azure_devops.review_state.load_review_state",
+                side_effect=FileNotFoundError("missing"),
+            ),
+            patch(f"{_MOD}.print_next_file_prompt"),
+        ):
+            request_changes()
+
+        assert mock_req_module.post.call_count == 2
+        for call in mock_req_module.post.call_args_list:
+            assert "threadContext" not in call.kwargs["json"]
+        mock_mark_reviewed.assert_called_once()
+
     def test_suggestion_missing_line(self, temp_state_dir, clear_state_before, capsys):
         """Should exit if a suggestion is missing the line field."""
         from agentic_devtools.state import set_value

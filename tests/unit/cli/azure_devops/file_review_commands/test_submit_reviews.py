@@ -414,6 +414,23 @@ class TestSubmitReviews:
         parallel_mocks["process"].assert_called_once()
         assert parallel_mocks["process"].call_args.kwargs["outcome"] == "approve"
 
+    @patch(f"{_MOD}.approve_file")
+    def test_dry_run_sets_summary_before_delegating(self, mock_approve, temp_state_dir, clear_state_before):
+        """Dry-run mode should materialize summary into state before delegation."""
+        from agentic_devtools.state import get_value, set_value
+
+        set_value("pull_request_id", 12345)
+        set_value("dry_run", True)
+        set_value(
+            "batch_reviews.items",
+            json.dumps([{"file_path": "src/a.ts", "summary": "LGTM"}]),
+        )
+
+        submit_reviews()
+
+        assert get_value("file_review.summary") == "LGTM"
+        mock_approve.assert_called_once_with(skip_cascade=True)
+
     def test_accepts_list_as_batch_reviews_state(self, temp_state_dir, clear_state_before, capsys, parallel_mocks):
         """Should accept a list stored directly in state (not a JSON string)."""
         from agentic_devtools.state import set_value

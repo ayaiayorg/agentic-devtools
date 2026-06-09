@@ -65,3 +65,31 @@ class TestFindPrFromJiraIssue:
                     result = find_pr_from_jira_issue("PROJECT-1234")
 
         assert result == 55
+
+    def test_returns_pr_from_dev_panel(self, mock_azure_devops_env):
+        """Should return PR ID from dev panel when available."""
+        with patch(
+            "agentic_devtools.cli.azure_devops.review_jira.get_pr_from_development_panel",
+            return_value=100,
+        ):
+            result = find_pr_from_jira_issue("PROJECT-1234")
+
+        assert result == 100
+
+    def test_returns_pr_from_jira_text_pattern(self, mock_azure_devops_env):
+        """Should return PR ID from Jira text patterns as last resort."""
+        with patch(
+            "agentic_devtools.cli.azure_devops.review_jira.get_pr_from_development_panel",
+            return_value=None,
+        ):
+            with patch(
+                "agentic_devtools.cli.azure_devops.helpers.find_pull_request_by_issue_key",
+                return_value=None,
+            ):
+                with patch(
+                    "agentic_devtools.cli.azure_devops.review_jira.get_linked_pull_request_from_jira",
+                    return_value=200,
+                ):
+                    result = find_pr_from_jira_issue("PROJECT-1234")
+
+        assert result == 200

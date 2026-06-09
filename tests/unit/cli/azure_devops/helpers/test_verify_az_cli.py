@@ -35,3 +35,21 @@ class TestVerifyAzCli:
         ):
             with pytest.raises(SystemExit):
                 verify_az_cli()
+
+    def test_exits_when_azure_devops_extension_missing(self):
+        """Should raise SystemExit when azure-devops extension is not installed."""
+        from unittest.mock import MagicMock
+
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+
+        ext_result = MagicMock()
+        ext_result.returncode = 0
+        ext_result.stdout = ""
+
+        with patch(
+            "agentic_devtools.cli.azure_devops.helpers.run_safe",
+            side_effect=[mock_result, ext_result],
+        ):
+            with pytest.raises(SystemExit):
+                verify_az_cli()

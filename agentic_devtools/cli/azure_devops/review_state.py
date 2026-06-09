@@ -267,6 +267,7 @@ class FileEntry:
     modelVerdicts: list[ModelVerdict] = field(default_factory=list)
     consolidationStatus: str | None = None
     processingPath: str | None = None
+    crossIdentity: bool = False
 
     def to_dict(self) -> dict:
         """Serialize to JSON-compatible dictionary."""
@@ -290,6 +291,8 @@ class FileEntry:
             result["consolidationStatus"] = self.consolidationStatus
         if self.processingPath is not None:
             result["processingPath"] = self.processingPath
+        if self.crossIdentity:
+            result["crossIdentity"] = self.crossIdentity
         return result
 
     @classmethod
@@ -313,6 +316,7 @@ class FileEntry:
             modelVerdicts=model_verdicts,
             consolidationStatus=data.get("consolidationStatus"),
             processingPath=data.get("processingPath"),
+            crossIdentity=data.get("crossIdentity", False),
         )
 
     def get_model_verdict(self, model_id: str) -> ModelVerdict | None:

@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+from agentic_devtools.cli.azure_devops.marker import build_marker
 from agentic_devtools.tools.azure_devops import update_review_narrative
 
 
@@ -44,6 +45,7 @@ class TestUpdateReviewNarrative:
         assert result["success"] is True
         assert mock_review_state.overallSummary.narrativeSummary == "New narrative"
         mock_patch.assert_called_once()
+        assert mock_patch.call_args.args[7].startswith(f"{build_marker('overall-summary', pr=1)}\n")
         mock_save.assert_called_once()
 
     @patch("agentic_devtools.cli.azure_devops.review_state.save_review_state")

@@ -6,10 +6,11 @@ Provides functions to:
 - Execute those PATCH operations against the Azure DevOps API
 """
 
-from dataclasses import dataclass
+import sys
+from dataclasses import dataclass, field
 
 from .config import AzureDevOpsConfig
-from .helpers import patch_comment, patch_thread_status
+from .helpers import CrossIdentityForbiddenError, patch_comment, patch_thread_status, post_cross_identity_reply
 from .marker import build_marker
 from .review_state import ReviewState, ReviewStatus, compute_aggregate_status, normalize_file_path
 from .review_templates import render_overall_summary
@@ -31,6 +32,15 @@ class PatchOperation:
     comment_id: int
     new_content: str
     thread_status: str
+
+
+@dataclass
+class CascadeResult:
+    """Result of executing a batch of PATCH operations."""
+
+    succeeded: list[int] = field(default_factory=list)
+    fallen_back: list[int] = field(default_factory=list)
+    blocked: list[int] = field(default_factory=list)
 
 
 def derive_overall_status(state: ReviewState) -> str:
@@ -190,11 +200,13 @@ def execute_cascade(
     repo_id: str,
     pull_request_id: int,
     dry_run: bool = False,
-) -> None:
+) -> CascadeResult:
     """Execute all PATCH operations against the Azure DevOps API.
 
     For each PatchOperation, updates both the comment content and the
-    thread status via separate PATCH calls.
+    thread status via separate PATCH calls. Cross-identity 403 errors
+    are isolated per-operation so one forbidden update does not abort the
+    entire batch; those operations fall back to a reply update when possible.
 
     Args:
         patch_operations: List of PatchOperation objects to execute.
@@ -204,26 +216,62 @@ def execute_cascade(
         repo_id: Repository ID.
         pull_request_id: Pull request ID.
         dry_run: If True, skip API calls and print dry-run messages.
+
+    Returns:
+        CascadeResult with succeeded, fallen_back, and blocked thread IDs.
     """
+    result = CascadeResult()
     for op in patch_operations:
-        patch_comment(
-            requests_module=requests_module,
-            headers=headers,
-            config=config,
-            repo_id=repo_id,
-            pull_request_id=pull_request_id,
-            thread_id=op.thread_id,
-            comment_id=op.comment_id,
-            new_content=op.new_content,
-            dry_run=dry_run,
-        )
-        patch_thread_status(
-            requests_module=requests_module,
-            headers=headers,
-            config=config,
-            repo_id=repo_id,
-            pull_request_id=pull_request_id,
-            thread_id=op.thread_id,
-            status=op.thread_status,
-            dry_run=dry_run,
-        )
+        try:
+            patch_comment(
+                requests_module=requests_module,
+                headers=headers,
+                config=config,
+                repo_id=repo_id,
+                pull_request_id=pull_request_id,
+                thread_id=op.thread_id,
+                comment_id=op.comment_id,
+                new_content=op.new_content,
+                dry_run=dry_run,
+            )
+            patch_thread_status(
+                requests_module=requests_module,
+                headers=headers,
+                config=config,
+                repo_id=repo_id,
+                pull_request_id=pull_request_id,
+                thread_id=op.thread_id,
+                status=op.thread_status,
+                dry_run=dry_run,
+            )
+            result.succeeded.append(op.thread_id)
+        except CrossIdentityForbiddenError:
+            try:
+                post_cross_identity_reply(
+                    requests_module=requests_module,
+                    headers=headers,
+                    config=config,
+                    repo_id=repo_id,
+                    pull_request_id=pull_request_id,
+                    thread_id=op.thread_id,
+                    content=op.new_content,
+                    dry_run=dry_run,
+                )
+                patch_thread_status(
+                    requests_module=requests_module,
+                    headers=headers,
+                    config=config,
+                    repo_id=repo_id,
+                    pull_request_id=pull_request_id,
+                    thread_id=op.thread_id,
+                    status=op.thread_status,
+                    dry_run=dry_run,
+                )
+                result.fallen_back.append(op.thread_id)
+            except Exception as exc:
+                print(
+                    f"Warning: 403 on thread {op.thread_id} (cross-identity) and reply fallback failed: {exc}",
+                    file=sys.stderr,
+                )
+                result.blocked.append(op.thread_id)
+    return result

@@ -398,6 +398,7 @@ def update_review_narrative(
         get_repository_id,
         patch_comment,
     )
+    from agentic_devtools.cli.azure_devops.marker import build_marker
     from agentic_devtools.cli.azure_devops.review_scaffold import build_pr_base_url
     from agentic_devtools.cli.azure_devops.review_state import load_review_state, save_review_state
     from agentic_devtools.cli.azure_devops.review_templates import render_overall_summary
@@ -420,11 +421,22 @@ def update_review_narrative(
 
     review_state.overallSummary.narrativeSummary = content
     base_url = build_pr_base_url(config, pull_request_id)
-    new_content = render_overall_summary(review_state, base_url)
+    summary_marker = build_marker("overall-summary", pr=pull_request_id)
+    new_content = f"{summary_marker}\n{render_overall_summary(review_state, base_url)}"
 
     thread_id = review_state.overallSummary.threadId
     comment_id = review_state.overallSummary.commentId
-    patch_comment(requests, headers, config, repo_id, pull_request_id, thread_id, comment_id, new_content)
+    patch_comment(
+        requests,
+        headers,
+        config,
+        repo_id,
+        pull_request_id,
+        thread_id,
+        comment_id,
+        new_content,
+        reply_on_forbidden=True,
+    )
     save_review_state(review_state)
 
     return UpdateNarrativeResult(

@@ -33,6 +33,7 @@ from .helpers import (
     resolve_thread_by_id,
     verify_az_cli,
 )
+from .marker import build_marker
 from .pull_request_details_commands import (
     _get_pull_request_iterations,
     get_change_tracking_id_for_file,
@@ -197,12 +198,23 @@ def update_review_narrative(pull_request_id: int, content: str) -> None:
 
     review_state.overallSummary.narrativeSummary = content
     base_url = build_pr_base_url(config, pull_request_id)
-    new_content = render_overall_summary(review_state, base_url)
+    summary_marker = build_marker("overall-summary", pr=pull_request_id)
+    new_content = f"{summary_marker}\n{render_overall_summary(review_state, base_url)}"
 
     thread_id = review_state.overallSummary.threadId
     comment_id = review_state.overallSummary.commentId
     print(f"Updating overall PR summary comment (thread {thread_id}, comment {comment_id})...")
-    patch_comment(requests, headers, config, repo_id, pull_request_id, thread_id, comment_id, new_content)
+    patch_comment(
+        requests,
+        headers,
+        config,
+        repo_id,
+        pull_request_id,
+        thread_id,
+        comment_id,
+        new_content,
+        reply_on_forbidden=True,
+    )
     save_review_state(review_state)
     print("Review Narrative updated successfully.")
 

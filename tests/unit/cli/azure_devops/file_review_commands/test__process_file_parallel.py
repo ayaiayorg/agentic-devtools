@@ -447,6 +447,70 @@ class TestProcessFileParallelSuggestionTransformation:
         )
         assert posted_body["comments"][0]["content"] == expected_content
 
+    @patch(f"{_RS_MOD}.read_modify_write_review_state")
+    @patch(f"{_MOD}.patch_thread_status")
+    @patch(f"{_MOD}.patch_comment")
+    def test_leaves_plain_suggestions_unchanged(self, mock_patch_comment, mock_patch_thread, mock_rmw):
+        """Suggestions without replacement_code should be posted unchanged."""
+        state = _make_review_state()
+        mock_rmw.return_value = _make_rmw_mock(state)
+        mock_req = _make_requests_module()
+
+        suggestions = [{"line": 16, "severity": "medium", "content": "Keep as plain text"}]
+
+        _process_file_parallel(
+            file_path=FILE_PATH,
+            outcome="request-changes-with-suggestion",
+            summary="Plain note",
+            suggestions=suggestions,
+            pull_request_id=PR_ID,
+            config=_make_config(),
+            headers={"Authorization": "test"},
+            repo_id=REPO_ID,
+            requests_module=mock_req,
+        )
+
+        posted_body = mock_req.post.call_args.kwargs["json"]
+        assert "```suggestion" not in posted_body["comments"][0]["content"]
+        assert "Keep as plain text" in posted_body["comments"][0]["content"]
+
+    @patch(f"{_RS_MOD}.read_modify_write_review_state")
+    @patch(f"{_MOD}.patch_thread_status")
+    @patch(f"{_MOD}.patch_comment")
+    def test_posts_new_suggestion_when_existing_suggestion_differs(
+        self, mock_patch_comment, mock_patch_thread, mock_rmw
+    ):
+        """Only exact suggestion matches should be treated as already posted."""
+        existing = SuggestionEntry(
+            threadId=500,
+            commentId=501,
+            line=10,
+            endLine=10,
+            severity="high",
+            outOfScope=False,
+            content="Old text",
+            linkText="line 10",
+        )
+        state = _make_review_state(suggestions=[existing])
+        mock_rmw.return_value = _make_rmw_mock(state)
+        mock_req = _make_requests_module()
+
+        suggestions = [{"line": 10, "severity": "high", "content": "New text"}]
+
+        _process_file_parallel(
+            file_path=FILE_PATH,
+            outcome="request-changes",
+            summary="Issues",
+            suggestions=suggestions,
+            pull_request_id=PR_ID,
+            config=_make_config(),
+            headers={"Authorization": "test"},
+            repo_id=REPO_ID,
+            requests_module=mock_req,
+        )
+
+        mock_req.post.assert_called_once()
+
 
 class TestProcessFileParallelErrorHandling:
     """Tests for error handling in _process_file_parallel."""

@@ -244,3 +244,52 @@ class TestCreatePullRequestActualCall:
         create_call = mock_run.call_args_list[2]
         cmd = create_call[0][0]
         assert "--description" in cmd
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch("subprocess.run")
+    def test_pr_creation_with_draft_false_omits_draft_flag(self, mock_run, temp_state_dir, clear_state_before):
+        """A non-draft PR should omit the --draft flag."""
+        mock_version = MagicMock()
+        mock_version.returncode = 0
+        mock_ext = MagicMock()
+        mock_ext.returncode = 0
+        mock_ext.stdout = "azure-devops"
+        mock_create = MagicMock()
+        mock_create.returncode = 0
+        mock_create.stdout = '{"pullRequestId": 999, "repository": {}}'
+
+        mock_run.side_effect = [mock_version, mock_ext, mock_create]
+
+        state.set_value("source_branch", "feature/test")
+        state.set_value("title", "Test PR")
+        state.set_value("draft", False)
+
+        azure_devops.create_pull_request()
+
+        create_call = mock_run.call_args_list[2]
+        cmd = create_call[0][0]
+        assert "--draft" not in cmd
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch("subprocess.run")
+    def test_pr_creation_without_pr_id_does_not_save_state(self, mock_run, temp_state_dir, clear_state_before, capsys):
+        """Responses without a PR ID should not persist pull_request_id state."""
+        mock_version = MagicMock()
+        mock_version.returncode = 0
+        mock_ext = MagicMock()
+        mock_ext.returncode = 0
+        mock_ext.stdout = "azure-devops"
+        mock_create = MagicMock()
+        mock_create.returncode = 0
+        mock_create.stdout = '{"repository": {"webUrl": "https://test"}}'
+
+        mock_run.side_effect = [mock_version, mock_ext, mock_create]
+
+        state.set_value("source_branch", "feature/test")
+        state.set_value("title", "Test PR")
+
+        azure_devops.create_pull_request()
+
+        assert state.get_value("pull_request_id") is None
+        captured = capsys.readouterr()
+        assert "saved to state" not in captured.out
