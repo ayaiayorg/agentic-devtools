@@ -10,7 +10,8 @@
 - [ ] CHK001 All three user stories focus on developer value (re-run reliability, error recovery, consecutive-run safety) rather than implementation mechanics
 - [ ] CHK002 User stories follow a consistent "As a developer ..." format focused on pull request review re-runs, with clear motivation clauses
 - [ ] CHK003 Priority assignments (P1 for Stories 1-2, P2 for Story 3) reflect correct risk ordering — stale launch prevention and error recovery before multi-run graceful degradation
-- [ ] CHK004 FR-001 through FR-005 describe observable behaviors (file removal, error surfacing, readiness signal semantics) without prescribing internal code structure beyond necessary interface contracts
+- [ ] CHK004 FR-001 through FR-005 describe observable behaviors (file removal, error surfacing, readiness signal semantics) without prescribing internal code structure beyond necessary interface
+  contracts
 
 ## Requirement Completeness
 
