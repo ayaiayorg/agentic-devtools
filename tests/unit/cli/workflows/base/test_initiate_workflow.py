@@ -278,3 +278,93 @@ class TestInitiateWorkflow:
         assert workflow is not None
         assert workflow["active"] == "pull-request-review"
         assert state.get_value("versionControl.currentBranch") is None
+
+    def test_initiate_workflow_skips_bootstrap_when_env_override_set(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """When AGENTIC_DEVTOOLS_STATE_DIR is set, bootstrap init is skipped."""
+        workflow_dir = temp_prompts_dir / "pull-request-review"
+        workflow_dir.mkdir()
+        template_file = workflow_dir / "default-initiate-prompt.md"
+        template_file.write_text("PR #{{pull_request_id}}", encoding="utf-8")
+
+        state.set_value("pull_request_id", "123")
+
+        with patch.dict("os.environ", {"AGENTIC_DEVTOOLS_STATE_DIR": "/tmp/override"}):
+            with patch("agentic_devtools.cli.workflows.base.set_bootstrap_state") as mock_bootstrap:
+                base.initiate_workflow(
+                    workflow_name="pull-request-review",
+                    required_state_keys=["pull_request_id"],
+                    optional_state_keys=[],
+                )
+                mock_bootstrap.assert_not_called()
+
+        workflow = state.get_workflow_state()
+        assert workflow is not None
+        assert workflow["active"] == "pull-request-review"
+
+    def test_initiate_workflow_no_required_state_keys(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """Workflow initiation succeeds when required_state_keys is None."""
+        workflow_dir = temp_prompts_dir / "simple-workflow"
+        workflow_dir.mkdir()
+        template_file = workflow_dir / "default-initiate-prompt.md"
+        template_file.write_text("Simple prompt", encoding="utf-8")
+
+        base.initiate_workflow(
+            workflow_name="simple-workflow",
+            required_state_keys=None,
+            optional_state_keys=None,
+        )
+
+        workflow = state.get_workflow_state()
+        assert workflow is not None
+        assert workflow["active"] == "simple-workflow"
+
+        captured = capsys.readouterr()
+        assert "Simple prompt" in captured.out
+
+    def test_initiate_workflow_with_additional_variables(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """Additional variables are merged into template variables."""
+        workflow_dir = temp_prompts_dir / "pull-request-review"
+        workflow_dir.mkdir()
+        template_file = workflow_dir / "default-initiate-prompt.md"
+        template_file.write_text("PR #{{pull_request_id}} by {{author}}", encoding="utf-8")
+
+        state.set_value("pull_request_id", "123")
+
+        base.initiate_workflow(
+            workflow_name="pull-request-review",
+            required_state_keys=["pull_request_id"],
+            optional_state_keys=[],
+            additional_variables={"author": "tester"},
+        )
+
+        captured = capsys.readouterr()
+        assert "by tester" in captured.out
+
+    def test_initiate_workflow_with_explicit_context(
+        self, temp_state_dir, temp_prompts_dir, temp_output_dir, clear_state_before, capsys
+    ):
+        """When context is explicitly provided, it is used as-is."""
+        workflow_dir = temp_prompts_dir / "pull-request-review"
+        workflow_dir.mkdir()
+        template_file = workflow_dir / "default-initiate-prompt.md"
+        template_file.write_text("PR #{{pull_request_id}}", encoding="utf-8")
+
+        state.set_value("pull_request_id", "123")
+
+        custom_context = {"custom_key": "custom_value"}
+        base.initiate_workflow(
+            workflow_name="pull-request-review",
+            required_state_keys=["pull_request_id"],
+            optional_state_keys=[],
+            context=custom_context,
+        )
+
+        workflow = state.get_workflow_state()
+        assert workflow is not None
+        assert workflow["context"] == custom_context
