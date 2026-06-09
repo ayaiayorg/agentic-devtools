@@ -141,3 +141,72 @@ class TestWritePinFile:
 
         with pytest.raises(ValueError, match="ttl_hours must be a positive integer"):
             write_pin_file(state_dir, workflow="pull-request-review", ttl_hours=True)
+
+    def test_target_git_root_writes_to_specified_directory(self, tmp_path):
+        """When target_git_root is provided and exists, pin is written there."""
+        target_root = tmp_path / "target-worktree"
+        target_root.mkdir()
+        (target_root / ".git").write_text("gitdir: /tmp/worktrees/target-worktree", encoding="utf-8")
+        state_dir = target_root / ".agdt" / "workflows" / "ama" / "PROJ-123"
+        state_dir.mkdir(parents=True)
+
+        result = write_pin_file(state_dir, workflow="pull-request-review", target_git_root=target_root)
+
+        assert result == target_root / ".agdt" / PIN_FILENAME
+        assert result.exists()
+        data = json.loads(result.read_text(encoding="utf-8"))
+        assert data["state_dir"] == str(state_dir.resolve())
+
+    def test_target_git_root_none_uses_auto_detect(self, tmp_path):
+        """When target_git_root is None, falls back to _get_git_repo_root."""
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir()
+        state_dir = tmp_path / ".agdt" / "workflows" / "user" / "PROJ-123"
+        state_dir.mkdir(parents=True)
+
+        with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+            result = write_pin_file(state_dir, workflow="pull-request-review", target_git_root=None)
+
+        assert result == agdt_dir / PIN_FILENAME
+
+    def test_target_git_root_nonexistent_falls_back_to_auto_detect(self, tmp_path):
+        """When target_git_root doesn't exist, falls back to _get_git_repo_root."""
+        nonexistent = tmp_path / "does-not-exist"
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir()
+        state_dir = tmp_path / ".agdt" / "workflows" / "user" / "PROJ-123"
+        state_dir.mkdir(parents=True)
+
+        with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+            result = write_pin_file(state_dir, workflow="pull-request-review", target_git_root=nonexistent)
+
+        assert result == agdt_dir / PIN_FILENAME
+
+    def test_target_git_root_without_git_metadata_falls_back_to_auto_detect(self, tmp_path):
+        """Existing directories without .git fall back to _get_git_repo_root."""
+        target_root = tmp_path / "not-a-worktree"
+        target_root.mkdir()
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir()
+        state_dir = tmp_path / ".agdt" / "workflows" / "user" / "PROJ-123"
+        state_dir.mkdir(parents=True)
+
+        with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path) as mock_get_git_root:
+            result = write_pin_file(state_dir, workflow="pull-request-review", target_git_root=target_root)
+
+        mock_get_git_root.assert_called_once()
+        assert result == agdt_dir / PIN_FILENAME
+
+    def test_all_recognized_workflows_accepted(self, tmp_path):
+        """All 9 recognized workflow names are accepted without error."""
+        from agentic_devtools.state import RECOGNIZED_PIN_WORKFLOWS
+
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir()
+        state_dir = tmp_path / ".agdt" / "workflows" / "user" / "PROJ-123"
+        state_dir.mkdir(parents=True)
+
+        for wf in RECOGNIZED_PIN_WORKFLOWS:
+            with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                result = write_pin_file(state_dir, workflow=wf)
+            assert result is not None

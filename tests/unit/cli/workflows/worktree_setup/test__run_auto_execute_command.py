@@ -615,3 +615,142 @@ class TestRunAutoExecuteCommand:
         result = _run_auto_execute_command(["echo", "hi"], "/some/worktree", 300)
 
         assert result == 0
+
+
+class TestRunAutoExecuteCommandPinFile:
+    """Tests for pin file writing in _run_auto_execute_command."""
+
+    @pytest.fixture(autouse=True)
+    def _patch_timer(self):
+        """Patch threading.Timer to avoid spawning real timer threads."""
+        with patch("threading.Timer") as mock_timer_cls:
+            self.mock_timer_cls = mock_timer_cls
+            yield
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
+    def test_pin_file_written_to_target_worktree(self, mock_popen, tmp_path):
+        """When workflow is provided, pin file is written to target worktree's .agdt/ dir."""
+        mock_popen.return_value = _make_mock_process()
+        worktree = tmp_path / "my-worktree"
+        worktree.mkdir()
+        (worktree / ".git").write_text("gitdir: /tmp/worktrees/my-worktree", encoding="utf-8")
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        (agdt_dir / "identity.json").write_text('{"identity": "ama", "email": "a@b.com"}')
+        (agdt_dir / "runtime-bootstrap.json").write_text('{"worktree_key": "PR123"}')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60, workflow="pull-request-review")
+
+        import json
+
+        from agentic_devtools.state import PIN_FILENAME
+
+        pin_path = agdt_dir / PIN_FILENAME
+        assert pin_path.exists()
+        data = json.loads(pin_path.read_text(encoding="utf-8"))
+        expected_state_dir = str(worktree / ".agdt" / "workflows" / "ama" / "PR123")
+        assert data["state_dir"] == str(Path(expected_state_dir).resolve())
+        assert data["workflow"] == "pull-request-review"
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
+    def test_pin_file_content_matches_resolved_state_dir(self, mock_popen, capsys, tmp_path):
+        """Pin file state_dir matches the AGENTIC_DEVTOOLS_STATE_DIR env var value."""
+        mock_popen.return_value = _make_mock_process()
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        (worktree / ".git").write_text("gitdir: /tmp/worktrees/wt", encoding="utf-8")
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        (agdt_dir / "identity.json").write_text('{"identity": "user1", "email": "u@b.com"}')
+        (agdt_dir / "runtime-bootstrap.json").write_text('{"worktree_key": "ISSUE-456"}')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60, workflow="work-on-jira-issue")
+
+        import json
+
+        from agentic_devtools.state import PIN_FILENAME
+
+        pin_path = agdt_dir / PIN_FILENAME
+        data = json.loads(pin_path.read_text(encoding="utf-8"))
+        # Verify it matches what was passed as env var to subprocess
+        call_kwargs = mock_popen.call_args[1]
+        env_state_dir = call_kwargs["env"]["AGENTIC_DEVTOOLS_STATE_DIR"]
+        assert data["state_dir"] == str(Path(env_state_dir).resolve())
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
+    def test_pin_file_not_written_when_workflow_is_none(self, mock_popen, tmp_path):
+        """When workflow=None, no pin file is written (backward compat)."""
+        mock_popen.return_value = _make_mock_process()
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        (agdt_dir / "identity.json").write_text('{"identity": "ama", "email": "a@b.com"}')
+        (agdt_dir / "runtime-bootstrap.json").write_text('{"worktree_key": "PR123"}')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60, workflow=None)
+
+        from agentic_devtools.state import PIN_FILENAME
+
+        pin_path = agdt_dir / PIN_FILENAME
+        assert not pin_path.exists()
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
+    def test_subprocess_still_runs_when_pin_write_fails(self, mock_popen, capsys, tmp_path):
+        """When pin file write fails, subprocess is still executed."""
+        mock_popen.return_value = _make_mock_process()
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        (agdt_dir / "identity.json").write_text('{"identity": "ama", "email": "a@b.com"}')
+        (agdt_dir / "runtime-bootstrap.json").write_text('{"worktree_key": "PR123"}')
+
+        with patch(
+            "agentic_devtools.state.write_pin_file",
+            side_effect=OSError("disk full"),
+        ):
+            result = _run_auto_execute_command(["echo", "hi"], str(worktree), 60, workflow="pull-request-review")
+
+        # Subprocess should still have been called
+        mock_popen.assert_called_once()
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Failed to write pin file" in captured.err
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
+    def test_no_pinned_message_when_write_pin_returns_none(self, mock_popen, capsys, tmp_path):
+        """When write_pin_file returns None, 'Pinned state dir' is not printed."""
+        mock_popen.return_value = _make_mock_process()
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        (agdt_dir / "identity.json").write_text('{"identity": "ama", "email": "a@b.com"}')
+        (agdt_dir / "runtime-bootstrap.json").write_text('{"worktree_key": "PR123"}')
+
+        with patch(
+            "agentic_devtools.state.write_pin_file",
+            return_value=None,
+        ):
+            _run_auto_execute_command(["echo", "hi"], str(worktree), 60, workflow="pull-request-review")
+
+        captured = capsys.readouterr()
+        assert "Pinned state dir" not in captured.out
+
+    @patch("agentic_devtools.cli.workflows.worktree_setup.subprocess.Popen")
+    def test_diagnostic_log_emitted(self, mock_popen, capsys, tmp_path):
+        """Diagnostic log with resolved state directory is always emitted."""
+        mock_popen.return_value = _make_mock_process()
+        worktree = tmp_path / "wt"
+        worktree.mkdir()
+        agdt_dir = worktree / ".agdt"
+        agdt_dir.mkdir(parents=True)
+        (agdt_dir / "identity.json").write_text('{"identity": "ama", "email": "a@b.com"}')
+        (agdt_dir / "runtime-bootstrap.json").write_text('{"worktree_key": "PR999"}')
+
+        _run_auto_execute_command(["echo", "hi"], str(worktree), 60)
+
+        captured = capsys.readouterr()
+        expected_dir = str(worktree / ".agdt" / "workflows" / "ama" / "PR999")
+        assert f"Resolved state directory: {expected_dir}" in captured.out
