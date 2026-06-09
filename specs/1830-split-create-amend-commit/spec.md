@@ -132,9 +132,8 @@ between `--- Resolved Commit Message ---` and `---` delimiter lines before the `
 
 **Acceptance Scenarios**:
 
-1. **Given** `agdt-git-save-work` is about to create a new commit, **When** the command runs, **Then** the full resolved commit message is printed to stdout enclosed in `--- Resolved Commit Message ---`
-   and `---` delimiter lines before the commit
-   executes (not after), so that log output is present even if the commit fails.
+1. **Given** `agdt-git-save-work` is about to create a new commit, **When** the command runs, **Then** the full resolved commit message is printed to stdout enclosed in
+   `--- Resolved Commit Message ---` and `---` delimiter lines before the commit executes (not after), so that log output is present even if the commit fails.
 
 2. **Given** `agdt-git-save-work` is about to amend an existing commit, **When** the command runs, **Then** the full resolved new commit message is printed to stdout enclosed in
    `--- Resolved Commit Message ---` and `---` delimiter lines before the amend executes.

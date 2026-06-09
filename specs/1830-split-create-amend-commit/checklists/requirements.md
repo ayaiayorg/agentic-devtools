@@ -10,7 +10,8 @@
 - [ ] CHK001 All six user stories express value from the caller's perspective (agent or developer) rather than describing internal implementation mechanics
 - [ ] CHK002 Each user story follows "As an [actor], I want [capability], so that [benefit]" format — verify US1–US6 each have explicit actor, capability, and benefit clauses
 - [ ] CHK003 Priority assignments (P1 for US1–US4, P2 for US5–US6) include a "Why this priority" justification that ties back to issue #1830 acceptance criteria
-- [ ] CHK004 FR-001 through FR-008 describe observable behavior and constraints without prescribing new internal code structure (e.g., no new function signatures, class hierarchies, or module layout requirements)
+- [ ] CHK004 FR-001 through FR-008 describe observable behavior and constraints without prescribing new internal code structure (e.g., no new function signatures, class hierarchies, or module layout
+  requirements)
 
 ## Requirement Completeness
 
