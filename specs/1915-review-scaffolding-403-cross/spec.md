@@ -22,8 +22,8 @@
 
 - Q: When a reply-based update is posted instead of a PATCH, should the reply contain the full updated scaffold content (identical to what would have been PATCHed into the main comment), or a
   condensed delta/status-only message? → A: The reply should contain the full updated scaffold content (same markdown that would have been PATCHed). This preserves the same information density and
-  keeps the most recent review status visible at the bottom of the thread. The reply should be prefixed with a short header line: `<!-- agdt-review:v1 type:{thread_type} mode:cross-identity-update -->`
-  marker and `**[Updated by {current_identity}]**` so readers understand why a reply was used instead of an in-place edit.
+  keeps the most recent review status visible at the bottom of the thread. The reply should be prefixed with a short header line:
+  `<!-- agdt-review:v1 type:{thread_type} mode:cross-identity-update -->` marker and `**[Updated by {current_identity}]**` so readers understand why a reply was used instead of an in-place edit.
 
 - Q: For the duplicate marker thread edge case (same file, multiple identities created threads), which thread should be selected: the one authored by the current identity (enabling PATCH), or the
   chronologically earliest thread (preserving history)? → A: Prefer the thread authored by the current identity if one exists (enabling direct PATCH without fallback). If no thread is owned by the
