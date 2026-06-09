@@ -45,11 +45,19 @@ def advance_workflow_cmd() -> None:
 
     # Currently only work-on-jira-issue supports manual advancement
     # Future: Check which workflow is active and call appropriate advance function
-    from ...state import get_workflow_state, refresh_pin_file_ttl
+    from ...state import get_state_dir, get_workflow_state, refresh_pin_file_ttl
 
     workflow = get_workflow_state()
     if not workflow:
-        print("ERROR: No workflow is currently active.", file=sys.stderr)
+        state_dir = get_state_dir()
+        print("ERROR: No active workflow found.", file=sys.stderr)
+        print(f"State directory checked: {state_dir.resolve()}", file=sys.stderr)
+        if step:
+            print(f"Requested step: {step}", file=sys.stderr)
+        print(
+            "\nNo re-initiation will be attempted. Use agdt-get-workflow or agdt-show to inspect state.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     workflow_name = workflow.get("active", "")

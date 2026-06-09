@@ -208,6 +208,25 @@ class TestStartCopilotSessionInteractive:
         assert state.get_value("copilot.prompt_file") == result.prompt_file
         assert state.get_value("copilot.start_time") == result.start_time
 
+    def test_interactive_persists_pid_while_running(self, temp_state, mock_available, mock_popen_interactive):
+        """Interactive sessions persist PID during wait() and clear it after exit."""
+        _, mock_proc = mock_popen_interactive
+
+        def _wait_side_effect():
+            assert state.get_value("copilot.pid") == mock_proc.pid
+            return 0
+
+        mock_proc.wait.side_effect = _wait_side_effect
+
+        start_copilot_session(
+            prompt="Do something",
+            working_directory=str(temp_state),
+            interactive=True,
+            autopilot=False,
+        )
+
+        assert state.get_value("copilot.pid") == ""
+
     def test_interactive_strips_node_options_from_env(self, temp_state, mock_available, mock_popen_interactive):
         """NODE_OPTIONS is excluded from the subprocess environment for interactive sessions."""
         mock_popen, _ = mock_popen_interactive
@@ -1672,3 +1691,123 @@ class TestStartCopilotSessionModel:
         captured = capsys.readouterr()
         assert "Copilot model:" not in captured.out
         assert state.get_value("copilot.model_id") is None
+
+
+class TestStartCopilotSessionMutex:
+    """Tests for session mutex integration in start_copilot_session."""
+
+    def test_returns_noop_when_mutex_blocks(self, temp_state):
+        """start_copilot_session returns no-op CopilotSessionResult when mutex active."""
+        existing_snapshot = {
+            "session_id": "existing-session-id",
+            "mode": "non-interactive",
+            "prompt_file": "/tmp/existing-prompt.md",
+            "start_time": "2026-06-04T13:45:00Z",
+            "pid": 12345,
+        }
+        with patch.object(session_module, "_check_session_mutex", return_value=existing_snapshot):
+            result = start_copilot_session(
+                prompt="hello",
+                working_directory=str(temp_state),
+                interactive=False,
+            )
+
+        assert isinstance(result, CopilotSessionResult)
+        assert result.session_id == "existing-session-id"
+        assert result.mode == "non-interactive"
+        assert result.pid == 12345
+        assert result.process is None
+
+    def test_proceeds_when_mutex_allows(self, temp_state, mock_available, mock_popen_interactive):
+        """start_copilot_session proceeds normally when mutex returns None."""
+        with patch.object(session_module, "_check_session_mutex", return_value=None):
+            result = start_copilot_session(
+                prompt="hello",
+                working_directory=str(temp_state),
+                interactive=True,
+                autopilot=False,
+            )
+
+        assert isinstance(result, CopilotSessionResult)
+        assert result.session_id != "existing-session-id"
+        assert result.mode == "interactive"
+
+    def test_claim_marker_is_set_before_launch_checks(self, temp_state):
+        """Mutex claim is persisted before availability checks to prevent start races."""
+
+        def _availability_side_effect():
+            assert state.get_value("copilot.pid") == 4242
+            return False
+
+        with patch.object(session_module.os, "getpid", return_value=4242):
+            with patch.object(
+                session_module,
+                "is_gh_copilot_available",
+                side_effect=_availability_side_effect,
+            ):
+                with pytest.warns(UserWarning, match="gh copilot is not available"):
+                    start_copilot_session(
+                        prompt="hello",
+                        working_directory=str(temp_state),
+                        interactive=False,
+                    )
+
+        assert state.get_value("copilot.pid") == ""
+
+    def test_releases_claim_when_prompt_write_fails(self, temp_state):
+        """Startup claim is released when writing prompt file fails."""
+        with patch.object(session_module.os, "getpid", return_value=4242):
+            with patch.object(session_module, "_check_session_mutex", return_value=None):
+                with patch.object(session_module.Path, "write_text", side_effect=OSError("disk full")):
+                    with patch.object(session_module, "_release_session_mutex_claim") as mock_release:
+                        with pytest.raises(OSError, match="disk full"):
+                            start_copilot_session(
+                                prompt="hello",
+                                working_directory=str(temp_state),
+                                interactive=False,
+                            )
+        mock_release.assert_called_once_with(4242)
+
+    def test_releases_claim_when_interactive_popen_fails(self, temp_state, mock_available):
+        """Startup claim is released when interactive Popen fails."""
+        with patch.object(session_module.os, "getpid", return_value=4242):
+            with patch.object(session_module, "_check_session_mutex", return_value=None):
+                with patch.object(
+                    session_module,
+                    "_build_copilot_args",
+                    return_value=["copilot", "-i", "hello"],
+                ):
+                    with patch(
+                        "agentic_devtools.cli.copilot.session.subprocess.Popen",
+                        side_effect=OSError("spawn failed"),
+                    ):
+                        with patch.object(session_module, "_release_session_mutex_claim") as mock_release:
+                            with pytest.raises(OSError, match="spawn failed"):
+                                start_copilot_session(
+                                    prompt="hello",
+                                    working_directory=str(temp_state),
+                                    interactive=True,
+                                )
+        mock_release.assert_called_once_with(4242)
+
+    def test_releases_claim_when_noninteractive_popen_fails(self, temp_state, mock_available):
+        """Startup claim is released when non-interactive Popen fails."""
+        with patch.object(session_module.os, "getpid", return_value=4242):
+            with patch.object(session_module, "_check_session_mutex", return_value=None):
+                with patch.object(
+                    session_module,
+                    "_build_copilot_args",
+                    return_value=["copilot", "-p", "hello"],
+                ):
+                    with patch(
+                        "agentic_devtools.cli.copilot.session.subprocess.Popen",
+                        side_effect=OSError("spawn failed"),
+                    ):
+                        with patch.object(session_module, "_release_session_mutex_claim") as mock_release:
+                            with pytest.raises(OSError, match="spawn failed"):
+                                start_copilot_session(
+                                    prompt="hello",
+                                    working_directory=str(temp_state),
+                                    interactive=False,
+                                )
+        mock_release.assert_called_once_with(4242)

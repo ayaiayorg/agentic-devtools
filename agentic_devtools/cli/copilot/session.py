@@ -65,7 +65,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import IO
 
-from agentic_devtools.state import get_state_dir, set_value
+from agentic_devtools.state import get_state_dir, read_modify_write_state, set_value
 
 from ..subprocess_utils import run_safe
 
@@ -447,6 +447,148 @@ def build_copilot_args(
     return _build_copilot_args(prompt, interactive=interactive, autopilot=autopilot, model=model)
 
 
+def _is_process_alive(pid: int) -> bool:
+    """Check whether a process with the given PID is still running.
+
+    Uses ``os.kill(pid, 0)`` on Unix/macOS and ``ctypes``
+    ``kernel32.OpenProcess``/``GetExitCodeProcess``/``CloseHandle`` on Windows.
+
+    Args:
+        pid: The process ID to check.
+
+    Returns:
+        ``True`` if the process exists, ``False`` otherwise.
+    """
+    if pid <= 0:
+        return False
+
+    if sys.platform == "win32":  # pragma: no cover
+        try:
+            import ctypes
+
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            ERROR_ACCESS_DENIED = 5
+            # Explicitly set argtypes/restype to avoid 64-bit handle truncation
+            kernel32.OpenProcess.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+            kernel32.OpenProcess.restype = ctypes.c_void_p
+            kernel32.GetExitCodeProcess.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+            kernel32.GetExitCodeProcess.restype = ctypes.c_int
+            kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+            kernel32.CloseHandle.restype = ctypes.c_int
+            STILL_ACTIVE = 259
+
+            handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+            if handle:
+                try:
+                    exit_code = ctypes.c_ulong(0)
+                    if kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+                        return exit_code.value == STILL_ACTIVE
+                    # Access denied still indicates the process exists.
+                    if ctypes.get_last_error() == ERROR_ACCESS_DENIED:
+                        return True
+                    return False
+                finally:
+                    kernel32.CloseHandle(handle)
+            # Access denied still indicates the process exists.
+            if ctypes.get_last_error() == ERROR_ACCESS_DENIED:
+                return True
+            return False
+        except (OSError, ValueError, OverflowError):
+            return False
+    else:
+        try:
+            os.kill(pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            # Process exists but we don't own it — still alive
+            return True
+        except (OSError, OverflowError):
+            return False
+
+
+def _check_session_mutex(*, claim: bool = False) -> dict | None:
+    """Check whether a Copilot session is already running for this worktree.
+
+    Reads ``copilot.pid`` from state and verifies the process is alive.
+    If a live session exists, returns a snapshot dict with the session info
+    and prints a warning to stderr. If no live session exists (or the stored
+    PID is stale), clears the stale PID and returns ``None`` to allow
+    a new session.
+
+    When *claim* is ``True``, this function atomically checks and claims the
+    mutex under the state-file lock by writing the current process PID to
+    ``copilot.pid`` before returning ``None``.
+
+    Returns:
+        A dict with session snapshot fields when a live session blocks the
+        new session start, or ``None`` when no live session is active.
+    """
+    claimer_pid = os.getpid() if claim else None
+    snapshot: dict | None = None
+
+    with read_modify_write_state() as state:
+        copilot_state = state.get(_COPILOT_NS)
+        if not isinstance(copilot_state, dict):
+            copilot_state = {}
+            state[_COPILOT_NS] = copilot_state
+
+        pid_value = copilot_state.get("pid")
+        if pid_value is None or pid_value == "":
+            if claimer_pid is not None:
+                copilot_state["pid"] = claimer_pid
+        else:
+            # Parse the PID
+            try:
+                pid = int(pid_value)
+            except (TypeError, ValueError):
+                # Unparseable PID — clear stale value and allow
+                copilot_state["pid"] = claimer_pid if claimer_pid is not None else ""
+            else:
+                if pid <= 0:
+                    copilot_state["pid"] = claimer_pid if claimer_pid is not None else ""
+                elif _is_process_alive(pid):
+                    # Check if the process is alive
+                    snapshot = {
+                        "session_id": copilot_state.get("session_id") or "",
+                        "mode": copilot_state.get("mode") or "",
+                        "prompt_file": copilot_state.get("prompt_file") or "",
+                        "start_time": copilot_state.get("start_time") or "",
+                        "pid": pid,
+                    }
+                else:
+                    # PID is stale — clear and (optionally) claim
+                    copilot_state["pid"] = claimer_pid if claimer_pid is not None else ""
+
+    if snapshot is not None:
+        print(
+            f"WARNING: A Copilot session is already running "
+            f"(pid={snapshot['pid']}, session_id={snapshot['session_id']}, started={snapshot['start_time']}). "
+            f"Skipping new session start.",
+            file=sys.stderr,
+        )
+    return snapshot
+
+
+def _release_session_mutex_claim(owner_pid: int) -> None:
+    """Clear a startup mutex claim if still owned by *owner_pid*."""
+    with read_modify_write_state() as state:
+        copilot_state = state.get(_COPILOT_NS)
+        if not isinstance(copilot_state, dict):
+            return
+        pid_value = copilot_state.get("pid")
+        if not isinstance(pid_value, (int, str)):
+            return
+        try:
+            current_pid = int(pid_value)
+        except (TypeError, ValueError):
+            return
+        if current_pid == owner_pid:
+            copilot_state["pid"] = ""
+
+
 def _persist_session_state(result: CopilotSessionResult, model: str | None = None) -> None:
     """Write session metadata to ``agdt-state.json``.
 
@@ -619,6 +761,21 @@ def start_copilot_session(
     Raises:
         OSError: If the prompt file cannot be written to disk.
     """
+    # --- Session mutex guard -------------------------------------------------
+    # Prevent duplicate sessions for the same worktree by checking if a live
+    # Copilot session already exists (FR-001).
+    owner_pid = os.getpid()
+    existing = _check_session_mutex(claim=True)
+    if existing is not None:
+        return CopilotSessionResult(
+            session_id=existing.get("session_id", ""),
+            mode=existing.get("mode", ""),
+            prompt_file=existing.get("prompt_file", ""),
+            start_time=existing.get("start_time", ""),
+            pid=existing.get("pid"),
+            process=None,
+        )
+
     if session_id is None:
         session_id = _make_session_id()
 
@@ -633,7 +790,11 @@ def start_copilot_session(
     # --- Write prompt to temp file -------------------------------------------
     prompt_file_path = _get_prompt_file_path(session_id)
     prompt_file_path.parent.mkdir(parents=True, exist_ok=True)
-    prompt_file_path.write_text(prompt, encoding="utf-8")
+    try:
+        prompt_file_path.write_text(prompt, encoding="utf-8")
+    except OSError:
+        _release_session_mutex_claim(owner_pid)
+        raise
     prompt_file = str(prompt_file_path)
 
     # --- Log model selection -------------------------------------------------
@@ -697,12 +858,27 @@ def start_copilot_session(
         # CLI arguments to the copilot binary, causing repeated
         # "error: unknown option '--no-warnings'" messages.
         env = {k: v for k, v in os.environ.items() if k != "NODE_OPTIONS"}
-        process = subprocess.Popen(
-            args,
-            cwd=working_directory,
-            shell=False,
-            env=env,
+        try:
+            process = subprocess.Popen(
+                args,
+                cwd=working_directory,
+                shell=False,
+                env=env,
+            )
+        except OSError:
+            _release_session_mutex_claim(owner_pid)
+            raise
+        # Persist running PID before wait() so the session mutex can block
+        # concurrent interactive starts while this foreground session is active.
+        running_state = CopilotSessionResult(
+            session_id=session_id,
+            mode=mode,
+            prompt_file=prompt_file,
+            start_time=start_time,
+            pid=process.pid,
+            process=process,
         )
+        _persist_session_state(running_state, model=model)
         process.wait()
         result = CopilotSessionResult(
             session_id=session_id,
@@ -729,16 +905,20 @@ def start_copilot_session(
         # to the copilot binary, producing repeated
         # "error: unknown option '--no-warnings'" entries in the session log.
         env = {k: v for k, v in os.environ.items() if k != "NODE_OPTIONS"}
-        process = subprocess.Popen(
-            args,
-            cwd=working_directory,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            stdin=subprocess.DEVNULL,
-            start_new_session=True if sys.platform != "win32" else False,
-            shell=False,
-            env=env,
-        )
+        try:
+            process = subprocess.Popen(
+                args,
+                cwd=working_directory,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True if sys.platform != "win32" else False,
+                shell=False,
+                env=env,
+            )
+        except OSError:
+            _release_session_mutex_claim(owner_pid)
+            raise
 
         # Open log files without a context manager; the tee thread closes
         # them after the subprocess pipe reaches EOF.

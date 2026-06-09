@@ -56,14 +56,35 @@ class TestAdvanceWorkflowCmd:
 
     def test_advance_workflow_no_active_workflow(self, temp_state_dir, clear_state_before, capsys):
         """Test advance workflow command when no workflow is active."""
+        import sys
+
         from agentic_devtools.cli.workflows import advance_workflow_cmd
 
-        with pytest.raises(SystemExit) as exc_info:
-            advance_workflow_cmd()
+        with patch.object(sys, "argv", ["agdt-advance-workflow"]):
+            with pytest.raises(SystemExit) as exc_info:
+                advance_workflow_cmd()
         assert exc_info.value.code == 1
 
         captured = capsys.readouterr()
-        assert "No workflow is currently active" in captured.err
+        assert "No active workflow found" in captured.err
+        assert "State directory checked:" in captured.err
+        assert "No re-initiation will be attempted" in captured.err
+
+    def test_advance_workflow_no_active_workflow_with_step(self, temp_state_dir, clear_state_before, capsys):
+        """Test advance workflow command when no workflow is active and step is provided."""
+        import sys
+
+        from agentic_devtools.cli.workflows import advance_workflow_cmd
+
+        with patch.object(sys, "argv", ["agdt-advance-workflow", "review"]):
+            with pytest.raises(SystemExit) as exc_info:
+                advance_workflow_cmd()
+        assert exc_info.value.code == 1
+
+        captured = capsys.readouterr()
+        assert "No active workflow found" in captured.err
+        assert "Requested step: review" in captured.err
+        assert "No re-initiation will be attempted" in captured.err
 
     def test_advance_workflow_unsupported_workflow(self, temp_state_dir, clear_state_before, capsys):
         """Test advance workflow command with unsupported workflow type."""
