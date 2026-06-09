@@ -97,6 +97,8 @@ As a developer running `agdt-initiate-create-jira-issue-workflow` without `--iss
 I want the command to ignore stale issue keys from previous workflows and always create a
 fresh Jira issue so that each run starts from clean intent and correct context.
 
+**Related Requirements**: FR-001, FR-002, FR-003
+
 **Acceptance Scenarios**:
 
 1. **Given** workflow state contains an old issue key from another workflow type,
@@ -117,6 +119,8 @@ As a developer switching between workflow types (for example PR review then crea
 I want create-jira-issue initiation to be isolated from stale issue-selection state so that
 each workflow uses only the context appropriate for that workflow.
 
+**Related Requirements**: FR-004, FR-007
+
 **Acceptance Scenarios**:
 
 1. **Given** a prior workflow stored `jira.issue_key` in state,
@@ -132,6 +136,8 @@ each workflow uses only the context appropriate for that workflow.
 As a developer diagnosing workflow behavior, I want explicit signals when stale issue state
 is ignored so that I can trust the command created a new issue intentionally and avoid manual
 state-reset commands.
+
+**Related Requirements**: FR-005
 
 **Acceptance Scenarios**:
 
@@ -151,6 +157,8 @@ state-reset commands.
 As a developer providing `--issue-key` explicitly to `agdt-initiate-create-jira-issue-workflow`,
 I want the command to attach to the specified issue (existing behavior) so that intentional
 reuse is not broken by the stale-state fix.
+
+**Related Requirements**: FR-006
 
 **Acceptance Scenarios**:
 

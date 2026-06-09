@@ -20,8 +20,8 @@
 - [ ] CHK007 All nine acceptance scenarios across Stories 1–4 follow consistent Given/When/Then structure with specific observable outcomes
 - [ ] CHK008 Success criteria SC-001 through SC-006 define measurable pass/fail conditions tied to automated test verification
 - [ ] CHK009 Scope boundaries explicitly exclude modification to `clear_state_for_workflow_initiation()` (FR-007) and limit fix to create-jira-issue entry point only
-- [ ] CHK010 Dependencies documented: relies on `_ensure_scoped_bootstrap_and_clear()` executing before the fix point, and correctly reflects that create-jira-issue entry-point resolution falls back via
-  `get_value("jira.issue_key")` (with `issue_key`/`jira.issue_key` still relevant for downstream state-driven resolution helpers)
+- [ ] CHK010 Dependencies documented: relies on `_ensure_scoped_bootstrap_and_clear()` executing before the fix point, and correctly reflects that create-jira-issue entry-point
+  resolution falls back via `get_value("jira.issue_key")` (with `issue_key`/`jira.issue_key` still relevant for downstream state-driven resolution helpers)
 
 ## Feature Readiness
 
