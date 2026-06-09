@@ -109,6 +109,9 @@ specs/*/contracts/*
 !specs/1594-feature-abstract-title-body/research.md
 !specs/1594-feature-abstract-title-body/data-model.md
 !specs/1594-feature-abstract-title-body/quickstart.md
+!specs/1829-jinja2-commit-message-template/research.md
+!specs/1829-jinja2-commit-message-template/data-model.md
+!specs/1829-jinja2-commit-message-template/quickstart.md
 !specs/1913-bug-review-workflow-state/research.md
 !specs/1913-bug-review-workflow-state/data-model.md
 !specs/1913-bug-review-workflow-state/quickstart.md
