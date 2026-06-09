@@ -17,9 +17,8 @@ Phases are 1:1 aligned with plan.md — no mapping needed.
 
 - [ ] T003 [US1] Write failing tests in `tests/unit/cli/workflows/commands/test__clear_stale_issue_keys_for_create.py` for `_clear_stale_issue_keys_for_create` helper: clears both keys (FR-002),
   clears only `issue_key`, clears only `jira.issue_key`, no-op when no keys exist
-- [ ] T004 [US1] Implement `_clear_stale_issue_keys_for_create()` helper function in `agentic_devtools/cli/workflows/commands.py` in the `initiate_create_jira_issue_workflow()` command section — deletes
-  `issue_key` and `jira.issue_key` from state
-  when present (FR-002, FR-001)
+- [ ] T004 [US1] Implement `_clear_stale_issue_keys_for_create()` in `agentic_devtools/cli/workflows/commands.py` to delete `issue_key` and
+  `jira.issue_key` when present (FR-002, FR-001)
 - [ ] T005 [US1] Write failing tests in `tests/unit/cli/workflows/commands/test_initiate_create_jira_issue_workflow.py` for happy-path stale-state scenario: verify stale `jira.issue_key` is
   cleared and create flow successfully proceeds to Jira API for fresh issue (FR-001, FR-003)
 - [ ] T006 [US1] Insert guard in `initiate_create_jira_issue_workflow()` in `agentic_devtools/cli/workflows/commands.py` after `_ensure_scoped_bootstrap_and_clear(issue_key)`: call
