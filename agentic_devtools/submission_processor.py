@@ -25,6 +25,7 @@ from typing import Any
 from .cli.azure_devops.config import AzureDevOpsConfig
 from .cli.azure_devops.helpers import build_thread_context, patch_comment, patch_thread_status
 from .cli.azure_devops.mark_reviewed import mark_file_reviewed
+from .cli.azure_devops.marker import build_marker
 from .cli.azure_devops.review_attribution import build_commit_file_url, build_commit_pr_url
 from .cli.azure_devops.review_scaffold import build_pr_base_url
 from .cli.azure_devops.review_state import (
@@ -286,6 +287,7 @@ def process_submission(
             attrs = _get_attribution_params(review_state, config, file_path=item.file_path)
             suggestions_for_render = [] if is_approve else file_entry.suggestions
             file_content = render_file_summary(file_entry, suggestions_for_render, base_url, **attrs)
+            file_marker = build_marker("file-summary", file=normalized, pr=item.pr_id)
             patch_comment(
                 requests_module=requests_module,
                 headers=headers,
@@ -294,7 +296,9 @@ def process_submission(
                 pull_request_id=item.pr_id,
                 thread_id=file_entry.threadId,
                 comment_id=file_entry.commentId,
-                new_content=file_content,
+                new_content=f"{file_marker}\n{file_content}",
+                cross_identity=file_entry.crossIdentity,
+                reply_on_forbidden=True,
             )
 
             # PATCH file thread status

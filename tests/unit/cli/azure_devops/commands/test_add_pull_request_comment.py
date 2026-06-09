@@ -169,6 +169,27 @@ class TestAddPullRequestCommentActualCall:
     @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
     @patch(f"{COMMANDS_MODULE}.require_requests")
     @patch(f"{COMMANDS_MODULE}.get_repository_id")
+    def test_comment_without_thread_id_skips_auto_resolve(
+        self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before
+    ):
+        """Comments without a returned thread ID should not trigger resolution."""
+        mock_get_repo.return_value = "repo-guid-123"
+        mock_req_module = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {}
+        mock_req_module.post.return_value = mock_response
+        mock_requests.return_value = mock_req_module
+
+        state.set_pull_request_id(12345)
+        state.set_value("content", "Will not resolve")
+
+        azure_devops.add_pull_request_comment()
+
+        mock_req_module.patch.assert_not_called()
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch(f"{COMMANDS_MODULE}.require_requests")
+    @patch(f"{COMMANDS_MODULE}.get_repository_id")
     def test_is_pull_request_approval_flag_ignored(
         self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before
     ):

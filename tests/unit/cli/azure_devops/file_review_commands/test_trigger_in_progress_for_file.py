@@ -21,7 +21,11 @@ _FOLDER_NAME = "src"
 _FILE_NAME = "app.py"
 
 
-def _make_review_state(file_status: str = ReviewStatus.UNREVIEWED.value) -> ReviewState:
+def _make_review_state(
+    file_status: str = ReviewStatus.UNREVIEWED.value,
+    *,
+    cross_identity: bool = False,
+) -> ReviewState:
     """Build a minimal ReviewState with one file for testing."""
     return ReviewState(
         prId=42,
@@ -44,6 +48,7 @@ def _make_review_state(file_status: str = ReviewStatus.UNREVIEWED.value) -> Revi
                 folder=_FOLDER_NAME,
                 fileName=_FILE_NAME,
                 status=file_status,
+                crossIdentity=cross_identity,
             )
         },
     )
@@ -173,7 +178,21 @@ class TestTriggerInProgressForFile:
         assert kwargs["pull_request_id"] == 42
         assert kwargs["repo_id"] == "repo-guid"
         assert kwargs["dry_run"] is False
+        assert kwargs["cross_identity"] is False
+        assert kwargs["reply_on_forbidden"] is True
         assert "In Progress" in kwargs["new_content"]
+
+    def test_uses_direct_reply_for_known_cross_identity_file(self, api_mocks):
+        """Should tell patch_comment to skip PATCH for known cross-identity files."""
+        state = _make_review_state(cross_identity=True)
+
+        with patch("agentic_devtools.cli.azure_devops.review_state.load_review_state", return_value=state):
+            with patch("agentic_devtools.cli.azure_devops.review_state.save_review_state"):
+                trigger_in_progress_for_file(42, _FILE_PATH)
+
+        _, kwargs = api_mocks["patch_comment"].call_args
+        assert kwargs["cross_identity"] is True
+        assert kwargs["reply_on_forbidden"] is True
 
     def test_saves_review_state(self, api_mocks):
         """Should save the updated review state."""

@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from agentic_devtools.cli.azure_devops.marker import build_marker
 from agentic_devtools.cli.azure_devops.review_state import SuggestionEntry
 from agentic_devtools.submission_processor import process_submission
 
@@ -52,6 +53,10 @@ class TestProcessSubmission:
         mock_record_verdict.assert_called_once()
         mock_render.assert_called_once()
         mock_patch_comment.assert_called_once()
+        _, patch_kwargs = mock_patch_comment.call_args
+        assert patch_kwargs["new_content"].startswith(
+            f"{build_marker('file-summary', file=FILE_PATH, pr=item.pr_id)}\n"
+        )
         mock_patch_thread.assert_called_once()
         mock_mark_reviewed.assert_called_once()
         mock_cascade.assert_called_once()

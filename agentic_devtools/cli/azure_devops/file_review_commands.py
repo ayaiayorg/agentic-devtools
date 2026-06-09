@@ -252,6 +252,8 @@ def trigger_in_progress_for_file(
         comment_id=file_entry.commentId,
         new_content=f"{file_marker}\n{file_content}",
         dry_run=dry_run,
+        cross_identity=file_entry.crossIdentity,
+        reply_on_forbidden=True,
     )
 
     # Cascade the overall summary update. Persist the updated
@@ -806,6 +808,8 @@ def approve_file(*, skip_cascade: bool = False) -> None:  # pragma: no cover
             comment_id=file_entry.commentId,
             new_content=f"{file_marker}\n{file_content}",
             dry_run=dry_run,
+            cross_identity=file_entry.crossIdentity,
+            reply_on_forbidden=True,
         )
 
         # PATCH file thread status to closed
@@ -1176,6 +1180,8 @@ def request_changes(*, skip_cascade: bool = False) -> None:
                 comment_id=file_entry.commentId,
                 new_content=f"{file_marker}\n{file_content}",
                 dry_run=dry_run,
+                cross_identity=file_entry.crossIdentity,
+                reply_on_forbidden=True,
             )
 
             # PATCH file thread status to "active" (needs work)
@@ -1754,6 +1760,8 @@ def _process_file_parallel(
             comment_id=file_comment_id,
             new_content=f"{file_marker}\n{file_content}",
             dry_run=False,
+            cross_identity=snapshot_file_entry.crossIdentity,
+            reply_on_forbidden=True,
         )
 
         # PATCH file thread status.
@@ -2013,8 +2021,7 @@ def submit_reviews() -> None:
         try:
             for i, file_path, outcome, summary, suggestions in valid_items:
                 set_value("file_review.file_path", file_path)
-                if summary:
-                    set_value("file_review.summary", summary)
+                set_value("file_review.summary", summary)
                 if suggestions is not None:
                     set_value(
                         "file_review.suggestions",

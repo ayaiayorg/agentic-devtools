@@ -22,7 +22,7 @@ from typing import Any
 from urllib.parse import quote
 
 from .config import AzureDevOpsConfig
-from .helpers import patch_thread_status
+from .helpers import build_cross_identity_reply_content, patch_thread_status
 from .marker import build_marker
 from .review_attribution import build_commit_file_url, build_commit_pr_url
 from .review_state import (
@@ -230,6 +230,32 @@ def _post_reply(
     return response.json()["id"]
 
 
+def _post_cross_identity_reply(
+    requests_module: Any,
+    headers: dict[str, str],
+    threads_url: str,
+    thread_id: int,
+    content: str,
+) -> int:
+    """Post a cross-identity update reply to an existing thread.
+
+    Used when the original thread comment is owned by a different identity
+    and cannot be PATCHed. Posts the full content as a reply prefixed with
+    a cross-identity-update marker.
+
+    Args:
+        requests_module: requests module for HTTP calls.
+        headers: Auth headers.
+        threads_url: Base threads URL.
+        thread_id: Thread to reply to.
+        content: Full scaffold content to post.
+
+    Returns:
+        The new reply comment ID.
+    """
+    return _post_reply(requests_module, headers, threads_url, thread_id, build_cross_identity_reply_content(content))
+
+
 def _get_thread_comments(
     requests_module: Any,
     headers: dict[str, str],
@@ -260,8 +286,12 @@ def _patch_comment_content(
     thread_id: int,
     comment_id: int,
     new_content: str,
+    cross_identity: bool = False,
 ) -> None:
-    """PATCH a single comment's content.
+    """PATCH a single comment's content, falling back to reply on 403.
+
+    When ``cross_identity`` is True or a 403 is received, posts the content
+    as a reply to the thread instead of editing the original comment.
 
     Args:
         requests_module: requests module for HTTP calls.
@@ -270,9 +300,18 @@ def _patch_comment_content(
         thread_id: Thread containing the comment.
         comment_id: Comment to update.
         new_content: New markdown content.
+        cross_identity: If True, skip PATCH and post reply directly.
     """
+    if cross_identity:
+        _post_cross_identity_reply(requests_module, headers, threads_url, thread_id, new_content)
+        return
+
     url = _append_path_to_url(threads_url, thread_id, "comments", comment_id)
     response = requests_module.patch(url, headers=headers, json={"content": new_content}, timeout=30)
+    if response.status_code == 403:
+        # Cross-identity ownership — fall back to reply
+        _post_cross_identity_reply(requests_module, headers, threads_url, thread_id, new_content)
+        return
     response.raise_for_status()
 
 
@@ -1125,7 +1164,7 @@ def _try_recover_state_from_pr_threads(
         return None
 
     # Classify agdt threads by marker type
-    file_threads: dict[str, tuple[int, int]] = {}  # file_path → (thread_id, comment_id)
+    file_threads: dict[str, tuple[int, int, dict]] = {}  # file_path → (thread_id, comment_id, author)
     overall_thread_id = 0
     overall_comment_id = 0
     activity_log_thread_id = 0
@@ -1142,13 +1181,14 @@ def _try_recover_state_from_pr_threads(
 
         thread_id = thread.get("id", 0)
         comment_id = first_comment.get("id", 0)
+        author = first_comment.get("author", {})
         marker_type = parsed.get("type", "")
 
         if marker_type == "file-summary":
             file_path = parsed.get("file", "")
             if file_path:
                 normalized = normalize_file_path(file_path)
-                file_threads[normalized] = (thread_id, comment_id)
+                file_threads[normalized] = (thread_id, comment_id, author)
         elif marker_type == "overall-summary":
             overall_thread_id = thread_id
             overall_comment_id = comment_id
@@ -1218,6 +1258,12 @@ def _try_recover_state_from_pr_threads(
             marker=build_marker("activity-log", pr=pull_request_id),
         )
 
+    # Detect cross-identity ownership
+    from .finalization.identity import IdentityCache, is_cross_identity
+
+    identity_cache = IdentityCache()
+    cached_identity = identity_cache.get_or_fetch(config.organization, headers)
+
     # Build recovered file entries, creating threads only for files that are missing
     file_entries: dict[str, FileEntry] = {}
     for file_path in files:
@@ -1225,7 +1271,9 @@ def _try_recover_state_from_pr_threads(
         folder = _get_folder_for_path(file_path)
         file_name = _get_file_name(file_path)
 
-        thread_id, comment_id = file_threads.get(normalized, (0, 0))
+        thread_id, comment_id, author = file_threads.get(normalized, (0, 0, {}))
+        cross_identity_flag = False
+
         if thread_id == 0 or comment_id == 0:
             # Create file summary thread for this file (not found from any identity)
             temp_entry = FileEntry(
@@ -1256,6 +1304,10 @@ def _try_recover_state_from_pr_threads(
                 file_path=normalized,
                 marker=build_marker("file-summary", file=normalized, pr=pull_request_id),
             )
+        else:
+            # Thread exists from another identity — check ownership
+            if cached_identity and author:
+                cross_identity_flag = is_cross_identity(author, cached_identity)
 
         file_entry = FileEntry(
             threadId=thread_id,
@@ -1263,6 +1315,7 @@ def _try_recover_state_from_pr_threads(
             folder=folder,
             fileName=file_name,
             status=ReviewStatus.UNREVIEWED.value,
+            crossIdentity=cross_identity_flag,
         )
         if model_id:
             initialize_model_verdicts(file_entry, [model_id])

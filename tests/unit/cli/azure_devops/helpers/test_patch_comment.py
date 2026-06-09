@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from agentic_devtools.cli.azure_devops.config import AzureDevOpsConfig
-from agentic_devtools.cli.azure_devops.helpers import patch_comment
+from agentic_devtools.cli.azure_devops.helpers import CrossIdentityForbiddenError, patch_comment, post_thread_reply
 
 
 class TestPatchComment:
@@ -225,16 +225,16 @@ class TestPatchComment:
         mock_sleep.assert_called_once_with(60)
 
     def test_raises_on_non_429_error(self, mock_azure_devops_env):
-        """Should raise immediately for non-429 HTTP errors (e.g., 403, 500)."""
+        """Should raise immediately for non-429/403 HTTP errors."""
         mock_requests = MagicMock()
         error_response = MagicMock()
-        error_response.status_code = 403
-        error_response.raise_for_status.side_effect = Exception("403 Forbidden")
+        error_response.status_code = 500
+        error_response.raise_for_status.side_effect = Exception("500 Server Error")
         mock_requests.patch.return_value = error_response
 
         config = self._make_config()
 
-        with pytest.raises(Exception, match="403 Forbidden"):
+        with pytest.raises(Exception, match="500 Server Error"):
             patch_comment(
                 requests_module=mock_requests,
                 headers={},
@@ -247,3 +247,91 @@ class TestPatchComment:
             )
 
         assert mock_requests.patch.call_count == 1
+
+    def test_403_raises_cross_identity_forbidden_by_default(self, mock_azure_devops_env):
+        """Should raise CrossIdentityForbiddenError on 403 when fallback is disabled."""
+        mock_requests = MagicMock()
+        error_response = MagicMock()
+        error_response.status_code = 403
+        mock_requests.patch.return_value = error_response
+
+        with pytest.raises(CrossIdentityForbiddenError):
+            patch_comment(
+                requests_module=mock_requests,
+                headers={},
+                config=self._make_config(),
+                repo_id="repo-123",
+                pull_request_id=42,
+                thread_id=7,
+                comment_id=1,
+                new_content="content",
+            )
+
+    def test_403_posts_reply_when_fallback_enabled(self, mock_azure_devops_env):
+        """Should post a cross-identity reply instead of raising when fallback is enabled."""
+        mock_requests = MagicMock()
+        error_response = MagicMock()
+        error_response.status_code = 403
+        reply_response = MagicMock()
+        reply_response.json.return_value = {"id": 99}
+        mock_requests.patch.return_value = error_response
+        mock_requests.post.return_value = reply_response
+
+        result = patch_comment(
+            requests_module=mock_requests,
+            headers={},
+            config=self._make_config(),
+            repo_id="repo-123",
+            pull_request_id=42,
+            thread_id=7,
+            comment_id=1,
+            new_content="content",
+            reply_on_forbidden=True,
+        )
+
+        assert result == {"id": 99}
+        mock_requests.patch.assert_called_once()
+        mock_requests.post.assert_called_once()
+        assert "cross-identity-update" in mock_requests.post.call_args.kwargs["json"]["content"]
+
+    def test_cross_identity_posts_reply_without_patch(self, mock_azure_devops_env):
+        """Should skip PATCH entirely when the comment is known cross-identity."""
+        mock_requests = MagicMock()
+        reply_response = MagicMock()
+        reply_response.json.return_value = {"id": 101}
+        mock_requests.post.return_value = reply_response
+
+        result = patch_comment(
+            requests_module=mock_requests,
+            headers={},
+            config=self._make_config(),
+            repo_id="repo-123",
+            pull_request_id=42,
+            thread_id=7,
+            comment_id=1,
+            new_content="content",
+            cross_identity=True,
+        )
+
+        assert result == {"id": 101}
+        mock_requests.patch.assert_not_called()
+        mock_requests.post.assert_called_once()
+
+    def test_post_thread_reply_dry_run_skips_post(self, capsys):
+        """Should support dry-run reply fallback without issuing a POST."""
+        mock_requests = MagicMock()
+
+        result = post_thread_reply(
+            requests_module=mock_requests,
+            headers={},
+            config=self._make_config(),
+            repo_id="repo-123",
+            pull_request_id=42,
+            thread_id=7,
+            content="content",
+            dry_run=True,
+        )
+
+        assert result == {}
+        mock_requests.post.assert_not_called()
+        assert "DRY RUN" in capsys.readouterr().out

@@ -165,7 +165,71 @@ def resolve_thread_by_id(
     response.raise_for_status()
 
 
+class CrossIdentityForbiddenError(Exception):
+    """Raised when a PATCH fails with 403 due to cross-identity ownership.
+
+    This indicates the comment is owned by a different Azure DevOps identity
+    and cannot be edited by the current PAT user.
+    """
+
+    def __init__(self, thread_id: int, comment_id: int, message: str = "") -> None:
+        self.thread_id = thread_id
+        self.comment_id = comment_id
+        default_msg = f"403 Forbidden: cannot PATCH comment {comment_id} on thread {thread_id} (cross-identity)"
+        super().__init__(message or default_msg)
+
+
 _PATCH_MAX_RETRIES = 3
+
+
+def build_cross_identity_reply_content(content: str) -> str:
+    """Prefix scaffold content for a cross-identity reply fallback."""
+    marker = "<!-- agdt-review:v1 mode:cross-identity-update -->"
+    return f"{marker}\n**[Cross-identity update]**\n\n{content}"
+
+
+def post_thread_reply(
+    requests_module,
+    headers: dict[str, str],
+    config: AzureDevOpsConfig,
+    repo_id: str,
+    pull_request_id: int,
+    thread_id: int,
+    content: str,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Post a reply to an existing thread."""
+    if dry_run:
+        print(f"[DRY RUN] Would post reply to thread {thread_id}, PR {pull_request_id}")
+        return {}
+
+    url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads", thread_id, "comments")
+    response = requests_module.post(url, headers=headers, json={"content": content, "commentType": "text"}, timeout=30)
+    response.raise_for_status()
+    return response.json()
+
+
+def post_cross_identity_reply(
+    requests_module,
+    headers: dict[str, str],
+    config: AzureDevOpsConfig,
+    repo_id: str,
+    pull_request_id: int,
+    thread_id: int,
+    content: str,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Post a reply carrying updated content when the main comment cannot be patched."""
+    return post_thread_reply(
+        requests_module=requests_module,
+        headers=headers,
+        config=config,
+        repo_id=repo_id,
+        pull_request_id=pull_request_id,
+        thread_id=thread_id,
+        content=build_cross_identity_reply_content(content),
+        dry_run=dry_run,
+    )
 
 
 def patch_comment(
@@ -178,6 +242,8 @@ def patch_comment(
     comment_id: int,
     new_content: str,
     dry_run: bool = False,
+    cross_identity: bool = False,
+    reply_on_forbidden: bool = False,
 ) -> dict[str, Any]:
     """
     Edit an existing comment's content via PATCH.
@@ -192,6 +258,8 @@ def patch_comment(
         comment_id: Comment ID to edit.
         new_content: New markdown content for the comment.
         dry_run: If True, skip the API call and return {}.
+        cross_identity: If True, skip PATCH and post a cross-identity reply directly.
+        reply_on_forbidden: If True, post a cross-identity reply instead of raising on 403.
 
     Returns:
         Parsed JSON response dict from the API, or {} in dry_run mode.
@@ -200,9 +268,20 @@ def patch_comment(
         print(f"[DRY RUN] Would patch comment {comment_id} on thread {thread_id}, PR {pull_request_id}")
         return {}
 
+    if cross_identity:
+        return post_cross_identity_reply(
+            requests_module=requests_module,
+            headers=headers,
+            config=config,
+            repo_id=repo_id,
+            pull_request_id=pull_request_id,
+            thread_id=thread_id,
+            content=new_content,
+        )
+
     url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads", thread_id, "comments", comment_id)
 
-    for attempt in range(_PATCH_MAX_RETRIES):
+    for attempt in range(_PATCH_MAX_RETRIES):  # pragma: no branch
         response = requests_module.patch(url, headers=headers, json={"content": new_content}, timeout=30)
         if response.status_code == 429 and attempt < _PATCH_MAX_RETRIES - 1:
             retry_after_header = response.headers.get("Retry-After")
@@ -216,6 +295,18 @@ def patch_comment(
                     retry_after = parsed
             time.sleep(retry_after)
             continue
+        if response.status_code == 403:
+            if reply_on_forbidden:
+                return post_cross_identity_reply(
+                    requests_module=requests_module,
+                    headers=headers,
+                    config=config,
+                    repo_id=repo_id,
+                    pull_request_id=pull_request_id,
+                    thread_id=thread_id,
+                    content=new_content,
+                )
+            raise CrossIdentityForbiddenError(thread_id, comment_id)
         response.raise_for_status()
         return response.json()
 
@@ -252,7 +343,7 @@ def patch_thread_status(
 
     url = config.build_api_url(repo_id, "pullRequests", pull_request_id, "threads", thread_id)
 
-    for attempt in range(_PATCH_MAX_RETRIES):
+    for attempt in range(_PATCH_MAX_RETRIES):  # pragma: no branch
         response = requests_module.patch(url, headers=headers, json={"status": status}, timeout=30)
         if response.status_code == 429 and attempt < _PATCH_MAX_RETRIES - 1:
             header_value = response.headers.get("Retry-After")

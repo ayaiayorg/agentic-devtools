@@ -117,6 +117,20 @@ class TestResolveReviewArtifactDirName:
         captured = capsys.readouterr()
         assert captured.err == ""
 
+    def test_no_warning_when_warn_false_and_empty_string(self, capsys):
+        """No warning is emitted when warn=False, even when commit_hash_short is empty string."""
+        result = resolve_review_artifact_dir_name(7, "", warn=False)
+        assert result == "PR7"
+        captured = capsys.readouterr()
+        assert captured.err == ""
+
+    def test_no_warning_when_warn_false_and_whitespace_only(self, capsys):
+        """No warning is emitted when warn=False with whitespace-only commit_hash_short."""
+        result = resolve_review_artifact_dir_name(7, "   ", warn=False)
+        assert result == "PR7"
+        captured = capsys.readouterr()
+        assert captured.err == ""
+
     def test_integer_zero_is_not_treated_as_absent(self, capsys):
         """Integer 0 is falsy but should be coerced to '0' (not treated as absent)."""
         # is_safe_dir_segment("0") → True, so the result should be "0", not "PR<id>"

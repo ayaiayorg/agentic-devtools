@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from agentic_devtools.cli.azure_devops.commands import update_review_narrative
+from agentic_devtools.cli.azure_devops.marker import build_marker
 from agentic_devtools.cli.azure_devops.review_state import (
     FileEntry,
     OverallSummary,
@@ -60,12 +61,31 @@ class TestUpdateReviewNarrative:
         assert "/threads/99/comments/1" in url
         body = patch_call[1]["json"]
         assert "PR approved. All files LGTM." in body["content"]
+        assert body["content"].startswith(f"{build_marker('overall-summary', pr=12345)}\n")
 
         # State should have been saved
         mock_save.assert_called_once()
         # Saved state should have narrativeSummary set
         saved_state = mock_save.call_args[0][0]
         assert saved_state.overallSummary.narrativeSummary == "PR approved. All files LGTM."
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch(f"{COMMANDS_MODULE}.require_requests")
+    @patch(f"{COMMANDS_MODULE}.get_repository_id")
+    def test_enables_reply_fallback(self, mock_get_repo, mock_requests, temp_state_dir, clear_state_before):
+        """Calls patch_comment with cross-identity reply fallback enabled."""
+        mock_get_repo.return_value = "repo-guid-123"
+        mock_requests.return_value = MagicMock()
+        review_state = _make_review_state()
+
+        with (
+            patch(f"{COMMANDS_MODULE}.load_review_state", return_value=review_state),
+            patch(f"{COMMANDS_MODULE}.save_review_state"),
+            patch(f"{COMMANDS_MODULE}.patch_comment") as mock_patch_comment,
+        ):
+            update_review_narrative(12345, "Approved.")
+
+        assert mock_patch_comment.call_args.kwargs["reply_on_forbidden"] is True
 
     @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
     @patch(f"{COMMANDS_MODULE}.require_requests")

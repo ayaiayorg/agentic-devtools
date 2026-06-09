@@ -78,6 +78,7 @@ def batch_repair_pass(
                 comment.thread_id,
                 comment.comment_id,
                 new_content,
+                reply_on_forbidden=True,
             )
             # Sync thread status with file review status
             _patch_file_thread_status(
@@ -185,6 +186,7 @@ def targeted_repair(
                     comment.thread_id,
                     comment.comment_id,
                     new_content,
+                    reply_on_forbidden=True,
                 )
                 # Sync thread status for file-summary comments
                 if comment.marker_type == "file-summary":
