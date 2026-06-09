@@ -1030,8 +1030,20 @@ def advance_work_on_jira_issue_workflow(step: str | None = None) -> None:
     from ...state import get_value, get_workflow_state, is_workflow_active
 
     if not is_workflow_active("work-on-jira-issue"):
-        print("ERROR: work-on-jira-issue workflow is not active.", file=sys.stderr)
-        print("Start it with: agdt-initiate-work-on-jira-issue-workflow", file=sys.stderr)
+        state_dir = get_state_dir().resolve()
+        print("ERROR: No active workflow found.", file=sys.stderr)
+        print("work-on-jira-issue workflow is not active.", file=sys.stderr)
+        print(f"State directory checked: {state_dir}", file=sys.stderr)
+        print(
+            "No re-initiation will be attempted by this command.",
+            file=sys.stderr,
+        )
+        print(
+            "\nDiagnostic steps:\n"
+            "  - Run `agdt-get-workflow` to inspect current workflow state\n"
+            "  - Run `agdt-show` to inspect state directory contents",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     workflow = get_workflow_state()
@@ -1099,8 +1111,20 @@ def advance_pull_request_review_workflow(step: str | None = None) -> None:
     from ..azure_devops.file_review_commands import get_queue_status
 
     if not is_workflow_active("pull-request-review"):
-        print("ERROR: pull-request-review workflow is not active.", file=sys.stderr)
-        print("Start it with: agdt-initiate-pull-request-review-workflow", file=sys.stderr)
+        state_dir = get_state_dir().resolve()
+        print("ERROR: No active workflow found.", file=sys.stderr)
+        print("pull-request-review workflow is not active.", file=sys.stderr)
+        print(f"State directory checked: {state_dir}", file=sys.stderr)
+        print(
+            "No re-initiation will be attempted by this command.",
+            file=sys.stderr,
+        )
+        print(
+            "\nDiagnostic steps:\n"
+            "  - Run `agdt-get-workflow` to inspect current workflow state\n"
+            "  - Run `agdt-show` to inspect state directory contents",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     workflow = get_workflow_state()

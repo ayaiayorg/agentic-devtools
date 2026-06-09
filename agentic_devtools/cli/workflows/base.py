@@ -284,12 +284,24 @@ def advance_workflow_step(
     Returns:
         The generated prompt content
     """
-    from ...state import get_workflow_state, is_workflow_active
+    from ...state import get_state_dir, get_workflow_state, is_workflow_active
 
     # Verify workflow is active
     if not is_workflow_active(workflow_name):
-        print(f"ERROR: Workflow '{workflow_name}' is not active.", file=sys.stderr)
-        print(f"Start it first with: agdt-initiate-{workflow_name}-workflow", file=sys.stderr)
+        state_dir = get_state_dir().resolve()
+        print("ERROR: No active workflow found.", file=sys.stderr)
+        print(f"Workflow '{workflow_name}' is not active.", file=sys.stderr)
+        print(f"State directory checked: {state_dir}", file=sys.stderr)
+        print(
+            "No re-initiation will be attempted by this command.",
+            file=sys.stderr,
+        )
+        print(
+            "\nDiagnostic steps:\n"
+            "  - Run `agdt-get-workflow` to inspect current workflow state\n"
+            "  - Run `agdt-show` to inspect state directory contents",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     # Get existing context
