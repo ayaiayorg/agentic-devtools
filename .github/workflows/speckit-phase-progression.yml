@@ -189,11 +189,29 @@ jobs:
               core.warning(`Could not add speckit:processing label: ${e.message}`);
             }
 
+      # Validate that a PAT is configured before applying Phase 5 completion labels
+      - name: Validate PAT Token (Phase 5 Complete)
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase == '6'
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          SPECKIT_PR_TOKEN: ${{ secrets.SPECKIT_PR_TOKEN }}
+        run: |
+          if [[ -z "$SPECKIT_PR_TOKEN" && -z "$COPILOT_GITHUB_TOKEN" ]]; then
+            echo "::error::Neither SPECKIT_PR_TOKEN nor COPILOT_GITHUB_TOKEN is set. A PAT is required for the speckit:needs-implementation label to trigger downstream workflows. Configure at least one of these secrets with repo permissions."
+            exit 1
+          fi
+          if [[ -n "$SPECKIT_PR_TOKEN" ]]; then
+            echo "✓ SPECKIT_PR_TOKEN is set (will be used for Phase 5 completion labels)"
+          else
+            echo "✓ COPILOT_GITHUB_TOKEN is set (will be used for Phase 5 completion labels)"
+          fi
+
       # If Phase 5 just merged, this is the final phase — apply completion labels and exit
       - name: Apply Final Labels (Phase 5 Complete)
         if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase == '6'
         uses: actions/github-script@v7
         with:
+          github-token: ${{ secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN }}
           script: |
             const issueNumber = ${{ steps.extract.outputs.issue_number }};
 
@@ -219,6 +237,21 @@ jobs:
               });
             } catch (e) {
               // Expected when label is not present — ignore
+            }
+
+            // Remove speckit:needs-implementation so re-adding emits a new labeled event
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                name: 'speckit:needs-implementation'
+              });
+            } catch (e) {
+              // Ignore "label does not exist"; fail for all other errors
+              if (e.status !== 404) {
+                throw e;
+              }
             }
 
             // Add final completion labels
@@ -311,10 +344,28 @@ jobs:
             "${{ steps.extract.outputs.issue_number }}" \
             --phase "${{ steps.extract.outputs.next_phase }}"
 
+      # Validate that a PAT is configured before applying Phase 5 completion labels in the skipped path
+      - name: Validate PAT Token (Phase 5 Skipped)
+        if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase == '5' && steps.idempotency.outputs.skipped == 'true'
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          SPECKIT_PR_TOKEN: ${{ secrets.SPECKIT_PR_TOKEN }}
+        run: |
+          if [[ -z "$SPECKIT_PR_TOKEN" && -z "$COPILOT_GITHUB_TOKEN" ]]; then
+            echo "::error::Neither SPECKIT_PR_TOKEN nor COPILOT_GITHUB_TOKEN is set. A PAT is required for the speckit:needs-implementation label to trigger downstream workflows. Configure at least one of these secrets with repo permissions."
+            exit 1
+          fi
+          if [[ -n "$SPECKIT_PR_TOKEN" ]]; then
+            echo "✓ SPECKIT_PR_TOKEN is set (will be used for Phase 5 skipped completion labels)"
+          else
+            echo "✓ COPILOT_GITHUB_TOKEN is set (will be used for Phase 5 skipped completion labels)"
+          fi
+
       - name: Handle Skipped Phase (Already Complete)
         if: steps.extract.outcome == 'success' && steps.extract.outputs.next_phase != '6' && steps.extract.outputs.next_phase != '0' && steps.idempotency.outputs.skipped == 'true'
         uses: actions/github-script@v7
         with:
+          github-token: ${{ steps.extract.outputs.next_phase != '5' && github.token || (secrets.SPECKIT_PR_TOKEN || secrets.COPILOT_GITHUB_TOKEN) }}
           script: |
             const issueNumber = ${{ steps.extract.outputs.issue_number }};
             const nextPhase = ${{ steps.extract.outputs.next_phase }};
@@ -408,6 +459,21 @@ jobs:
                 });
               } catch (e) {
                 // Expected when label is not present — ignore
+              }
+
+              // Remove speckit:needs-implementation so re-adding emits a new labeled event
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  name: 'speckit:needs-implementation'
+                });
+              } catch (e) {
+                // Ignore "label does not exist"; fail for all other errors
+                if (e.status !== 404) {
+                  throw e;
+                }
               }
 
               try {
