@@ -21,10 +21,10 @@
   run `agdt-init-pr-template` to create the template. The template is not auto-created during PR creation; setup is the user's explicit responsibility.
 
 - Q: The `create_pull_request()` function currently exists in `azure_devops/commands.py` (for Azure DevOps via `az repos pr create`). GitHub PR creation via `gh pr create` does not yet have a
-  dedicated `create_pull_request()` implementation in the codebase. Should the template interpolation logic be applied to both platforms or only Azure DevOps? → A: The template interpolation logic must
-  apply to both platforms. The interpolation should be implemented as a shared utility function (e.g., in a new `agentic_devtools/cli/pr_template.py` module) that resolves the PR body before it is
+  dedicated `create_pull_request()` implementation in the codebase. Should the template interpolation logic be applied to both platforms or only Azure DevOps? → A: The template interpolation logic
+  must apply to both platforms. The interpolation should be implemented as a shared utility function (e.g., in a new `agentic_devtools/cli/pr_template.py` module) that resolves the PR body before it is
   passed to the platform-specific creation command. `azure_devops/commands.py` already has a `create_pull_request()` entry point and will call this utility directly. GitHub will require a new PR
-  creation command/module (not the existing `github/async_commands.py`, which handles issue creation) that also calls the shared utility to resolve the `description` value.
+  creation command/module (not the existing `github/async_commands.py`, which handles issue creation) that also calls the shared utility to resolve the PR body value.
 
 - Q: When `origin/main` does not exist (e.g., newly initialized repo or remote uses `master`), should the git log fallback try alternative branch names like `origin/master`, `main`, or `master` before
   falling through to the literal fallback? → A: Yes, the fallback should mirror the existing `branch_has_commits_ahead_of_main()` logic in `operations.py` which already tries `origin/main` first, then
@@ -91,7 +91,9 @@ aggregates all commit messages from those commits into the template.
 **Acceptance Scenarios**:
 
 1. **Given** a branch with three commits ahead of `origin/main` and no `git.last_commit_message` in state, **When** the developer runs `agdt-create-pull-request`, **Then** the system executes `git log
-   --format=%B origin/main..HEAD`, concatenates all three commit messages separated by appropriate delimiters, and injects the combined result into `{{fullCommitMessage}}`.
+   --format=%B%x1e origin/main..HEAD`, splits entries on the explicit `\x1e` delimiter, concatenates all three commit messages
+   separated by markdown horizontal rules (`---`), and injects the combined result into
+   `{{fullCommitMessage}}`.
 
 2. **Given** a branch with one commit ahead of `origin/main` and no state value, **When** the PR is created, **Then** only that single commit's full message (subject + body + footer) is injected
    without any concatenation markers or separators.
@@ -201,8 +203,9 @@ commit message without any surrounding template content.
   shared utility function (e.g., in `agentic_devtools/cli/pr_template.py`) consumed by both platform-specific creation commands.
 
 - **FR-004**: The system MUST resolve the `fullCommitMessage` value using a three-step fallback chain in strict priority order: first, the value of `git.last_commit_message` from state; second, the
-  output of `git log --format=%B origin/main..HEAD` (falling back to `main` if `origin/main` does not exist, mirroring the resolution order in `branch_has_commits_ahead_of_main()`), with multiple
-  commit messages concatenated if the branch has more than one commit ahead; third, the literal string "No commit message could be found." if both previous sources yield no content.
+  output of `git log --format=%B%x1e origin/main..HEAD` (falling back to `main` if `origin/main` does not exist, mirroring the resolution order in `branch_has_commits_ahead_of_main()`), parsed using
+  the explicit `\x1e` delimiter and concatenated when the branch has more than one commit ahead; third, the literal string "No commit message could be found." if both previous sources yield no
+  content.
 
 - **FR-005**: When aggregating multiple commit messages from `git log`, the system MUST separate individual commit messages with a markdown horizontal rule (`---`) and preserve the full format of each
   message including subject line, body, and footer sections without truncation. When only a single commit exists, no separator is added. Empty commit bodies (subject-only commits) MUST NOT produce
