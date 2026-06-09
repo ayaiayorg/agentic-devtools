@@ -55,6 +55,8 @@ human control.
 
 ### User Story 1 - Standard PR Creation with Template (Priority: P1)
 
+Covers: FR-003, FR-004, FR-005, FR-006, FR-007, FR-009
+
 As a developer creating a pull request after completing feature work, I expect the PR body to automatically include the team's operational checklist and my commit message so that reviewers immediately
 have the context they need without me having to manually copy information from the git log into the PR description.
 
@@ -78,6 +80,8 @@ interpolated commit message.
 ---
 
 ### User Story 2 - Fallback to Git Log Aggregation (Priority: P1)
+
+Covers: FR-004, FR-005, FR-008
 
 As a developer who has made commits on a feature branch but whose state does not contain a cached commit message, I expect the system to automatically aggregate commit messages from the branch history
 so that the PR body still contains meaningful context about what changed rather than an empty or placeholder description.
@@ -104,6 +108,8 @@ aggregates all commit messages from those commits into the template.
 ---
 
 ### User Story 3 - Initial Template Setup (Priority: P1)
+
+Covers: FR-001, FR-002
 
 As a developer setting up the agentic-devtools configuration in a repository for the first time, I expect `agdt-init-pr-template` to create a default PR template at
 `.agdt/config/pull-request-template.md` so that I have a starting point that I can customize to match my team's operational requirements without having to write the template from scratch.
@@ -133,6 +139,8 @@ including the German-language operational checklist.
 
 ### User Story 4 - Template Validation at PR Creation Time (Priority: P2)
 
+Covers: FR-006, FR-007
+
 As a developer attempting to create a PR, I expect the system to check whether the template file exists and warn me clearly if it is missing so that I understand the situation and know how to fix it,
 while the PR is still created using the resolved `fullCommitMessage` value (state → git log → literal fallback) as a fallback body rather than failing outright.
 
@@ -154,6 +162,8 @@ requests when templates are accidentally deleted or when working in a fresh clon
 ---
 
 ### User Story 5 - User Customization Persistence (Priority: P2)
+
+Covers: FR-002, FR-003, FR-009
 
 As a team lead who has customized the PR template to include additional checklist items specific to our team's compliance requirements, I expect that no AGDT update or command will overwrite my
 customizations so that I maintain full ownership of the template content after initial creation.
