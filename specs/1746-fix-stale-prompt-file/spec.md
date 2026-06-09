@@ -65,6 +65,8 @@ between runs.
 As a developer re-running pull request review in an existing worktree, I want stale initiate prompt files to be ignored/removed before waiting for the next prompt so that Copilot only starts after the
 new setup completes and writes fresh context.
 
+**Mapped Functional Requirements**: FR-001, FR-004
+
 **Acceptance Scenarios**:
 
 1. **Given** a previous run already left `temp-pull-request-review-initiate-prompt.md` in the state directory, **When** `agdt-initiate-pull-request-review-workflow` is run again, **Then** the stale
@@ -76,6 +78,8 @@ new setup completes and writes fresh context.
 ### User Story 2 - Error Recovery (Priority: P1)
 
 As a developer re-running pull request review, I want the workflow to fail fast with clear guidance if stale prompt cleanup cannot complete so that Copilot is not launched with stale review context.
+
+**Mapped Functional Requirements**: FR-002
 
 **Acceptance Scenarios**:
 
@@ -89,6 +93,8 @@ As a developer re-running pull request review, I want the workflow to fail fast 
 
 As a developer running multiple consecutive PR-review re-runs in the same worktree, I want readiness detection to remain tied to the current run so that each run waits for freshly generated prompt
 content.
+
+**Mapped Functional Requirements**: FR-003, FR-005
 
 **Acceptance Scenarios**:
 
