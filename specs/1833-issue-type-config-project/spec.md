@@ -39,6 +39,33 @@ providing a sensible fallback for the common case where no type is specified.
 - Fields are documented in setup and config reference.
 - Unit tests cover fallback resolution and validation logic.
 
+## Clarifications
+
+### Session 2026-06-08
+
+- Q: Where should the new resolution helper function be located — in `agentic_devtools/cli/config/project_config.py` alongside existing project config logic, or in a new dedicated module? → A: Create
+  a new module `agentic_devtools/cli/config/commit_type_resolution.py` to house the resolution and validation logic. This keeps `project_config.py` as a generic read/write utility and respects the
+  1:1:1 test structure by giving the new logic its own source file with a dedicated test folder.
+
+- Q: Should the validation warning include the full list of allowed types in the message, and is there a maximum length concern if a project configures many custom types? → A: Yes, always include the
+  full allowed list in the warning message as specified in FR-004. The Conventional Commits standard list has 11 entries which is concise. If a project configures a custom list, cap the displayed list
+  at 20 entries total; if exceeded, show the first 19 and append a final single-quoted list entry `'and N more'` inside the same brackets.
+
+- Q: How should case sensitivity be handled — should `"Feat"` or `"FEAT"` match `"feat"` in the allowed list, or is comparison strictly lowercase? → A: Comparison is case-sensitive. The Conventional
+  Commits specification uses strictly lowercase types. If a user provides `"Feat"` or `"FEAT"`, it will not match `"feat"` and a warning will be emitted. This encourages correct usage and avoids
+  ambiguity.
+
+- Q: When `agdt-setup` updates an existing `project.json` that already has these fields (possibly with custom values), should it overwrite them with defaults or preserve existing values? → A: Preserve
+  existing values using a **per-field** idempotency rule (matching FR-007): each field is written with its default value only if that specific field's camelCase key and its snake_case alias are both
+  absent from the file. If `defaultCommitIssueType` or `default_commit_issue_type` is already present, that field is left unchanged; `availableCommitIssueTypes` may still be written if missing, and
+  vice versa. A repo that has `default_commit_issue_type` but no `availableCommitIssueTypes` will have only the missing field added.
+
+- Q: Should the resolution function accept `project.json` content as a parameter (for testability and reuse) or always load it internally via `load_project_config()`? → A: The resolution function MUST
+  accept an optional `project_config: dict | None = None` parameter. When provided, it uses
+  the passed dict directly; when omitted (or when the value is `None`), it calls
+  `load_project_config()` internally. This enables unit testing
+  without filesystem mocking while supporting zero-argument convenience usage in production code paths.
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Default Issue Type Fallback (Priority: P1)
@@ -174,10 +201,22 @@ and that documentation accurately describes the resolution order and validation 
   defines the project.json default fallback used when `versionControl.commitMessageType` is unset.
 
 - **FR-004**: The system MUST validate the resolved issue type against
-  `availableCommitIssueTypes`.
+  `availableCommitIssueTypes`. Comparison is **case-sensitive** (Conventional Commits uses strictly
+  lowercase types; `"Feat"` or `"FEAT"` will not match `"feat"`).
   When the resolved type is not in the allowed list, the system MUST emit a warning to stderr in the
   format:
-  `Warning: Issue type '<type>' is not in availableCommitIssueTypes. Allowed: [<list>]`.
+  `Warning: Issue type '<type>' is not in availableCommitIssueTypes. Allowed: ['item1', 'item2']`.
+  The quoted `<type>` token and list entries MUST be single-quoted. Within each quoted token, escaping
+  MUST be applied in this exact order to the original value: first replace `\` with `\\`, then replace
+  `'` with `\'` (without re-escaping backslashes introduced by the second step).
+  List entries MUST be comma-separated.
+  When truncation is not applied, all entries MUST appear in their original list order. When
+  truncation is applied, the shown real entries MUST preserve original order and the appended
+  `'and N more'` marker MUST appear as the final entry.
+  If the allowed list exceeds 20 entries, the warning MUST show only the first 19 entries, then append
+  a final single-quoted list entry `'and N more'` inside the same brackets so the list contains 20
+  entries total (e.g. if the full allowed list has 24 entries starting with `'t1'` through `'t24'`,
+  the warning shows `Allowed: ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 't11', 't12', 't13', 't14', 't15', 't16', 't17', 't18', 't19', 'and 5 more']`).
   The operation MUST NOT be blocked by this validation — it is advisory only.
 
 - **FR-005**: The system MUST emit a warning to stderr when `defaultCommitIssueType` in
@@ -192,9 +231,15 @@ and that documentation accurately describes the resolution order and validation 
 
 - **FR-007**: The `agdt-setup` command MUST write `defaultCommitIssueType` and
   `availableCommitIssueTypes` (camelCase canonical keys matching issue #1833) with their default
-  values when generating or updating `project.json`. Existing keys in the file (e.g.
-  `jira_project_keys`, `vpn_url`, `default_copilot_model`) MUST be preserved as-is and MUST NOT be
-  renamed or re-cased; only the two new fields are written in camelCase. snake_case aliases
+  values when generating or updating `project.json`, applying the idempotency rule **per field**:
+  each field is written with its default value **only if that field's camelCase key and its
+  snake_case alias (`default_commit_issue_type` / `available_commit_issue_types` respectively) are
+  both absent from the file**. If a field's camelCase key or its snake_case alias is already
+  present, that field MUST be left unchanged, while the other missing field may still be written.
+  This per-field rule means a repo that already has `default_commit_issue_type` but lacks
+  `availableCommitIssueTypes` will have only the missing field added. Existing keys in the file
+  (e.g. `jira_project_keys`, `vpn_url`, `default_copilot_model`) MUST be preserved as-is and MUST
+  NOT be renamed or re-cased; only the two new fields are written in camelCase. snake_case aliases
   (`default_commit_issue_type`, `available_commit_issue_types`) are accepted on read but are not
   written by setup.
 
@@ -210,10 +255,16 @@ and that documentation accurately describes the resolution order and validation 
   consistency.
 
 - **NFR-003**: The validation logic MUST be implemented as a deterministic, unit-testable helper
-  that returns an optional warning message string (or `None`) rather than printing to stderr
-  directly. The caller is responsible for emitting any returned warning to stderr. This design
-  avoids side effects inside the helper, enabling straightforward unit testing without mocking
-  file I/O, state, or stderr.
+  that returns either `None` or a complete single-line warning string that already includes the
+  required `Warning:` prefix from NFR-002 (including the following space before the message),
+  rather than printing to stderr directly. The caller is
+  responsible for emitting any returned warning to stderr as-is (without adding another prefix). The
+  resolution function MUST accept an optional `project_config: dict | None` parameter; when provided,
+  the passed dict is used directly without loading from disk, enabling unit testing without
+  filesystem mocking. When omitted or `None`, it calls `load_project_config()` internally. This
+  design avoids side effects inside the helper, enabling straightforward unit testing without mocking
+  file I/O, state, or stderr. The implementation MUST reside in a new dedicated module
+  `agentic_devtools/cli/config/commit_type_resolution.py`.
 
 ### Key Entities
 
@@ -245,3 +296,6 @@ and that documentation accurately describes the resolution order and validation 
 - **SC-005**: Documentation updated in at least 2 locations: the `.github/copilot-instructions.md`
   project config section and user-facing `agdt-setup` prompt/help text describing the
   `project.json` fields and defaults.
+
+---
+*Generated by Copilot SDK (claude-opus-4.6)*
