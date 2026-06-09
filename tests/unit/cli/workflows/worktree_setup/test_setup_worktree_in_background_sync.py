@@ -236,6 +236,7 @@ class TestSetupWorktreeInBackgroundSync:
             ["agdt-review", "--pr-id", "42"],
             "/repos/PROJECT-1234",
             120,
+            workflow="work-on-jira-issue",
         )
         mock_set_value.assert_any_call("worktree_setup.auto_execute_exit_code", "0")
 
@@ -275,7 +276,7 @@ class TestSetupWorktreeInBackgroundSync:
             auto_execute_command=["agdt-review"],
         )
 
-        mock_run_cmd.assert_called_once_with(["agdt-review"], "/repos/PROJECT-1234", 60)
+        mock_run_cmd.assert_called_once_with(["agdt-review"], "/repos/PROJECT-1234", 60, workflow="work-on-jira-issue")
         mock_set_value.assert_any_call("worktree_setup.auto_execute_exit_code", "0")
 
     @patch("agentic_devtools.cli.workflows.worktree_setup._start_copilot_session_for_workflow")

@@ -2134,6 +2134,7 @@ def _run_auto_execute_command(
     command: list[str],
     worktree_path: str,
     timeout: int,
+    workflow: str | None = None,
 ) -> int:
     """
     Execute a command inside a worktree and log the output.
@@ -2142,6 +2143,10 @@ def _run_auto_execute_command(
         command: The command and arguments to run.
         worktree_path: The working directory for the command.
         timeout: Maximum seconds to wait for the command.
+        workflow: Optional workflow name. When provided, a pin file is written
+            to the target worktree's ``.agdt/`` directory before spawning the
+            subprocess, ensuring the VS Code auto-start task resolves the same
+            state directory.
 
     Returns:
         The process exit code, or -1 if the command could not be started or timed out.
@@ -2208,6 +2213,23 @@ def _run_auto_execute_command(
     except OSError as e:
         print(f"WARNING: Failed to create state directory {state_dir!s}: {e}")
     env["AGENTIC_DEVTOOLS_STATE_DIR"] = str(state_dir)
+    print(f"   Resolved state directory: {state_dir!s}")
+
+    # Write pin file to target worktree so the VS Code auto-start task
+    # resolves the same state directory (fixes #1913).
+    if workflow:
+        try:
+            from ...state import write_pin_file
+
+            pin_result = write_pin_file(
+                state_dir,
+                workflow=workflow,
+                target_git_root=Path(worktree_path),
+            )
+            if pin_result:
+                print(f"   Pinned state dir: {state_dir!s}")
+        except (ValueError, OSError) as e:
+            print(f"WARNING: Failed to write pin file: {e}", file=sys.stderr)
 
     import threading
 
@@ -3433,7 +3455,9 @@ def setup_worktree_in_background_sync(
         # the window ensures the Copilot agent starts with full context.
         if auto_execute_command:
             delete_value("worktree_setup.auto_execute_failed")
-            exit_code = _run_auto_execute_command(auto_execute_command, existing_path, auto_execute_timeout)
+            exit_code = _run_auto_execute_command(
+                auto_execute_command, existing_path, auto_execute_timeout, workflow=workflow_name
+            )
             set_value("worktree_setup.auto_execute_exit_code", str(exit_code))
             if exit_code != 0:
                 print(
@@ -3497,7 +3521,9 @@ def setup_worktree_in_background_sync(
         # the window ensures the Copilot agent starts with full context.
         if auto_execute_command:
             delete_value("worktree_setup.auto_execute_failed")
-            exit_code = _run_auto_execute_command(auto_execute_command, result.worktree_path, auto_execute_timeout)
+            exit_code = _run_auto_execute_command(
+                auto_execute_command, result.worktree_path, auto_execute_timeout, workflow=workflow_name
+            )
             set_value("worktree_setup.auto_execute_exit_code", str(exit_code))
             if exit_code != 0:
                 print(

@@ -41,7 +41,19 @@ IDENTITY_OWNER_FILENAME = ".identity-owner"
 
 # Pin file for state directory resolution (race condition fix #1180)
 PIN_FILENAME = "pinned-state-dir.json"
-RECOGNIZED_PIN_WORKFLOWS: frozenset[str] = frozenset({"pull-request-review"})
+RECOGNIZED_PIN_WORKFLOWS: frozenset[str] = frozenset(
+    {
+        "pull-request-review",
+        "work-on-jira-issue",
+        "create-jira-issue",
+        "create-jira-epic",
+        "create-jira-subtask",
+        "update-jira-issue",
+        "apply-pull-request-review-suggestions",
+        "optimize-issue-for-ai-agent",
+        "break-down-issue-into-subtasks",
+    }
+)
 DEFAULT_PIN_TTL_HOURS = 24
 
 # Default lock timeout in seconds
@@ -506,6 +518,7 @@ def write_pin_file(
     state_dir: str | Path,
     workflow: str,
     ttl_hours: int = DEFAULT_PIN_TTL_HOURS,
+    target_git_root: Path | None = None,
 ) -> Path | None:
     """Write the pin file atomically at ``.agdt/pinned-state-dir.json``.
 
@@ -518,6 +531,10 @@ def write_pin_file(
         state_dir: Absolute path to the resolved state directory.
         workflow: Workflow name (must be in ``RECOGNIZED_PIN_WORKFLOWS``).
         ttl_hours: Hours before the pin expires (default 24).
+        target_git_root: When provided and it points to an existing git
+            repository/worktree root, use it as the git root instead of
+            auto-detecting via CWD. This allows writing the pin file to a
+            target worktree from a different working directory.
 
     Returns:
         Path to the written pin file, or ``None`` if not in a git repo.
@@ -531,7 +548,11 @@ def write_pin_file(
     if not isinstance(ttl_hours, int) or isinstance(ttl_hours, bool) or ttl_hours <= 0:
         raise ValueError(f"ttl_hours must be a positive integer, got {ttl_hours!r}")
 
-    git_root = _get_git_repo_root()
+    git_root = (
+        target_git_root
+        if (target_git_root is not None and target_git_root.is_dir() and (target_git_root / ".git").exists())
+        else _get_git_repo_root()
+    )
     if git_root is None:
         return None
 
