@@ -50,6 +50,27 @@ class TestResolveThreadsAction:
         assert result.decision == ActionDecision.SKIP
         assert "no unresolved" in result.details.lower()
 
+    def test_skip_when_autofix_applied_without_repair(self) -> None:
+        """Skip SDK evaluation when autofix just ran but no repair dispatched."""
+        snapshot = PRStateSnapshot(pr_number=1, ci_status="passing", unresolved_threads=3)
+        derived = DerivedState(snapshot)
+        derived.set("autofix_applied_this_iteration", True)
+        action = ResolveThreadsAction()
+        result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.SKIP
+        assert "autofix_without_repair" in result.preconditions
+        assert "autofix just applied" in result.details
+
+    def test_skip_when_ci_pending_without_repair(self) -> None:
+        """Skip SDK evaluation when CI is pending and no repair dispatched."""
+        snapshot = PRStateSnapshot(pr_number=1, ci_status="pending", unresolved_threads=3)
+        derived = DerivedState(snapshot)
+        action = ResolveThreadsAction()
+        result = action.evaluate(snapshot, derived)
+        assert result.decision == ActionDecision.SKIP
+        assert "ci_not_actionable" in result.preconditions
+        assert "pending" in result.details
+
     def test_execute_when_threads_exist(self) -> None:
         snapshot = PRStateSnapshot(
             pr_number=1,

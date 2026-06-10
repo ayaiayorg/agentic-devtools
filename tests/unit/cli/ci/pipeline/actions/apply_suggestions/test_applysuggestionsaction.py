@@ -4,8 +4,12 @@ import os
 from typing import cast
 from unittest.mock import MagicMock, patch
 
-from agentic_devtools.cli.ci.pipeline.actions.apply_suggestions import ApplySuggestionsAction
-from agentic_devtools.cli.ci.pipeline.models import ActionDecision
+from agentic_devtools.cli.ci.pipeline.actions.apply_suggestions import (
+    ApplySuggestionsAction,
+    _apply_copilot_autofix_suggestions,
+)
+from agentic_devtools.cli.ci.pipeline.exclusion import ExclusionContext
+from agentic_devtools.cli.ci.pipeline.models import ActionDecision, ActionResult
 from agentic_devtools.cli.ci.pipeline.snapshot import DerivedState, PRStateSnapshot
 
 
@@ -342,15 +346,128 @@ class TestApplySuggestionsActionExecute:
         provider = MagicMock()
         provider.list_issue_comments.return_value = []
 
-        with patch(
-            "agentic_devtools.cli.ci.pipeline.actions.apply_suggestions.fetch_applicable_suggestions"
-        ) as mock_fetch:
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.apply_suggestions.fetch_applicable_suggestions"
+            ) as mock_fetch,
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.apply_suggestions._apply_copilot_autofix_suggestions"
+            ) as mock_fallback,
+        ):
             mock_fetch.side_effect = RuntimeError("API error")
+            mock_fallback.return_value = None
             action = ApplySuggestionsAction()
             result = action.execute(provider, snapshot, derived)
 
         assert result.decision == ActionDecision.SKIP
-        assert "Failed to fetch" in result.details
+        assert "suggestion discovery failed" in result.details
+
+    def test_copilot_autofix_fallback_executes_when_no_standard_suggestions(self) -> None:
+        """Copilot autofix fallback returns EXECUTE when it applies suggestions."""
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            review_state="CHANGES_REQUESTED",
+            copilot_review_id=100,
+            copilot_review_inline_count=3,
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.list_issue_comments.return_value = []
+
+        fallback_action_result = ActionResult(
+            name="apply_suggestions",
+            decision=ActionDecision.EXECUTE,
+            preconditions={"suggestions_found": True, "within_threshold": True},
+            details="Copilot autofix: applied 1 suggestion(s)",
+            invalidates_snapshot=True,
+        )
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.apply_suggestions.fetch_applicable_suggestions"
+            ) as mock_fetch,
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.apply_suggestions._apply_copilot_autofix_suggestions"
+            ) as mock_fallback,
+        ):
+            mock_fetch.return_value = ([], "")
+            mock_fallback.return_value = {
+                "action_result": fallback_action_result,
+                "exclusion_ctx": ExclusionContext(resolved_comment_ids={101}),
+            }
+            action = ApplySuggestionsAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+        assert result.invalidates_snapshot is True
+        assert derived.get("autofix_applied_this_iteration") is True
+        assert derived.get("exclusion_context") is not None
+
+    def test_copilot_autofix_fallback_exception_treated_as_skip(self) -> None:
+        """Copilot autofix fallback exception is treated as skip (fail-open)."""
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            review_state="CHANGES_REQUESTED",
+            copilot_review_id=100,
+            copilot_review_inline_count=3,
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.list_issue_comments.return_value = []
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.apply_suggestions.fetch_applicable_suggestions"
+            ) as mock_fetch,
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.apply_suggestions._apply_copilot_autofix_suggestions"
+            ) as mock_fallback,
+        ):
+            mock_fetch.return_value = ([], "")
+            mock_fallback.side_effect = RuntimeError("Page scraping failed")
+            action = ApplySuggestionsAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.SKIP
+        assert "suggestion discovery failed" in result.details
+
+    def test_copilot_autofix_fallback_skip_does_not_set_autofix_flag(self) -> None:
+        """When fallback returns SKIP, autofix_applied_this_iteration is NOT set."""
+        snapshot = PRStateSnapshot(
+            pr_number=1,
+            review_state="CHANGES_REQUESTED",
+            copilot_review_id=100,
+            copilot_review_inline_count=3,
+        )
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.list_issue_comments.return_value = []
+
+        fallback_action_result = ActionResult(
+            name="apply_suggestions",
+            decision=ActionDecision.SKIP,
+            preconditions={"suggestions_found": True, "within_threshold": True},
+            details="Copilot autofix: all 2 suggestions conflicted/stale",
+        )
+
+        with (
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.apply_suggestions.fetch_applicable_suggestions"
+            ) as mock_fetch,
+            patch(
+                "agentic_devtools.cli.ci.pipeline.actions.apply_suggestions._apply_copilot_autofix_suggestions"
+            ) as mock_fallback,
+        ):
+            mock_fetch.return_value = ([], "")
+            mock_fallback.return_value = {
+                "action_result": fallback_action_result,
+                "exclusion_ctx": None,
+            }
+            action = ApplySuggestionsAction()
+            result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.SKIP
+        assert derived.get("autofix_applied_this_iteration") is None
 
     def test_partial_application_on_conflict(self) -> None:
         """Partial apply result is used when some suggestions conflict."""
@@ -883,3 +1000,129 @@ def test_count_prior_autofix_comments_returns_zero_on_exception() -> None:
 
     count = _count_prior_autofix_comments(provider, 42)
     assert count == 0
+
+
+class TestApplyCopilotAutofixSuggestions:
+    """Tests for _apply_copilot_autofix_suggestions fallback function."""
+
+    def test_returns_none_when_no_suggestions(self) -> None:
+        """Returns None when apply_pr_suggestions reports 0 applied, 0 skipped."""
+        provider = MagicMock()
+        provider._repo = "owner/repo"
+        snapshot = PRStateSnapshot(pr_number=1)
+
+        with patch("agentic_devtools.cli.github.apply_thread_autofix.apply_pr_suggestions") as mock_apply:
+            mock_apply.return_value = {
+                "applied": 0,
+                "skipped": 0,
+                "conflict_comment_ids": [],
+                "commit": None,
+                "files_changed": [],
+                "resolution": None,
+            }
+            result = _apply_copilot_autofix_suggestions(provider, snapshot)
+
+        assert result is None
+
+    def test_returns_execute_when_applied(self) -> None:
+        """Returns action_result with EXECUTE when suggestions are applied."""
+        provider = MagicMock()
+        provider._repo = "owner/repo"
+        snapshot = PRStateSnapshot(pr_number=1)
+
+        with patch("agentic_devtools.cli.github.apply_thread_autofix.apply_pr_suggestions") as mock_apply:
+            mock_apply.return_value = {
+                "applied": 2,
+                "skipped": 1,
+                "conflict_comment_ids": [999],
+                "commit": "abc123def456",
+                "files_changed": ["file.py"],
+                "resolution": {"replied": 2, "resolved": 2},
+            }
+            result = _apply_copilot_autofix_suggestions(provider, snapshot)
+
+        assert result is not None
+        assert result["action_result"].decision == ActionDecision.EXECUTE
+        assert result["action_result"].invalidates_snapshot is True
+        assert "applied 2" in result["action_result"].details
+
+    def test_returns_skip_when_all_conflicted(self) -> None:
+        """Returns SKIP when all suggestions are skipped (conflicts)."""
+        provider = MagicMock()
+        provider._repo = "owner/repo"
+        snapshot = PRStateSnapshot(pr_number=1)
+
+        with patch("agentic_devtools.cli.github.apply_thread_autofix.apply_pr_suggestions") as mock_apply:
+            mock_apply.return_value = {
+                "applied": 0,
+                "skipped": 3,
+                "conflict_comment_ids": [1, 2, 3],
+                "commit": None,
+                "files_changed": [],
+                "resolution": None,
+            }
+            result = _apply_copilot_autofix_suggestions(provider, snapshot)
+
+        assert result is not None
+        assert result["action_result"].decision == ActionDecision.SKIP
+        assert "conflicted" in result["action_result"].details
+
+    def test_returns_none_on_system_exit(self) -> None:
+        """Returns None when apply_pr_suggestions calls sys.exit."""
+        provider = MagicMock()
+        provider._repo = "owner/repo"
+        snapshot = PRStateSnapshot(pr_number=1)
+
+        with patch("agentic_devtools.cli.github.apply_thread_autofix.apply_pr_suggestions") as mock_apply:
+            mock_apply.side_effect = SystemExit(1)
+            result = _apply_copilot_autofix_suggestions(provider, snapshot)
+
+        assert result is None
+
+    def test_returns_none_on_exception(self) -> None:
+        """Returns None when apply_pr_suggestions raises."""
+        provider = MagicMock()
+        provider._repo = "owner/repo"
+        snapshot = PRStateSnapshot(pr_number=1)
+
+        with patch("agentic_devtools.cli.github.apply_thread_autofix.apply_pr_suggestions") as mock_apply:
+            mock_apply.side_effect = RuntimeError("Network error")
+            result = _apply_copilot_autofix_suggestions(provider, snapshot)
+
+        assert result is None
+
+    def test_uses_github_repository_env_when_no_repo_attr(self) -> None:
+        """Falls back to GITHUB_REPOSITORY env var when provider has no _repo."""
+        provider = MagicMock(spec=[])  # No _repo attribute
+        snapshot = PRStateSnapshot(pr_number=1)
+
+        with (
+            patch("agentic_devtools.cli.github.apply_thread_autofix.apply_pr_suggestions") as mock_apply,
+            patch.dict("os.environ", {"GITHUB_REPOSITORY": "env/repo"}),
+        ):
+            mock_apply.return_value = {
+                "applied": 1,
+                "skipped": 0,
+                "conflict_comment_ids": [],
+                "commit": "abc123",
+                "files_changed": ["f.py"],
+                "resolution": None,
+            }
+            _apply_copilot_autofix_suggestions(provider, snapshot)
+
+        mock_apply.assert_called_once()
+        assert mock_apply.call_args.kwargs["repo"] == "env/repo"
+
+    def test_returns_none_when_repo_cannot_be_determined(self) -> None:
+        """Returns None early when neither provider._repo nor GITHUB_REPOSITORY is set."""
+        provider = MagicMock(spec=[])  # No _repo attribute
+        snapshot = PRStateSnapshot(pr_number=1)
+
+        with (
+            patch("agentic_devtools.cli.github.apply_thread_autofix.apply_pr_suggestions") as mock_apply,
+            patch.dict("os.environ", {}, clear=True),
+        ):
+            result = _apply_copilot_autofix_suggestions(provider, snapshot)
+
+        mock_apply.assert_not_called()
+        assert result is None

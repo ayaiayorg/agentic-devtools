@@ -47,6 +47,42 @@ class ResolveThreadsAction:
                 details="No unresolved threads from prior commits",
             )
 
+        # Skip SDK evaluation when autofix just ran in THIS iteration but no
+        # repair has been dispatched. The remaining threads haven't been
+        # addressed by any code change — evaluating them wastes tokens.
+        autofix_just_ran = derived.get("autofix_applied_this_iteration", False)
+        repair_dispatched = derived.get("repair_dispatched", False)
+        if autofix_just_ran and not repair_dispatched:
+            preconditions["autofix_without_repair"] = True
+            return ActionResult(
+                name=self.name,
+                decision=ActionDecision.SKIP,
+                preconditions=preconditions,
+                details=(
+                    "Skipping thread evaluation — autofix just applied but no "
+                    "repair dispatched yet; remaining threads have not been addressed"
+                ),
+            )
+
+        # Skip evaluation when CI is pending/unknown AND no repair has been
+        # dispatched. If CI hasn't completed, the repair agent hasn't run
+        # yet, so non-autofixed threads can't have been addressed.
+        # This prevents token waste on subsequent iterations where CI is
+        # still running after an autofix commit.
+        ci_status = snapshot.ci_status
+        ci_actionable = ci_status in ("passing", "failing")
+        if not ci_actionable and not repair_dispatched:
+            preconditions["ci_not_actionable"] = True
+            return ActionResult(
+                name=self.name,
+                decision=ActionDecision.SKIP,
+                preconditions=preconditions,
+                details=(
+                    f"Skipping thread evaluation — CI is '{ci_status}' and no "
+                    "repair dispatched; threads cannot have been addressed yet"
+                ),
+            )
+
         return ActionResult(
             name=self.name,
             decision=ActionDecision.EXECUTE,
