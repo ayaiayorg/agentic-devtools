@@ -212,6 +212,20 @@ class MergeAction:
                 details="merge_pr call failed",
             )
 
+        # Delete the source branch after successful merge
+        if snapshot.head_branch:
+            try:
+                provider.delete_branch(snapshot.head_branch)
+                logger.info("PR #%d: Deleted branch %s", snapshot.pr_number, snapshot.head_branch)
+            except Exception as exc:
+                # Branch deletion is best-effort; don't fail the merge action
+                logger.warning(
+                    "PR #%d: Failed to delete branch %s: %s",
+                    snapshot.pr_number,
+                    snapshot.head_branch,
+                    exc,
+                )
+
         logger.info("PR #%d: Merged successfully (method=%s)", snapshot.pr_number, method)
         return ActionResult(
             name=self.name,

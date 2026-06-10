@@ -1028,6 +1028,17 @@ class GitHubActionsProvider(CIPlatformProvider):
         )
 
     @retry_with_backoff()
+    def delete_branch(self, branch: str) -> None:
+        """Delete a remote branch via the GitHub API.
+
+        Uses ``DELETE /repos/{owner}/{repo}/git/refs/heads/{branch}``.
+        """
+        _gh_api(
+            self._repo_api(f"/git/refs/heads/{branch}"),
+            method="DELETE",
+        )
+
+    @retry_with_backoff()
     def publish_pr(self, pr_number: int) -> None:
         """Mark a draft PR as ready for review via gh pr ready command."""
         cmd = ["gh", "pr", "ready", str(pr_number)]
