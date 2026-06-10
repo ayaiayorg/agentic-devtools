@@ -104,6 +104,13 @@ class TestGetIssueKeyFromState:
         result = commands._get_issue_key_from_state()
         assert result == "PROJECT-1234"
 
+    def test_empty_jira_issue_key_falls_through_to_workflow(self, temp_state_dir, clear_state_before):
+        """Test empty jira.issue_key (strips to '') falls through to workflow context."""
+        state.set_value("jira.issue_key", "   ")
+        state.set_value("workflow", {"context": {"jira_issue_key": "WF-999"}})
+        result = commands._get_issue_key_from_state()
+        assert result == "WF-999"
+
     def test_non_string_truthy_jira_issue_key_stringified(self, temp_state_dir, clear_state_before):
         """Test non-string truthy jira.issue_key is stringified (e.g., int)."""
         state.set_value("jira.issue_key", 12345)

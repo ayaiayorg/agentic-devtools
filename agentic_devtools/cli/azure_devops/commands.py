@@ -359,15 +359,19 @@ def create_pull_request() -> None:
     Reads from state:
     - source_branch (required): Source branch name
     - title (required): PR title (Markdown links will be stripped)
-    - description (optional): PR description
     - target_branch (optional): Target branch, defaults to 'main'
     - draft (optional): Whether to create as draft, defaults to True
     - dry_run (optional): Preview without making API calls
 
+    The PR description is resolved via the shared PR body template
+    (``resolve_pr_body()``).  If ``.agdt/config/pull-request-template.md``
+    exists it is used as the template with ``{{fullCommitMessage}}``
+    substituted; otherwise the raw commit message is used as the body.
+    Run ``agdt-init-pr-template`` once to create the template file.
+
     Usage:
         agdt-set source_branch "feature/PROJECT-1234/my-feature"
         agdt-set title "feature([PROJECT-1234](https://jira.swica.ch/browse/PROJECT-1234)): add feature"
-        agdt-set description "This PR adds the new feature"
         agdt-create-pull-request
     """
     # Get required values from state
@@ -388,7 +392,9 @@ def create_pull_request() -> None:
     title = convert_to_pull_request_title(title)
 
     # Get optional values
-    description = get_value("description") or ""
+    from ..pr_template import resolve_pr_body
+
+    description = resolve_pr_body()
     target_branch = get_value("target_branch") or "main"
 
     # Draft mode defaults to True (opt-out via draft=false)

@@ -41,3 +41,27 @@ class TestMarkChecklistItemsCompleted:
 
         captured = capsys.readouterr()
         assert "Marked checklist items as completed" in captured.out
+
+    def test_skips_print_when_no_items_marked(self, temp_state_dir, clear_state_before, capsys):
+        """Test skips marking message when items are already completed."""
+        state.set_workflow_state(
+            name="work-on-jira-issue",
+            status="in-progress",
+            step="implementation",
+            context={
+                "jira_issue_key": "PROJECT-1234",
+                "checklist": {
+                    "items": [
+                        {"id": 1, "text": "Task 1", "completed": True},
+                        {"id": 2, "text": "Task 2", "completed": False},
+                    ],
+                    "modified_by_agent": False,
+                },
+            },
+        )
+
+        # Item 1 is already completed, so marked list will be empty
+        commands._mark_checklist_items_completed([1])
+
+        captured = capsys.readouterr()
+        assert "Marked checklist items as completed" not in captured.out

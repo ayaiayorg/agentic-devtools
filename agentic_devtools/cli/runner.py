@@ -384,6 +384,7 @@ COMMAND_MAP = {
     "agdt-setup-gh-cli": ("agentic_devtools.cli.setup", "setup_gh_cli_cmd"),
     "agdt-setup-check": ("agentic_devtools.cli.setup", "setup_check_cmd"),
     "agdt-setup-certs": ("agentic_devtools.cli.setup", "setup_certs_cmd"),
+    "agdt-init-pr-template": ("agentic_devtools.cli.pr_template", "init_pr_template"),
     # Copilot auto-start
     "agdt-copilot-auto-start": (
         "agentic_devtools.cli.copilot.auto_start",
@@ -423,6 +424,10 @@ COMMAND_MAP = {
     "agdt-gh-pr-checks-status": (
         "agentic_devtools.cli.github.pr_checks_status",
         "pr_checks_status_command",
+    ),
+    "agdt-gh-create-pull-request": (
+        "agentic_devtools.cli.github.pr_create",
+        "create_pull_request_command",
     ),
     # Multi-model review pipeline
     "agdt-review": ("agentic_devtools.cli.review", "main"),

@@ -24,6 +24,7 @@ STATE_SKIP_STAGE = "skip_stage"
 STATE_SKIP_PUBLISH = "skip_publish"
 STATE_SKIP_PUSH = "skip_push"
 STATE_SKIP_REBASE = "skip_rebase"
+STATE_LAST_COMMIT_MESSAGE = "git.last_commit_message"
 
 # Boolean truthy values for state parsing
 _TRUTHY_VALUES = (True, "true", "1", "yes")

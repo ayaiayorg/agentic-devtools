@@ -7,13 +7,15 @@ These are the functions registered as console scripts in pyproject.toml.
 import argparse
 import sys
 
-from ...state import get_value, is_dry_run
+from ...state import get_value, is_dry_run, set_value
 from .core import (
+    STATE_LAST_COMMIT_MESSAGE,
     STATE_SKIP_PUSH,
     STATE_SKIP_REBASE,
     STATE_SKIP_STAGE,
     get_bool_state,
     get_commit_message,
+    run_git,
 )
 from .operations import (
     amend_commit,
@@ -151,6 +153,24 @@ def _sync_with_main(dry_run: bool, skip_rebase: bool) -> bool:
     return False  # No rebase occurred  # pragma: no cover
 
 
+def _persist_effective_commit_message(dry_run: bool) -> None:
+    """Persist the effective commit message to state after commit/amend.
+
+    Reads back the last commit message from git and stores it in state
+    under ``git.last_commit_message`` for use by PR template resolution.
+
+    Args:
+        dry_run: If True, skip persistence.
+    """
+    if dry_run:
+        return
+
+    result = run_git("log", "-1", "--format=%B", check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        message = result.stdout.rstrip("\n")
+        set_value(STATE_LAST_COMMIT_MESSAGE, message)
+
+
 def commit_cmd() -> None:
     """
     Save work: stage, commit/amend, sync with main, and push.
@@ -255,6 +275,9 @@ def commit_cmd() -> None:
     else:
         print("Creating new commit...")
         create_commit(message, dry_run)
+
+    # Persist effective commit message to state for PR template resolution
+    _persist_effective_commit_message(dry_run)
 
     # Step 3-4: Sync with main (fetch + rebase) - after commit so no unstaged changes
     rebase_occurred = _sync_with_main(dry_run, skip_rebase)
