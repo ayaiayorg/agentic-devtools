@@ -97,6 +97,8 @@ without any CLI/state override, and verifying that `"fix"` is returned.
    **When** the system resolves the issue type, **Then** "feat" is used as the hardcoded fallback
    default.
 
+**Requirements covered:** FR-001, FR-003
+
 ---
 
 ### User Story 2 - Validation Against Allowed Types (Priority: P2)
@@ -127,6 +129,8 @@ verifying that a warning is emitted to stderr while the type is still returned f
    provided, **Then** validation uses the full Conventional Commits default list and no warning is
    emitted for standard types.
 
+**Requirements covered:** FR-002, FR-004, FR-005, FR-006
+
 ---
 
 ### User Story 3 - Configuration Discovery and Documentation (Priority: P3)
@@ -152,6 +156,8 @@ and that documentation accurately describes the resolution order and validation 
 2. **Given** existing documentation for `project.json`, **When** this feature is complete,
    **Then** the config reference documents both new fields, their defaults, and the resolution
    priority order.
+
+**Requirements covered:** FR-007
 
 ---
 
