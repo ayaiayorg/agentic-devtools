@@ -139,6 +139,17 @@ class CIPlatformProvider(ABC):
         """
 
     @abstractmethod
+    def delete_branch(self, branch: str) -> None:
+        """Delete a remote branch.
+
+        Args:
+            branch: Branch name to delete (e.g., "feature/my-branch").
+
+        Raises:
+            RuntimeError: If the branch could not be deleted.
+        """
+
+    @abstractmethod
     def publish_pr(self, pr_number: int) -> None:
         """Mark a draft pull request as ready for review.
 

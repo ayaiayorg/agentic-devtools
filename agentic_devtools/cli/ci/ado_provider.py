@@ -144,6 +144,10 @@ class AzureDevOpsProvider(CIPlatformProvider):
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.merge_pr() not yet implemented")
 
+    def delete_branch(self, branch: str) -> None:
+        """Not implemented for ADO stub."""
+        raise NotImplementedError("AzureDevOpsProvider.delete_branch() not yet implemented")
+
     def publish_pr(self, pr_number: int) -> None:
         """Not implemented for ADO stub."""
         raise NotImplementedError("AzureDevOpsProvider.publish_pr() not yet implemented")

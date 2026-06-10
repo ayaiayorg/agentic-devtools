@@ -45,6 +45,9 @@ class _ConcreteProvider(CIPlatformProvider):
     def merge_pr(self, pr_number: int, head_sha: str, method: str, *, commit_title: str | None = None) -> None:
         pass
 
+    def delete_branch(self, branch: str) -> None:
+        pass
+
     def request_reviewer(self, pr_number: int, reviewer: str) -> None:
         pass
 
@@ -239,6 +242,7 @@ class TestCIPlatformProvider:
             "find_comment",
             "approve_pr",
             "merge_pr",
+            "delete_branch",
             "publish_pr",
             "squash_before_publish",
             "request_reviewer",

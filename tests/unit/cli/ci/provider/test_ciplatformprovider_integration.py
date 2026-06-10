@@ -57,6 +57,9 @@ class _StubAdoProvider(CIPlatformProvider):
     def merge_pr(self, pr_number: int, head_sha: str, method: str, *, commit_title: str | None = None) -> None:
         raise NotImplementedError("ADO provider stub")
 
+    def delete_branch(self, branch: str) -> None:
+        raise NotImplementedError("ADO provider stub")
+
     def request_reviewer(self, pr_number: int, reviewer: str) -> None:
         raise NotImplementedError("ADO provider stub")
 

@@ -286,3 +286,40 @@ class TestMergeAction:
 
         assert result.decision == ActionDecision.FAILED
         assert "merge_pr call failed" in result.details
+
+    def test_execute_deletes_branch_after_merge(self) -> None:
+        """MergeAction deletes the source branch after successful merge."""
+        snapshot = PRStateSnapshot(pr_number=42, head_sha="sha123", commit_count=1, head_branch="feature/my-branch")
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        action = MergeAction()
+
+        result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+        provider.delete_branch.assert_called_once_with("feature/my-branch")
+
+    def test_execute_skips_branch_deletion_when_head_branch_empty(self) -> None:
+        """MergeAction skips branch deletion when head_branch is empty."""
+        snapshot = PRStateSnapshot(pr_number=42, head_sha="sha123", commit_count=1, head_branch="")
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        action = MergeAction()
+
+        result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+        provider.delete_branch.assert_not_called()
+
+    def test_execute_succeeds_when_branch_deletion_fails(self) -> None:
+        """MergeAction still succeeds if branch deletion raises."""
+        snapshot = PRStateSnapshot(pr_number=42, head_sha="sha123", commit_count=1, head_branch="feature/branch")
+        derived = DerivedState(snapshot)
+        provider = MagicMock()
+        provider.delete_branch.side_effect = RuntimeError("branch already deleted")
+        action = MergeAction()
+
+        result = action.execute(provider, snapshot, derived)
+
+        assert result.decision == ActionDecision.EXECUTE
+        assert "merged" in result.details.lower()

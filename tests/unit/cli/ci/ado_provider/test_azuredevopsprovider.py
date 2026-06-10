@@ -82,6 +82,8 @@ class TestAzureDevOpsProvider:
         with pytest.raises(NotImplementedError):
             provider.merge_pr(1, "sha", "squash", commit_title="Title (#1)")
         with pytest.raises(NotImplementedError):
+            provider.delete_branch("feature/test")
+        with pytest.raises(NotImplementedError):
             provider.request_reviewer(1, "user")
         with pytest.raises(NotImplementedError):
             provider.count_unresolved_review_threads(1)
