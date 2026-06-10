@@ -629,36 +629,49 @@ Examples:
         # Normal interactive path: spawn setup in background and start
         # a Copilot session that waits for the prompt file.
 
-        # Delete any stale prompt file from a previous review so that
+        # FR-001: Delete any stale prompt file from a previous review so that
         # _wait_for_prompt_file() doesn't return immediately before the
         # new background setup has completed.  See #1746.
         from .worktree_setup import _WORKFLOW_PROMPT_FILENAMES
 
+        _logger = logging.getLogger(__name__)
         _stale_prompt = resolved_state_dir / _WORKFLOW_PROMPT_FILENAMES["pull-request-review"]
-        _stale_prompt_cleared = True
+
         if _stale_prompt.is_file():
             try:
-                _stale_prompt.unlink(missing_ok=True)
+                _stale_prompt.unlink()
+                _logger.info("Removed stale prompt file: %s", _stale_prompt)
+            except FileNotFoundError:
+                # Race: file disappeared between is_file() and unlink() — benign.
+                _logger.debug("Stale prompt file already gone: %s", _stale_prompt)
             except OSError as exc:
-                print(f"WARNING: Failed to delete stale prompt file {_stale_prompt}: {exc}")
-                _stale_prompt_cleared = False
-        elif _stale_prompt.exists():
-            print(f"WARNING: Stale prompt path exists but is not a regular file: {_stale_prompt}")
-            _stale_prompt_cleared = False
+                # FR-002: Hard failure — file locked or permission denied.
+                print(
+                    f"ERROR: Cannot remove stale prompt file.\n"
+                    f"  Path: {_stale_prompt}\n"
+                    f"  Reason: {exc}\n"
+                    f"  Action: Remove or unlock the file manually, then retry.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+        elif _stale_prompt.is_symlink() or _stale_prompt.exists():
+            # Path is not a regular file: dangling symlink, symlink-to-dir, directory, socket, etc.
+            print(
+                f"ERROR: Stale prompt path exists but is not a regular file: {_stale_prompt}\n"
+                f"  Action: Remove it manually, then retry.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        else:
+            _logger.debug("No stale prompt file found (first run): %s", _stale_prompt)
 
+        # Only after successful cleanup, spawn background setup.
         from ..azure_devops.async_commands import setup_pull_request_review_async
 
         setup_pull_request_review_async(
             pull_request_id=int(resolved_pr_id),
             jira_issue_key=resolved_issue_key,
         )
-
-        if not _stale_prompt_cleared:
-            print(
-                "WARNING: Skipping Copilot session start — stale prompt file could not be "
-                "removed. Re-run once the path is writable."
-            )
-            return
 
         from .worktree_setup import _start_copilot_session_for_pr_review
 
