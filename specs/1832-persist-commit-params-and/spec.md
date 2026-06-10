@@ -56,6 +56,8 @@ title. Today there is no mechanism to carry this forward automatically. This fea
 
 ### User Story 1 - Agent Reuses Commit Title for PR Creation (Priority: P1)
 
+**Associated FRs**: FR-001, FR-004, FR-005, FR-007, FR-009
+
 An AI agent working through the `work-on-jira-issue` workflow commits code using `agdt-git-save-work` and then immediately proceeds to create a pull request. The agent expects the commit message title
 to be available in state so that `agdt-create-pull-request` can use it as the default PR title without the agent having to re-specify it or parse git log output.
 
@@ -90,6 +92,8 @@ Delivers value by enabling downstream commands to consume the title without addi
 
 ### User Story 2 - Debugging Last Commit (Priority: P2)
 
+**Associated FRs**: FR-002, FR-003
+
 A human developer inspects the workflow state file to understand what was most recently committed in a session. They expect to find the full rendered commit message and its body stored in state,
 making it possible to verify commit content without running git commands in the worktree (which may have since changed branches or been deleted).
 
@@ -110,6 +114,8 @@ verbatim. Delivers value by enabling post-hoc inspection without git access.
 ---
 
 ### User Story 3 - Title Persistence Across Amends (Priority: P2)
+
+**Associated FRs**: FR-006
 
 An agent working on a feature branch makes multiple amend cycles (code change → amend → force push). The commit message title remains stable across these cycles unless explicitly changed. The agent
 expects `git.last_commit_title` to always reflect the most recent commit title, enabling consistent PR title references and Jira comment formatting across the session.
@@ -137,6 +143,8 @@ Also testable with a changed title on the second amend to verify it updates.
 ---
 
 ### User Story 4 - Session Recovery After Crash (Priority: P3)
+
+**Associated FRs**: FR-008
 
 An agent session crashes or is interrupted after a successful commit but before creating a PR. When a new session starts in the same worktree, it can read `git.last_commit_title` and
 `git.last_commit_message` from state to understand what was previously committed and resume the workflow without re-deriving this information from git history.

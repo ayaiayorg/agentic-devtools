@@ -1,0 +1,177 @@
+{
+  "findings": [],
+  "coverage": {
+    "FR-007": {
+      "fr_id": "FR-007",
+      "priority": 1,
+      "user_story": 1,
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T001",
+        "T005",
+        "T008",
+        "T009",
+        "T014",
+        "T015",
+        "T016"
+      ],
+      "test_types": [
+        "happy-path",
+        "unit"
+      ]
+    },
+    "FR-001": {
+      "fr_id": "FR-001",
+      "priority": 1,
+      "user_story": 1,
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T001",
+        "T005",
+        "T008",
+        "T009",
+        "T014",
+        "T015",
+        "T016"
+      ],
+      "test_types": [
+        "happy-path",
+        "unit"
+      ]
+    },
+    "FR-004": {
+      "fr_id": "FR-004",
+      "priority": 1,
+      "user_story": 1,
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T001",
+        "T005",
+        "T008",
+        "T009",
+        "T014",
+        "T015",
+        "T016"
+      ],
+      "test_types": [
+        "happy-path",
+        "unit"
+      ]
+    },
+    "FR-005": {
+      "fr_id": "FR-005",
+      "priority": 1,
+      "user_story": 1,
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T001",
+        "T005",
+        "T008",
+        "T009",
+        "T014",
+        "T015",
+        "T016"
+      ],
+      "test_types": [
+        "happy-path",
+        "unit"
+      ]
+    },
+    "FR-009": {
+      "fr_id": "FR-009",
+      "priority": 1,
+      "user_story": 1,
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T001",
+        "T005",
+        "T008",
+        "T009",
+        "T014",
+        "T015",
+        "T016"
+      ],
+      "test_types": [
+        "happy-path",
+        "unit"
+      ]
+    },
+    "FR-002": {
+      "fr_id": "FR-002",
+      "priority": 2,
+      "user_story": 2,
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T008",
+        "T010"
+      ],
+      "test_types": [
+        "happy-path"
+      ]
+    },
+    "FR-003": {
+      "fr_id": "FR-003",
+      "priority": 2,
+      "user_story": 2,
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T003",
+        "T005",
+        "T010"
+      ],
+      "test_types": [
+        "edge-case",
+        "unit",
+        "happy-path"
+      ]
+    },
+    "FR-006": {
+      "fr_id": "FR-006",
+      "priority": 2,
+      "user_story": 3,
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T005",
+        "T010",
+        "T011"
+      ],
+      "test_types": [
+        "happy-path",
+        "unit"
+      ]
+    },
+    "FR-008": {
+      "fr_id": "FR-008",
+      "priority": 3,
+      "user_story": 4,
+      "is_covered": true,
+      "has_happy_path": true,
+      "test_task_ids": [
+        "T005",
+        "T008",
+        "T012"
+      ],
+      "test_types": [
+        "happy-path",
+        "unit"
+      ]
+    }
+  },
+  "summary_table": "### Test Coverage Summary\n\n| FR | User Story | Test Task IDs | Test Types | Status |\n|------|------------|---------------|------------|--------|\n| FR-007 | US1 | T001, T005, T008, T009, T014, T015, T016 | happy-path, unit | \u2705 Covered |\n| FR-001 | US1 | T001, T005, T008, T009, T014, T015, T016 | happy-path, unit | \u2705 Covered |\n| FR-004 | US1 | T001, T005, T008, T009, T014, T015, T016 | happy-path, unit | \u2705 Covered |\n| FR-005 | US1 | T001, T005, T008, T009, T014, T015, T016 | happy-path, unit | \u2705 Covered |\n| FR-009 | US1 | T001, T005, T008, T009, T014, T015, T016 | happy-path, unit | \u2705 Covered |\n| FR-002 | US2 | T008, T010 | happy-path | \u2705 Covered |\n| FR-003 | US2 | T003, T005, T010 | edge-case, unit, happy-path | \u2705 Covered |\n| FR-006 | US3 | T005, T010, T011 | happy-path, unit | \u2705 Covered |\n| FR-008 | US4 | T005, T008, T012 | happy-path, unit | \u2705 Covered |\n",
+  "summary": {
+    "total_frs": 9,
+    "covered_frs": 9,
+    "uncovered_frs": 0,
+    "total_test_tasks": 11,
+    "unmapped_test_tasks": 0,
+    "total_findings": 0
+  }
+}
