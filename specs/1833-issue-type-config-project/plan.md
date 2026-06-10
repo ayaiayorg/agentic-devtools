@@ -123,9 +123,8 @@ Create the new module with:
 
 Implement `read_default_commit_type()` and `read_available_commit_types()`:
 
-- **`read_default_commit_type(config)`**: Check `defaultCommitIssueType` first, then `default_commit_issue_type`. Return `(value, warning)` where warning is a complete returned string for non-string types
-  (caller prints if needed). Empty string
-  → `(None, None)`.
+- **`read_default_commit_type(config)`**: Check `defaultCommitIssueType` first, then `default_commit_issue_type`. Return `(value, warning)` where warning is a complete returned string for non-string types.
+  Caller prints warning if needed. Empty string → `(None, None)`.
 - **`read_available_commit_types(config)`**: Check `availableCommitIssueTypes` first, then `available_commit_issue_types`. Return `(list, warning)`. Empty array → standard types. Non-array or array
   with non-string elements → standard types + warning.
 
