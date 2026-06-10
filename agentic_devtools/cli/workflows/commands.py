@@ -149,6 +149,32 @@ def _ensure_bootstrap_identity_and_scope(worktree_key: str) -> None:
         )
 
 
+def _clear_stale_issue_keys_for_create() -> None:
+    """Delete stale issue-selection keys when starting a create-new-issue flow.
+
+    Called by create-jira-issue (and similar create workflows) when ``--issue-key``
+    is not provided.  Removes ``issue_key`` and ``jira.issue_key`` from state so
+    that downstream resolution does not accidentally reuse a key from a prior
+    workflow.
+
+    Emits an informational message to stderr when stale keys are found and cleared.
+    """
+    from ...state import delete_value, get_value
+
+    cleared: list[str] = []
+    for key in ("issue_key", "jira.issue_key"):
+        if get_value(key) is not None:
+            delete_value(key)
+            cleared.append(key)
+    if cleared:
+        keys_label = "/".join(cleared)
+        print(
+            f"\u2139\ufe0f  Cleared stale issue selection state ({keys_label}) "
+            "from prior workflow \u2014 creating fresh issue.",
+            file=sys.stderr,
+        )
+
+
 def _ensure_scoped_bootstrap_and_clear(issue_key: str | None) -> str | None:
     """Normalize ``issue_key``, set bootstrap scope, then clear workflow state.
 
@@ -1437,6 +1463,12 @@ def initiate_create_jira_issue_workflow(
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+
+    # When --issue-key is not provided, clear stale issue-selection state
+    # from prior workflows so the create flow always starts fresh (FR-002).
+    if not issue_key:
+        _clear_stale_issue_keys_for_create()
+
     set_value("copilot.model_id", model)
 
     # If project_key provided via CLI, set it in state
@@ -1669,6 +1701,12 @@ def initiate_create_jira_epic_workflow(
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+
+    # When --issue-key is not provided, clear stale issue-selection state
+    # from prior workflows so the create flow always starts fresh.
+    if not issue_key:
+        _clear_stale_issue_keys_for_create()
+
     set_value("copilot.model_id", model)
 
     # If project_key provided via CLI, set it in state
@@ -1892,6 +1930,12 @@ def initiate_create_jira_subtask_workflow(
 
     # Resolve identity/scope and clear state in the correct order.
     issue_key = _ensure_scoped_bootstrap_and_clear(issue_key)
+
+    # When --issue-key is not provided, clear stale issue-selection state
+    # from prior workflows so the create flow always starts fresh.
+    if not issue_key:
+        _clear_stale_issue_keys_for_create()
+
     set_value("copilot.model_id", model)
 
     # If parent_key provided via CLI, set it in state

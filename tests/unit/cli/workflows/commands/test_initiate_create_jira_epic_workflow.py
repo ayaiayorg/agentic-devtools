@@ -62,8 +62,9 @@ class TestInitiateCreateJiraEpicWorkflowBranches:
         self,
         mock_workflow_state_clearing,
     ):
-        """Test that a resolved issue key is persisted when current state points at a different key."""
-        issue_key_reads = iter(["PROJECT-1234", "PROJECT-0001"])
+        """Test that an explicit issue key is re-persisted when current state has a different value."""
+        # One value: the "current" state that mismatches the explicit CLI arg.
+        issue_key_reads = iter(["PROJECT-0001"])
 
         def fake_get_value(key, *args, **kwargs):
             if key == "jira.issue_key":
@@ -86,7 +87,9 @@ class TestInitiateCreateJiraEpicWorkflowBranches:
                     )
 
                     with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup", return_value=True):
-                        commands.initiate_create_jira_epic_workflow(_argv=[])
+                        # Provide --issue-key explicitly so the stale-key clear is skipped
+                        # and the resolved_issue_key comes from the CLI arg, not state.
+                        commands.initiate_create_jira_epic_workflow(_argv=["--issue-key", "PROJECT-1234"])
 
         assert mock_get_value.call_count >= 3
         assert ("jira.issue_key", "PROJECT-1234") in [call.args for call in mock_set_value.call_args_list]
@@ -373,3 +376,96 @@ class TestSkipCopilotSession:
         """--skip-copilot-session CLI flag prevents copilot session from starting."""
         mock_session = self._run_with_preflight_passing("PROJECT-1234", argv=["--skip-copilot-session"])
         mock_session.assert_not_called()
+
+
+class TestCreateJiraEpicStaleStateClearance:
+    """Tests for stale issue key clearing when --issue-key is not provided."""
+
+    def test_stale_jira_issue_key_cleared_when_no_issue_key_arg(self, temp_state_dir, clear_state_before, capsys):
+        """Stale jira.issue_key from prior workflow is cleared, create-placeholder path is taken."""
+        state.set_value("jira.issue_key", "STALE-999")
+        state.set_value("jira.project_key", "PROJECT")
+
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
+        ) as mock_create:
+
+            def _mock_create_placeholder(**_kwargs):
+                # Stale key must be cleared before placeholder creation starts.
+                assert state.get_value("jira.issue_key") is None
+                # Simulate real helper behavior by persisting the new placeholder key.
+                state.set_value("jira.issue_key", "PROJECT-NEW-1")
+                return (True, "PROJECT-NEW-1")
+
+            mock_create.side_effect = _mock_create_placeholder
+            commands.initiate_create_jira_epic_workflow(_argv=[])
+
+        # Stale key was cleared — create path was taken (not the existing-issue path)
+        mock_create.assert_called_once()
+        assert state.get_value("jira.issue_key") == "PROJECT-NEW-1"
+
+    def test_stale_state_emits_stderr_message(self, temp_state_dir, clear_state_before, capsys):
+        """Stderr contains informational message when stale keys are cleared."""
+        state.set_value("jira.issue_key", "STALE-999")
+        state.set_value("jira.project_key", "PROJECT")
+
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
+        ) as mock_create:
+            mock_create.return_value = (True, "PROJECT-NEW-1")
+            commands.initiate_create_jira_epic_workflow(_argv=[])
+
+        captured = capsys.readouterr()
+        assert "Cleared stale issue selection state" in captured.err
+
+    def test_no_stale_state_no_stderr_message(self, temp_state_dir, clear_state_before, capsys):
+        """No stderr message when no stale keys exist."""
+        state.set_value("jira.project_key", "PROJECT")
+
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
+        ) as mock_create:
+            mock_create.return_value = (True, "PROJECT-NEW-1")
+            commands.initiate_create_jira_epic_workflow(_argv=[])
+
+        captured = capsys.readouterr()
+        assert "Cleared stale issue selection state" not in captured.err
+
+    def test_explicit_issue_key_preserves_state(self, temp_state_dir, clear_state_before, capsys):
+        """Explicit --issue-key bypasses stale-state clearing."""
+        state.set_value("jira.issue_key", "PROJECT-1234")
+        state.set_value("jira.project_key", "PROJECT")
+
+        with patch("agentic_devtools.cli.workflows.preflight.check_worktree_and_branch") as mock_pf:
+            from agentic_devtools.cli.workflows.preflight import PreflightResult
+
+            mock_pf.return_value = PreflightResult(
+                folder_valid=False,
+                branch_valid=False,
+                folder_name="wrong",
+                branch_name="main",
+                issue_key="PROJECT-1234",
+            )
+
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_create_jira_epic_workflow(_argv=["--issue-key", "PROJECT-1234"])
+
+        # No stale-state warning emitted
+        captured = capsys.readouterr()
+        assert "Cleared stale issue selection state" not in captured.err
+        # Issue key is preserved in state
+        assert state.get_value("jira.issue_key") == "PROJECT-1234"
+
+    def test_project_key_preserved_after_stale_clear(self, temp_state_dir, clear_state_before, capsys):
+        """jira.project_key survives the stale issue key clearing."""
+        state.set_value("jira.issue_key", "STALE-999")
+        state.set_value("jira.project_key", "MYPROJ")
+
+        with patch(
+            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
+        ) as mock_create:
+            mock_create.return_value = (True, "MYPROJ-NEW-1")
+            commands.initiate_create_jira_epic_workflow(_argv=[])
+
+        assert state.get_value("jira.project_key") == "MYPROJ"
