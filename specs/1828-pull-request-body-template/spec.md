@@ -22,8 +22,8 @@
 
 - Q: The `create_pull_request()` function currently exists in `azure_devops/commands.py` (for Azure DevOps via `az repos pr create`). GitHub PR creation via `gh pr create` does not yet have a
   dedicated `create_pull_request()` implementation in the codebase. Should the template interpolation logic be applied to both platforms or only Azure DevOps? → A: The template interpolation logic
-  must apply to both platforms. The interpolation should be implemented as a shared utility function (e.g., in a new `agentic_devtools/cli/pr_template.py` module) that resolves the PR body before it is
-  passed to the platform-specific creation command. `azure_devops/commands.py` already has a `create_pull_request()` entry point and will call this utility directly. GitHub will require a new PR
+  must apply to both platforms. The interpolation should be implemented as a shared utility function (e.g., in a new `agentic_devtools/cli/pr_template.py` module) that resolves the PR body before it
+  is passed to the platform-specific creation command. `azure_devops/commands.py` already has a `create_pull_request()` entry point and will call this utility directly. GitHub will require a new PR
   creation command/module (not the existing `github/async_commands.py`, which handles issue creation) that also calls the shared utility to resolve the PR body value.
 
 - Q: When `origin/main` does not exist (e.g., newly initialized repo or remote uses `master`), should the git log fallback try alternative branch names like `origin/master`, `main`, or `master` before
