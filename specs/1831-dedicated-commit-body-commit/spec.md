@@ -75,6 +75,8 @@ followed by a blank line followed by the body content verbatim.
 4. **Given** a `commit-body.md` file exceeds 102,400 bytes (100 × 1024; "100KB") in raw on-disk size, **When** `agdt-git-save-work` executes, **Then** the commit is aborted, an error is printed to
    stderr stating the actual file size in bytes and the 102,400-byte limit, and the command exits with a non-zero code.
 
+**Functional requirements covered**: FR-001, FR-002, FR-008, FR-010, FR-011
+
 ---
 
 ### User Story 2 - Show Command for Body Inspection (Priority: P1)
@@ -98,6 +100,8 @@ any YAML frontmatter presented in its own clearly delineated section).
 
 3. **Given** no `commit-body.md` file exists, **When** `agdt-commit-body-show` is executed, **Then** a message is printed to stderr indicating no commit body file was found, and the command exits with
    a non-zero exit code.
+
+**Functional requirements covered**: FR-003, FR-009
 
 ---
 
@@ -123,6 +127,8 @@ dictionary matches expected structure. Independent of git operations.
 3. **Given** a `commit-body.md` with malformed YAML frontmatter (invalid YAML syntax between `---` delimiters), **When** the frontmatter parsing function is invoked, **Then** a warning is printed to
    stderr, the frontmatter is treated as empty, and the entire file content (including the malformed frontmatter section) is used as the body to avoid data loss.
 
+**Functional requirements covered**: FR-004, FR-007
+
 ---
 
 ### User Story 4 - Worktree Isolation of Commit Body Files (Priority: P2)
@@ -143,6 +149,8 @@ content written to that specific path.
 
 2. **Given** a `commit-body.md` exists in worktree A but not in worktree B, **When** `agdt-git-save-work` is executed in worktree B's context, **Then** no additional body is injected, the existing
    `commit_message` value for worktree B is used unchanged, and worktree A's body file is never read.
+
+**Functional requirements covered**: FR-005, FR-006
 
 ---
 
