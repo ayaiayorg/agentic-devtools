@@ -1,4 +1,12 @@
-"""Apply suggestions action — auto-applies review suggestions before repair dispatch."""
+"""Apply suggestions action — auto-applies review suggestions before repair dispatch.
+
+Supports two types of suggestions:
+1. Standard ``suggestion`` fenced blocks in comment bodies (via GraphQL)
+2. Copilot "Suggested changeset" diffs (via page HTML scraping fallback)
+
+The page-scraping fallback activates when no standard suggestion blocks are found
+but an actionable Copilot review exists with inline comments.
+"""
 
 from __future__ import annotations
 
@@ -67,13 +75,16 @@ class ApplySuggestionsAction:
         # Must have an actionable review:
         # - CHANGES_REQUESTED is actionable when a Copilot review exists
         # - COMMENTED is actionable only when inline count is non-zero (or unknown=-1)
+        # - OR: unresolved threads exist from prior commits (suggestions may
+        #   still be applicable even though the review is no longer on HEAD)
         has_actionable_review = snapshot.copilot_review_id > 0 and (
             snapshot.review_state == "CHANGES_REQUESTED"
             or (snapshot.review_state == "COMMENTED" and snapshot.copilot_review_inline_count != 0)
         )
-        preconditions["has_actionable_review"] = has_actionable_review
+        has_unresolved_prior_threads = snapshot.unresolved_threads > 0
+        preconditions["has_actionable_review"] = has_actionable_review or has_unresolved_prior_threads
 
-        if not has_actionable_review:
+        if not has_actionable_review and not has_unresolved_prior_threads:
             return ActionResult(
                 name=self.name,
                 decision=ActionDecision.SKIP,
@@ -121,25 +132,64 @@ class ApplySuggestionsAction:
                 details=f"Autofix cycle limit reached ({prior_autofix_count}/{_MAX_AUTOFIX_CYCLES})",
             )
 
-        # Fetch applicable suggestions
+        # Fetch applicable suggestions (standard ```suggestion blocks via GraphQL)
+        fetch_failed = False
         try:
             suggestions, pr_node_id = fetch_applicable_suggestions(provider, snapshot.pr_number)
         except Exception as exc:
+            fetch_failed = True
             logger.warning("PR #%d: Failed to fetch suggestions: %s", snapshot.pr_number, exc)
-            # Return SKIP (not FAILED) to avoid halting pipeline per FR-010
-            return ActionResult(
-                name=self.name,
-                decision=ActionDecision.SKIP,
-                details=f"Failed to fetch suggestions: {exc}",
-            )
+            suggestions = []
+            pr_node_id = ""
 
+        # Fallback: try Copilot "Suggested changeset" diffs from page HTML
+        # These are not stored in the comment body — they're embedded in the
+        # PR page as React partial JSON. This handles Copilot code review
+        # suggestions that use the proprietary "autofix" format.
         if not suggestions:
-            logger.info("PR #%d: No applicable suggestions found", snapshot.pr_number)
+            fallback_failed = False
+            try:
+                fallback_result = _apply_copilot_autofix_suggestions(provider, snapshot)
+            except Exception as exc:
+                fallback_failed = True
+                logger.warning(
+                    "PR #%d: Copilot autofix fallback failed: %s",
+                    snapshot.pr_number,
+                    exc,
+                )
+                fallback_result = None
+
+            if fallback_result is not None:
+                # Set exclusion context so dispatch_repair skips applied comments.
+                # Since apply_pr_suggestions already resolves threads, the primary
+                # mechanism is thread resolution. ExclusionContext is supplementary.
+                if fallback_result.get("exclusion_ctx"):
+                    derived.set("exclusion_context", fallback_result["exclusion_ctx"])
+                # Signal to resolve_threads to skip SDK evaluation — remaining
+                # threads haven't been addressed yet (no repair has run).
+                action_result = fallback_result["action_result"]
+                if action_result.decision == ActionDecision.EXECUTE:
+                    derived.set("autofix_applied_this_iteration", True)
+                return action_result
+
+            # Neither approach found suggestions
+            failed_sources = []
+            if fetch_failed:
+                failed_sources.append("GraphQL fetch")
+            if fallback_failed:
+                failed_sources.append("autofix fallback")
+            details = (
+                "No applicable suggestions found; "
+                f"suggestion discovery failed earlier ({', '.join(failed_sources)}), see logs"
+                if failed_sources
+                else "No applicable suggestions found"
+            )
+            logger.info("PR #%d: %s", snapshot.pr_number, details)
             return ActionResult(
                 name=self.name,
                 decision=ActionDecision.SKIP,
                 preconditions={"suggestions_found": False},
-                details="No applicable suggestions found",
+                details=details,
             )
 
         # Check threshold (FR-011)
@@ -228,6 +278,10 @@ class ApplySuggestionsAction:
         # Post summary comment (FR — User Story 5)
         _post_summary_comment(provider, snapshot.pr_number, result)
 
+        # Signal to resolve_threads to skip SDK evaluation — remaining
+        # threads haven't been addressed yet (no repair has run).
+        derived.set("autofix_applied_this_iteration", True)
+
         return ActionResult(
             name=self.name,
             decision=ActionDecision.EXECUTE,
@@ -300,3 +354,104 @@ def _count_prior_autofix_comments(
         if "🔧 **Auto-applied" in body:
             count += 1
     return count
+
+
+def _apply_copilot_autofix_suggestions(
+    provider: CIPlatformProvider,
+    snapshot: PRStateSnapshot,
+) -> dict | None:
+    """Try to apply Copilot 'Suggested changeset' diffs via page HTML scraping.
+
+    This is the fallback for when standard ```suggestion blocks are not found.
+    Copilot code review uses a proprietary "autofix" format that stores suggestion
+    diffs in embedded React partial JSON within the PR page HTML.
+
+    Returns a dict with ``action_result`` (ActionResult) and ``exclusion_ctx``
+    (ExclusionContext or None) if suggestions were found and processed, or None
+    if no Copilot autofix suggestions exist.
+
+    On any error, returns None (fail-open, per FR-010 — does not halt the pipeline).
+    """
+    from agentic_devtools.cli.github.apply_thread_autofix import apply_pr_suggestions
+
+    # Resolve repo name from provider or environment
+    repo = getattr(provider, "_repo", None) or os.environ.get("GITHUB_REPOSITORY", "")
+    if not repo:
+        logger.warning(
+            "PR #%d: Copilot autofix fallback skipped — repo could not be determined "
+            "(set GITHUB_REPOSITORY or ensure provider._repo is populated)",
+            snapshot.pr_number,
+        )
+        return None
+
+    logger.info(
+        "PR #%d: No standard suggestion blocks found, trying Copilot autofix fallback",
+        snapshot.pr_number,
+    )
+
+    try:
+        result = apply_pr_suggestions(
+            pr_number=snapshot.pr_number,
+            repo=repo,
+            comment_ids=None,
+            message="Apply suggestions from code review",
+            resolve=True,
+        )
+    except SystemExit:
+        # apply_pr_suggestions may call sys.exit on fatal errors (e.g., gh not found)
+        # In pipeline context, treat as non-fatal skip
+        logger.warning(
+            "PR #%d: Copilot autofix fallback exited — treating as skip",
+            snapshot.pr_number,
+        )
+        return None
+    except Exception as exc:
+        logger.warning(
+            "PR #%d: Copilot autofix fallback error: %s",
+            snapshot.pr_number,
+            exc,
+        )
+        return None
+
+    applied = result.get("applied", 0)
+    skipped = result.get("skipped", 0)
+    commit = result.get("commit")
+
+    if applied == 0 and skipped == 0:
+        # No Copilot autofix suggestions found at all
+        return None
+
+    logger.info(
+        "PR #%d: Copilot autofix — applied %d, skipped %d, commit=%s",
+        snapshot.pr_number,
+        applied,
+        skipped,
+        commit[:12] if commit else "none",
+    )
+
+    # Threads are already resolved by apply_pr_suggestions via GraphQL.
+    # The snapshot refresh (triggered by invalidates_snapshot=True) will pick
+    # up the resolved state. No ExclusionContext is needed here.
+    exclusion_ctx = None
+
+    if applied > 0:
+        action_result = ActionResult(
+            name="apply_suggestions",
+            decision=ActionDecision.EXECUTE,
+            preconditions={"suggestions_found": True, "within_threshold": True},
+            details=(
+                f"Copilot autofix: applied {applied} suggestion(s)"
+                f"{f', skipped {skipped}' if skipped else ''}"
+                f" (commit={commit[:12] if commit else 'none'})"
+            ),
+            invalidates_snapshot=True,
+        )
+    else:
+        action_result = ActionResult(
+            name="apply_suggestions",
+            decision=ActionDecision.SKIP,
+            preconditions={"suggestions_found": True, "within_threshold": True},
+            details=f"Copilot autofix: all {skipped} suggestions conflicted/stale",
+        )
+
+    return {"action_result": action_result, "exclusion_ctx": exclusion_ctx}

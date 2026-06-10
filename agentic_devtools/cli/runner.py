@@ -346,6 +346,10 @@ COMMAND_MAP = {
         "agentic_devtools.cli.github.pr_merge",
         "pr_merge_command",
     ),
+    "agdt-apply-pr-thread-autofix-suggestions": (
+        "agentic_devtools.cli.apply_thread_autofix_suggestions",
+        "apply_pr_autofix_suggestions_command",
+    ),
     # Speckit
     "agdt-speckit-specify": ("agentic_devtools.cli.speckit", "speckit_specify"),
     "agdt-speckit-plan": ("agentic_devtools.cli.speckit", "speckit_plan"),
