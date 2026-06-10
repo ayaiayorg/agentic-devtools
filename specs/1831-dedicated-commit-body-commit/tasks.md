@@ -21,8 +21,8 @@
 
 ## Phase 2: Foundational — Core Helper Functions (TDD)
 
-- [ ] T005 Write failing tests for `get_commit_body_path()` in `tests/unit/cli/git/commit_body/test_get_commit_body_path.py` — verifies path resolves to `{state_dir}/files/commit-body.md` (FR-005,
-  FR-006)
+- [ ] T005 Write failing tests for `get_commit_body_path()` in `tests/unit/cli/git/commit_body/test_get_commit_body_path.py` — single-worktree-key assertion only: verifies path resolves to
+  `{state_dir}/files/commit-body.md` for a given state directory (FR-005, FR-006); does NOT test multi-key comparison (that is T024's scope)
 - [ ] T006 Implement `get_commit_body_path()` in `agentic_devtools/cli/git/commit_body.py` (FR-005, FR-006)
 - [ ] T007 [P] Write failing tests for `extract_title()` in `tests/unit/cli/git/commit_body/test_extract_title.py` — single line, multiline (only first line returned, rest discarded per FR-001)
 - [ ] T008 [P] Write failing tests for `assemble_message()` in `tests/unit/cli/git/commit_body/test_assemble_message.py` — title + blank line + body (FR-001)
@@ -49,7 +49,8 @@
 
 ## Phase 4: User Story 1 — Commit Body Injection (P1)
 
-- [ ] T018 [US1] Write failing tests for body injection in `tests/unit/cli/git/commands/test_commit_cmd.py` — body present injects after title happy path (FR-001), missing body uses full `commit_message`
+- [ ] T018 [US1] Write failing tests for body injection in `tests/unit/cli/git/commands/test_commit_cmd.py` — body present injects after title happy path (FR-001), missing body uses full
+  `commit_message`
   unchanged (FR-002), empty/whitespace body treated as absent (FR-002), >100KB aborts commit (FR-011), multiline `commit_message` with file body discards inline body (FR-001)
 - [ ] T019 [US1] Modify `commit_cmd()` in `agentic_devtools/cli/git/commands.py` to call `read_commit_body()`, `extract_title()`, and `assemble_message()` — integrating body injection after getting
   commit message (FR-001, FR-002)
@@ -64,8 +65,8 @@
 
 ## Phase 6: User Story 4 — Worktree Isolation (P2)
 
-- [ ] T024 [US4] Write tests in `tests/unit/cli/git/commit_body/test_get_commit_body_path.py` verifying path uses per-worktree state directory (FR-005) — two different worktree keys produce different
-  paths
+- [ ] T024 [US4] Write tests in `tests/unit/cli/git/commit_body/test_get_commit_body_path.py` verifying multi-key worktree isolation for `get_commit_body_path()` (FR-005): two different
+  worktree keys produce strictly different paths; no path overlap between worktrees. Strictly multi-key scope — single-key path structure is covered by T005.
 - [ ] T025 [US4] Write test that `read_commit_body()` in one worktree context never reads another worktree's file (FR-005)
 - [ ] T026 [US4] Write test that missing `files/` subdirectory is treated as absent body without error (FR-006)
 
