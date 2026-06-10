@@ -44,3 +44,24 @@ def mock_git_remote_detection(request, monkeypatch):
     monkeypatch.setattr(config, "get_repository_name_from_git_remote", lambda: None)
     monkeypatch.setattr(config, "get_azure_devops_context_from_git_remote", lambda: None)
     yield
+
+
+@pytest.fixture(autouse=True)
+def _mock_resolve_pr_body_legacy(request):
+    """Mock resolve_pr_body so create_pull_request tests use state description.
+
+    This preserves the existing test semantics where description comes from
+    state. Only applies to tests that exercise create_pull_request.
+    """
+    skip_classes = ("TestCreatePullRequestActualCall", "TestCreatePullRequest")
+    if not any(cls in request.node.nodeid for cls in skip_classes):
+        yield
+        return
+
+    with patch("agentic_devtools.cli.pr_template.resolve_pr_body") as mock:
+
+        def _from_state():
+            return state.get_value("description") or ""
+
+        mock.side_effect = _from_state
+        yield mock

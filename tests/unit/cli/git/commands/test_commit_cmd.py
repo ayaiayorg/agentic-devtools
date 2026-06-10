@@ -371,3 +371,48 @@ class TestCommitCommand:
         assert "[DRY RUN]" in captured.out
         assert "Skipping stage" in captured.out
         assert "Skipping push" in captured.out
+
+    def test_persist_commit_message_called_with_dry_run_false(
+        self,
+        temp_state_dir,
+        clear_state_before,
+        mock_run_safe,
+        mock_should_amend,
+        mock_sync_with_main,
+        mock_persist_commit_message,
+    ):
+        """Test _persist_effective_commit_message is called with dry_run=False after commit."""
+        state.set_value("commit_message", "Test commit")
+
+        n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
+        mock_run_safe.side_effect = (
+            [MagicMock(returncode=0, stdout="", stderr="")]  # add
+            + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # agdt entry resets
+            + [
+                MagicMock(returncode=0, stdout="", stderr=""),  # commit
+                MagicMock(returncode=0, stdout="", stderr=""),  # push
+            ]
+        )
+
+        commands.commit_cmd()
+
+        mock_persist_commit_message.assert_called_once_with(False)
+
+    def test_persist_commit_message_called_with_dry_run_true(
+        self,
+        temp_state_dir,
+        clear_state_before,
+        mock_run_safe,
+        mock_should_amend,
+        mock_sync_with_main,
+        mock_persist_commit_message,
+    ):
+        """Test _persist_effective_commit_message is called with dry_run=True in dry-run mode."""
+        state.set_value("commit_message", "Test commit")
+        state.set_value("dry_run", True)
+
+        commands.commit_cmd()
+
+        mock_persist_commit_message.assert_called_once_with(True)

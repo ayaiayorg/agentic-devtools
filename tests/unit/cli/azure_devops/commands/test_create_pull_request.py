@@ -8,6 +8,25 @@ from agentic_devtools import state
 from agentic_devtools.cli import azure_devops
 
 
+@pytest.fixture(autouse=True)
+def _mock_resolve_pr_body():
+    """Mock resolve_pr_body for create_pull_request tests.
+
+    The function is called internally by create_pull_request; these tests
+    focus on the Azure DevOps CLI interaction, not template resolution.
+    Returns the state ``description`` value to preserve existing test semantics.
+    """
+    with patch(
+        "agentic_devtools.cli.pr_template.resolve_pr_body",
+    ) as mock:
+
+        def _from_state():
+            return state.get_value("description") or ""
+
+        mock.side_effect = _from_state
+        yield mock
+
+
 class TestCreatePullRequest:
     """Tests for create_pull_request command."""
 
@@ -293,3 +312,31 @@ class TestCreatePullRequestActualCall:
         assert state.get_value("pull_request_id") is None
         captured = capsys.readouterr()
         assert "saved to state" not in captured.out
+
+    @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch("subprocess.run")
+    @patch("agentic_devtools.cli.pr_template.resolve_pr_body", return_value="Body from template")
+    def test_resolve_pr_body_called_and_passed_to_az(self, mock_resolve, mock_run, temp_state_dir, clear_state_before):
+        """resolve_pr_body() is invoked and its return value is passed as --description to az."""
+        mock_version = MagicMock()
+        mock_version.returncode = 0
+        mock_ext = MagicMock()
+        mock_ext.returncode = 0
+        mock_ext.stdout = "azure-devops"
+        mock_create = MagicMock()
+        mock_create.returncode = 0
+        mock_create.stdout = '{"pullRequestId": 999, "repository": {}}'
+
+        mock_run.side_effect = [mock_version, mock_ext, mock_create]
+
+        state.set_value("source_branch", "feature/test")
+        state.set_value("title", "Test PR")
+
+        azure_devops.create_pull_request()
+
+        mock_resolve.assert_called_once()
+        create_call = mock_run.call_args_list[2]
+        cmd = create_call[0][0]
+        assert "--description" in cmd
+        desc_index = cmd.index("--description")
+        assert cmd[desc_index + 1] == "Body from template"

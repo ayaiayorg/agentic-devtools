@@ -63,6 +63,13 @@ def mock_sync_with_main():
         yield mock
 
 
+@pytest.fixture(autouse=True)
+def _mock_persist_commit_message():
+    """Mock _persist_effective_commit_message to avoid extra run_safe calls."""
+    with patch("agentic_devtools.cli.git.commands._persist_effective_commit_message"):
+        yield
+
+
 # =============================================================================
 # Commit Command Tests
 # =============================================================================

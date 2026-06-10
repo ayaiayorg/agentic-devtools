@@ -20,6 +20,19 @@ def mock_get_current_branch():
         yield
 
 
+@pytest.fixture(autouse=True)
+def mock_persist_commit_message(request):
+    """Mock _persist_effective_commit_message to avoid extra run_safe calls.
+
+    Skipped for tests that specifically test _persist_effective_commit_message.
+    """
+    if "test__persist_effective_commit_message" in request.node.nodeid:
+        yield
+        return
+    with patch("agentic_devtools.cli.git.commands._persist_effective_commit_message") as mock:
+        yield mock
+
+
 @pytest.fixture
 def mock_should_amend():
     """Mock should_amend_instead_of_commit to always return False (new commit)."""
