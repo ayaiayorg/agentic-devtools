@@ -475,6 +475,15 @@ def _prompt_project_config(*, force_prompt: bool = False) -> None:
     ]:
         config[key] = value
 
+    # Per-field idempotency: write commit type defaults only when both
+    # camelCase canonical and snake_case alias are absent (FR-007).
+    from agentic_devtools.cli.config.commit_type_resolution import STANDARD_COMMIT_TYPES
+
+    if "defaultCommitIssueType" not in config and "default_commit_issue_type" not in config:
+        config["defaultCommitIssueType"] = "feat"
+    if "availableCommitIssueTypes" not in config and "available_commit_issue_types" not in config:
+        config["availableCommitIssueTypes"] = list(STANDARD_COMMIT_TYPES)
+
     path = save_project_config(config)
     print(f"\n  ✓ Project configuration saved to {path}")
 

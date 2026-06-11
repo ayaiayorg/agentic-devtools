@@ -173,7 +173,12 @@ class TestPromptProjectConfig:
         m_input.assert_not_called()
         mock_save.assert_called_once()
         saved = mock_save.call_args[0][0]
-        assert saved == existing
+        # Original keys preserved
+        for key in existing:
+            assert saved[key] == existing[key]
+        # Commit type defaults added since absent
+        assert saved["defaultCommitIssueType"] == "feat"
+        assert "availableCommitIssueTypes" in saved
 
     def test_prompts_only_for_absent_keys(self, capsys):
         """Should prompt only for keys not present in existing config."""
@@ -322,3 +327,81 @@ class TestPromptProjectConfig:
         saved = mock_save.call_args[0][0]
         assert saved["jira_project_keys"] == "NEW_KEY"
         assert saved["jira_base_url"] == "https://new.example.com"
+
+    def test_fresh_config_gets_commit_type_defaults(self, capsys):
+        """Fresh config gets both defaultCommitIssueType and availableCommitIssueTypes."""
+        inputs = iter(["", "", "", "", ""])
+
+        with patch("agentic_devtools.cli.setup.commands.input", side_effect=lambda _: next(inputs)):
+            with patch("agentic_devtools.cli.config.project_config.load_project_config", return_value={}):
+                with patch(
+                    "agentic_devtools.cli.config.project_config.save_project_config", return_value="/fake/path"
+                ) as mock_save:
+                    _prompt_project_config(force_prompt=True)
+
+        saved = mock_save.call_args[0][0]
+        assert saved["defaultCommitIssueType"] == "feat"
+        assert saved["availableCommitIssueTypes"] == [
+            "feat",
+            "fix",
+            "docs",
+            "style",
+            "refactor",
+            "perf",
+            "test",
+            "build",
+            "ci",
+            "chore",
+            "revert",
+        ]
+
+    def test_existing_camel_case_commit_type_preserved(self, capsys):
+        """Existing camelCase defaultCommitIssueType is not overwritten."""
+        existing = {"defaultCommitIssueType": "fix"}
+        inputs = iter(["", "", "", "", ""])
+
+        with patch("agentic_devtools.cli.setup.commands.input", side_effect=lambda _: next(inputs)):
+            with patch("agentic_devtools.cli.config.project_config.load_project_config", return_value=existing):
+                with patch(
+                    "agentic_devtools.cli.config.project_config.save_project_config", return_value="/fake/path"
+                ) as mock_save:
+                    _prompt_project_config(force_prompt=True)
+
+        saved = mock_save.call_args[0][0]
+        assert saved["defaultCommitIssueType"] == "fix"
+        # availableCommitIssueTypes should be added since absent
+        assert "availableCommitIssueTypes" in saved
+
+    def test_existing_snake_case_commit_type_alias_preserved(self, capsys):
+        """Existing snake_case alias prevents default from being written."""
+        existing = {"default_commit_issue_type": "docs"}
+        inputs = iter(["", "", "", "", ""])
+
+        with patch("agentic_devtools.cli.setup.commands.input", side_effect=lambda _: next(inputs)):
+            with patch("agentic_devtools.cli.config.project_config.load_project_config", return_value=existing):
+                with patch(
+                    "agentic_devtools.cli.config.project_config.save_project_config", return_value="/fake/path"
+                ) as mock_save:
+                    _prompt_project_config(force_prompt=True)
+
+        saved = mock_save.call_args[0][0]
+        assert saved["default_commit_issue_type"] == "docs"
+        assert "defaultCommitIssueType" not in saved
+
+    def test_mixed_one_present_one_absent(self, capsys):
+        """When only one commit type field present, only the missing one is added."""
+        existing = {"availableCommitIssueTypes": ["feat", "fix"]}
+        inputs = iter(["", "", "", "", ""])
+
+        with patch("agentic_devtools.cli.setup.commands.input", side_effect=lambda _: next(inputs)):
+            with patch("agentic_devtools.cli.config.project_config.load_project_config", return_value=existing):
+                with patch(
+                    "agentic_devtools.cli.config.project_config.save_project_config", return_value="/fake/path"
+                ) as mock_save:
+                    _prompt_project_config(force_prompt=True)
+
+        saved = mock_save.call_args[0][0]
+        # availableCommitIssueTypes preserved
+        assert saved["availableCommitIssueTypes"] == ["feat", "fix"]
+        # defaultCommitIssueType added
+        assert saved["defaultCommitIssueType"] == "feat"
