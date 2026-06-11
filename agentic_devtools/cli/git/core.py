@@ -121,7 +121,9 @@ def get_commit_message() -> str:
 
     if not message:
         print(
-            f'Error: No commit message set. Use: agdt-set {STATE_COMMIT_MESSAGE} "Your message"',
+            f'Error: No commit message set. Use: agdt-set {STATE_COMMIT_MESSAGE} "Your message"'
+            f"\n  Alternatively, configure a commit template at .agdt/config/commit-template.j2"
+            f"\n  and set the required state keys (versionControl.commitMessageTitle, issue_key, etc.)",
             file=sys.stderr,
         )
         sys.exit(1)

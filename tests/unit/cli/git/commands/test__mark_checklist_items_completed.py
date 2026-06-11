@@ -65,3 +65,25 @@ class TestMarkChecklistItemsCompleted:
 
         captured = capsys.readouterr()
         assert "Marked checklist items as completed" not in captured.out
+
+    def test_no_items_marked_when_ids_do_not_exist(self, temp_state_dir, clear_state_before, capsys):
+        """Test no items are marked when the provided checklist IDs do not exist."""
+        state.set_workflow_state(
+            name="work-on-jira-issue",
+            status="in-progress",
+            step="implementation",
+            context={
+                "jira_issue_key": "PROJECT-1234",
+                "checklist": {
+                    "items": [
+                        {"id": 1, "text": "Task 1", "completed": False},
+                    ],
+                    "modified_by_agent": False,
+                },
+            },
+        )
+
+        commands._mark_checklist_items_completed([99])
+
+        captured = capsys.readouterr()
+        assert "Marked checklist items as completed" not in captured.out

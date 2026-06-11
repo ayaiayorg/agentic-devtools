@@ -767,6 +767,105 @@ class TestSetupCmd:
         assert "Template generation failed" in err
         assert "disk full" in err
 
+    def test_commit_template_already_exists_prints_info(self, capsys, tmp_path):
+        """ensure_commit_template returns False → prints info message."""
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                with patch(
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    side_effect=RuntimeError("skip"),
+                                                ):
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        return_value=[],
+                                                    ):
+                                                        with patch(
+                                                            "agentic_devtools.cli.setup.commit_template_setup.ensure_commit_template",
+                                                            return_value=False,
+                                                        ):
+                                                            with patch(
+                                                                "agentic_devtools.cli.setup.commit_template_setup.validate_commit_template",
+                                                                return_value=[],
+                                                            ):
+                                                                commands.setup_cmd()
+        out = capsys.readouterr().out
+        assert "Commit template already exists" in out
+
+    def test_commit_template_validation_warnings_printed(self, capsys, tmp_path):
+        """validate_commit_template returns warnings → printed to stderr."""
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                with patch(
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    side_effect=RuntimeError("skip"),
+                                                ):
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        return_value=[],
+                                                    ):
+                                                        with patch(
+                                                            "agentic_devtools.cli.setup.commit_template_setup.ensure_commit_template",
+                                                            return_value=True,
+                                                        ):
+                                                            with patch(
+                                                                "agentic_devtools.cli.setup.commit_template_setup.validate_commit_template",
+                                                                return_value=["Missing variable 'issueType'"],
+                                                            ):
+                                                                commands.setup_cmd()
+        err = capsys.readouterr().err
+        assert "Missing variable 'issueType'" in err
+
+    def test_commit_template_setup_exception_warns_stderr(self, capsys, tmp_path):
+        """Exception in commit template setup → warning on stderr, setup continues."""
+        with patch("sys.argv", ["agdt-setup"]):
+            with patch.object(commands, "_prefetch_certs"):
+                with patch.object(commands, "install_copilot_cli", return_value=True):
+                    with patch.object(commands, "install_gh_cli", return_value=True):
+                        with patch.object(commands, "check_all_dependencies", return_value=_make_statuses(True)):
+                            with patch.object(commands, "_persist_env_vars_to_profile"):
+                                with patch("agentic_devtools.state._get_git_repo_root", return_value=tmp_path):
+                                    with patch(
+                                        "agentic_devtools.agdt_gitignore.ensure_agdt_gitignore", return_value=True
+                                    ):
+                                        with patch.object(commands, "_prompt_project_config"):
+                                            with patch.object(commands, "_prompt_copilot_model"):
+                                                with patch(
+                                                    "agentic_devtools.cli.setup.platform_detection.detect_platforms",
+                                                    side_effect=RuntimeError("skip"),
+                                                ):
+                                                    with patch(
+                                                        "agentic_devtools.cli.setup.workflow_templates.generate_default_templates",
+                                                        return_value=[],
+                                                    ):
+                                                        with patch(
+                                                            "agentic_devtools.cli.setup.commit_template_setup.ensure_commit_template",
+                                                            side_effect=OSError("permission denied"),
+                                                        ):
+                                                            commands.setup_cmd()
+        err = capsys.readouterr().err
+        assert "Commit template setup failed" in err
+        assert "permission denied" in err
+
     def test_template_target_dir_is_correct(self, capsys, tmp_path):
         """Template target_dir is git_root / '.agdt' / 'workflow-definitions'."""
         with patch("sys.argv", ["agdt-setup"]):

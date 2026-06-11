@@ -64,10 +64,24 @@ def mock_sync_with_main():
 
 
 @pytest.fixture(autouse=True)
-def _mock_persist_commit_message():
-    """Mock _persist_effective_commit_message to avoid extra run_safe calls."""
-    with patch("agentic_devtools.cli.git.commands._persist_effective_commit_message"):
+def mock_commit_template():
+    """Mock resolve_commit_message_from_template to return None.
+
+    Prevents template resolution from calling run_safe (git rev-parse)
+    which would consume mocked side_effect entries in commit_cmd tests.
+    """
+    with patch(
+        "agentic_devtools.cli.git.commit_template.resolve_commit_message_from_template",
+        return_value=None,
+    ):
         yield
+
+
+@pytest.fixture(autouse=True)
+def mock_persist_commit_message():
+    """Mock _persist_effective_commit_message to keep commit tests focused."""
+    with patch("agentic_devtools.cli.git.commands._persist_effective_commit_message") as mock:
+        yield mock
 
 
 # =============================================================================

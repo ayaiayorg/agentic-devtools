@@ -33,6 +33,20 @@ def mock_persist_commit_message(request):
         yield mock
 
 
+@pytest.fixture(autouse=True)
+def mock_commit_template():
+    """Mock resolve_commit_message_from_template to return None.
+
+    Prevents template resolution from calling run_safe (git rev-parse)
+    which would consume mocked side_effect entries in commit_cmd tests.
+    """
+    with patch(
+        "agentic_devtools.cli.git.commit_template.resolve_commit_message_from_template",
+        return_value=None,
+    ):
+        yield
+
+
 @pytest.fixture
 def mock_should_amend():
     """Mock should_amend_instead_of_commit to always return False (new commit)."""

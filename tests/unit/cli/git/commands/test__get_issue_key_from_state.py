@@ -116,3 +116,17 @@ class TestGetIssueKeyFromState:
         state.set_value("jira.issue_key", 12345)
         result = commands._get_issue_key_from_state()
         assert result == "12345"
+
+    def test_whitespace_only_jira_issue_key_falls_through(self, temp_state_dir, clear_state_before):
+        """Test whitespace-only jira.issue_key falls through to workflow context."""
+        state.set_value("jira.issue_key", "   ")
+        state.set_value(
+            "workflow",
+            {
+                "name": "test",
+                "status": "in-progress",
+                "context": {"jira_issue_key": "PROJ-100"},
+            },
+        )
+        result = commands._get_issue_key_from_state()
+        assert result == "PROJ-100"

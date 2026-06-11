@@ -43,6 +43,9 @@ the top level without a category prefix (e.g., `agdt_run_id`,
 | Key | Type | Description | Introduced |
 |---|---|---|---|
 | `versionControl.currentBranch` | `str` | The git branch checked out when the workflow was initiated | [#841](https://github.com/ayaiayorg/agentic-devtools/issues/841) |
+| `versionControl.commitMessageType` | `str` | Explicit conventional commit type prefix (e.g., `feat`, `fix`, `chore`). Overrides Jira type mapping. | [#1829](https://github.com/ayaiayorg/agentic-devtools/issues/1829) |
+| `versionControl.commitMessageTitle` | `str` | Commit message summary/title line for template rendering. | [#1829](https://github.com/ayaiayorg/agentic-devtools/issues/1829) |
+| `versionControl.commitMessageBodyFile` | `str` | Path to file containing commit body text. Relative paths resolve against git root. | [#1829](https://github.com/ayaiayorg/agentic-devtools/issues/1829) |
 
 ### `sourceCodeHostingPlatform`
 
@@ -53,8 +56,13 @@ the top level without a category prefix (e.g., `agdt_run_id`,
 
 ### `issueManagement`
 
-No new keys introduced yet.  Existing `jira.*` keys will be migrated
-to `issueManagement.*` in a future refactoring.
+| Key | Type | Description | Introduced |
+|---|---|---|---|
+| `issueManagement.issueLink` | `str` | Explicit issue link URL. Overrides auto-derived GitHub issue link. | [#1829](https://github.com/ayaiayorg/agentic-devtools/issues/1829) |
+| `issueManagement.issueKey` | `str` | Planned provider-agnostic issue key alias for `issue_key` (documented target; not yet consumed by runtime code). | [#1829](https://github.com/ayaiayorg/agentic-devtools/issues/1829) |
+| `issueManagement.issueType` | `str` | Issue type for commit type mapping (e.g., `Bug`, `Story`, `Task`). | [#1829](https://github.com/ayaiayorg/agentic-devtools/issues/1829) |
+
+Existing `jira.*` keys will be migrated to `issueManagement.*` in a future refactoring.
 
 ## Legacy Keys (pre-convention)
 
