@@ -10,14 +10,18 @@ You are a senior software engineer resolving merge conflicts. Follow this workfl
 
 | Operation | Preferred (agdt-*) | Fallback (raw) |
 |-----------|-------------------|----------------|
-| Run tests | `agdt-test` + `agdt-task-wait` | _Do not run `pytest` directly; always use `agdt-test` commands._ |
-| Stage changes | `agdt-git-stage` | `git add` |
-| Commit | `agdt-git-save-work` | `git commit` |
-| Push | `agdt-git-push` | `git push` |
+| Stage changes (new/modified files) | `agdt-git-stage` | `git add .` |
+| Stage all + commit + push | `agdt-git-save-work` | `git add -A` + `git commit` + `git push` |
 | Get PR context | — | `gh pr view` |
 | List GitHub issues | — | `gh issue list` |
 
 The `agdt-*` commands provide: state tracking, consistent formatting, and background task management.
+
+> `agdt-git-save-work` stages changes via `git add .` (run it from the repo root to cover the whole repo; note that `git add .` does **not** stage deletions), then commits/amends and pushes.
+> `agdt-git-stage` likewise stages via `git add .` (repo-root recommended; deletions require `git add -A` or `git add -u`).
+> For selective/full-repo staging (including deletions), run `git add <file>` (or `git add -A`) and then `agdt-git-save-work --skip-stage`.
+> After running `agdt-git-save-work`, you MUST wait with `agdt-task-wait` for the push + pre-push hook checks to finish.
+> See `.github/instructions/pre-push-hook.instructions.md` for the push-fix-push loop pattern.
 
 ---
 
@@ -191,10 +195,21 @@ jq . path/to/file.json
 5. Ensure imports/dependencies are included for all merged code
 
 ```bash
-# After resolution, verify code compiles and tests pass
-# Use agentic-devtools for test execution (always — do not run pytest directly)
-agdt-test                    # Runs full test suite (background task)
-agdt-task-wait               # Wait for test results
+# After resolving all conflicts, finalise and push.
+#
+# IMPORTANT: Check whether MERGE_HEAD exists — if so, you are completing a merge commit
+# and must NOT use agdt-git-save-work (it amends, which would discard the merge parents).
+#
+# Case A — completing a merge commit (MERGE_HEAD exists):
+git merge --continue        # finalise the merge commit (opens editor; use --no-edit to skip)
+# or equivalently: git commit --no-edit
+agdt-git-push               # push the true merge commit; the pre-push hook runs targeted checks
+agdt-task-wait
+
+# Case B — regular (non-merge) commit (MERGE_HEAD does not exist):
+# agdt-git-save-work handles staging, commit/amend, and push in one step.
+agdt-git-save-work
+agdt-task-wait
 ```
 
 ### Configuration Files (`.yaml`, `.tf`, `.json` config)
@@ -259,11 +274,6 @@ grep -e '^<<<<<<< ' -e '^=======$' -e '^>>>>>>> ' path/to/file
 # For JSON files - validate syntax (dependency-free)
 python -m json.tool path/to/file.json >/dev/null 2>&1 || echo "JSON INVALID"
 
-# Run tests to verify resolution didn't break anything
-# Use agentic-devtools (always — do not run pytest directly)
-agdt-test                    # Full test suite
-agdt-task-wait               # Wait for results
-
 # Mark file as resolved
 git add path/to/file
 ```
@@ -280,21 +290,11 @@ git diff --name-only --diff-filter=U
 git diff --cached
 
 # Complete the merge (only if all conflicts resolved)
-# Option A: Use agentic-devtools (preferred - but skip rebase/push automation during merge completion)
-agdt-set commit_message "chore([#<issue-number>](https://github.com/ayaiayorg/agentic-devtools/issues/<issue-number>)): resolve merge conflicts from main into <branch-name>
-
-[#<issue-number>](https://github.com/ayaiayorg/agentic-devtools/issues/<issue-number>)"
-
-# During a merge commit, disable auto-push and skip the rebase step
-agdt-set skip_push true
-agdt-git-save-work --skip-rebase
-
-# After the merge commit is created and reviewed, push explicitly
-agdt-git-push
-
-# Option B: Raw git (fallback if agdt not available)
-git commit
-git push
+# IMPORTANT: Do NOT use agdt-git-save-work here — it amends and would discard merge parents.
+# Use git merge --continue (or git commit) to create the true merge commit, then push.
+git merge --continue    # finalise merge commit (opens editor); or: git commit --no-edit
+agdt-git-push           # push the true merge commit; the pre-push hook runs targeted checks
+agdt-task-wait
 ```
 
 ---
@@ -330,19 +330,11 @@ Sometimes code merges cleanly but produces incorrect behavior (no markers, but i
 
 **Detection:**
 
-```bash
-# Run tests to detect semantic conflicts
-agdt-test              # Preferred: full test suite via agentic-devtools
-agdt-task-wait         # Wait for results
+The pre-push hook runs targeted checks when you push, but it only runs tests when it detects
+changed Python sources/tests. If you suspect semantic conflicts before pushing, review runtime
+behavior and consider running relevant tests locally (optional) before pushing.
 
-# Or use quick tests for faster feedback
-agdt-test-quick        # Subset of critical tests
-```
-
-- Review runtime behavior if tests pass but functionality seems wrong
-- Check for renamed variables/functions that may cause silent breakage
-
-**Guideline:** Always run the full test suite (`agdt-test`) after completing a merge, even when conflicts appeared simple.
+**Guideline:** Always push after completing a merge — the pre-push hook runs targeted checks for the changed files and can catch many merge regressions early.
 
 ### Auto-Generated Files
 
@@ -385,8 +377,7 @@ After completing all resolutions, document your work:
 
 ### Verification
 
-- [ ] All tests pass (`agdt-test` + `agdt-task-wait`)
-- [ ] Build succeeds
+- [ ] Push succeeds (pre-push hook completes and any targeted checks for the changed files pass)
 - [ ] No conflict markers remain
 - [ ] Reviewed diff of all resolved files
 ```

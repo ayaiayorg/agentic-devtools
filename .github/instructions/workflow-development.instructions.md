@@ -16,29 +16,28 @@ the identical process below.
    (e.g. `fix/1234/fix-save-work-amend` or `feature/1234/add-webhook-support`).
 2. Implement the changes.
 3. Update or create tests to cover all modified code paths. Ensure both success AND failure branches are tested.
-4. Run targeted checks on your changed files:
-   - `ruff check <files> --no-fix` (lint)
-   - `ruff format --check <files>` (format — auto-fix with `ruff format <files>` if needed)
-   - `python -m mypy <source-files> --ignore-missing-imports --follow-imports=silent` (type check)
-   - `agdt-test-pattern <test-files> --no-cov` (unit tests pass — **never** run `pytest` directly;
-     `agdt-test-pattern` runs synchronously and is the right tool for targeted checks; use
-     `agdt-test` / `agdt-test-quick` for full-suite runs, which go through the background-task system)
+4. Do NOT manually run `ruff`, `mypy`, or the full test suite before pushing —
+   the pre-push hook runs **targeted** checks based on changed files (lint/format/mypy/coverage as applicable).
+   See `.github/instructions/pre-push-hook.instructions.md` for the push-fix-push loop pattern.
 
 ---
 
 ## Push Phase (Pre-Push Hook)
 
-1. Stage, commit, and push using `agdt-git-save-work` (never `git commit` or `git push` directly —
-   this enforces the single-commit-per-PR policy and runs as a background task). Ensure hooks are
-   enabled (`git config core.hooksPath .githooks`) so the push runs the pre-push hook checks.
-2. If the hook fails, read `.pre-push-output.log` in the repo root to see what failed;
-   if available, also review `check-output-condensed.txt` (or `check-output.txt`)
-   for condensed/full failure details. Then fix the issues and rerun `agdt-git-save-work`.
+1. Commit and push using `agdt-git-save-work` (stages, commits/amends, AND pushes — all
+   in one smart command based on branch history), then wait with `agdt-task-wait`. Never use `git commit` or `git push` directly.
+   Ensure hooks are enabled (`git config core.hooksPath .githooks`) so the push runs the pre-push hook checks.
+2. If the hook fails, read `check-output-condensed.txt` (or `check-output.txt` / `.pre-push-output.log`)
+   from the repo root to see what failed. Fix the issues and rerun `agdt-git-save-work`, then `agdt-task-wait`.
 3. Do NOT use `--no-verify` to bypass the hook. The hook must pass.
+4. Do NOT run `agdt-git-force-push` after `agdt-git-save-work` — it already handles force-push
+   when amending an existing commit.
+
+See `.github/instructions/pre-push-hook.instructions.md` for the full push-fix-push loop pattern.
 
 ### Terminal Rules for Push
 
-- **CRITICAL: Do NOT send any commands to the terminal running `git push` while the pre-push hook is executing.** Sending any input will interrupt the hook and you must retry.
+- **CRITICAL: Do NOT cancel the push (e.g., Ctrl+C) or close the terminal running `git push` while the pre-push hook is executing.** If interrupted, rerun the push.
 - To check progress: read `.pre-push-output.log` from the repo root using a file-read tool or a **separate** terminal.
 - If you accidentally interrupt the push, rerun `agdt-git-save-work` to retry (never use raw `git push`/`git push --force-with-lease`).
 
