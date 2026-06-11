@@ -32,6 +32,17 @@ class TestFetchBranch:
 
             assert result is False
 
+    def test_fetch_branch_failure_no_stderr(self, mock_run_safe, capsys):
+        """Test branch fetch failure with empty stderr."""
+        with patch.object(operations, "run_git") as mock_run_git:
+            mock_run_git.return_value = MagicMock(returncode=1, stdout="", stderr="")
+
+            result = operations.fetch_branch("nonexistent-branch")
+
+            assert result is False
+            captured = capsys.readouterr()
+            assert "Failed to fetch" in captured.out
+
     def test_fetch_branch_dry_run(self, mock_run_safe, capsys):
         """Test dry run doesn't execute fetch."""
         with patch.object(operations, "run_git") as mock_run_git:

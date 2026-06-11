@@ -22,6 +22,15 @@ class TestFetchMain:
             result = operations.fetch_main(dry_run=False)
             assert result is False
 
+    def test_fetch_failure_no_stderr(self, mock_run_safe, capsys):
+        """Test fetch failure with empty stderr."""
+        with patch.object(operations, "run_git") as mock_run_git:
+            mock_run_git.return_value = MagicMock(returncode=1, stdout="", stderr="")
+            result = operations.fetch_main(dry_run=False)
+            assert result is False
+            captured = capsys.readouterr()
+            assert "Failed to fetch" in captured.out
+
     def test_fetch_dry_run(self, mock_run_safe, capsys):
         """Test fetch dry run."""
         result = operations.fetch_main(dry_run=True)

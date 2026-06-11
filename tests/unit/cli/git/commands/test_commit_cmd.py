@@ -3,6 +3,8 @@
 import sys
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from agentic_devtools import state
 from agentic_devtools.agdt_gitignore import AGDT_GITIGNORE_ENTRIES
 from agentic_devtools.cli.git import commands, operations
@@ -445,3 +447,365 @@ class TestCommitCommand:
         commands.commit_cmd()
 
         mock_persist_commit_message.assert_called_once_with(True)
+
+    def test_commit_cmd_empty_cli_commit_message_does_not_fallback(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main
+    ):
+        """Test explicit empty --commit-message is passed through without template/state fallback."""
+        state.set_value("commit_message", "State commit message")
+
+        with (
+            patch.object(sys, "argv", ["agdt-git-save-work", "--commit-message", ""]),
+            patch(
+                "agentic_devtools.cli.git.commit_template.resolve_commit_message_from_template",
+                return_value="Template commit message",
+            ) as mock_template,
+            patch("agentic_devtools.cli.git.commands.resolve_commit_intent", side_effect=SystemExit(1)) as mock_resolve,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            commands.commit_cmd()
+
+        assert exc_info.value.code == 1
+        mock_template.assert_not_called()
+        assert mock_resolve.call_args.kwargs["cli_commit_message"] == ""
+        mock_run_safe.assert_not_called()
+
+
+class TestCommitCmdNewTitleParams:
+    """Tests for --commit-message-title and --overwrite-commit-message-title CLI flags."""
+
+    def test_commit_message_title_creates_new_commit(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test --commit-message-title creates a new commit when no commits ahead."""
+        mock_should_amend.return_value = False
+        n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
+        mock_run_safe.side_effect = (
+            [MagicMock(returncode=0, stdout="", stderr="")]  # add
+            + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # agdt entry resets
+            + [
+                MagicMock(returncode=0, stdout="", stderr=""),  # commit
+                MagicMock(returncode=0, stdout="", stderr=""),  # push
+            ]
+        )
+
+        with patch.object(sys, "argv", ["cmd", "--commit-message-title", "feat: new feature"]):
+            commands.commit_cmd()
+
+        captured = capsys.readouterr()
+        assert "Creating new commit" in captured.out
+
+    def test_commit_message_title_rejects_when_commits_ahead(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test --commit-message-title errors if branch has commits ahead."""
+        mock_should_amend.return_value = True
+        n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
+        mock_run_safe.side_effect = (
+            [MagicMock(returncode=0, stdout="", stderr="")]  # add
+            + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # agdt entry resets
+        )
+
+        with patch.object(sys, "argv", ["cmd", "--commit-message-title", "feat: new feature"]):
+            try:
+                commands.commit_cmd()
+                assert False, "Should have exited"
+            except SystemExit as e:
+                assert e.code == 1
+
+        captured = capsys.readouterr()
+        assert "--commit-message-title is for new commits" in captured.err
+        assert "--overwrite-commit-message-title (or overwrite_commit_message_title state key)" in captured.err
+
+    def test_overwrite_commit_message_title_amends(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test --overwrite-commit-message-title amends with preserved body."""
+        mock_should_amend.return_value = True
+        n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
+        mock_run_safe.side_effect = (
+            # git log is called BEFORE stage_changes (to extract existing body)
+            [MagicMock(returncode=0, stdout="old title\n\nexisting body", stderr="")]  # git log
+            + [MagicMock(returncode=0, stdout="", stderr="")]  # add
+            + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # agdt entry resets
+            + [
+                MagicMock(returncode=0, stdout="", stderr=""),  # amend
+                MagicMock(returncode=0, stdout="", stderr=""),  # force push
+            ]
+        )
+
+        with patch.object(sys, "argv", ["cmd", "--overwrite-commit-message-title", "feat: new title"]):
+            commands.commit_cmd()
+
+        captured = capsys.readouterr()
+        assert "will amend" in captured.out
+        assert "--- Commit Title Change ---" in captured.out
+
+    def test_overwrite_commit_message_title_rejects_when_no_commits_ahead(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test --overwrite-commit-message-title errors if no commits ahead."""
+        mock_should_amend.return_value = False
+        n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
+        mock_run_safe.side_effect = (
+            [MagicMock(returncode=0, stdout="", stderr="")]  # add
+            + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # agdt entry resets
+        )
+
+        with patch.object(sys, "argv", ["cmd", "--overwrite-commit-message-title", "feat: new"]):
+            try:
+                commands.commit_cmd()
+                assert False, "Should have exited"
+            except SystemExit as e:
+                assert e.code == 1
+
+        captured = capsys.readouterr()
+        assert "--overwrite-commit-message-title requires an existing commit" in captured.err
+        assert "--commit-message-title (or commit_message_title state key)" in captured.err
+
+    def test_overwrite_commit_message_title_rejects_commit_message_argument(
+        self, temp_state_dir, clear_state_before, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test overwrite mode rejects --commit-message to avoid silent body ignore."""
+        with patch.object(
+            sys, "argv", ["cmd", "--overwrite-commit-message-title", "feat: new title", "--commit-message", "body"]
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                commands.commit_cmd()
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "Cannot combine --overwrite-commit-message-title with --commit-message" in captured.err
+
+    def test_overwrite_commit_message_title_skips_template_resolution(
+        self, temp_state_dir, clear_state_before, mock_should_amend, mock_sync_with_main
+    ):
+        """Test CLI overwrite mode does not resolve the commit template."""
+        state.set_value("dry_run", True)
+        mock_should_amend.return_value = True
+
+        with (
+            patch.object(sys, "argv", ["cmd", "--overwrite-commit-message-title", "feat: new title"]),
+            patch(
+                "agentic_devtools.cli.git.commit_template.resolve_commit_message_from_template",
+                side_effect=AssertionError("template resolution should be skipped"),
+            ),
+            patch(
+                "agentic_devtools.cli.git.commands.run_git",
+                return_value=MagicMock(stdout="old title\n\nbody", stderr=""),
+            ),
+            patch("agentic_devtools.cli.git.commands.amend_commit") as mock_amend_commit,
+        ):
+            commands.commit_cmd()
+
+        mock_amend_commit.assert_called_once_with("feat: new title\n\nbody", True, old_title="old title")
+
+    def test_both_title_params_conflict_exits(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test error when both title params are specified."""
+        state.set_value("commit_message_title", "from state")
+        state.set_value("overwrite_commit_message_title", "also from state")
+
+        try:
+            commands.commit_cmd()
+            assert False, "Should have exited"
+        except SystemExit as e:
+            assert e.code == 1
+
+        captured = capsys.readouterr()
+        assert "Cannot use both" in captured.err
+
+    def test_legacy_path_still_works(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test that plain commit_message still works (legacy path)."""
+        state.set_value("commit_message", "legacy: full message")
+        mock_should_amend.return_value = False
+        n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
+        mock_run_safe.side_effect = (
+            [MagicMock(returncode=0, stdout="", stderr="")]  # add
+            + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # agdt entry resets
+            + [
+                MagicMock(returncode=0, stdout="", stderr=""),  # commit
+                MagicMock(returncode=0, stdout="", stderr=""),  # push
+            ]
+        )
+
+        commands.commit_cmd()
+
+        captured = capsys.readouterr()
+        assert "Creating new commit" in captured.out
+
+    def test_state_key_commit_message_title(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test commit_message_title state key triggers create path."""
+        state.set_value("commit_message_title", "feat: from state key")
+        mock_should_amend.return_value = False
+        n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
+        mock_run_safe.side_effect = (
+            [MagicMock(returncode=0, stdout="", stderr="")]  # add
+            + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # agdt entry resets
+            + [
+                MagicMock(returncode=0, stdout="", stderr=""),  # commit
+                MagicMock(returncode=0, stdout="", stderr=""),  # push
+            ]
+        )
+
+        commands.commit_cmd()
+
+        captured = capsys.readouterr()
+        assert "Creating new commit" in captured.out
+
+    def test_state_key_commit_message_title_error_mentions_state_key(
+        self, temp_state_dir, clear_state_before, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test create-path branch-state errors name the state key when state drove the intent."""
+        state.set_value("commit_message_title", "feat: from state key")
+        mock_should_amend.return_value = True
+
+        with pytest.raises(SystemExit) as exc_info:
+            commands.commit_cmd()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "commit_message_title state key is for new commits" in captured.err
+        assert "--overwrite-commit-message-title (or overwrite_commit_message_title state key)" in captured.err
+
+    def test_state_key_overwrite_commit_message_title(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test overwrite_commit_message_title state key triggers overwrite path."""
+        state.set_value("overwrite_commit_message_title", "feat: overwrite from state")
+        mock_should_amend.return_value = True
+        n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
+        mock_run_safe.side_effect = (
+            [MagicMock(returncode=0, stdout="old title\n\nbody text", stderr="")]  # git log
+            + [MagicMock(returncode=0, stdout="", stderr="")]  # add
+            + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # agdt entry resets
+            + [
+                MagicMock(returncode=0, stdout="", stderr=""),  # amend
+                MagicMock(returncode=0, stdout="", stderr=""),  # force push
+            ]
+        )
+
+        commands.commit_cmd()
+
+        captured = capsys.readouterr()
+        assert "will amend" in captured.out
+
+    def test_state_key_overwrite_commit_message_title_error_mentions_state_key(
+        self, temp_state_dir, clear_state_before, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test overwrite-path branch-state errors name the state key when state drove the intent."""
+        state.set_value("overwrite_commit_message_title", "feat: overwrite from state")
+        mock_should_amend.return_value = False
+
+        with pytest.raises(SystemExit) as exc_info:
+            commands.commit_cmd()
+
+        assert exc_info.value.code == 1
+        captured = capsys.readouterr()
+        assert "overwrite_commit_message_title state key requires an existing commit" in captured.err
+        assert "--commit-message-title (or commit_message_title state key)" in captured.err
+
+    def test_state_key_overwrite_commit_message_title_skips_template_resolution(
+        self, temp_state_dir, clear_state_before, mock_should_amend, mock_sync_with_main
+    ):
+        """Test state-driven overwrite mode does not resolve the commit template."""
+        state.set_value("overwrite_commit_message_title", "feat: overwrite from state")
+        state.set_value("dry_run", True)
+        mock_should_amend.return_value = True
+
+        with (
+            patch(
+                "agentic_devtools.cli.git.commit_template.resolve_commit_message_from_template",
+                side_effect=AssertionError("template resolution should be skipped"),
+            ),
+            patch(
+                "agentic_devtools.cli.git.commands.run_git",
+                return_value=MagicMock(stdout="old title\n\nbody", stderr=""),
+            ),
+            patch("agentic_devtools.cli.git.commands.amend_commit") as mock_amend_commit,
+        ):
+            commands.commit_cmd()
+
+        mock_amend_commit.assert_called_once_with("feat: overwrite from state\n\nbody", True, old_title="old title")
+
+    def test_overwrite_commit_message_title_no_body(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test overwrite when existing commit has no body."""
+        state.set_value("overwrite_commit_message_title", "feat: new title")
+        mock_should_amend.return_value = True
+        n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
+        mock_run_safe.side_effect = (
+            [MagicMock(returncode=0, stdout="old title only", stderr="")]  # git log
+            + [MagicMock(returncode=0, stdout="", stderr="")]  # add
+            + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # agdt entry resets
+            + [
+                MagicMock(returncode=0, stdout="", stderr=""),  # amend
+                MagicMock(returncode=0, stdout="", stderr=""),  # force push
+            ]
+        )
+
+        commands.commit_cmd()
+
+        captured = capsys.readouterr()
+        assert "will amend" in captured.out
+
+    def test_commit_message_title_state_value_is_stringified(
+        self, temp_state_dir, clear_state_before, mock_should_amend, mock_sync_with_main
+    ):
+        """Test non-string title state values are coerced to strings."""
+        state.set_value("commit_message_title", 123)
+        state.set_value("commit_message", "body text")
+        state.set_value("dry_run", True)
+        mock_should_amend.return_value = False
+
+        with patch("agentic_devtools.cli.git.commands.create_commit") as mock_create_commit:
+            commands.commit_cmd()
+
+        mock_create_commit.assert_called_once_with("123\n\nbody text", True)
+
+    def test_overwrite_commit_message_title_preserves_existing_body_verbatim(
+        self, temp_state_dir, clear_state_before, mock_should_amend, mock_sync_with_main
+    ):
+        """Test overwrite path preserves existing body formatting exactly."""
+        state.set_value("overwrite_commit_message_title", "feat: new title")
+        state.set_value("dry_run", True)
+        mock_should_amend.return_value = True
+
+        with (
+            patch(
+                "agentic_devtools.cli.git.commands.run_git",
+                return_value=MagicMock(
+                    stdout="old title\n\n  body line  \n\ntrailer: keep  \n",
+                    stderr="",
+                ),
+            ),
+            patch("agentic_devtools.cli.git.commands.amend_commit") as mock_amend_commit,
+        ):
+            commands.commit_cmd()
+
+        mock_amend_commit.assert_called_once_with(
+            "feat: new title\n\n  body line  \n\ntrailer: keep  ",
+            True,
+            old_title="old title",
+        )
