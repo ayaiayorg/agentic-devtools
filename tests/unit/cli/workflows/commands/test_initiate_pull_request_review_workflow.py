@@ -1,7 +1,9 @@
 """Tests for TestInitiatePRReviewWorkflowBranches."""
 
+import errno
 import json
 import logging
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -1292,7 +1294,14 @@ class TestSkipCopilotSession:
 
         # Place a dangling symlink where the prompt file would normally be
         stale_link = temp_state_dir / "temp-pull-request-review-initiate-prompt.md"
-        stale_link.symlink_to(temp_state_dir / "nonexistent-target.md")
+        try:
+            stale_link.symlink_to(temp_state_dir / "nonexistent-target.md")
+        except OSError as exc:
+            if sys.platform.startswith("win") and (
+                getattr(exc, "winerror", None) == 1314 or exc.errno in {errno.EPERM, errno.EACCES}
+            ):
+                pytest.skip("Symlink creation requires elevated privileges on Windows")
+            raise
         assert stale_link.is_symlink()
         assert not stale_link.exists()  # Dangling — target does not exist
 
