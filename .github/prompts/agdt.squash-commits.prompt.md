@@ -6,19 +6,28 @@ to the next.
 
 ---
 
+> **⚠️ COPILOT CLOUD AGENT RESTRICTION**: This workflow rewrites git history and requires force-pushing (`git push --force-with-lease`).
+> If you are a Copilot Cloud Agent (coding agent), you MUST reject this command and inform the user with exactly this message:
+>
+> `The squash-commits workflow rewrites git history and requires force-push. Please run this command locally using VS Code Copilot Chat.`
+
+---
+
 ## Tooling Priority
 
 **Always prefer `agdt-*` commands** from agentic-devtools over raw git commands:
 
 | Operation | Preferred (agdt-*) | Fallback (raw) |
 |-----------|-------------------|----------------|
-| Run tests | `agdt-test` + `agdt-task-wait` | _Do not run `pytest` directly; always use `agdt-test` commands._ |
 | Stage changes | `agdt-git-stage` | `git add` |
 | Commit | `agdt-git-save-work` | `git commit` |
 | Push (force) | `agdt-git-force-push` | `git push --force-with-lease` |
 | List GitHub issues | — | `gh issue list` |
 
 The `agdt-*` commands provide: centralized state tracking, consistent formatting, and background task management.
+
+> **Do NOT manually run lint, format, mypy, or test commands.** The pre-push hook runs targeted checks
+> based on changed files (ruff/mypy/coverage for relevant Python changes). See Phase 5 for the push-fix-push loop pattern.
 
 ---
 
@@ -354,14 +363,6 @@ REPORT_EOF
 Populate the `"warnings"` array with any warnings from the safety detection phase
 (e.g., `"merge commits detected"`, `"merge-base changed"`).
 
-### Run Tests
-
-```bash
-# Use agentic-devtools (always — do not run pytest directly)
-agdt-test
-agdt-task-wait
-```
-
 ### Verification Summary
 
 Confirm all items pass:
@@ -373,18 +374,24 @@ Confirm all items pass:
 - [ ] Branch merge-base is unchanged from Phase 1 capture
 - [ ] No unintended files staged or lost
 - [ ] **Diff hashes match** (pre-squash and post-squash are content-equivalent)
-- [ ] Tests pass (if applicable)
 - [ ] Verification report written (if a report file was requested)
+
+> **Note**: Tests are NOT run manually in this phase. The pre-push hook in Phase 5 runs targeted checks
+> based on changed files (including lint/format/mypy and per-file coverage for relevant Python changes).
+> This avoids duplicating work.
 
 ---
 
-## Phase 5: Push
+## Phase 5: Push (with Pre-Push Hook)
 
-Force-push the squashed branch (since history was rewritten).
+Force-push the squashed branch. The **pre-push hook** runs targeted checks based on changed files
+(e.g., test structure validation (always), plus ruff format/check, mypy, and per-file coverage for relevant Python changes). This can
+take up to **2 minutes**.
 
 ```bash
 # Preferred: agentic-devtools (uses --force-with-lease internally)
 agdt-git-force-push
+agdt-task-wait
 
 # Fallback: Use --force-with-lease for safety (NEVER use bare --force)
 git push --force-with-lease
@@ -394,6 +401,27 @@ git push --force-with-lease
 > refuses to push if the remote has commits you haven't seen, preventing accidental overwrites
 > of collaborators' work. The `agdt-git-force-push` command already uses `--force-with-lease`
 > internally.
+
+### Terminal Safety Rules
+
+- To check progress: read `.pre-push-output.log` from the repo root using a file-read tool or a **separate** terminal.
+- **Never poll the push terminal for status.**
+
+### Push-Fix-Push Loop
+
+If the pre-push hook rejects the push:
+
+1. **Read the failure details** from `.pre-push-output.log` first (always written by the hook).
+   For non-format check failures, also review `check-output-condensed.txt` (condensed) or `check-output.txt` (full output) in the repo root.
+2. **Fix the reported issues** (e.g., lint errors, coverage gaps, type errors).
+3. **Clear Phase 3 skip flags, then stage + amend + push** using `agdt-git-save-work --skip-rebase`, then wait with
+   `agdt-task-wait` (run `agdt-delete skip_stage` and `agdt-delete skip_push` first if they were set earlier).
+4. **Repeat** until the push succeeds.
+
+> **Do NOT use `--no-verify`** to bypass the hook. The hook must pass.
+>
+> **Do NOT manually run** `ruff`, `mypy`, `pytest`, or `agdt-test` before pushing — the
+> pre-push hook handles all checks. Running them manually is inefficient and duplicates work.
 
 ---
 

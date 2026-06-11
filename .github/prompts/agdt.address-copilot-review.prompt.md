@@ -18,10 +18,15 @@ Follow this workflow systematically, completing each phase before proceeding to 
 | Reply to review comments | `agdt-gh-reply-to-review-comments` | `gh api .../comments/{id}/replies` per comment |
 | Resolve review threads | `agdt-gh-resolve-review-threads` | GraphQL `resolveReviewThread` mutation per thread |
 | Request Copilot re-review | `agdt-gh-request-copilot-review` | `gh api .../requested_reviewers -X POST` |
-| Run tests | `agdt-test` + `agdt-task-wait` | _Do not run `pytest` directly; always use `agdt-test` commands._ |
 | Stage changes | `agdt-git-stage` | `git add` |
 | Commit & push | `agdt-git-save-work` | `git commit` + `git push` |
-| Force push | `agdt-git-force-push` | `git push --force-with-lease` |
+
+> `agdt-git-save-work` stages, commits (or amends), AND pushes in one smart command.
+> It auto-detects when force-push is needed (e.g., amending). You do NOT need to run
+> `agdt-git-force-push` separately.
+>
+> See `.github/instructions/pre-push-hook.instructions.md` for the push-fix-push loop pattern
+> (the hook runs **targeted** checks based on changed files — do NOT run `agdt-test`, `ruff`, or `mypy` manually as a pre-push step).
 
 The `agdt-*` commands provide: centralized state tracking, consistent formatting, and background
 task management.
@@ -119,18 +124,8 @@ Document a triage table:
 ## Phase 4: Make Changes for Addressable Comments
 
 Edit files to address every comment classified as **addressable**. After **all** edits are
-complete, verify with tests, then commit and push once (not per-comment).
-
-### Verify Changes
-
-Run the test suite before committing to ensure edits don't break anything:
-
-```bash
-agdt-test
-agdt-task-wait
-```
-
-If tests fail, fix the issues before proceeding.
+complete, commit and push once (not per-comment). The pre-push hook will run the targeted
+checks that apply to the changed files.
 
 ### Resolve the GitHub Issue Key
 
@@ -201,13 +196,25 @@ REMOTE_SHA=$(gh pr view {pr_number} --repo {owner}/{repo} --json headRefOid --jq
 REMOTE_SHA_SHORT=$(echo "$REMOTE_SHA" | cut -c1-7)
 ```
 
-Compare `REMOTE_SHA` with `COMMIT_FULL`. If they do not match:
+Compare `REMOTE_SHA` with `COMMIT_FULL`. If they do not match, run the following retry sequence:
 
-1. Print `⚠️ Push verification failed — remote head ({REMOTE_SHA_SHORT}) ≠ local ({COMMIT_SHORT}). Retrying push.`
-2. Run `agdt-git-force-push` and `agdt-task-wait`.
-3. Re-verify with the same `gh pr view` command.
-4. If the SHAs still do not match after the retry, **stop** and report the failure
-   to the user.
+```bash
+# 1. Print a warning
+echo "⚠️ Push verification failed — remote head ≠ local. Retrying push."
+
+# 2. Retry — agdt-git-save-work auto-detects amend + force-push
+agdt-git-save-work
+agdt-task-wait
+
+# 3. Refresh local commit hash (it may have changed due to amend)
+COMMIT_FULL=$(git log -1 --format="%H")
+COMMIT_SHORT=$(git log -1 --format="%h")
+
+# 4. Re-verify
+REMOTE_SHA=$(gh pr view {pr_number} --repo {owner}/{repo} --json headRefOid --jq '.headRefOid')
+```
+
+If the SHAs still do not match after the retry, **stop** and report the failure to the user.
 
 ### Edge Case: No Addressable Comments
 
