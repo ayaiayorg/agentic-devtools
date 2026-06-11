@@ -663,6 +663,20 @@ agdt-git-save-work --skip-push
 - `skip_push` - Skip the push step
 - `skip_publish` - Skip branch publish after initial commit
 
+**State keys written by `agdt-git-save-work`:**
+
+After a successful commit or amend (non-dry-run), `agdt-git-save-work` attempts to persist the following keys (best-effort; skipped if the `git log` read-back fails or returns empty output):
+
+- `git.last_commit_title` - First line of the commit message (title)
+- `git.last_commit_message` - Full commit message (trailing newline(s) stripped)
+- `git.last_commit_body` - Body (everything after title, leading blank separator stripped)
+
+**State key `git.last_commit_message` fallback:**
+
+`agdt-git-save-work` does not currently fall back to `git.last_commit_message` as an input
+when no commit message source is provided. If no `--commit-message` flag is passed and no
+commit message is available from template/state, the command exits with an error.
+
 ### Commit Body File (`commit-body.md`)
 
 The commit message body can be maintained in a dedicated per-worktree file:

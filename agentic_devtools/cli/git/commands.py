@@ -7,13 +7,12 @@ These are the functions registered as console scripts in pyproject.toml.
 import argparse
 import sys
 
-from ...state import get_value, is_dry_run, set_value
+from ...state import get_value, is_dry_run, read_modify_write_state
 from .commit_body import assemble_message, extract_title, read_commit_body
 from .commit_intent import resolve_commit_intent
 from .core import (
     STATE_COMMIT_MESSAGE,
     STATE_COMMIT_MESSAGE_TITLE,
-    STATE_LAST_COMMIT_MESSAGE,
     STATE_OVERWRITE_COMMIT_MESSAGE_TITLE,
     STATE_SKIP_PUSH,
     STATE_SKIP_REBASE,
@@ -158,11 +157,42 @@ def _sync_with_main(dry_run: bool, skip_rebase: bool) -> bool:
     return False  # No rebase occurred  # pragma: no cover
 
 
+def _extract_commit_parts(message: str) -> tuple[str, str]:
+    """Extract title and body from a commit message.
+
+    The title is the first line. The body is everything after the first
+    line with one leading blank separator line stripped (if present).
+
+    Args:
+        message: Full commit message string.
+
+    Returns:
+        (title, body) where body is "" if the message is title-only.
+    """
+    if "\n" not in message:
+        return (message, "")
+
+    title, remainder = message.split("\n", 1)
+
+    # Strip one leading blank line separator if present
+    if remainder.startswith("\n"):
+        body = remainder[1:]
+    else:
+        body = remainder
+
+    return (title, body)
+
+
 def _persist_effective_commit_message(dry_run: bool) -> None:
-    """Persist the effective commit message to state after commit/amend.
+    """Persist the effective commit message and its parts to state after commit/amend.
 
     Reads back the last commit message from git and stores it in state
-    under ``git.last_commit_message`` for use by PR template resolution.
+    for use by PR template resolution and downstream agent reuse.
+
+    Writes 3 keys:
+    - ``git.last_commit_title``: title (first line) under git namespace
+    - ``git.last_commit_message``: full commit message with trailing newline(s) stripped
+    - ``git.last_commit_body``: body (everything after title, separator stripped)
 
     Args:
         dry_run: If True, skip persistence.
@@ -173,7 +203,15 @@ def _persist_effective_commit_message(dry_run: bool) -> None:
     result = run_git("log", "-1", "--format=%B", check=False)
     if result.returncode == 0 and result.stdout.strip():
         message = result.stdout.rstrip("\n")
-        set_value(STATE_LAST_COMMIT_MESSAGE, message)
+        title, body = _extract_commit_parts(message)
+        with read_modify_write_state() as state:
+            git_state = state.get("git")
+            if not isinstance(git_state, dict):
+                git_state = {}
+                state["git"] = git_state
+            git_state["last_commit_message"] = message
+            git_state["last_commit_title"] = title
+            git_state["last_commit_body"] = body
 
 
 def commit_cmd() -> None:
