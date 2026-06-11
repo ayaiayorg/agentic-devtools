@@ -14,6 +14,7 @@ from pathlib import Path
 from agentic_devtools.agdt_gitignore import AGDT_GITIGNORE_ENTRIES
 
 from .core import get_current_branch, run_git, temp_message_file
+from .transparency import print_commit_title_change, print_resolved_commit_message
 
 # Auto-generated files that must never be staged or committed.
 # After `git add .`, these are unstaged via `git reset HEAD <file>`.
@@ -94,11 +95,14 @@ def create_commit(message: str, dry_run: bool) -> None:
     Create a commit with the given message.
 
     Uses a temp file to handle multiline messages safely across platforms.
+    Prints the resolved commit message in canonical format for transparency.
 
     Args:
         message: The commit message
         dry_run: If True, only print what would happen
     """
+    print_resolved_commit_message(message)
+
     if dry_run:
         print("[DRY RUN] Would create commit with message:")
         print("-" * 40)
@@ -114,16 +118,27 @@ def create_commit(message: str, dry_run: bool) -> None:
     print("Commit created successfully.")
 
 
-def amend_commit(message: str, dry_run: bool) -> None:
+def amend_commit(message: str, dry_run: bool, old_title: str | None = None) -> None:
     """
     Amend the current commit with a new message.
 
     Uses a temp file to handle multiline messages safely across platforms.
+    Prints the resolved commit message and, when ``old_title`` is provided,
+    a before/after title diff for transparency.
 
     Args:
         message: The new commit message
         dry_run: If True, only print what would happen
+        old_title: The previous commit title (for diff logging). If provided,
+            a before/after title change is printed.
     """
+    # Print title change if old_title is provided
+    if old_title is not None:
+        new_title = message.split("\n", 1)[0]
+        print_commit_title_change(old_title, new_title)
+
+    print_resolved_commit_message(message)
+
     if dry_run:
         print("[DRY RUN] Would amend commit with message:")
         print("-" * 40)

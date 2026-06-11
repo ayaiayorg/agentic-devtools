@@ -619,10 +619,31 @@ agdt-git-save-work --completed 1 2 3  # Marks items 1, 2, 3 complete before comm
 
 **Optional CLI flags:**
 
+- `--commit-message-title` - Title for a new commit (errors if branch already has commits ahead)
+- `--overwrite-commit-message-title` - Overwrite the title of an existing commit (errors if no commits ahead)
 - `--dry-run` - Preview operations without executing
 - `--skip-stage` - Skip the staging step
 - `--skip-push` - Skip the push step
 - `--skip-rebase` - Skip the fetch/rebase onto main step
+
+**Commit title parameters:**
+
+Use `--commit-message-title` for creating new commits (the title comes from this flag; the body comes from the resolved `commit_message` source: `--commit-message` if provided, otherwise template/state):
+
+```bash
+agdt-git-save-work --commit-message-title "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): add webhook support"
+```
+
+Use `--overwrite-commit-message-title` to replace the title of an existing commit (preserves body):
+
+```bash
+agdt-git-save-work --overwrite-commit-message-title "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): improved webhook support"
+```
+
+`--overwrite-commit-message-title` preserves the existing commit body verbatim. The command prints transparency output showing:
+
+- The resolved final commit message (for both create and amend)
+- A before/after title diff (when `--overwrite-commit-message-title` is used)
 
 ```bash
 agdt-git-save-work --dry-run
@@ -635,6 +656,8 @@ agdt-git-save-work --skip-push
 
 **Optional Git state keys:**
 
+- `commit_message_title` - Title for a new commit (same as `--commit-message-title`)
+- `overwrite_commit_message_title` - Overwrite title for amend (same as `--overwrite-commit-message-title`)
 - `dry_run` - Preview operations without executing
 - `skip_stage` - Skip the staging step
 - `skip_push` - Skip the push step

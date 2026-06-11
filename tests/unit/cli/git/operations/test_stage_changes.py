@@ -164,3 +164,25 @@ class TestStageChanges:
             operations.stage_changes(dry_run=True)
         captured = capsys.readouterr()
         assert "[DRY RUN] Would remove .agdt/.gitignore" in captured.out
+
+    def test_stage_changes_agdt_branch_no_gitignore_file(self, mock_run_safe, tmp_path):
+        """On -agdt branch when .agdt/.gitignore does not exist, nothing is removed."""
+        agdt_dir = tmp_path / ".agdt"
+        agdt_dir.mkdir()
+        # No .gitignore file created
+
+        toplevel_result = MagicMock(returncode=0, stdout=str(tmp_path), stderr="")
+        default_result = MagicMock(returncode=0, stdout="", stderr="")
+
+        def side_effect(args, **kwargs):
+            if args[1:3] == ["rev-parse", "--show-toplevel"]:
+                return toplevel_result
+            return default_result
+
+        mock_run_safe.side_effect = side_effect
+
+        with patch.object(operations, "get_current_branch", return_value="feature/PROJECT-1234-agdt"):
+            operations.stage_changes(dry_run=False)
+
+        # .agdt dir still exists, no error raised
+        assert agdt_dir.exists()

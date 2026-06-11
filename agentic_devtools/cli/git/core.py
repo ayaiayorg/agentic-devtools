@@ -19,6 +19,8 @@ from ..subprocess_utils import run_safe
 
 # State keys
 STATE_COMMIT_MESSAGE = "commit_message"
+STATE_COMMIT_MESSAGE_TITLE = "commit_message_title"
+STATE_OVERWRITE_COMMIT_MESSAGE_TITLE = "overwrite_commit_message_title"
 STATE_DRY_RUN = "dry_run"
 STATE_SKIP_STAGE = "skip_stage"
 STATE_SKIP_PUBLISH = "skip_publish"

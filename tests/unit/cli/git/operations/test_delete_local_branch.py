@@ -45,6 +45,17 @@ class TestDeleteLocalBranch:
 
             assert result is False
 
+    def test_delete_failure_no_stderr(self, mock_run_safe, capsys):
+        """Test deletion failure with empty stderr."""
+        with patch.object(operations, "run_git") as mock_run_git:
+            mock_run_git.return_value = MagicMock(returncode=1, stdout="", stderr="")
+
+            result = operations.delete_local_branch("my-branch")
+
+            assert result is False
+            captured = capsys.readouterr()
+            assert "Failed to delete" in captured.out
+
     def test_delete_prints_success_message(self, mock_run_safe, capsys):
         """Test that a success message is printed after deletion."""
         with patch.object(operations, "run_git") as mock_run_git:

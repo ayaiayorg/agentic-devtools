@@ -46,6 +46,22 @@ class TestResetBranchToOrigin:
 
                 assert result is False
 
+    def test_reset_branch_to_origin_failure_no_stderr(self, mock_run_safe, capsys):
+        """Test branch reset failure with empty stderr."""
+        with patch.object(operations, "has_local_changes", return_value=False):
+            with patch.object(operations, "run_git") as mock_run_git:
+                mock_run_git.side_effect = [
+                    MagicMock(returncode=0, stdout="my-branch\n", stderr=""),
+                    MagicMock(returncode=0, stdout="0\n", stderr=""),
+                    MagicMock(returncode=1, stdout="", stderr=""),
+                ]
+
+                result = operations.reset_branch_to_origin("my-branch")
+
+                assert result is False
+                captured = capsys.readouterr()
+                assert "Failed to reset" in captured.out
+
     def test_reset_branch_to_origin_dry_run(self, mock_run_safe, capsys):
         """Test dry run doesn't execute reset."""
         with patch.object(operations, "run_git") as mock_run_git:
@@ -102,6 +118,21 @@ class TestResetBranchToOrigin:
                 assert "Could not check for unpushed commits" in captured.out
                 assert "safety precaution" in captured.out
 
+    def test_reset_aborts_when_rev_list_fails_no_stderr(self, mock_run_safe, capsys):
+        """Test reset aborts when rev-list fails with empty stderr."""
+        with patch.object(operations, "has_local_changes", return_value=False):
+            with patch.object(operations, "run_git") as mock_run_git:
+                mock_run_git.side_effect = [
+                    MagicMock(returncode=0, stdout="feature/test\n", stderr=""),
+                    MagicMock(returncode=128, stdout="", stderr=""),
+                ]
+
+                result = operations.reset_branch_to_origin("feature/test")
+
+                assert result is False
+                captured = capsys.readouterr()
+                assert "Could not check for unpushed commits" in captured.out
+
     def test_reset_aborts_when_rev_list_output_unparseable(self, mock_run_safe, capsys):
         """Test reset aborts when rev-list output cannot be parsed as an integer."""
         with patch.object(operations, "has_local_changes", return_value=False):
@@ -151,6 +182,18 @@ class TestResetBranchToOrigin:
                 assert "Could not determine current branch" in captured.out
                 assert "safety precaution" in captured.out
                 assert "fatal: not a git repository" in captured.out
+
+    def test_reset_aborts_when_head_check_fails_no_stderr(self, mock_run_safe, capsys):
+        """Test reset aborts when rev-parse HEAD fails with empty stderr."""
+        with patch.object(operations, "has_local_changes", return_value=False):
+            with patch.object(operations, "run_git") as mock_run_git:
+                mock_run_git.return_value = MagicMock(returncode=128, stdout="", stderr="")
+
+                result = operations.reset_branch_to_origin("feature/test")
+
+                assert result is False
+                captured = capsys.readouterr()
+                assert "Could not determine current branch" in captured.out
 
     def test_reset_aborts_when_uncommitted_changes(self, mock_run_safe, capsys):
         """Test reset aborts when working tree has uncommitted changes."""

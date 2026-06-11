@@ -34,6 +34,17 @@ class TestRenameLocalBranch:
 
             assert result is False
 
+    def test_rename_failure_no_stderr(self, mock_run_safe, capsys):
+        """Test rename failure with empty stderr."""
+        with patch.object(operations, "run_git") as mock_run_git:
+            mock_run_git.return_value = MagicMock(returncode=1, stdout="", stderr="")
+
+            result = operations.rename_local_branch("old-branch", "new-branch")
+
+            assert result is False
+            captured = capsys.readouterr()
+            assert "Failed to rename" in captured.out
+
     def test_rename_prints_success_message(self, mock_run_safe, capsys):
         """Test that a success message is printed on rename."""
         with patch.object(operations, "run_git") as mock_run_git:
