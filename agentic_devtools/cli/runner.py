@@ -208,6 +208,8 @@ COMMAND_MAP = {
     "agdt-git-push": ("agentic_devtools.cli.git", "push_async"),
     "agdt-git-force-push": ("agentic_devtools.cli.git", "force_push_async"),
     "agdt-git-publish": ("agentic_devtools.cli.git", "publish_async"),
+    # Commit body
+    "agdt-commit-body-show": ("agentic_devtools.cli.git.commit_body", "show_cmd"),
     # Testing
     "agdt-test": ("agentic_devtools.cli.testing", "run_tests"),
     "agdt-test-quick": ("agentic_devtools.cli.testing", "run_tests_quick"),

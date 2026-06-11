@@ -663,6 +663,51 @@ agdt-git-save-work --skip-push
 - `skip_push` - Skip the push step
 - `skip_publish` - Skip branch publish after initial commit
 
+### Commit Body File (`commit-body.md`)
+
+The commit message body can be maintained in a dedicated per-worktree file:
+
+```text
+.agdt/workflows/{identity}/{worktree_key}/files/commit-body.md
+```
+
+**How it works:**
+
+- AI agents (and humans) edit this markdown file for the commit body (and footer)
+- When `agdt-git-save-work` runs, if `commit-body.md` exists and has non-whitespace content, the first line of the resolved commit message is
+  used as the title and the file content replaces any inline body/footer
+- If the file is missing, empty, or whitespace-only, `commit_message` is used unchanged (backward compatible)
+- Overwrite-title mode (`--overwrite-commit-message-title` / `overwrite_commit_message_title`) preserves the existing commit body and ignores `commit-body.md`
+- The file supports optional YAML frontmatter (delimited by `---`) for structured metadata
+- Frontmatter is parsed but **excluded** from the git commit message — only the content after the closing `---` is injected
+- Note: This repo requires the issue link(s) to be repeated in the commit footer (see `COMMIT_CONVENTION.md`); include them at the end of `commit-body.md` when using this feature.
+- File must be under 100KB and valid UTF-8
+
+**Example `commit-body.md`:**
+
+```markdown
+---
+checklist_items_completed: [1, 2, 3]
+review_status: approved
+---
+## Summary of changes
+
+- Implemented webhook handler
+- Added comprehensive unit tests
+- Updated API documentation
+
+[#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)
+```
+
+### Commit Body Commands (Synchronous)
+
+| Command | Purpose | Required State |
+|---------|---------|----------------|
+| `agdt-commit-body-show` | Print commit-body.md content with metadata | (none) |
+
+**`agdt-commit-body-show`** prints the file path, character length, frontmatter detection status, parsed frontmatter keys, and body content to stdout.
+Exits with code 1 if the file is missing, exceeds 100KB, or has encoding errors.
+
 ### Jira Actions (Background Tasks)
 
 All Jira action commands that mutate state spawn background tasks:
@@ -1589,6 +1634,13 @@ agdt-git-save-work --commit-message "feat([#42](https://github.com/ayaiayorg/age
 
 # Option B: Parameterless (uses current state)
 # Current commit_message: run `agdt-get commit_message` to check
+agdt-git-save-work
+
+# Option C: Title in state, body in commit-body.md (recommended for complex bodies)
+# Edit .agdt/workflows/{identity}/{worktree_key}/files/commit-body.md with the body
+# Then set only the title line in state:
+agdt-set commit_message "feat([#42](https://github.com/ayaiayorg/agentic-devtools/issues/42)): implement feature"
+agdt-commit-body-show  # Verify body content before committing
 agdt-git-save-work
 ```
 

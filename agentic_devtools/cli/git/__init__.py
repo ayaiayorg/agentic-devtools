@@ -36,6 +36,7 @@ from .commands import (
     stage_cmd,
     sync_cmd,
 )
+from .commit_body import show_cmd as commit_body_show_cmd
 from .diff import (
     AddedLine,
     AddedLinesInfo,
@@ -71,6 +72,7 @@ __all__ = [
     "push_cmd",
     "force_push_cmd",
     "publish_cmd",
+    "commit_body_show_cmd",
     # Commands (async)
     "commit_async",
     "sync_async",

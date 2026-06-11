@@ -809,3 +809,129 @@ class TestCommitCmdNewTitleParams:
             True,
             old_title="old title",
         )
+
+
+class TestCommitBodyInjection:
+    """Tests for commit body injection from commit-body.md."""
+
+    @pytest.fixture(autouse=True)
+    def _patch_commit_body_state_dir(self, temp_state_dir):
+        """Ensure commit_body module uses the same temp state dir."""
+        with patch(
+            "agentic_devtools.cli.git.commit_body.get_state_dir",
+            return_value=temp_state_dir,
+        ):
+            yield
+
+    def test_body_present_injects_after_title(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test that commit-body.md content is injected after the title."""
+        state.set_value("commit_message", "feat: add feature\n\nold body")
+        # Create commit-body.md in the state dir
+        files_dir = temp_state_dir / "files"
+        files_dir.mkdir(parents=True, exist_ok=True)
+        (files_dir / "commit-body.md").write_text("- New body line 1\n- New body line 2", encoding="utf-8")
+        state.set_value("dry_run", True)
+
+        commands.commit_cmd()
+
+        captured = capsys.readouterr()
+        # Title should be first line only, body replaced
+        assert "feat: add feature" in captured.out
+        assert "- New body line 1" in captured.out
+        assert "old body" not in captured.out
+
+    def test_missing_body_uses_full_commit_message(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test that missing commit-body.md uses full commit_message unchanged."""
+        state.set_value("commit_message", "feat: unchanged message\n\nOriginal body")
+        state.set_value("dry_run", True)
+
+        commands.commit_cmd()
+
+        captured = capsys.readouterr()
+        assert "feat: unchanged message" in captured.out
+        assert "Original body" in captured.out
+
+    def test_empty_body_treated_as_absent(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test that empty commit-body.md doesn't change the message."""
+        state.set_value("commit_message", "feat: title\n\nExisting body")
+        files_dir = temp_state_dir / "files"
+        files_dir.mkdir(parents=True, exist_ok=True)
+        (files_dir / "commit-body.md").write_text("", encoding="utf-8")
+        state.set_value("dry_run", True)
+
+        commands.commit_cmd()
+
+        captured = capsys.readouterr()
+        assert "Existing body" in captured.out
+
+    def test_whitespace_only_body_treated_as_absent(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test that whitespace-only commit-body.md doesn't change the message."""
+        state.set_value("commit_message", "feat: title\n\nExisting body")
+        files_dir = temp_state_dir / "files"
+        files_dir.mkdir(parents=True, exist_ok=True)
+        (files_dir / "commit-body.md").write_text("   \n\n  ", encoding="utf-8")
+        state.set_value("dry_run", True)
+
+        commands.commit_cmd()
+
+        captured = capsys.readouterr()
+        assert "Existing body" in captured.out
+
+    def test_oversized_body_aborts_commit(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test that >100KB commit-body.md aborts commit with error."""
+        state.set_value("commit_message", "feat: title")
+        files_dir = temp_state_dir / "files"
+        files_dir.mkdir(parents=True, exist_ok=True)
+        (files_dir / "commit-body.md").write_text("x" * 102_401, encoding="utf-8")
+
+        with pytest.raises(SystemExit) as exc_info:
+            commands.commit_cmd()
+        assert exc_info.value.code == 1
+
+        captured = capsys.readouterr()
+        assert "exceeds maximum size" in captured.err
+
+    def test_multiline_commit_message_with_body_extracts_title(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test multiline commit_message with body file discards inline body."""
+        state.set_value("commit_message", "feat: title\n\nThis inline body is discarded")
+        files_dir = temp_state_dir / "files"
+        files_dir.mkdir(parents=True, exist_ok=True)
+        (files_dir / "commit-body.md").write_text("File body wins", encoding="utf-8")
+        state.set_value("dry_run", True)
+
+        commands.commit_cmd()
+
+        captured = capsys.readouterr()
+        assert "feat: title" in captured.out
+        assert "File body wins" in captured.out
+        assert "This inline body is discarded" not in captured.out
+
+    def test_frontmatter_excluded_from_commit_message(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
+    ):
+        """Test that frontmatter is excluded from the final commit message."""
+        state.set_value("commit_message", "feat: title")
+        files_dir = temp_state_dir / "files"
+        files_dir.mkdir(parents=True, exist_ok=True)
+        content = "---\nstatus: done\nchecklist: [1, 2]\n---\nActual body content"
+        (files_dir / "commit-body.md").write_text(content, encoding="utf-8")
+        state.set_value("dry_run", True)
+
+        commands.commit_cmd()
+
+        captured = capsys.readouterr()
+        assert "Actual body content" in captured.out
+        assert "status: done" not in captured.out
+        assert "checklist:" not in captured.out

@@ -8,6 +8,7 @@ import argparse
 import sys
 
 from ...state import get_value, is_dry_run, set_value
+from .commit_body import assemble_message, extract_title, read_commit_body
 from .commit_intent import resolve_commit_intent
 from .core import (
     STATE_COMMIT_MESSAGE,
@@ -364,6 +365,21 @@ def commit_cmd() -> None:
             message = intent.title
     else:
         message = intent.full_message
+
+    # Apply commit-body.md injection for non-overwrite modes (overwrite preserves existing body)
+    if intent.mode != "overwrite":
+        body_result = read_commit_body()
+        if body_result.error:
+            print(f"Error: {body_result.error}", file=sys.stderr)
+            sys.exit(1)
+        if body_result.body.strip():
+            title = extract_title(message)
+            if message.strip() != title:
+                print(
+                    "Note: commit-body.md is present; replacing inline commit_message body/footer with file content.",
+                    file=sys.stderr,
+                )
+            message = assemble_message(title, body_result.body)
 
     # Step 1: Stage changes
     if not skip_stage:
