@@ -723,7 +723,7 @@ def setup_cmd() -> None:
         "--skip-templates",
         action="store_true",
         default=False,
-        help="Skip workflow template generation step.",
+        help="Skip workflow template generation and commit template creation/validation.",
     )
     parser.add_argument(
         "--reconfigure",
@@ -913,6 +913,27 @@ def setup_cmd() -> None:
                             )
                 except Exception as exc:  # noqa: BLE001
                     print(f"  ⚠ Template generation failed ({exc}) — skipping", file=sys.stderr)
+
+                # Step 3: Commit message template
+                try:
+                    if not args.skip_templates:
+                        from agentic_devtools.cli.setup.commit_template_setup import (  # noqa: PLC0415
+                            ensure_commit_template,
+                            validate_commit_template,
+                        )
+
+                        created = ensure_commit_template(git_root)
+                        if created:
+                            print("  ✓ Created default commit template: .agdt/config/commit-template.j2")
+                            repo_mutations_succeeded = True
+                        else:
+                            print("  ℹ Commit template already exists")
+
+                        warnings_list = validate_commit_template(git_root)
+                        for warning in warnings_list:
+                            print(f"  ⚠ {warning}", file=sys.stderr)
+                except Exception as exc:  # noqa: BLE001
+                    print(f"  ⚠ Commit template setup failed ({exc}) — skipping", file=sys.stderr)
 
             # ── Script Generation Phase ────────────────────────────────
             print()

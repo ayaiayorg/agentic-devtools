@@ -49,6 +49,29 @@ def _validate_repo_format(repo: str) -> str | None:
     return None
 
 
+def resolve_github_repo_safe() -> str | None:
+    """Resolve GitHub ``owner/repo`` without exiting on failure.
+
+    Same resolution logic as :func:`resolve_github_repo` but returns
+    ``None`` instead of calling ``sys.exit(1)`` when resolution fails.
+
+    Resolution order:
+    1. ``github.repo`` state key.
+    2. Git ``origin`` remote URL.
+    """
+    state_repo = get_value("github.repo")
+    if state_repo and isinstance(state_repo, str):
+        validated = _validate_repo_format(state_repo)
+        if validated:
+            return validated
+
+    remote_repo = _resolve_repo_from_git_remote()
+    if remote_repo:
+        return remote_repo
+
+    return None
+
+
 def resolve_github_repo(cli_repo: str | None = None) -> str:
     """Resolve GitHub ``owner/repo`` from CLI arg, state, or git remote.
 

@@ -244,11 +244,17 @@ def commit_cmd() -> None:
     )
     args, _ = parser.parse_known_args()
 
-    # Get commit message (CLI arg overrides state)
+    # Get commit message (priority: CLI arg > template > state)
     if args.commit_message:  # pragma: no cover
         message = args.commit_message
     else:
-        message = get_commit_message()
+        from .commit_template import resolve_commit_message_from_template  # noqa: PLC0415
+
+        template_message = resolve_commit_message_from_template()
+        if template_message is not None:
+            message = template_message
+        else:
+            message = get_commit_message()
 
     # Get completed items (CLI arg overrides state)
     completed_items = args.completed or get_value("completed_items")

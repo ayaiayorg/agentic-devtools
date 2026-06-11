@@ -202,6 +202,35 @@ class TestCommitCommand:
             commit_call_args = mock_run_safe.call_args_list[1 + n + m][0][0]
             assert "--amend" not in commit_call_args
 
+    def test_commit_cmd_uses_template_message(
+        self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main
+    ):
+        """Test commit_cmd prefers the rendered template message over commit_message state."""
+        state.set_value("commit_message", "State commit message")
+
+        n = len(operations.STAGE_EXCLUDE_FILES)
+        m = len(AGDT_GITIGNORE_ENTRIES)
+        mock_run_safe.side_effect = (
+            [MagicMock(returncode=0, stdout="", stderr="")]  # add
+            + [MagicMock(returncode=0, stdout="", stderr="")] * n  # resets
+            + [MagicMock(returncode=0, stdout="", stderr="")] * m  # agdt entry resets
+            + [
+                MagicMock(returncode=0, stdout="", stderr=""),  # commit
+                MagicMock(returncode=0, stdout="", stderr=""),  # push
+            ]
+        )
+
+        with (
+            patch(
+                "agentic_devtools.cli.git.commit_template.resolve_commit_message_from_template",
+                return_value="Template commit message",
+            ),
+            patch("agentic_devtools.cli.git.commands.create_commit") as mock_create_commit,
+        ):
+            commands.commit_cmd()
+
+        mock_create_commit.assert_called_once_with("Template commit message", False)
+
     def test_commit_with_completed_marks_items(
         self, temp_state_dir, clear_state_before, mock_run_safe, mock_should_amend, mock_sync_with_main, capsys
     ):

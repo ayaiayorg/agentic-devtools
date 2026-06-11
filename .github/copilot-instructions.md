@@ -2034,6 +2034,51 @@ agdt-set jira.dry_run true
 agdt-add-jira-comment  # Previews without posting
 ```
 
+### Commit Message Template System
+
+The Jinja2 commit message template system generates commit messages automatically from workflow state.
+
+**Priority chain** (in `commit_cmd()`):
+
+1. `--commit-message` CLI argument (verbatim)
+2. Template rendering from `.agdt/config/commit-template.j2`
+3. `commit_message` state key fallback
+
+**Template variables:**
+
+| Variable | Resolution Source | Description |
+|----------|------------------|-------------|
+| `issueType` | `versionControl.commitMessageType` → mapped from `issueManagement.issueType` / `jira.issue_type` | Conventional commit type prefix |
+| `issueKey` | `issue_key` → `jira.issue_key` → `workflow.context.jira_issue_key` (normalized: strips `#`, preserves Jira keys) | Issue identifier |
+| `issueLink` | `issueManagement.issueLink` → derived from GitHub repo + numeric key | Full issue URL |
+| `commitMessageTitle` | `versionControl.commitMessageTitle` | Commit summary line |
+| `commitMessageBody` | File content from `versionControl.commitMessageBodyFile` path | Commit body text |
+
+**Setup:**
+
+- `agdt-setup` creates the default template at `.agdt/config/commit-template.j2` (unless `--skip-templates`)
+- Template is validated during setup (warns on missing required variables)
+- Template file is repo-local and versionable
+
+**Usage:**
+
+```bash
+# Set state keys for template rendering
+agdt-set issue_key 42
+agdt-set versionControl.commitMessageType feat
+agdt-set versionControl.commitMessageTitle "add webhook support"
+
+# agdt-git-save-work will render template automatically
+agdt-git-save-work
+```
+
+**Troubleshooting:**
+
+- Empty/whitespace-only template → warning + falls back to `commit_message` state
+- Jinja2 syntax errors → warning + falls back
+- Unresolved variables → per-variable warning to stderr, renders as empty string
+- No template file → silently falls back to `commit_message` state
+
 ## 17. Output Files
 
 | File | Command | Content |
