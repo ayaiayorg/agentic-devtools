@@ -170,33 +170,110 @@ class TestInitiateCreateJiraSubtaskWorkflowBranches:
         assert "--parent-key is required" in captured.out
 
     def test_no_issue_key_creates_placeholder(self, temp_state_dir, clear_state_before, capsys):
-        """Test when no issue_key but parent_key provided, creates placeholder."""
+        """Test when no issue_key but parent_key provided, creates placeholder and auto-setup."""
         state.set_value("jira.parent_key", "PROJECT-1234")
 
-        with patch(
-            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
-        ) as mock_create:
-            mock_create.return_value = (True, "PROJECT-1235")
-            commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "PROJECT-1234"])
+        from agentic_devtools.cli.workflows.worktree_setup import PlaceholderIssueResult
+
+        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_issue") as mock_create:
+            mock_create.return_value = PlaceholderIssueResult(success=True, issue_key="PROJECT-1235")
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "PROJECT-1234"])
 
         mock_create.assert_called_once()
         call_kwargs = mock_create.call_args[1]
         assert call_kwargs["issue_type"] == "Sub-task"
         assert call_kwargs["parent_key"] == "PROJECT-1234"
+        mock_setup.assert_called_once()
+        setup_kwargs = mock_setup.call_args[1]
+        setup_args = mock_setup.call_args[0]
+        assert setup_args[1] == "update-jira-issue"
+        assert setup_kwargs["auto_execute_command"][0] == "agdt-initiate-update-jira-issue-workflow"
+        assert "PROJECT-1235" in setup_kwargs["auto_execute_command"]
         captured = capsys.readouterr()
         assert "Copilot session will start automatically" in captured.out
+
+    def test_no_issue_key_no_additional_params_for_update_workflow(self, temp_state_dir, clear_state_before, capsys):
+        """The update-jira-issue workflow does not accept --parent-key, so additional_params
+        must be None (or absent) when perform_auto_setup targets update-jira-issue."""
+        state.set_value("jira.parent_key", "PROJECT-1234")
+
+        from agentic_devtools.cli.workflows.worktree_setup import PlaceholderIssueResult
+
+        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_issue") as mock_create:
+            mock_create.return_value = PlaceholderIssueResult(success=True, issue_key="PROJECT-1235")
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "PROJECT-1234"])
+
+        setup_kwargs = mock_setup.call_args[1]
+        # additional_params must not contain parent_key — update-jira-issue doesn't accept --parent-key
+        additional_params = setup_kwargs.get("additional_params")
+        assert additional_params is None or "parent_key" not in additional_params
+
+    def test_no_issue_key_no_user_request_does_not_inject_none(self, temp_state_dir, clear_state_before, capsys):
+        """When no user_request is provided, 'None' must not appear in the update_user_request."""
+        state.set_value("jira.parent_key", "PROJECT-1234")
+
+        from agentic_devtools.cli.workflows.worktree_setup import PlaceholderIssueResult
+
+        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_issue") as mock_create:
+            mock_create.return_value = PlaceholderIssueResult(success=True, issue_key="PROJECT-1235")
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "PROJECT-1234"])
+
+        call_kwargs = mock_setup.call_args[1]
+        assert "None" not in call_kwargs["user_request"]
+        assert "None" not in " ".join(call_kwargs["auto_execute_command"])
+
+    def test_no_issue_key_user_request_propagated_consistently(self, temp_state_dir, clear_state_before, capsys):
+        """The user_request kwarg to perform_auto_setup must match what's in auto_execute_command."""
+        state.set_value("jira.parent_key", "PROJECT-1234")
+
+        from agentic_devtools.cli.workflows.worktree_setup import PlaceholderIssueResult
+
+        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_issue") as mock_create:
+            mock_create.return_value = PlaceholderIssueResult(success=True, issue_key="PROJECT-1235")
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_create_jira_subtask_workflow(
+                    _argv=["--parent-key", "PROJECT-1234", "--user-request", "Add unit tests"]
+                )
+
+        call_kwargs = mock_setup.call_args[1]
+        auto_cmd = call_kwargs["auto_execute_command"]
+        user_request_kwarg = call_kwargs["user_request"]
+        ur_idx = auto_cmd.index("--user-request") + 1
+        assert auto_cmd[ur_idx] == user_request_kwarg
+        assert "Add unit tests" in user_request_kwarg
 
     def test_no_issue_key_placeholder_creation_fails(self, temp_state_dir, clear_state_before, capsys):
         """Test when placeholder creation fails."""
         state.set_value("jira.parent_key", "PROJECT-1234")
 
-        with patch(
-            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
-        ) as mock_create:
-            mock_create.return_value = (False, None)
+        from agentic_devtools.cli.workflows.worktree_setup import PlaceholderIssueResult
+
+        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_issue") as mock_create:
+            mock_create.return_value = PlaceholderIssueResult(success=False, error_message="API error")
             with pytest.raises(SystemExit) as exc_info:
                 commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "PROJECT-1234"])
             assert exc_info.value.code == 1
+
+    def test_no_issue_key_auto_setup_fails(self, temp_state_dir, clear_state_before, capsys):
+        """Test when placeholder succeeds but perform_auto_setup fails."""
+        state.set_value("jira.parent_key", "PROJECT-1234")
+
+        from agentic_devtools.cli.workflows.worktree_setup import PlaceholderIssueResult
+
+        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_issue") as mock_create:
+            mock_create.return_value = PlaceholderIssueResult(success=True, issue_key="PROJECT-1235")
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = False
+                with pytest.raises(SystemExit) as exc_info:
+                    commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "PROJECT-1234"])
+                assert exc_info.value.code == 1
 
 
 class TestProgrammaticParamsSkipCliOverride:
@@ -467,19 +544,19 @@ class TestCreateJiraSubtaskStaleStateClearance:
         state.set_value("jira.issue_key", "STALE-999")
         state.set_value("jira.parent_key", "PROJECT-1234")
 
-        with patch(
-            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
-        ) as mock_create:
+        from agentic_devtools.cli.workflows.worktree_setup import PlaceholderIssueResult
+
+        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_issue") as mock_create:
 
             def _mock_create_placeholder(**_kwargs):
                 # Stale key must be cleared before placeholder creation starts.
                 assert state.get_value("jira.issue_key") is None
-                # Simulate real helper behavior by persisting the new placeholder key.
-                state.set_value("jira.issue_key", "PROJECT-NEW-1")
-                return (True, "PROJECT-NEW-1")
+                return PlaceholderIssueResult(success=True, issue_key="PROJECT-NEW-1")
 
             mock_create.side_effect = _mock_create_placeholder
-            commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "PROJECT-1234"])
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "PROJECT-1234"])
 
         # Stale key was cleared — create path was taken (not the existing-issue path)
         mock_create.assert_called_once()
@@ -490,11 +567,13 @@ class TestCreateJiraSubtaskStaleStateClearance:
         state.set_value("jira.issue_key", "STALE-999")
         state.set_value("jira.parent_key", "PROJECT-1234")
 
-        with patch(
-            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
-        ) as mock_create:
-            mock_create.return_value = (True, "PROJECT-NEW-1")
-            commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "PROJECT-1234"])
+        from agentic_devtools.cli.workflows.worktree_setup import PlaceholderIssueResult
+
+        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_issue") as mock_create:
+            mock_create.return_value = PlaceholderIssueResult(success=True, issue_key="PROJECT-NEW-1")
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "PROJECT-1234"])
 
         captured = capsys.readouterr()
         assert "Cleared stale issue selection state" in captured.err
@@ -503,11 +582,13 @@ class TestCreateJiraSubtaskStaleStateClearance:
         """No stderr message when no stale keys exist."""
         state.set_value("jira.parent_key", "PROJECT-1234")
 
-        with patch(
-            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
-        ) as mock_create:
-            mock_create.return_value = (True, "PROJECT-NEW-1")
-            commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "PROJECT-1234"])
+        from agentic_devtools.cli.workflows.worktree_setup import PlaceholderIssueResult
+
+        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_issue") as mock_create:
+            mock_create.return_value = PlaceholderIssueResult(success=True, issue_key="PROJECT-NEW-1")
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "PROJECT-1234"])
 
         captured = capsys.readouterr()
         assert "Cleared stale issue selection state" not in captured.err
@@ -545,10 +626,12 @@ class TestCreateJiraSubtaskStaleStateClearance:
         state.set_value("jira.issue_key", "STALE-999")
         state.set_value("jira.parent_key", "PROJECT-1234")
 
-        with patch(
-            "agentic_devtools.cli.workflows.worktree_setup.create_placeholder_and_setup_worktree"
-        ) as mock_create:
-            mock_create.return_value = (True, "PROJECT-NEW-1")
-            commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "PROJECT-1234"])
+        from agentic_devtools.cli.workflows.worktree_setup import PlaceholderIssueResult
+
+        with patch("agentic_devtools.cli.workflows.worktree_setup.create_placeholder_issue") as mock_create:
+            mock_create.return_value = PlaceholderIssueResult(success=True, issue_key="PROJECT-NEW-1")
+            with patch("agentic_devtools.cli.workflows.preflight.perform_auto_setup") as mock_setup:
+                mock_setup.return_value = True
+                commands.initiate_create_jira_subtask_workflow(_argv=["--parent-key", "PROJECT-1234"])
 
         assert state.get_value("jira.parent_key") == "PROJECT-1234"

@@ -1399,7 +1399,7 @@ def initiate_create_jira_issue_workflow(
 
     from ...state import get_value, set_value
     from .preflight import check_worktree_and_branch, perform_auto_setup
-    from .worktree_setup import create_placeholder_and_setup_worktree
+    from .worktree_setup import create_placeholder_issue, generate_workflow_branch_name
 
     # Parse CLI arguments first — no state I/O at this point.
     parser = argparse.ArgumentParser(description="Initiate the create-jira-issue workflow")
@@ -1585,16 +1585,63 @@ def initiate_create_jira_issue_workflow(
             else:
                 sys.exit(1)
 
-    # No issue key - create placeholder and set up worktree
-    success, created_issue_key = create_placeholder_and_setup_worktree(
+    # No issue key - create placeholder, then auto-setup with update workflow
+    print(f"\n{'=' * 80}")
+    print("CREATE WORKFLOW: create-jira-issue")
+    print("=" * 80)
+    print("\n\U0001f4dd Step 1: Creating placeholder Jira issue...")
+
+    issue_result = create_placeholder_issue(
         project_key=resolved_project_key,
         issue_type=resolved_issue_type,
-        workflow_name="create-jira-issue",
-        user_request=resolved_user_request,
     )
 
-    if success:
-        print(_format_auto_setup_success_message("create-jira-issue", created_issue_key or "placeholder"))
+    if not issue_result.success or not issue_result.issue_key:
+        print(f"\n\u274c Failed to create placeholder issue: {issue_result.error_message}")
+        sys.exit(1)
+
+    created_issue_key = issue_result.issue_key
+    set_value("jira.issue_key", created_issue_key)
+
+    # Build user request for the update workflow
+    update_user_request = (
+        "This is a placeholder issue that needs to be populated with a proper "
+        "description, acceptance criteria, and additional information."
+    )
+    if resolved_user_request:
+        update_user_request += f" Here is what the issue should cover: {resolved_user_request}"
+
+    # Build auto-execute command for the new worktree
+    auto_execute_command = [
+        "agdt-initiate-update-jira-issue-workflow",
+        "--issue-key",
+        created_issue_key,
+        "--interactive",
+        "true" if interactive else "false",
+        "--model",
+        model,
+        "--skip-copilot-session",
+        "--user-request",
+        update_user_request,
+    ]
+
+    # Use the issue-type-based branch naming
+    branch_name = generate_workflow_branch_name(
+        issue_key=created_issue_key,
+        issue_type=resolved_issue_type,
+        workflow_name="create-jira-issue",
+    )
+
+    if perform_auto_setup(
+        created_issue_key,
+        "update-jira-issue",
+        branch_name=branch_name,
+        user_request=update_user_request,
+        auto_execute_command=auto_execute_command,
+        interactive=interactive,
+        model=model,
+    ):
+        print(_format_auto_setup_success_message("update-jira-issue", created_issue_key))
     else:
         sys.exit(1)
 
@@ -1647,7 +1694,7 @@ def initiate_create_jira_epic_workflow(
 
     from ...state import get_value, set_value
     from .preflight import check_worktree_and_branch, perform_auto_setup
-    from .worktree_setup import create_placeholder_and_setup_worktree
+    from .worktree_setup import create_placeholder_issue, generate_workflow_branch_name
 
     # Parse CLI arguments first — no state I/O at this point.
     parser = argparse.ArgumentParser(description="Initiate the create-jira-epic workflow")
@@ -1817,16 +1864,63 @@ def initiate_create_jira_epic_workflow(
             else:
                 sys.exit(1)
 
-    # No issue key - create placeholder and set up worktree
-    success, created_issue_key = create_placeholder_and_setup_worktree(
+    # No issue key - create placeholder, then auto-setup with update workflow
+    print(f"\n{'=' * 80}")
+    print("CREATE WORKFLOW: create-jira-epic")
+    print("=" * 80)
+    print("\n\U0001f4dd Step 1: Creating placeholder Epic...")
+
+    issue_result = create_placeholder_issue(
         project_key=resolved_project_key,
         issue_type="Epic",
-        workflow_name="create-jira-epic",
-        user_request=resolved_user_request,
     )
 
-    if success:
-        print(_format_auto_setup_success_message("create-jira-epic", created_issue_key or "placeholder"))
+    if not issue_result.success or not issue_result.issue_key:
+        print(f"\n\u274c Failed to create placeholder issue: {issue_result.error_message}")
+        sys.exit(1)
+
+    created_issue_key = issue_result.issue_key
+    set_value("jira.issue_key", created_issue_key)
+
+    # Build user request for the update workflow
+    update_user_request = (
+        "This is a placeholder issue that needs to be populated with a proper "
+        "description, acceptance criteria, and additional information."
+    )
+    if resolved_user_request:
+        update_user_request += f" Here is what the issue should cover: {resolved_user_request}"
+
+    # Build auto-execute command for the new worktree
+    auto_execute_command = [
+        "agdt-initiate-update-jira-issue-workflow",
+        "--issue-key",
+        created_issue_key,
+        "--interactive",
+        "true" if interactive else "false",
+        "--model",
+        model,
+        "--skip-copilot-session",
+        "--user-request",
+        update_user_request,
+    ]
+
+    # Use the issue-type-based branch naming
+    branch_name = generate_workflow_branch_name(
+        issue_key=created_issue_key,
+        issue_type="Epic",
+        workflow_name="create-jira-epic",
+    )
+
+    if perform_auto_setup(
+        created_issue_key,
+        "update-jira-issue",
+        branch_name=branch_name,
+        user_request=update_user_request,
+        auto_execute_command=auto_execute_command,
+        interactive=interactive,
+        model=model,
+    ):
+        print(_format_auto_setup_success_message("update-jira-issue", created_issue_key))
     else:
         sys.exit(1)
 
@@ -1876,7 +1970,7 @@ def initiate_create_jira_subtask_workflow(
 
     from ...state import get_value, set_value
     from .preflight import check_worktree_and_branch, perform_auto_setup
-    from .worktree_setup import create_placeholder_and_setup_worktree
+    from .worktree_setup import create_placeholder_issue, generate_workflow_branch_name
 
     # Parse CLI arguments first — no state I/O at this point.
     parser = argparse.ArgumentParser(description="Initiate the create-jira-subtask workflow")
@@ -2059,18 +2153,65 @@ def initiate_create_jira_subtask_workflow(
     # Extract project key from parent key
     project_key = resolved_parent_key.split("-")[0] if resolved_parent_key else "PROJECT"
 
-    # Create placeholder and set up worktree
-    success, created_issue_key = create_placeholder_and_setup_worktree(
+    # Create placeholder, then auto-setup with update workflow
+    print(f"\n{'=' * 80}")
+    print("CREATE WORKFLOW: create-jira-subtask")
+    print("=" * 80)
+    print("\n\U0001f4dd Step 1: Creating placeholder Sub-task...")
+
+    issue_result = create_placeholder_issue(
         project_key=project_key,
         issue_type="Sub-task",
         parent_key=resolved_parent_key,
-        workflow_name="create-jira-subtask",
-        user_request=resolved_user_request,
-        additional_params={"parent_key": resolved_parent_key},
     )
 
-    if success:
-        print(_format_auto_setup_success_message("create-jira-subtask", created_issue_key or "placeholder"))
+    if not issue_result.success or not issue_result.issue_key:
+        print(f"\n\u274c Failed to create placeholder issue: {issue_result.error_message}")
+        sys.exit(1)
+
+    created_issue_key = issue_result.issue_key
+    set_value("jira.issue_key", created_issue_key)
+
+    # Build user request for the update workflow
+    update_user_request = (
+        "This is a placeholder issue that needs to be populated with a proper "
+        "description, acceptance criteria, and additional information."
+    )
+    if resolved_user_request:
+        update_user_request += f" Here is what the issue should cover: {resolved_user_request}"
+
+    # Build auto-execute command for the new worktree
+    auto_execute_command = [
+        "agdt-initiate-update-jira-issue-workflow",
+        "--issue-key",
+        created_issue_key,
+        "--interactive",
+        "true" if interactive else "false",
+        "--model",
+        model,
+        "--skip-copilot-session",
+        "--user-request",
+        update_user_request,
+    ]
+
+    # Use the issue-type-based branch naming
+    branch_name = generate_workflow_branch_name(
+        issue_key=created_issue_key,
+        issue_type="Sub-task",
+        workflow_name="create-jira-subtask",
+        parent_key=resolved_parent_key,
+    )
+
+    if perform_auto_setup(
+        created_issue_key,
+        "update-jira-issue",
+        branch_name=branch_name,
+        user_request=update_user_request,
+        auto_execute_command=auto_execute_command,
+        interactive=interactive,
+        model=model,
+    ):
+        print(_format_auto_setup_success_message("update-jira-issue", created_issue_key))
     else:
         sys.exit(1)
 
