@@ -944,6 +944,30 @@ def setup_cmd() -> None:
                 except Exception as exc:  # noqa: BLE001
                     print(f"  ⚠ Commit template setup failed ({exc}) — skipping", file=sys.stderr)
 
+                # Step 4: PR templates (title + body)
+                try:
+                    if not args.skip_templates:  # pragma: no cover — tested via unit tests on ensure_pr_*
+                        from agentic_devtools.cli.pr_template import (  # noqa: PLC0415
+                            ensure_pr_body_template,
+                            ensure_pr_title_template,
+                        )
+
+                        created_title = ensure_pr_title_template(git_root)
+                        if created_title:
+                            print("  ✓ Created default PR title template: .agdt/config/pr-title-template.j2")
+                            repo_mutations_succeeded = True
+                        else:
+                            print("  ℹ PR title template already exists")
+
+                        mutated_body = ensure_pr_body_template(git_root)
+                        if mutated_body:
+                            print("  ✓ Ensured PR body template is present: .agdt/config/pull-request-template.j2")
+                            repo_mutations_succeeded = True
+                        else:
+                            print("  ℹ PR body template already exists (no changes needed)")
+                except Exception as exc:  # noqa: BLE001  # pragma: no cover
+                    print(f"  ⚠ PR template setup failed ({exc}) — skipping", file=sys.stderr)
+
             # ── Script Generation Phase ────────────────────────────────
             print()
             print("─── Setup Script Generation ─────────────────────────────────")

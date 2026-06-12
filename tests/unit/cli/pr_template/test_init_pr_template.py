@@ -11,14 +11,14 @@ class TestInitPrTemplate:
     @patch("agentic_devtools.cli.pr_template.get_template_path")
     def test_creates_template_when_missing(self, mock_path, tmp_path, capsys):
         """Happy path: creates template when file doesn't exist (FR-001)."""
-        template_file = tmp_path / ".agdt" / "config" / "pull-request-template.md"
+        template_file = tmp_path / ".agdt" / "config" / "pull-request-template.j2"
         mock_path.return_value = template_file
 
         pr_template.init_pr_template()
 
         assert template_file.exists()
         content = template_file.read_text(encoding="utf-8")
-        assert pr_template.PLACEHOLDER in content
+        assert "{{ fullCommitMessage }}" in content
         assert "Checkliste" in content
         captured = capsys.readouterr()
         assert "Created PR template" in captured.out

@@ -219,6 +219,26 @@ def update_review_narrative(pull_request_id: int, content: str) -> None:
     print("Review Narrative updated successfully.")
 
 
+def _escape_for_cmd(value: str) -> str:
+    """Escape cmd.exe metacharacters for safe use in Windows arguments.
+
+    Note: create_pull_request executes `az` via `shell=True` on Windows, and passes
+    args as a list. Avoid embedding literal quote characters into individual args;
+    instead use cmd-native escaping (caret) plus percent doubling.
+    """
+    if sys.platform != "win32":
+        return value
+
+    normalized = value.replace("\r\n", "\n").replace("\r", "\n")
+    single_line = " ".join(part for part in normalized.split("\n") if part)
+
+    escaped = single_line.replace("^", "^^").replace("%", "%%")
+    for ch in ("&", "|", "<", ">"):
+        escaped = escaped.replace(ch, f"^{ch}")
+    escaped = escaped.replace('"', '^"')
+    return escaped
+
+
 def add_pull_request_comment() -> None:
     """
     Add a new comment to a pull request.
@@ -363,11 +383,14 @@ def create_pull_request() -> None:
     - draft (optional): Whether to create as draft, defaults to True
     - dry_run (optional): Preview without making API calls
 
+    The PR title is resolved from ``.agdt/config/pr-title-template.j2``
+    if it exists and renders successfully; otherwise falls back to stripping
+    Markdown links from the ``title`` state key.
+
     The PR description is resolved via the shared PR body template
-    (``resolve_pr_body()``).  If ``.agdt/config/pull-request-template.md``
-    exists it is used as the template with ``{{fullCommitMessage}}``
-    substituted; otherwise the raw commit message is used as the body.
-    Run ``agdt-init-pr-template`` once to create the template file.
+    (``resolve_pr_body()``).  If ``.agdt/config/pull-request-template.j2``
+    exists it is used as the template; otherwise the
+    raw commit message is used as the body.
 
     Usage:
         agdt-set source_branch "feature/PROJECT-1234/my-feature"
@@ -388,8 +411,11 @@ def create_pull_request() -> None:
         print('Error: No title found. Use: agdt-set title "PR title"', file=sys.stderr)
         sys.exit(1)
 
-    # Strip Markdown links from title
-    title = convert_to_pull_request_title(title)
+    # Resolve PR title: try template first, fall back to link-stripping
+    from ..pr_template import resolve_pr_title
+
+    rendered_title = resolve_pr_title()
+    title = rendered_title if rendered_title else convert_to_pull_request_title(title)
 
     # Get optional values
     from ..pr_template import resolve_pr_body
@@ -432,6 +458,13 @@ def create_pull_request() -> None:
 
     print(f"Creating pull request for '{source_branch}' -> '{target_branch}'...")
 
+    safe_source_branch = _escape_for_cmd(source_branch)
+    safe_target_branch = _escape_for_cmd(target_branch)
+    safe_title = _escape_for_cmd(title)
+    safe_organization = _escape_for_cmd(config.organization)
+    safe_project = _escape_for_cmd(config.project)
+    safe_repository = _escape_for_cmd(config.repository)
+
     # Build az repos pr create command
     cmd = [
         "az",
@@ -439,17 +472,17 @@ def create_pull_request() -> None:
         "pr",
         "create",
         "--source-branch",
-        source_branch,
+        safe_source_branch,
         "--target-branch",
-        target_branch,
+        safe_target_branch,
         "--title",
-        title,
+        safe_title,
         "--organization",
-        config.organization,
+        safe_organization,
         "--project",
-        config.project,
+        safe_project,
         "--repository",
-        config.repository,
+        safe_repository,
         "--output",
         "json",
     ]
@@ -457,10 +490,48 @@ def create_pull_request() -> None:
     if draft:
         cmd.append("--draft")
 
+    desc_temp_file_path = None
     if description:
-        cmd.extend(["--description", description])
+        if sys.platform == "win32":
+            # Use @filepath on Windows to avoid cmd.exe truncating multiline
+            # values when az is executed via shell=True for .cmd scripts.
+            import tempfile
 
-    result = run_safe(cmd, capture_output=True, text=True, env=env)
+            try:
+                with tempfile.NamedTemporaryFile(
+                    mode="w",
+                    suffix=".md",
+                    prefix="agdt-pr-desc-",
+                    delete=False,
+                    encoding="utf-8",
+                ) as desc_temp_file:
+                    desc_temp_file_path = desc_temp_file.name
+                    desc_temp_file.write(description)
+
+                cmd.extend(["--description", _escape_for_cmd(f"@{desc_temp_file_path}")])
+            except Exception:
+                if desc_temp_file_path is not None:
+                    try:
+                        os.unlink(desc_temp_file_path)
+                    except OSError:
+                        pass
+                    else:
+                        desc_temp_file_path = None
+                raise
+        else:
+            cmd.extend(["--description", description])
+
+    try:
+        result = run_safe(cmd, capture_output=True, text=True, env=env)
+    finally:
+        if desc_temp_file_path is not None:
+            try:
+                os.unlink(desc_temp_file_path)
+            except OSError as exc:  # pragma: no cover
+                print(
+                    f"Warning: Could not delete temporary PR description file {desc_temp_file_path}: {exc}",
+                    file=sys.stderr,
+                )
 
     if result.returncode != 0:
         print(f"Error creating PR: {result.stderr}", file=sys.stderr)
