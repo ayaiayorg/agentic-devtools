@@ -247,8 +247,12 @@ class TestCreatePullRequestActualCall:
     """Tests for create_pull_request with mocked subprocess calls."""
 
     @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch("agentic_devtools.cli.pr_template.resolve_pr_body", return_value="")
+    @patch("agentic_devtools.cli.pr_template.resolve_pr_title", return_value=None)
     @patch("subprocess.run")
-    def test_successful_pr_creation(self, mock_run, temp_state_dir, clear_state_before, capsys):
+    def test_successful_pr_creation(
+        self, mock_run, _mock_title, _mock_body, temp_state_dir, clear_state_before, capsys
+    ):
         """Test successful PR creation."""
         # Mock az --version check
         mock_version = MagicMock()
@@ -275,8 +279,10 @@ class TestCreatePullRequestActualCall:
         assert "999" in captured.out
 
     @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch("agentic_devtools.cli.pr_template.resolve_pr_body", return_value="")
+    @patch("agentic_devtools.cli.pr_template.resolve_pr_title", return_value=None)
     @patch("subprocess.run")
-    def test_pr_creation_failure(self, mock_run, temp_state_dir, clear_state_before, capsys):
+    def test_pr_creation_failure(self, mock_run, _mock_title, _mock_body, temp_state_dir, clear_state_before, capsys):
         """Test PR creation fails when az command fails."""
         # Mock az --version check
         mock_version = MagicMock()
@@ -305,8 +311,10 @@ class TestCreatePullRequestActualCall:
         assert "Error creating PR" in captured.err
 
     @patch.dict("os.environ", {"AZURE_DEV_OPS_COPILOT_PAT": "test-pat"})
+    @patch("agentic_devtools.cli.pr_template.resolve_pr_body", return_value="PR description")
+    @patch("agentic_devtools.cli.pr_template.resolve_pr_title", return_value=None)
     @patch("subprocess.run")
-    def test_pr_creation_with_description(self, mock_run, temp_state_dir, clear_state_before):
+    def test_pr_creation_with_description(self, mock_run, _mock_title, _mock_body, temp_state_dir, clear_state_before):
         """Test PR creation with description."""
         mock_version = MagicMock()
         mock_version.returncode = 0

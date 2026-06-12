@@ -12,22 +12,22 @@ class TestResolvePrBody:
     @patch("agentic_devtools.cli.pr_template.resolve_full_commit_message")
     def test_template_with_placeholder_happy_path(self, mock_resolve, mock_path, tmp_path):
         """Happy path: template with placeholder gets commit message injected (FR-003)."""
-        template_file = tmp_path / "template.md"
-        template_file.write_text("# PR\n\n## Info\n\n{{fullCommitMessage}}\n", encoding="utf-8")
+        template_file = tmp_path / "template.j2"
+        template_file.write_text("# PR\n\n## Info\n\n{{ fullCommitMessage }}\n", encoding="utf-8")
         mock_path.return_value = template_file
         mock_resolve.return_value = "feat: my feature"
 
         result = pr_template.resolve_pr_body()
         assert "feat: my feature" in result
         assert "# PR" in result
-        assert "{{fullCommitMessage}}" not in result
+        assert "{{ fullCommitMessage }}" not in result
 
     @patch("agentic_devtools.cli.pr_template.get_template_path")
     @patch("agentic_devtools.cli.pr_template.resolve_full_commit_message")
     def test_template_preserves_markdown_content(self, mock_resolve, mock_path, tmp_path):
         """Template markdown content is preserved verbatim (FR-009)."""
-        content = "# Title\n\n- [ ] checkbox\n- [x] done\n\n{{fullCommitMessage}}\n"
-        template_file = tmp_path / "template.md"
+        content = "# Title\n\n- [ ] checkbox\n- [x] done\n\n{{ fullCommitMessage }}\n"
+        template_file = tmp_path / "template.j2"
         template_file.write_text(content, encoding="utf-8")
         mock_path.return_value = template_file
         mock_resolve.return_value = "msg"
@@ -39,7 +39,7 @@ class TestResolvePrBody:
     @patch("agentic_devtools.cli.pr_template.get_template_path")
     def test_template_without_placeholder_renders_as_is(self, mock_path, tmp_path):
         """Template without placeholder returned as-is (FR-007)."""
-        template_file = tmp_path / "template.md"
+        template_file = tmp_path / "template.j2"
         template_file.write_text("# Just a template\n\nNo placeholder here.\n", encoding="utf-8")
         mock_path.return_value = template_file
 
@@ -50,7 +50,7 @@ class TestResolvePrBody:
     @patch("agentic_devtools.cli.pr_template.resolve_full_commit_message")
     def test_empty_template_returns_commit_message(self, mock_resolve, mock_path, tmp_path):
         """Empty template returns commit message (FR-007)."""
-        template_file = tmp_path / "template.md"
+        template_file = tmp_path / "template.j2"
         template_file.write_text("", encoding="utf-8")
         mock_path.return_value = template_file
         mock_resolve.return_value = "fallback msg"
@@ -62,7 +62,7 @@ class TestResolvePrBody:
     @patch("agentic_devtools.cli.pr_template.resolve_full_commit_message")
     def test_whitespace_only_template_returns_commit_message(self, mock_resolve, mock_path, tmp_path):
         """Whitespace-only template returns commit message."""
-        template_file = tmp_path / "template.md"
+        template_file = tmp_path / "template.j2"
         template_file.write_text("   \n  \n", encoding="utf-8")
         mock_path.return_value = template_file
         mock_resolve.return_value = "fallback msg"
@@ -86,8 +86,8 @@ class TestResolvePrBody:
     @patch("agentic_devtools.cli.pr_template.resolve_full_commit_message")
     def test_markdown_special_chars_preserved_in_interpolation(self, mock_resolve, mock_path, tmp_path):
         """Commit messages with markdown special chars preserved (FR-009)."""
-        template_file = tmp_path / "template.md"
-        template_file.write_text("Body:\n{{fullCommitMessage}}\n", encoding="utf-8")
+        template_file = tmp_path / "template.j2"
+        template_file.write_text("Body:\n{{ fullCommitMessage }}\n", encoding="utf-8")
         mock_path.return_value = template_file
         mock_resolve.return_value = "feat: use `backticks` | pipes | [brackets]"
 
@@ -98,8 +98,8 @@ class TestResolvePrBody:
     @patch("agentic_devtools.cli.pr_template.resolve_full_commit_message")
     def test_placeholder_at_different_positions(self, mock_resolve, mock_path, tmp_path):
         """Placeholder works regardless of position in template (FR-003)."""
-        template_file = tmp_path / "template.md"
-        template_file.write_text("{{fullCommitMessage}}\n\n---\n\nFooter\n", encoding="utf-8")
+        template_file = tmp_path / "template.j2"
+        template_file.write_text("{{ fullCommitMessage }}\n\n---\n\nFooter\n", encoding="utf-8")
         mock_path.return_value = template_file
         mock_resolve.return_value = "Header commit"
 
